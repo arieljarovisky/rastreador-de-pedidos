@@ -1,28 +1,14 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { authenticate, signToken } from '../middleware/auth.js';
-import { findUserByUsername, createUser } from '../services/users.service.js';
+import { findUserByUsername, createUser, getUserById } from '../services/users.service.js';
 import { UserRole } from '../types/index.js';
 
 const router = Router();
 
-function userResponse(row: Awaited<ReturnType<typeof findUserByUsername>>) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    username: row.username,
-    name: row.name,
-    role: row.role,
-    ...(row.current_lat != null && row.current_lng != null && row.location_updated_at
-      ? {
-          currentLocation: {
-            lat: Number(row.current_lat),
-            lng: Number(row.current_lng),
-            timestamp: new Date(row.location_updated_at).toISOString(),
-          },
-        }
-      : {}),
-  };
+function userResponse(user: Awaited<ReturnType<typeof getUserById>>) {
+  if (!user) return null;
+  return user;
 }
 
 function handleRegisterError(res: Response, err: unknown): boolean {
@@ -65,7 +51,7 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
-  const user = userResponse(row);
+  const user = await getUserById(row.id);
   if (!user) {
     res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
     return;
@@ -89,8 +75,9 @@ router.post('/register/agency', async (req: Request, res: Response) => {
       name,
       role: UserRole.LOGISTICS_ADMIN,
     });
+    const fullUser = await getUserById(user.id);
     const token = signToken(user.id, user.role);
-    res.status(201).json({ user, token });
+    res.status(201).json({ user: fullUser ?? user, token });
   } catch (err) {
     if (handleRegisterError(res, err)) return;
     throw err;

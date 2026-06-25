@@ -4,21 +4,40 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Order, OrderStatus, User, UserRole } from '../types.js';
-import { Plus, Navigation, Clock, UserCheck, Eye, Sparkles, MapPin, Search, Phone, FileText, CheckCircle2, RefreshCw, Play, Pause, UserPlus } from 'lucide-react';
+import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint } from '../types.js';
+import { Plus, Navigation, Clock, Sparkles, MapPin, Search, Phone, FileText, CheckCircle2, RefreshCw, Play, Pause, UserPlus, Warehouse, Trash2 } from 'lucide-react';
 import MapComponent from './MapComponent.tsx';
 
 interface AdminDashboardProps {
   orders: Order[];
   repartidores: User[];
   sellers?: User[];
+  departurePoint?: LocationPoint | null;
+  pickupPoints?: PickupPoint[];
   activeOrderId: string | null;
   onSelectOrder: (orderId: string | null) => void;
   onCreateOrder: (orderData: Partial<Order> & { sellerId?: string }) => Promise<void>;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
+  onUpdateDeparture?: (data: LocationPoint) => Promise<void>;
+  onCreatePickupPoint?: (data: {
+    label?: string;
+    address: string;
+    lat: number;
+    lng: number;
+    sellerId?: string;
+  }) => Promise<void>;
+  onDeletePickupPoint?: (id: string) => Promise<void>;
   onTriggerSimulatorTick: () => Promise<void>;
-  onCreateSeller?: (data: { username: string; password: string; name: string }) => Promise<void>;
+  onCreateSeller?: (data: {
+    username: string;
+    password: string;
+    name: string;
+    pickupLabel?: string;
+    pickupAddress?: string;
+    pickupLat?: number;
+    pickupLng?: number;
+  }) => Promise<void>;
   userRole?: UserRole;
 }
 
@@ -35,11 +54,16 @@ export default function AdminDashboard({
   orders,
   repartidores,
   sellers = [],
+  departurePoint = null,
+  pickupPoints = [],
   activeOrderId,
   onSelectOrder,
   onCreateOrder,
   onUpdateOrderStatus,
   onAssignOrderSeller,
+  onUpdateDeparture,
+  onCreatePickupPoint,
+  onDeletePickupPoint,
   onTriggerSimulatorTick,
   onCreateSeller,
   userRole = UserRole.STORE_ADMIN,
@@ -80,6 +104,33 @@ export default function AdminDashboard({
   const [sellerFormLoading, setSellerFormLoading] = useState(false);
   const [sellerFormMessage, setSellerFormMessage] = useState<string | null>(null);
 
+  const [showDepartureForm, setShowDepartureForm] = useState(false);
+  const [departureAddress, setDepartureAddress] = useState(departurePoint?.address ?? '');
+  const [departureLat, setDepartureLat] = useState(departurePoint?.lat ?? -34.5885);
+  const [departureLng, setDepartureLng] = useState(departurePoint?.lng ?? -58.4306);
+  const [departureLoading, setDepartureLoading] = useState(false);
+  const [departureMessage, setDepartureMessage] = useState<string | null>(null);
+
+  const [showPickupForm, setShowPickupForm] = useState(false);
+  const [pickupLabel, setPickupLabel] = useState('');
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupLat, setPickupLat] = useState(-34.58);
+  const [pickupLng, setPickupLng] = useState(-58.4);
+  const [pickupLoading, setPickupLoading] = useState(false);
+
+  const [sellerPickupLabel, setSellerPickupLabel] = useState('');
+  const [sellerPickupAddress, setSellerPickupAddress] = useState('');
+  const [sellerPickupLat, setSellerPickupLat] = useState(-34.58);
+  const [sellerPickupLng, setSellerPickupLng] = useState(-58.4);
+
+  useEffect(() => {
+    if (departurePoint) {
+      setDepartureAddress(departurePoint.address);
+      setDepartureLat(departurePoint.lat);
+      setDepartureLng(departurePoint.lng);
+    }
+  }, [departurePoint]);
+
   // Efecto para el tick automático del simulador
   useEffect(() => {
     if (isSimulating) {
@@ -103,6 +154,18 @@ export default function AdminDashboard({
     setAddress(preset.name);
     setLat(preset.lat);
     setLng(preset.lng);
+  };
+
+  const applyDeparturePreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
+    setDepartureAddress(preset.name);
+    setDepartureLat(preset.lat);
+    setDepartureLng(preset.lng);
+  };
+
+  const applyPickupPreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
+    setPickupAddress(preset.name);
+    setPickupLat(preset.lat);
+    setPickupLng(preset.lng);
   };
 
   // Manejar envío del formulario
@@ -246,6 +309,85 @@ export default function AdminDashboard({
               </div>
             </div>
           ) : (
+            <>
+              {onUpdateDeparture && (
+                <div className="bg-indigo-950/20 border border-indigo-900/30 rounded p-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
+                        <Warehouse className="w-3.5 h-3.5" /> Punto de salida de la agencia
+                      </p>
+                      <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
+                        {departurePoint
+                          ? `📍 ${departurePoint.address}`
+                          : 'Definí desde dónde salen los repartidores'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDepartureForm(!showDepartureForm)}
+                      className="px-2 py-1 rounded bg-indigo-600/20 border border-indigo-500/30 text-indigo-200 text-[10px] font-bold uppercase"
+                    >
+                      {showDepartureForm ? 'Cerrar' : 'Editar'}
+                    </button>
+                  </div>
+
+                  {showDepartureForm && (
+                    <form
+                      className="mt-2 space-y-2"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        setDepartureLoading(true);
+                        setDepartureMessage(null);
+                        try {
+                          await onUpdateDeparture({
+                            address: departureAddress,
+                            lat: departureLat,
+                            lng: departureLng,
+                          });
+                          setDepartureMessage('Punto de salida actualizado.');
+                          setShowDepartureForm(false);
+                        } catch (err: any) {
+                          setDepartureMessage(err.message || 'Error al guardar.');
+                        } finally {
+                          setDepartureLoading(false);
+                        }
+                      }}
+                    >
+                      <input
+                        required
+                        value={departureAddress}
+                        onChange={(e) => setDepartureAddress(e.target.value)}
+                        placeholder="Dirección del depósito / hub"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
+                          <button
+                            key={preset.name}
+                            type="button"
+                            onClick={() => applyDeparturePreset(preset)}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                          >
+                            {preset.name.split('(')[0].trim()}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={departureLoading}
+                        className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
+                      >
+                        {departureLoading ? 'Guardando...' : 'Guardar punto de salida'}
+                      </button>
+                      {departureMessage && (
+                        <p className="text-[10px] text-emerald-400 font-mono">{departureMessage}</p>
+                      )}
+                    </form>
+                  )}
+                </div>
+              )}
+
             <div className="bg-zinc-950 border border-zinc-800 rounded p-2 flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-bold text-zinc-200 flex items-center gap-1">
@@ -283,6 +425,115 @@ export default function AdminDashboard({
                 </button>
               </div>
             </div>
+            </>
+          )}
+
+          {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
+            <div className="bg-emerald-950/20 border border-emerald-900/30 rounded p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold text-emerald-300 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5" /> Puntos de colecta
+                  </p>
+                  <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
+                    Direcciones donde la logística retira tus envíos
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPickupForm(!showPickupForm)}
+                  className="px-2 py-1 rounded bg-emerald-600/20 border border-emerald-500/30 text-emerald-200 text-[10px] font-bold uppercase"
+                >
+                  {showPickupForm ? 'Cerrar' : '+ Agregar'}
+                </button>
+              </div>
+
+              {pickupPoints.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {pickupPoints.map((point) => (
+                    <li
+                      key={point.id}
+                      className="flex items-start justify-between gap-2 bg-zinc-950/60 border border-zinc-800 rounded px-2 py-1.5 text-[10px]"
+                    >
+                      <div>
+                        <span className="font-bold text-emerald-300">{point.label}</span>
+                        <p className="text-zinc-400 mt-0.5 truncate">📍 {point.address}</p>
+                      </div>
+                      {onDeletePickupPoint && (
+                        <button
+                          type="button"
+                          onClick={() => onDeletePickupPoint(point.id)}
+                          className="text-red-400 hover:text-red-300 shrink-0"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {showPickupForm && (
+                <form
+                  className="mt-2 space-y-2"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setPickupLoading(true);
+                    try {
+                      await onCreatePickupPoint({
+                        label: pickupLabel || 'Punto de colecta',
+                        address: pickupAddress,
+                        lat: pickupLat,
+                        lng: pickupLng,
+                      });
+                      setPickupLabel('');
+                      setPickupAddress('');
+                      setPickupLat(-34.58);
+                      setPickupLng(-58.4);
+                      setShowPickupForm(false);
+                    } catch (err: any) {
+                      alert(err.message || 'No se pudo crear el punto de colecta');
+                    } finally {
+                      setPickupLoading(false);
+                    }
+                  }}
+                >
+                  <input
+                    value={pickupLabel}
+                    onChange={(e) => setPickupLabel(e.target.value)}
+                    placeholder="Nombre (ej: Depósito, Local)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <input
+                    required
+                    value={pickupAddress}
+                    onChange={(e) => setPickupAddress(e.target.value)}
+                    placeholder="Dirección de colecta"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <div className="flex flex-wrap gap-1">
+                    {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => applyPickupPreset(preset)}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      >
+                        {preset.name.split('(')[0].trim()}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={pickupLoading}
+                    className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
+                  >
+                    {pickupLoading ? 'Guardando...' : 'Guardar punto de colecta'}
+                  </button>
+                </form>
+              )}
+            </div>
           )}
 
           {userRole === UserRole.LOGISTICS_ADMIN && onCreateSeller && (
@@ -317,11 +568,21 @@ export default function AdminDashboard({
                         name: sellerName,
                         username: sellerUsername,
                         password: sellerPassword,
+                        ...(sellerPickupAddress
+                          ? {
+                              pickupLabel: sellerPickupLabel || 'Punto de colecta',
+                              pickupAddress: sellerPickupAddress,
+                              pickupLat: sellerPickupLat,
+                              pickupLng: sellerPickupLng,
+                            }
+                          : {}),
                       });
                       setSellerFormMessage('Vendedor creado correctamente.');
                       setSellerName('');
                       setSellerUsername('');
                       setSellerPassword('');
+                      setSellerPickupLabel('');
+                      setSellerPickupAddress('');
                     } catch (err: any) {
                       setSellerFormMessage(err.message || 'Error al crear vendedor.');
                     } finally {
@@ -349,6 +610,19 @@ export default function AdminDashboard({
                     value={sellerPassword}
                     onChange={(e) => setSellerPassword(e.target.value)}
                     placeholder="Contraseña (mín. 6 caracteres)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <p className="text-[9px] text-zinc-500 font-mono uppercase">Punto de colecta (opcional)</p>
+                  <input
+                    value={sellerPickupLabel}
+                    onChange={(e) => setSellerPickupLabel(e.target.value)}
+                    placeholder="Nombre del local / depósito"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <input
+                    value={sellerPickupAddress}
+                    onChange={(e) => setSellerPickupAddress(e.target.value)}
+                    placeholder="Dirección de colecta"
                     className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
                   />
                   <button
@@ -653,6 +927,8 @@ export default function AdminDashboard({
           <MapComponent
             orders={orders}
             repartidores={repartidores}
+            departurePoint={departurePoint}
+            pickupPoints={pickupPoints}
             activeOrderId={activeOrderId}
             onSelectOrder={onSelectOrder}
           />

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Order, OrderStatus, AppNotification } from './types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint } from './types.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
@@ -23,6 +23,8 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [repartidores, setRepartidores] = useState<User[]>([]);
   const [sellers, setSellers] = useState<User[]>([]);
+  const [departurePoint, setDeparturePoint] = useState<LocationPoint | null>(null);
+  const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'notifications'>('dashboard');
@@ -79,6 +81,18 @@ export default function App() {
         if (repsRes.ok) {
           const data = await repsRes.json();
           setRepartidores(data);
+        }
+
+        const depRes = await fetch(apiUrl('/api/accounts/agency/departure'), { headers });
+        if (depRes.ok) {
+          const data = await depRes.json();
+          setDeparturePoint(data);
+        }
+
+        const ppRes = await fetch(apiUrl('/api/accounts/pickup-points'), { headers });
+        if (ppRes.ok) {
+          const data = await ppRes.json();
+          setPickupPoints(data);
         }
       }
 
@@ -215,6 +229,12 @@ export default function App() {
       localStorage.setItem('lupo_user', JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
+      if (data.user.departurePoint) {
+        setDeparturePoint(data.user.departurePoint);
+      }
+      if (data.user.pickupPoints) {
+        setPickupPoints(data.user.pickupPoints);
+      }
     } catch (err: any) {
       setAuthError(err.message || 'Error en la conexión con el servidor.');
     } finally {
@@ -252,7 +272,15 @@ export default function App() {
     }
   };
 
-  const handleCreateSeller = async (data: { username: string; password: string; name: string }) => {
+  const handleCreateSeller = async (data: {
+    username: string;
+    password: string;
+    name: string;
+    pickupLabel?: string;
+    pickupAddress?: string;
+    pickupLat?: number;
+    pickupLng?: number;
+  }) => {
     if (!token) return;
     const res = await fetch(apiUrl('/api/accounts/sellers'), {
       method: 'POST',
@@ -268,6 +296,11 @@ export default function App() {
     }
     const created = await res.json();
     setSellers((prev) => [...prev, created]);
+    if (created.pickupPoints?.length) {
+      setPickupPoints((prev) => [...prev, ...created.pickupPoints]);
+    } else {
+      fetchData();
+    }
   };
 
   const handleAssignOrderSeller = async (orderId: string, sellerId: string) => {
@@ -285,6 +318,91 @@ export default function App() {
       throw new Error(err.error || 'No se pudo asignar el vendedor');
     }
     fetchData();
+  };
+
+  const handleUpdateDeparture = async (data: LocationPoint) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/agency/departure'), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo guardar el punto de salida');
+    }
+    const point = await res.json();
+    setDeparturePoint(point);
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, departurePoint: point };
+      localStorage.setItem('lupo_user', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleCreatePickupPoint = async (data: {
+    label?: string;
+    address: string;
+    lat: number;
+    lng: number;
+    sellerId?: string;
+  }) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/pickup-points'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo crear el punto de colecta');
+    }
+    const point = await res.json();
+    setPickupPoints((prev) => [...prev, point]);
+    if (user?.role === UserRole.STORE_ADMIN) {
+      setUser((prev) => {
+        if (!prev) return prev;
+        const next = {
+          ...prev,
+          pickupPoints: [...(prev.pickupPoints ?? []), point],
+        };
+        localStorage.setItem('lupo_user', JSON.stringify(next));
+        return next;
+      });
+    } else {
+      fetchData();
+    }
+  };
+
+  const handleDeletePickupPoint = async (id: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/pickup-points/${id}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 204) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo eliminar el punto de colecta');
+    }
+    setPickupPoints((prev) => prev.filter((p) => p.id !== id));
+    if (user?.role === UserRole.STORE_ADMIN) {
+      setUser((prev) => {
+        if (!prev) return prev;
+        const next = {
+          ...prev,
+          pickupPoints: (prev.pickupPoints ?? []).filter((p) => p.id !== id),
+        };
+        localStorage.setItem('lupo_user', JSON.stringify(next));
+        return next;
+      });
+    }
   };
 
   const handleLogout = () => {
@@ -543,11 +661,16 @@ export default function App() {
                 orders={orders}
                 repartidores={repartidores}
                 sellers={sellers}
+                departurePoint={departurePoint}
+                pickupPoints={pickupPoints}
                 activeOrderId={activeOrderId}
                 onSelectOrder={setActiveOrderId}
                 onCreateOrder={handleCreateOrder}
                 onUpdateOrderStatus={handleUpdateOrderStatus}
                 onAssignOrderSeller={handleAssignOrderSeller}
+                onUpdateDeparture={user.role === UserRole.LOGISTICS_ADMIN ? handleUpdateDeparture : undefined}
+                onCreatePickupPoint={handleCreatePickupPoint}
+                onDeletePickupPoint={handleDeletePickupPoint}
                 onTriggerSimulatorTick={handleTriggerSimulatorTick}
                 onCreateSeller={user.role === UserRole.LOGISTICS_ADMIN ? handleCreateSeller : undefined}
                 userRole={user.role}

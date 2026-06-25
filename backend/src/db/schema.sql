@@ -7,7 +7,22 @@ CREATE TABLE IF NOT EXISTS users (
   current_lat DECIMAL(10, 7) NULL,
   current_lng DECIMAL(10, 7) NULL,
   location_updated_at DATETIME(3) NULL,
+  departure_address VARCHAR(500) NULL,
+  departure_lat DECIMAL(10, 7) NULL,
+  departure_lng DECIMAL(10, 7) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pickup_points (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  label VARCHAR(255) NOT NULL DEFAULT '',
+  address VARCHAR(500) NOT NULL,
+  lat DECIMAL(10, 7) NOT NULL,
+  lng DECIMAL(10, 7) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_pickup_user (user_id),
+  CONSTRAINT fk_pickup_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS orders (

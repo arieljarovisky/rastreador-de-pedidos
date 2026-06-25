@@ -1,7 +1,22 @@
-import { RowDataPacket } from 'mysql2';
+import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/database.js';
-import { DbUserRow, User, UserRole } from '../types/index.js';
+import { DbUserRow, LocationPoint, PickupPoint, User, UserRole } from '../types/index.js';
+import { listPickupPointsForUser } from './pickup-points.service.js';
+
+const USER_COLUMNS = `id, username, name, role, password_hash, current_lat, current_lng, location_updated_at,
+  departure_address, departure_lat, departure_lng`;
+
+function departureFromRow(row: DbUserRow): LocationPoint | undefined {
+  if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
+    return {
+      address: row.departure_address,
+      lat: Number(row.departure_lat),
+      lng: Number(row.departure_lng),
+    };
+  }
+  return undefined;
+}
 
 function rowToUser(row: DbUserRow): User {
   const user: User = {
@@ -17,12 +32,23 @@ function rowToUser(row: DbUserRow): User {
       timestamp: new Date(row.location_updated_at).toISOString(),
     };
   }
+  const departure = departureFromRow(row);
+  if (departure) {
+    user.departurePoint = departure;
+  }
+  return user;
+}
+
+async function enrichUser(user: User): Promise<User> {
+  if (user.role === UserRole.STORE_ADMIN) {
+    user.pickupPoints = await listPickupPointsForUser(user.id);
+  }
   return user;
 }
 
 export async function findUserByUsername(username: string): Promise<(DbUserRow & RowDataPacket) | null> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-    'SELECT id, username, name, role, password_hash, current_lat, current_lng, location_updated_at FROM users WHERE LOWER(username) = LOWER(?)',
+    `SELECT ${USER_COLUMNS} FROM users WHERE LOWER(username) = LOWER(?)`,
     [username]
   );
   return rows[0] ?? null;
@@ -30,17 +56,17 @@ export async function findUserByUsername(username: string): Promise<(DbUserRow &
 
 export async function getUserById(id: string): Promise<User | null> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-    'SELECT id, username, name, role, password_hash, current_lat, current_lng, location_updated_at FROM users WHERE id = ?',
+    `SELECT ${USER_COLUMNS} FROM users WHERE id = ?`,
     [id]
   );
   const row = rows[0];
-  return row ? rowToUser(row) : null;
+  if (!row) return null;
+  return enrichUser(rowToUser(row));
 }
 
 export async function getRepartidores(): Promise<User[]> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-    `SELECT id, username, name, role, password_hash, current_lat, current_lng, location_updated_at
-     FROM users WHERE role = ?`,
+    `SELECT ${USER_COLUMNS} FROM users WHERE role = ?`,
     [UserRole.REPARTIDOR]
   );
   return rows.map(rowToUser);
@@ -56,8 +82,7 @@ export async function updateUserLocation(userId: string, lat: number, lng: numbe
 
 export async function getRepartidorById(id: string): Promise<User | null> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-    `SELECT id, username, name, role, password_hash, current_lat, current_lng, location_updated_at
-     FROM users WHERE id = ? AND role = ?`,
+    `SELECT ${USER_COLUMNS} FROM users WHERE id = ? AND role = ?`,
     [id, UserRole.REPARTIDOR]
   );
   const row = rows[0];
@@ -70,6 +95,36 @@ export async function getDefaultSellerId(): Promise<string> {
     [UserRole.STORE_ADMIN]
   );
   return rows[0]?.id ?? 'u1';
+}
+
+export async function updateAgencyDeparture(
+  userId: string,
+  data: { address: string; lat: number; lng: number }
+): Promise<User> {
+  await pool.query(
+    `UPDATE users SET departure_address = ?, departure_lat = ?, departure_lng = ? WHERE id = ? AND role = ?`,
+    [data.address, data.lat, data.lng, userId, UserRole.LOGISTICS_ADMIN]
+  );
+  const user = await getUserById(userId);
+  if (!user) throw new Error('NOT_FOUND');
+  return user;
+}
+
+export async function getAgencyDeparture(): Promise<LocationPoint | null> {
+  const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
+    `SELECT departure_address, departure_lat, departure_lng
+     FROM users WHERE role = ? AND departure_lat IS NOT NULL LIMIT 1`,
+    [UserRole.LOGISTICS_ADMIN]
+  );
+  const row = rows[0];
+  if (!row?.departure_address || row.departure_lat == null || row.departure_lng == null) {
+    return null;
+  }
+  return {
+    address: row.departure_address,
+    lat: Number(row.departure_lat),
+    lng: Number(row.departure_lng),
+  };
 }
 
 export async function createUser(data: {
@@ -109,9 +164,13 @@ export async function createUser(data: {
 
 export async function listSellers(): Promise<User[]> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-    `SELECT id, username, name, role, password_hash, current_lat, current_lng, location_updated_at
-     FROM users WHERE role = ? ORDER BY name`,
+    `SELECT ${USER_COLUMNS} FROM users WHERE role = ? ORDER BY name`,
     [UserRole.STORE_ADMIN]
   );
-  return rows.map(rowToUser);
+  const sellers = rows.map(rowToUser);
+  return Promise.all(sellers.map((seller) => enrichUser(seller)));
+}
+
+export function userToApiResponse(user: User): User {
+  return user;
 }

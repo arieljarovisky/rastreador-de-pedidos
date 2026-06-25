@@ -10,7 +10,7 @@ import {
   User,
   UserRole,
 } from '../types/index.js';
-import { getRepartidorById, getUserById, updateUserLocation } from './users.service.js';
+import { getRepartidorById, getUserById, updateUserLocation, getAgencyDeparture } from './users.service.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -320,8 +320,9 @@ export async function updateOrderStatus(
 
   if (status === OrderStatus.DELIVERING) {
     await pool.query('DELETE FROM order_location_history WHERE order_id = ?', [orderId]);
-    let lat = -34.5885;
-    let lng = -58.4306;
+    const hub = await getAgencyDeparture();
+    let lat = hub?.lat ?? -34.5885;
+    let lng = hub?.lng ?? -58.4306;
     if (assignedRepartidorId) {
       const rep = await getUserById(assignedRepartidorId);
       if (rep?.currentLocation) {
@@ -403,12 +404,13 @@ export async function simulatorTick(): Promise<number> {
   let updatedCount = 0;
   const now = new Date();
   const nowStr = now.toISOString();
+  const hub = await getAgencyDeparture();
 
   for (const order of orders) {
     const lastPoint =
       order.locationHistory.length > 0
         ? order.locationHistory[order.locationHistory.length - 1]
-        : { lat: -34.5885, lng: -58.4306, timestamp: nowStr };
+        : { lat: hub?.lat ?? -34.5885, lng: hub?.lng ?? -58.4306, timestamp: nowStr };
 
     const deltaLat = order.lat - lastPoint.lat;
     const deltaLng = order.lng - lastPoint.lng;

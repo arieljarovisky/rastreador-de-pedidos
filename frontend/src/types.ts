@@ -23,12 +23,31 @@ export interface UserLocation {
   timestamp: string;
 }
 
+export interface LocationPoint {
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+export interface PickupPoint {
+  id: string;
+  userId: string;
+  sellerName?: string;
+  label: string;
+  address: string;
+  lat: number;
+  lng: number;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   username: string;
   name: string;
   role: UserRole;
   currentLocation?: UserLocation;
+  departurePoint?: LocationPoint;
+  pickupPoints?: PickupPoint[];
 }
 
 export interface OrderHistoryEvent {

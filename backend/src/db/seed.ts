@@ -20,11 +20,61 @@ export async function seedDatabase(): Promise<void> {
   for (const u of users) {
     const passwordHash = await hash(u.password);
     const locTime = u.lat != null ? new Date(now) : null;
+    const departure =
+      u.id === 'u5'
+        ? {
+            address: 'Av. Santa Fe 3200, Palermo, CABA',
+            lat: -34.5885,
+            lng: -58.4306,
+          }
+        : null;
     await pool.query(
-      `INSERT INTO users (id, username, password_hash, name, role, current_lat, current_lng, location_updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name), role = VALUES(role)`,
-      [u.id, u.username, passwordHash, u.name, u.role, u.lat, u.lng, locTime]
+      `INSERT INTO users (id, username, password_hash, name, role, current_lat, current_lng, location_updated_at,
+        departure_address, departure_lat, departure_lng)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name), role = VALUES(role),
+         departure_address = VALUES(departure_address), departure_lat = VALUES(departure_lat), departure_lng = VALUES(departure_lng)`,
+      [
+        u.id,
+        u.username,
+        passwordHash,
+        u.name,
+        u.role,
+        u.lat,
+        u.lng,
+        locTime,
+        departure?.address ?? null,
+        departure?.lat ?? null,
+        departure?.lng ?? null,
+      ]
+    );
+  }
+
+  const pickupPoints = [
+    {
+      id: 'pp1',
+      userId: 'u1',
+      label: 'Depósito principal',
+      address: 'Av. Rivadavia 4500, Caballito, CABA',
+      lat: -34.6186,
+      lng: -58.4352,
+    },
+    {
+      id: 'pp2',
+      userId: 'u1',
+      label: 'Sucursal norte',
+      address: 'Av. Cabildo 1500, Belgrano, CABA',
+      lat: -34.555,
+      lng: -58.455,
+    },
+  ];
+
+  for (const p of pickupPoints) {
+    await pool.query(
+      `INSERT INTO pickup_points (id, user_id, label, address, lat, lng, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE label = VALUES(label), address = VALUES(address), lat = VALUES(lat), lng = VALUES(lng)`,
+      [p.id, p.userId, p.label, p.address, p.lat, p.lng, new Date(now)]
     );
   }
 
@@ -167,5 +217,5 @@ export async function seedDatabase(): Promise<void> {
     );
   }
 
-  console.log('Seed completado: usuarios, pedidos y notificaciones demo.');
+  console.log('Seed completado: usuarios, puntos de colecta, pedidos y notificaciones demo.');
 }

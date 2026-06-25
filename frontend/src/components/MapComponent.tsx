@@ -4,12 +4,14 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { Order, OrderStatus, User } from '../types.js';
+import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import * as L from 'leaflet';
 
 interface MapComponentProps {
   orders: Order[];
   repartidores?: User[];
+  departurePoint?: LocationPoint | null;
+  pickupPoints?: PickupPoint[];
   activeOrderId: string | null;
   onSelectOrder?: (orderId: string) => void;
   interactive?: boolean;
@@ -60,11 +62,13 @@ const createRepartidorIcon = (name: string) => {
   });
 };
 
-const HUB_COORDINATES: [number, number] = [-34.5885, -58.4306]; // Palermo Hub
+const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
 
 export default function MapComponent({
   orders,
   repartidores = [],
+  departurePoint = null,
+  pickupPoints = [],
   activeOrderId,
   onSelectOrder,
   interactive = true,
@@ -81,7 +85,9 @@ export default function MapComponent({
 
     // Crear el mapa si no existe
     if (!mapInstanceRef.current) {
-      const initialCenter = HUB_COORDINATES;
+      const initialCenter: [number, number] = departurePoint
+        ? [departurePoint.lat, departurePoint.lng]
+        : DEFAULT_HUB;
       const initialZoom = 12;
 
       // Límites estrictos para Gran Buenos Aires (GBA) y Capital Federal
@@ -112,35 +118,6 @@ export default function MapComponent({
 
       mapInstanceRef.current = map;
 
-      // Crear marcador del HUB central de Lupo
-      const hubIcon = L.divIcon({
-        html: `
-          <div class="relative w-10 h-10 flex items-center justify-center filter drop-shadow-md">
-            <div class="absolute w-8 h-8 rounded-full bg-indigo-500 opacity-20 animate-pulse"></div>
-            <div class="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center text-white text-sm shadow">
-              🏬
-            </div>
-            <div class="absolute -bottom-6 bg-indigo-900 border border-indigo-700 text-white font-mono font-bold text-[9px] px-1 rounded shadow-md whitespace-nowrap">
-              HUB LUPO
-            </div>
-          </div>
-        `,
-        className: 'hub-leaflet-icon',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
-      });
-
-      const hubMarker = L.marker(HUB_COORDINATES, { icon: hubIcon })
-        .addTo(map)
-        .bindPopup(`
-          <div class="text-zinc-100 font-sans p-1 text-[11px]">
-            <h4 class="font-bold text-xs text-blue-400">Lupo Hub Palermo</h4>
-            <p class="text-[10px] text-zinc-400 mt-0.5">Punto de salida central de los repartidores</p>
-          </div>
-        `);
-      hubMarkerRef.current = hubMarker;
-
-      // Forzar invalidateSize después de un instante para asegurar la carga completa de tiles
       setTimeout(() => {
         map.invalidateSize();
       }, 100);
@@ -154,6 +131,44 @@ export default function MapComponent({
       }
     };
   }, [interactive]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (hubMarkerRef.current) {
+      hubMarkerRef.current.remove();
+      hubMarkerRef.current = null;
+    }
+
+    if (!departurePoint) return;
+
+    const hubIcon = L.divIcon({
+      html: `
+        <div class="relative w-10 h-10 flex items-center justify-center filter drop-shadow-md">
+          <div class="absolute w-8 h-8 rounded-full bg-indigo-500 opacity-20 animate-pulse"></div>
+          <div class="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center text-white text-sm shadow">
+            🏬
+          </div>
+          <div class="absolute -bottom-6 bg-indigo-900 border border-indigo-700 text-white font-mono font-bold text-[9px] px-1 rounded shadow-md whitespace-nowrap">
+            SALIDA
+          </div>
+        </div>
+      `,
+      className: 'hub-leaflet-icon',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+    });
+
+    hubMarkerRef.current = L.marker([departurePoint.lat, departurePoint.lng], { icon: hubIcon })
+      .addTo(map)
+      .bindPopup(`
+        <div class="text-zinc-100 font-sans p-1 text-[11px]">
+          <h4 class="font-bold text-xs text-indigo-400">Punto de salida</h4>
+          <p class="text-[10px] text-zinc-400 mt-0.5">📍 ${departurePoint.address}</p>
+        </div>
+      `);
+  }, [departurePoint]);
 
   // Observer de redimensionamiento para evitar problemas de tiles negros en layouts responsivos (flex/tabs)
   useEffect(() => {
@@ -189,7 +204,7 @@ export default function MapComponent({
     // Limpiar marcadores obsoletos
     const activeOrderIds = new Set(orders.map((o) => o.id));
     Object.keys(markersRef.current).forEach((id) => {
-      if (!activeOrderIds.has(id)) {
+      if (!id.startsWith('rep_') && !id.startsWith('pickup_') && !activeOrderIds.has(id)) {
         markersRef.current[id].remove();
         delete markersRef.current[id];
       }
@@ -276,8 +291,11 @@ export default function MapComponent({
 
       // Dibujar polilínea de trayectoria si tiene historial de localización y está activo
       if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 0) {
+        const hubCoords: [number, number] = departurePoint
+          ? [departurePoint.lat, departurePoint.lng]
+          : DEFAULT_HUB;
         const pathCoords: [number, number][] = [
-          HUB_COORDINATES, // Empezar en el Hub
+          hubCoords,
           ...order.locationHistory.map((pt) => [pt.lat, pt.lng] as [number, number]),
         ];
 
@@ -296,7 +314,36 @@ export default function MapComponent({
       }
     });
 
-    // --- 2. PROCESAR REPARTIDORES ---
+    // --- 2b. PUNTOS DE COLECTA ---
+    const activePickupIds = new Set(pickupPoints.map((p) => `pickup_${p.id}`));
+    Object.keys(markersRef.current).forEach((id) => {
+      if (id.startsWith('pickup_') && !activePickupIds.has(id)) {
+        markersRef.current[id].remove();
+        delete markersRef.current[id];
+      }
+    });
+
+    pickupPoints.forEach((point) => {
+      const markerId = `pickup_${point.id}`;
+      const icon = createSvgIcon('#10b981', 'C', false);
+
+      if (markersRef.current[markerId]) {
+        markersRef.current[markerId].setLatLng([point.lat, point.lng]);
+      } else {
+        const marker = L.marker([point.lat, point.lng], { icon })
+          .addTo(map)
+          .bindPopup(`
+            <div class="text-zinc-100 font-sans p-1 text-[11px]">
+              <h4 class="font-bold text-emerald-400">🛒 ${point.label}</h4>
+              ${point.sellerName ? `<p class="text-[10px] text-purple-300">${point.sellerName}</p>` : ''}
+              <p class="text-zinc-400 text-[10px] mt-0.5">📍 ${point.address}</p>
+            </div>
+          `);
+        markersRef.current[markerId] = marker;
+      }
+    });
+
+    // --- 3. PROCESAR REPARTIDORES ---
     // Limpiar repartidores existentes en marcadores temporales
     const activeRepartidorIds = new Set(repartidores.filter(r => r.currentLocation).map(r => `rep_${r.id}`));
     Object.keys(markersRef.current).forEach((id) => {
@@ -329,7 +376,7 @@ export default function MapComponent({
       }
     });
 
-    // --- 3. CENTRAR MAPA EN ACTIVO ---
+    // --- 4. CENTRAR MAPA EN ACTIVO ---
     if (activeOrderId && markersRef.current[activeOrderId]) {
       const activeOrder = orders.find((o) => o.id === activeOrderId);
       if (activeOrder) {
@@ -354,7 +401,7 @@ export default function MapComponent({
         map.fitBounds(bounds, { padding: [40, 40] });
       }
     }
-  }, [orders, repartidores, activeOrderId, onSelectOrder]);
+  }, [orders, repartidores, pickupPoints, departurePoint, activeOrderId, onSelectOrder]);
 
   return (
     <div className="relative w-full h-full rounded overflow-hidden border border-zinc-800 shadow-2xl">

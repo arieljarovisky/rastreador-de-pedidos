@@ -18,12 +18,31 @@ export interface UserLocation {
   timestamp: string;
 }
 
+export interface LocationPoint {
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+export interface PickupPoint {
+  id: string;
+  userId: string;
+  sellerName?: string;
+  label: string;
+  address: string;
+  lat: number;
+  lng: number;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   username: string;
   name: string;
   role: UserRole;
   currentLocation?: UserLocation;
+  departurePoint?: LocationPoint;
+  pickupPoints?: PickupPoint[];
 }
 
 export interface OrderHistoryEvent {
@@ -83,6 +102,9 @@ export interface DbUserRow {
   current_lat: number | null;
   current_lng: number | null;
   location_updated_at: Date | null;
+  departure_address: string | null;
+  departure_lat: number | null;
+  departure_lng: number | null;
 }
 
 export interface DbOrderRow {
