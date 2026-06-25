@@ -10,6 +10,7 @@ import AdminDashboard from './components/AdminDashboard.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
 import { LogOut, Wifi, WifiOff, Bell, User as UserIcon } from 'lucide-react';
+import { apiUrl } from './api.ts';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -98,14 +99,14 @@ export default function App() {
       const headers = { Authorization: `Bearer ${token}` };
 
       // 1. Obtener Pedidos
-      const ordersRes = await fetch('/api/orders', { headers });
+      const ordersRes = await fetch(apiUrl('/api/orders'), { headers });
       if (ordersRes.ok) {
         const data = await ordersRes.json();
         setOrders(data);
       }
 
       // 2. Obtener Notificaciones
-      const notifsRes = await fetch('/api/notifications', { headers });
+      const notifsRes = await fetch(apiUrl('/api/notifications'), { headers });
       if (notifsRes.ok) {
         const data = await notifsRes.json();
         setNotifications(data);
@@ -113,7 +114,7 @@ export default function App() {
 
       // 3. Obtener Repartidores si es admin (ventas o logística)
       if (user?.role === UserRole.STORE_ADMIN || user?.role === UserRole.LOGISTICS_ADMIN) {
-        const repsRes = await fetch('/api/repartidores', { headers });
+        const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
         if (repsRes.ok) {
           const data = await repsRes.json();
           setRepartidores(data);
@@ -128,7 +129,7 @@ export default function App() {
     setLoading(true);
     setAuthError(null);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -168,7 +169,7 @@ export default function App() {
   const handleCreateOrder = async (orderData: Partial<Order>) => {
     if (!token) return;
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch(apiUrl('/api/orders'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -196,7 +197,7 @@ export default function App() {
   ) => {
     if (!token) return;
     try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
+      const res = await fetch(apiUrl(`/api/orders/${orderId}/status`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +219,7 @@ export default function App() {
   const handleReportLocation = async (orderId: string, lat: number, lng: number) => {
     if (!token) return;
     try {
-      await fetch(`/api/orders/${orderId}/location`, {
+      await fetch(apiUrl(`/api/orders/${orderId}/location`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -235,7 +236,7 @@ export default function App() {
   const handleTriggerSimulatorTick = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/simulator/tick', {
+      const res = await fetch(apiUrl('/api/simulator/tick'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -251,7 +252,7 @@ export default function App() {
   const handleMarkAllRead = async () => {
     if (!token) return;
     try {
-      await fetch('/api/notifications/read', {
+      await fetch(apiUrl('/api/notifications/read'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -16,5 +16,8 @@ export const env = {
     database: firstDefined(process.env.DB_NAME, process.env.MYSQLDATABASE, process.env.MYSQL_DATABASE) || 'lupo_tracking',
   },
   jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me',
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 };

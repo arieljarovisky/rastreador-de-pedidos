@@ -102,7 +102,7 @@ En el servicio **backend** (`gran-dt-mundial-2026` o similar), agregá estas var
 | `DB_PASSWORD` | `${{MySQL.MYSQLPASSWORD}}`              |
 | `DB_NAME`     | `${{MySQL.MYSQLDATABASE}}`                |
 | `JWT_SECRET`  | una clave larga aleatoria                 |
-| `CORS_ORIGIN` | URL de tu frontend (ej. `https://...`)    |
+| `CORS_ORIGIN` | `http://localhost:5173,https://rastreador-de-pedidos-seven.vercel.app` |
 
 También podés usar directamente `MYSQLHOST`, `MYSQLPORT`, etc. si las inyectás en el mismo servicio.
 
