@@ -3,104 +3,115 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'lupo-rastreo-v1';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
+const CACHE_NAME = 'lupo-rastreo-v3';
+
+const PRECACHE_ASSETS = [
   '/manifest.json',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
 ];
 
-// Instalar el Service Worker y almacenar en caché activos estáticos
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Almacenando en caché recursos estáticos');
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
   );
   self.skipWaiting();
 });
 
-// Activar y limpiar cachés antiguas
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
+    caches.keys().then((cacheNames) =>
+      Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Eliminando caché antigua:', cache);
             return caches.delete(cache);
           }
         })
-      );
-    })
+      )
+    )
   );
   self.clients.claim();
 });
 
-// Interceptar peticiones y servir desde la caché si está offline
+function isApiRequest(url) {
+  return url.pathname.startsWith('/api/');
+}
+
+function isAppShellRequest(request, url) {
+  return (
+    request.mode === 'navigate' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname === '/' ||
+    url.pathname.startsWith('/assets/')
+  );
+}
+
+// HTML y bundles: red primero (evita 404 tras cada deploy en Vercel)
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok && request.url.startsWith(self.location.origin)) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    if (request.mode === 'navigate') {
+      const fallback = await caches.match('/index.html');
+      if (fallback) return fallback;
+    }
+    throw new Error('Offline');
+  }
+}
+
 self.addEventListener('fetch', (event) => {
-  // Solo cachear peticiones GET de nuestro propio origen o del CDN de leaflet
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api/')) return; // No cachear endpoints de API
+  if (isApiRequest(url)) return;
+
+  if (isAppShellRequest(event.request, url)) {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).catch(() => {
-        // Fallback offline para navegación HTML
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
-      });
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request);
     })
   );
 });
 
-// Manejar notificaciones push del sistema o eventos mock
 self.addEventListener('push', (event) => {
   let data = { title: 'Lupo Envíos', body: 'Nueva actualización en tus pedidos.' };
   if (event.data) {
     try {
       data = event.data.json();
-    } catch (e) {
+    } catch {
       data = { title: 'Lupo Envíos', body: event.data.text() };
     }
   }
 
-  const options = {
-    body: data.body,
-    icon: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
-    badge: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
-    vibrate: [100, 50, 100],
-    data: {
-      url: '/'
-    }
-  };
-
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+      badge: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+      vibrate: [100, 50, 100],
+      data: { url: '/' },
+    })
   );
 });
 
-// Hacer clic en la notificación abre la app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       if (clientList.length > 0) {
-        let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) {
-            client = clientList[i];
-          }
-        }
-        return client.focus();
+        const focused = clientList.find((c) => c.focused) ?? clientList[0];
+        return focused.focus();
       }
       return clients.openWindow('/');
     })

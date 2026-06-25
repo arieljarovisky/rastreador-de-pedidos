@@ -6,11 +6,13 @@ import './index.css';
 // Registrar Service Worker para soporte PWA Offline y Push Notifications
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => {
+    navigator.serviceWorker
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then((reg) => {
         console.log('Service Worker registrado con éxito:', reg.scope);
+        reg.update();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Error al registrar Service Worker:', err);
       });
   });
