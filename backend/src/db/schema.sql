@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS orders (
   id VARCHAR(36) PRIMARY KEY,
-  seller_id VARCHAR(36) NOT NULL,
+  seller_id VARCHAR(36) NULL,
   client_name VARCHAR(255) NOT NULL,
   client_phone VARCHAR(50) NOT NULL DEFAULT '',
   address VARCHAR(500) NOT NULL,

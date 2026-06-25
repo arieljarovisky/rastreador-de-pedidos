@@ -9,9 +9,9 @@ import {
   reportOrderLocation,
   canViewOrder,
   getSellerIdForOrder,
+  assignOrderToSeller,
 } from '../services/orders.service.js';
 import { createNotification } from '../services/notifications.service.js';
-import { getDefaultSellerId } from '../services/users.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation } from '../realtime/io.js';
 
 const router = Router();
@@ -22,34 +22,48 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 });
 
 router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
-  const { clientName, clientPhone, address, lat, lng, notes } = req.body;
+  const { clientName, clientPhone, address, lat, lng, notes, sellerId } = req.body;
   if (!clientName || !address || lat === undefined || lng === undefined) {
     res.status(400).json({ error: 'Campos requeridos faltantes (clientName, address, lat, lng).' });
     return;
   }
 
-  const order = await createOrder(req.user!, {
-    clientName,
-    clientPhone,
-    address,
-    lat: Number(lat),
-    lng: Number(lng),
-    notes,
-  });
+  try {
+    const order = await createOrder(req.user!, {
+      clientName,
+      clientPhone,
+      address,
+      lat: Number(lat),
+      lng: Number(lng),
+      notes,
+      sellerId,
+    });
 
-  await createNotification({
-    id: `n_order_${Date.now()}`,
-    userId: 'all',
-    title: 'Nuevo pedido disponible',
-    body: `Un nuevo pedido con id ${order.id} está listo para ser entregado en ${address}.`,
-    type: 'info',
-    orderId: order.id,
-  });
+    await createNotification({
+      id: `n_order_${Date.now()}`,
+      userId: 'all',
+      title: 'Nuevo pedido disponible',
+      body: `Un nuevo pedido con id ${order.id} está listo para ser entregado en ${address}.`,
+      type: 'info',
+      orderId: order.id,
+    });
 
-  const sellerId = await getSellerIdForOrder(order.id);
-  emitOrderUpdated(order, sellerId);
+    const assignedSellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, assignedSellerId);
 
-  res.status(201).json(order);
+    res.status(201).json(order);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'SELLER_NOT_FOUND') {
+      res.status(400).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tienes permiso para crear pedidos.' });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.get('/:id', authenticate, async (req: Request, res: Response) => {
@@ -91,15 +105,16 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
 
     if (status === OrderStatus.DELIVERED) {
       const sellerId = await getSellerIdForOrder(order.id);
-      const notifyUserId = sellerId ?? (await getDefaultSellerId());
-      await createNotification({
-        id: `n_deliv_${Date.now()}`,
-        userId: notifyUserId,
-        title: 'Pedido Entregado',
-        body: `¡El pedido ${order.id} ha sido entregado exitosamente por ${order.repartidorName}!`,
-        type: 'order_delivered',
-        orderId: order.id,
-      });
+      if (sellerId) {
+        await createNotification({
+          id: `n_deliv_${Date.now()}`,
+          userId: sellerId,
+          title: 'Pedido Entregado',
+          body: `¡El pedido ${order.id} ha sido entregado exitosamente por ${order.repartidorName}!`,
+          type: 'order_delivered',
+          orderId: order.id,
+        });
+      }
     }
 
     const sellerId = await getSellerIdForOrder(order.id);
@@ -126,6 +141,35 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
     }
     if (message === 'REPARTIDOR_NOT_FOUND') {
       res.status(400).json({ error: 'Repartidor no encontrado.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/:id/seller', authenticate, requireRoles(UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
+  const { sellerId } = req.body;
+  if (!sellerId) {
+    res.status(400).json({ error: 'Debe especificar el sellerId del vendedor.' });
+    return;
+  }
+
+  try {
+    const order = await assignOrderToSeller(req.user!, req.params.id, sellerId);
+    emitOrderUpdated(order, sellerId);
+    res.json(order);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Pedido no encontrado.' });
+      return;
+    }
+    if (message === 'ORDER_NOT_PENDING') {
+      res.status(400).json({ error: 'Solo se puede asignar vendedor en pedidos pendientes.' });
+      return;
+    }
+    if (message === 'SELLER_NOT_FOUND') {
+      res.status(400).json({ error: 'Vendedor no encontrado.' });
       return;
     }
     throw err;

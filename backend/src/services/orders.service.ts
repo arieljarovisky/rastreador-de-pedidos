@@ -10,7 +10,7 @@ import {
   User,
   UserRole,
 } from '../types/index.js';
-import { getRepartidorById, getUserById, updateUserLocation, getDefaultSellerId } from './users.service.js';
+import { getRepartidorById, getUserById, updateUserLocation } from './users.service.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -29,6 +29,7 @@ interface LocationRow extends RowDataPacket {
 
 interface OrderWithRepartidorRow extends DbOrderRow, RowDataPacket {
   repartidor_name: string | null;
+  seller_name: string | null;
 }
 
 async function loadHistoryForOrders(orderIds: string[]): Promise<Map<string, OrderHistoryEvent[]>> {
@@ -85,6 +86,8 @@ function rowToOrder(
 ): Order {
   return {
     id: row.id,
+    sellerId: row.seller_id ?? null,
+    sellerName: row.seller_name ?? null,
     clientName: row.client_name,
     clientPhone: row.client_phone,
     address: row.address,
@@ -104,9 +107,11 @@ function rowToOrder(
 const ORDER_SELECT = `
   SELECT o.id, o.seller_id, o.client_name, o.client_phone, o.address, o.lat, o.lng,
          o.status, o.repartidor_id, o.notes, o.created_at, o.updated_at,
-         r.name AS repartidor_name
+         r.name AS repartidor_name,
+         s.name AS seller_name
   FROM orders o
   LEFT JOIN users r ON r.id = o.repartidor_id
+  LEFT JOIN users s ON s.id = o.seller_id
 `;
 
 async function enrichOrders(rows: OrderWithRepartidorRow[]): Promise<Order[]> {
@@ -153,7 +158,7 @@ export async function listOrdersForUser(user: User): Promise<Order[]> {
   return enrichOrders(rows);
 }
 
-export function canViewOrder(user: User, order: Order, sellerId?: string): boolean {
+export function canViewOrder(user: User, order: Order, sellerId?: string | null): boolean {
   if (user.role === UserRole.LOGISTICS_ADMIN) return true;
   if (user.role === UserRole.STORE_ADMIN) return sellerId === user.id;
   if (user.role === UserRole.REPARTIDOR) {
@@ -172,13 +177,35 @@ export async function getSellerIdForOrder(orderId: string): Promise<string | nul
 
 export async function createOrder(
   user: User,
-  data: { clientName: string; clientPhone?: string; address: string; lat: number; lng: number; notes?: string }
+  data: {
+    clientName: string;
+    clientPhone?: string;
+    address: string;
+    lat: number;
+    lng: number;
+    notes?: string;
+    sellerId?: string;
+  }
 ): Promise<Order> {
   const [countRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) AS cnt FROM orders');
   const count = Number(countRows[0]?.cnt ?? 0);
   const newId = `PED-${2000 + count + 1}`;
   const now = new Date();
-  const sellerId = user.role === UserRole.STORE_ADMIN ? user.id : await getDefaultSellerId();
+
+  let sellerId: string | null = null;
+  if (user.role === UserRole.STORE_ADMIN) {
+    sellerId = user.id;
+  } else if (user.role === UserRole.LOGISTICS_ADMIN) {
+    if (data.sellerId) {
+      const seller = await getUserById(data.sellerId);
+      if (!seller || seller.role !== UserRole.STORE_ADMIN) {
+        throw new Error('SELLER_NOT_FOUND');
+      }
+      sellerId = seller.id;
+    }
+  } else {
+    throw new Error('FORBIDDEN');
+  }
 
   await pool.query(
     `INSERT INTO orders (id, seller_id, client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at)
@@ -200,12 +227,55 @@ export async function createOrder(
 
   await pool.query(
     `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
-    [newId, OrderStatus.PENDING, user.name, '', now]
+    [
+      newId,
+      OrderStatus.PENDING,
+      user.name,
+      sellerId ? '' : 'Envío registrado sin vendedor asignado',
+      now,
+    ]
   );
 
   const order = await getOrderById(newId);
   if (!order) throw new Error('No se pudo crear el pedido');
   return order;
+}
+
+export async function assignOrderToSeller(
+  user: User,
+  orderId: string,
+  sellerId: string
+): Promise<Order> {
+  if (user.role !== UserRole.LOGISTICS_ADMIN) {
+    throw new Error('FORBIDDEN');
+  }
+
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error('NOT_FOUND');
+  if (order.status !== OrderStatus.PENDING) {
+    throw new Error('ORDER_NOT_PENDING');
+  }
+
+  const seller = await getUserById(sellerId);
+  if (!seller || seller.role !== UserRole.STORE_ADMIN) {
+    throw new Error('SELLER_NOT_FOUND');
+  }
+
+  const now = new Date();
+  await pool.query('UPDATE orders SET seller_id = ?, updated_at = ? WHERE id = ?', [
+    sellerId,
+    now,
+    orderId,
+  ]);
+
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, OrderStatus.PENDING, user.name, `Asignado al vendedor ${seller.name}`, now]
+  );
+
+  const updated = await getOrderById(orderId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
 }
 
 export async function updateOrderStatus(

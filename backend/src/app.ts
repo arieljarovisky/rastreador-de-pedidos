@@ -3,6 +3,7 @@ import cors, { CorsOptions } from 'cors';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.routes.js';
+import accountsRoutes from './routes/accounts.routes.js';
 import ordersRoutes from './routes/orders.routes.js';
 import usersRoutes from './routes/users.routes.js';
 import repartidoresRoutes from './routes/repartidores.routes.js';
@@ -32,6 +33,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/accounts', accountsRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/repartidores', repartidoresRoutes);

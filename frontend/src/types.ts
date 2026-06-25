@@ -46,6 +46,8 @@ export interface LocationHistoryPoint {
 
 export interface Order {
   id: string;
+  sellerId: string | null;
+  sellerName: string | null;
   clientName: string;
   clientPhone: string;
   address: string;

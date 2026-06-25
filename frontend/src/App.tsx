@@ -22,6 +22,7 @@ export default function App() {
   // Estados de datos
   const [orders, setOrders] = useState<Order[]>([]);
   const [repartidores, setRepartidores] = useState<User[]>([]);
+  const [sellers, setSellers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'dashboard' | 'notifications'>('dashboard');
@@ -78,6 +79,14 @@ export default function App() {
         if (repsRes.ok) {
           const data = await repsRes.json();
           setRepartidores(data);
+        }
+      }
+
+      if (user?.role === UserRole.LOGISTICS_ADMIN) {
+        const sellersRes = await fetch(apiUrl('/api/accounts/sellers'), { headers });
+        if (sellersRes.ok) {
+          const data = await sellersRes.json();
+          setSellers(data);
         }
       }
 
@@ -202,11 +211,8 @@ export default function App() {
       }
 
       const data = await res.json();
-      
-      // Guardar sesión
       localStorage.setItem('lupo_token', data.token);
       localStorage.setItem('lupo_user', JSON.stringify(data.user));
-      
       setToken(data.token);
       setUser(data.user);
     } catch (err: any) {
@@ -214,6 +220,71 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRegister = async (
+    endpoint: '/api/auth/register/agency',
+    data: { username: string; password: string; name: string }
+  ) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(apiUrl(endpoint), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'No se pudo crear la cuenta.');
+      }
+
+      const result = await res.json();
+      localStorage.setItem('lupo_token', result.token);
+      localStorage.setItem('lupo_user', JSON.stringify(result.user));
+      setToken(result.token);
+      setUser(result.user);
+    } catch (err: any) {
+      setAuthError(err.message || 'Error al registrar la cuenta.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateSeller = async (data: { username: string; password: string; name: string }) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/sellers'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo crear el vendedor');
+    }
+    const created = await res.json();
+    setSellers((prev) => [...prev, created]);
+  };
+
+  const handleAssignOrderSeller = async (orderId: string, sellerId: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/orders/${orderId}/seller`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ sellerId }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo asignar el vendedor');
+    }
+    fetchData();
   };
 
   const handleLogout = () => {
@@ -337,7 +408,14 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginScreen onLogin={handleLogin} loading={loading} error={authError} />;
+    return (
+      <LoginScreen
+        onLogin={handleLogin}
+        onRegisterAgency={(data) => handleRegister('/api/auth/register/agency', data)}
+        loading={loading}
+        error={authError}
+      />
+    );
   }
 
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
@@ -464,11 +542,14 @@ export default function App() {
               <AdminDashboard
                 orders={orders}
                 repartidores={repartidores}
+                sellers={sellers}
                 activeOrderId={activeOrderId}
                 onSelectOrder={setActiveOrderId}
                 onCreateOrder={handleCreateOrder}
                 onUpdateOrderStatus={handleUpdateOrderStatus}
+                onAssignOrderSeller={handleAssignOrderSeller}
                 onTriggerSimulatorTick={handleTriggerSimulatorTick}
+                onCreateSeller={user.role === UserRole.LOGISTICS_ADMIN ? handleCreateSeller : undefined}
                 userRole={user.role}
               />
             </div>

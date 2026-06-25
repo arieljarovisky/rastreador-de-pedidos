@@ -41,6 +41,8 @@ export interface LocationHistoryPoint {
 
 export interface Order {
   id: string;
+  sellerId: string | null;
+  sellerName: string | null;
   clientName: string;
   clientPhone: string;
   address: string;
@@ -85,7 +87,7 @@ export interface DbUserRow {
 
 export interface DbOrderRow {
   id: string;
-  seller_id: string;
+  seller_id: string | null;
   client_name: string;
   client_phone: string;
   address: string;

@@ -79,6 +79,8 @@ function initDatabase(): DatabaseSchema {
     orders: [
       {
         id: 'PED-2001',
+        sellerId: 'u1',
+        sellerName: 'Tienda Demo',
         clientName: 'Alejandro Rossi',
         clientPhone: '+54 11 5555-1234',
         address: 'Av. Callao 1500, Recoleta, CABA',
@@ -103,6 +105,8 @@ function initDatabase(): DatabaseSchema {
       },
       {
         id: 'PED-2002',
+        sellerId: 'u1',
+        sellerName: 'Tienda Demo',
         clientName: 'Sofía Martínez',
         clientPhone: '+54 11 5555-5678',
         address: 'Av. Cabildo 2200, Belgrano, CABA',
@@ -122,6 +126,8 @@ function initDatabase(): DatabaseSchema {
       },
       {
         id: 'PED-2003',
+        sellerId: 'u1',
+        sellerName: 'Tienda Demo',
         clientName: 'Matías Fernández',
         clientPhone: '+54 11 5555-9012',
         address: 'Av. Medrano 400, Almagro, CABA',
@@ -140,6 +146,8 @@ function initDatabase(): DatabaseSchema {
       },
       {
         id: 'PED-2004',
+        sellerId: 'u1',
+        sellerName: 'Tienda Demo',
         clientName: 'Lucía Benítez',
         clientPhone: '+54 11 5555-3456',
         address: 'Alicia Moreau de Justo 1200, Puerto Madero, CABA',
@@ -310,6 +318,8 @@ async function startServer() {
     const newId = `PED-${2000 + db.orders.length + 1}`;
     const newOrder: Order = {
       id: newId,
+      sellerId: user.role === UserRole.STORE_ADMIN ? user.id : null,
+      sellerName: user.role === UserRole.STORE_ADMIN ? user.name : null,
       clientName,
       clientPhone: clientPhone || '',
       address,

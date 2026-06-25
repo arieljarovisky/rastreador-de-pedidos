@@ -5,17 +5,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus, User, UserRole } from '../types.js';
-import { Plus, Navigation, Clock, UserCheck, Eye, Sparkles, MapPin, Search, Phone, FileText, CheckCircle2, RefreshCw, Play, Pause } from 'lucide-react';
+import { Plus, Navigation, Clock, UserCheck, Eye, Sparkles, MapPin, Search, Phone, FileText, CheckCircle2, RefreshCw, Play, Pause, UserPlus } from 'lucide-react';
 import MapComponent from './MapComponent.tsx';
 
 interface AdminDashboardProps {
   orders: Order[];
   repartidores: User[];
+  sellers?: User[];
   activeOrderId: string | null;
   onSelectOrder: (orderId: string | null) => void;
-  onCreateOrder: (orderData: Partial<Order>) => Promise<void>;
+  onCreateOrder: (orderData: Partial<Order> & { sellerId?: string }) => Promise<void>;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
+  onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
   onTriggerSimulatorTick: () => Promise<void>;
+  onCreateSeller?: (data: { username: string; password: string; name: string }) => Promise<void>;
   userRole?: UserRole;
 }
 
@@ -31,11 +34,14 @@ const DIRECTORY_PRESETS = [
 export default function AdminDashboard({
   orders,
   repartidores,
+  sellers = [],
   activeOrderId,
   onSelectOrder,
   onCreateOrder,
   onUpdateOrderStatus,
+  onAssignOrderSeller,
   onTriggerSimulatorTick,
+  onCreateSeller,
   userRole = UserRole.STORE_ADMIN,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
@@ -66,6 +72,13 @@ export default function AdminDashboard({
 
   // Estados para Asignación Rápida
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
+
+  const [showSellerForm, setShowSellerForm] = useState(false);
+  const [sellerName, setSellerName] = useState('');
+  const [sellerUsername, setSellerUsername] = useState('');
+  const [sellerPassword, setSellerPassword] = useState('');
+  const [sellerFormLoading, setSellerFormLoading] = useState(false);
+  const [sellerFormMessage, setSellerFormMessage] = useState<string | null>(null);
 
   // Efecto para el tick automático del simulador
   useEffect(() => {
@@ -184,17 +197,19 @@ export default function AdminDashboard({
                 {userRole === UserRole.STORE_ADMIN ? '🛒 Lupo Ventas (Local)' : '⚙️ Lupo Logística'}
               </h2>
               <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono">
-                {userRole === UserRole.STORE_ADMIN ? 'Registro de Pedidos' : 'Gestión de Logística'}
+                {userRole === UserRole.STORE_ADMIN ? 'Carga de envíos' : 'Asignación de viajes y flota'}
               </p>
             </div>
             
-            <button
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              id="btn-toggle-create-form"
-              className="px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shadow-blue-600/10"
-            >
-              <Plus className="w-3.5 h-3.5" /> Nuevo Pedido
-            </button>
+            {userRole === UserRole.STORE_ADMIN && (
+              <button
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                id="btn-toggle-create-form"
+                className="px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shadow-blue-600/10"
+              >
+                <Plus className="w-3.5 h-3.5" /> Cargar envío
+              </button>
+            )}
           </div>
 
           {/* Tarjetas de Estadísticas Rápidas */}
@@ -224,7 +239,7 @@ export default function AdminDashboard({
                 <p className="text-[11px] font-bold text-blue-400 flex items-center gap-1">
                   🛒 Canal de Ventas Activo
                 </p>
-                <p className="text-[9px] text-zinc-400 font-mono mt-0.5">Los envíos se sincronizan con Logística automáticamente</p>
+                <p className="text-[9px] text-zinc-400 font-mono mt-0.5">Tus envíos se sincronizan con la agencia de logística</p>
               </div>
               <div className="text-[10px] bg-blue-500/10 text-blue-400 font-mono font-bold px-1.5 py-0.5 rounded border border-blue-500/20 uppercase">
                 Online
@@ -267,6 +282,87 @@ export default function AdminDashboard({
                   )}
                 </button>
               </div>
+            </div>
+          )}
+
+          {userRole === UserRole.LOGISTICS_ADMIN && onCreateSeller && (
+            <div className="bg-purple-950/20 border border-purple-900/30 rounded p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold text-purple-300 flex items-center gap-1">
+                    <UserPlus className="w-3.5 h-3.5" /> Vendedores de tu agencia
+                  </p>
+                  <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
+                    Creá cuentas para tus vendedores; ellos cargan envíos y vos les asignás los viajes
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSellerForm(!showSellerForm)}
+                  className="px-2 py-1 rounded bg-purple-600/20 border border-purple-500/30 text-purple-200 text-[10px] font-bold uppercase"
+                >
+                  {showSellerForm ? 'Cerrar' : '+ Nuevo'}
+                </button>
+              </div>
+
+              {showSellerForm && (
+                <form
+                  className="mt-2 space-y-2"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setSellerFormLoading(true);
+                    setSellerFormMessage(null);
+                    try {
+                      await onCreateSeller({
+                        name: sellerName,
+                        username: sellerUsername,
+                        password: sellerPassword,
+                      });
+                      setSellerFormMessage('Vendedor creado correctamente.');
+                      setSellerName('');
+                      setSellerUsername('');
+                      setSellerPassword('');
+                    } catch (err: any) {
+                      setSellerFormMessage(err.message || 'Error al crear vendedor.');
+                    } finally {
+                      setSellerFormLoading(false);
+                    }
+                  }}
+                >
+                  <input
+                    required
+                    value={sellerName}
+                    onChange={(e) => setSellerName(e.target.value)}
+                    placeholder="Nombre del vendedor / tienda"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <input
+                    required
+                    value={sellerUsername}
+                    onChange={(e) => setSellerUsername(e.target.value)}
+                    placeholder="Usuario (mín. 3 caracteres)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <input
+                    required
+                    type="password"
+                    value={sellerPassword}
+                    onChange={(e) => setSellerPassword(e.target.value)}
+                    placeholder="Contraseña (mín. 6 caracteres)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sellerFormLoading}
+                    className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
+                  >
+                    {sellerFormLoading ? 'Creando...' : 'Crear vendedor'}
+                  </button>
+                  {sellerFormMessage && (
+                    <p className="text-[10px] text-emerald-400 font-mono">{sellerFormMessage}</p>
+                  )}
+                </form>
+              )}
             </div>
           )}
 
@@ -327,10 +423,10 @@ export default function AdminDashboard({
         <div className="flex-1 overflow-y-auto mt-3 space-y-2 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
           
           {/* Formulario de creación desplegable (HIGH DENSITY MODERN STYLE) */}
-          {showCreateForm && (
+          {showCreateForm && userRole === UserRole.STORE_ADMIN && (
             <form onSubmit={handleSubmitOrder} className="bg-zinc-950 border border-zinc-800 rounded p-3.5 space-y-3 animate-slide-down shadow-xl">
               <div className="flex items-center justify-between border-b border-zinc-800 pb-2 mb-2">
-                <h3 className="font-bold text-xs text-blue-400 flex items-center gap-1">📝 Registrar Nuevo Envío</h3>
+                <h3 className="font-bold text-xs text-blue-400 flex items-center gap-1">📝 Cargar nuevo envío</h3>
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
@@ -482,6 +578,15 @@ export default function AdminDashboard({
                   <p className="text-[11px] text-zinc-400 mt-0.5 truncate leading-normal">
                     📍 {order.address}
                   </p>
+                  {userRole === UserRole.LOGISTICS_ADMIN && (
+                    <p className="text-[10px] mt-1 font-mono">
+                      {order.sellerName ? (
+                        <span className="text-purple-300">🛒 {order.sellerName}</span>
+                      ) : (
+                        <span className="text-amber-500 font-bold">⚠️ Sin vendedor asignado</span>
+                      )}
+                    </p>
+                  )}
 
                   {/* Telemetry info just like the design! */}
                   {order.status === OrderStatus.DELIVERING ? (
@@ -527,7 +632,7 @@ export default function AdminDashboard({
                         }}
                         className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-[9px] px-2 py-0.5 rounded transition uppercase tracking-wider"
                       >
-                        Asignar
+                        Gestionar
                       </button>
                     </div>
                   )}
@@ -598,6 +703,21 @@ export default function AdminDashboard({
 
                 {/* Info Repartidor / Asignador */}
                 <div className="space-y-2">
+                  {userRole === UserRole.LOGISTICS_ADMIN && (
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="font-semibold text-zinc-400">Vendedor / tienda:</span>
+                      {selectedOrder.sellerName ? (
+                        <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
+                          🛒 {selectedOrder.sellerName}
+                        </span>
+                      ) : (
+                        <span className="text-amber-500 font-bold font-mono text-[10px] uppercase tracking-wider bg-amber-500/5 border border-amber-500/10 px-1.5 py-0.5 rounded">
+                          SIN VENDEDOR
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2 text-[11px]">
                     <span className="font-semibold text-zinc-400">Repartidor asignado:</span>
                     {selectedOrder.repartidorName ? (
@@ -609,7 +729,47 @@ export default function AdminDashboard({
                     )}
                   </div>
 
-                   {/* Selector de Asignación en el Panel de Detalles */}
+                   {/* Asignar vendedor (logística) */}
+                  {userRole === UserRole.LOGISTICS_ADMIN &&
+                    onAssignOrderSeller &&
+                    selectedOrder.status === OrderStatus.PENDING &&
+                    (assigningOrderId === selectedOrder.id || !selectedOrder.sellerId) && (
+                      <div className="bg-purple-950/20 border border-purple-900/30 p-2 rounded space-y-1">
+                        <p className="text-[9px] font-mono font-bold uppercase text-purple-300">
+                          Asignar envío a vendedor:
+                        </p>
+                        {sellers.length === 0 ? (
+                          <p className="text-[9px] text-zinc-500">
+                            Creá primero un vendedor en el panel superior.
+                          </p>
+                        ) : (
+                          <select
+                            defaultValue={selectedOrder.sellerId ?? ''}
+                            onChange={async (e) => {
+                              if (!e.target.value) return;
+                              try {
+                                await onAssignOrderSeller(selectedOrder.id, e.target.value);
+                                setAssigningOrderId(null);
+                              } catch (err: any) {
+                                alert(err.message || 'No se pudo asignar el vendedor');
+                              }
+                            }}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-[11px] text-zinc-300 focus:outline-none"
+                          >
+                            <option value="" disabled>
+                              Seleccionar vendedor...
+                            </option>
+                            {sellers.map((seller) => (
+                              <option key={seller.id} value={seller.id}>
+                                {seller.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    )}
+
+                   {/* Selector de Asignación de repartidor */}
                   {(selectedOrder.status === OrderStatus.PENDING || assigningOrderId === selectedOrder.id) && (
                     userRole === UserRole.STORE_ADMIN ? (
                       <div className="bg-blue-950/20 border border-blue-900/30 p-2.5 rounded space-y-1">
@@ -622,7 +782,7 @@ export default function AdminDashboard({
                       </div>
                     ) : (
                       <div className="bg-zinc-950 border border-zinc-800 p-2 rounded space-y-1">
-                        <p className="text-[9px] font-mono font-bold uppercase text-zinc-500">Asignar Repartidor Lupo:</p>
+                        <p className="text-[9px] font-mono font-bold uppercase text-zinc-500">Asignar repartidor al viaje:</p>
                         <div className="flex gap-1.5">
                           <select
                             id={`select-repartidor-${selectedOrder.id}`}
