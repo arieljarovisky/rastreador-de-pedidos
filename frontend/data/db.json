@@ -1,0 +1,229 @@
+{
+  "users": [
+    {
+      "id": "u1",
+      "username": "admin",
+      "name": "Lupo Ventas (Local)",
+      "role": "store_admin"
+    },
+    {
+      "id": "u5",
+      "username": "logistica",
+      "name": "Lupo Logística (Envíos)",
+      "role": "logistics_admin"
+    },
+    {
+      "id": "u2",
+      "username": "carlos",
+      "name": "Carlos Gómez",
+      "role": "repartidor",
+      "currentLocation": {
+        "lat": -34.5901,
+        "lng": -58.4215,
+        "timestamp": "2026-06-25T03:30:55.223Z"
+      }
+    },
+    {
+      "id": "u3",
+      "username": "maria",
+      "name": "María Rodríguez",
+      "role": "repartidor",
+      "currentLocation": {
+        "lat": -34.5712,
+        "lng": -58.4412,
+        "timestamp": "2026-06-25T03:30:55.224Z"
+      }
+    },
+    {
+      "id": "u4",
+      "username": "juan",
+      "name": "Juan Pérez",
+      "role": "repartidor",
+      "currentLocation": {
+        "lat": -34.6,
+        "lng": -58.41,
+        "timestamp": "2026-06-25T03:30:55.224Z"
+      }
+    }
+  ],
+  "passwords": {
+    "u1": "admin123",
+    "u5": "logistica123",
+    "u2": "carlos123",
+    "u3": "maria123",
+    "u4": "juan123"
+  },
+  "orders": [
+    {
+      "id": "PED-2001",
+      "clientName": "Alejandro Rossi",
+      "clientPhone": "+54 11 5555-1234",
+      "address": "Av. Callao 1500, Recoleta, CABA",
+      "lat": -34.5895,
+      "lng": -58.3974,
+      "status": "delivering",
+      "repartidorId": "u2",
+      "repartidorName": "Carlos Gómez",
+      "createdAt": "2026-06-25T02:30:55.224Z",
+      "updatedAt": "2026-06-25T03:00:55.224Z",
+      "notes": "Entregar en portería del edificio. Tocar timbre 5B.",
+      "history": [
+        {
+          "status": "pending",
+          "timestamp": "2026-06-25T02:30:55.224Z",
+          "updatedBy": "Lupo Administración"
+        },
+        {
+          "status": "assigned",
+          "timestamp": "2026-06-25T02:45:55.224Z",
+          "updatedBy": "Lupo Administración"
+        },
+        {
+          "status": "delivering",
+          "timestamp": "2026-06-25T03:00:55.224Z",
+          "updatedBy": "Carlos Gómez"
+        }
+      ],
+      "locationHistory": [
+        {
+          "lat": -34.5885,
+          "lng": -58.4306,
+          "timestamp": "2026-06-25T03:00:55.224Z"
+        },
+        {
+          "lat": -34.589,
+          "lng": -58.426,
+          "timestamp": "2026-06-25T03:10:55.224Z"
+        },
+        {
+          "lat": -34.5901,
+          "lng": -58.4215,
+          "timestamp": "2026-06-25T03:20:55.224Z"
+        }
+      ]
+    },
+    {
+      "id": "PED-2002",
+      "clientName": "Sofía Martínez",
+      "clientPhone": "+54 11 5555-5678",
+      "address": "Av. Cabildo 2200, Belgrano, CABA",
+      "lat": -34.5621,
+      "lng": -58.4565,
+      "status": "assigned",
+      "repartidorId": "u3",
+      "repartidorName": "María Rodríguez",
+      "createdAt": "2026-06-25T03:00:55.224Z",
+      "updatedAt": "2026-06-25T03:10:55.224Z",
+      "notes": "Dejar en recepción de planta baja.",
+      "history": [
+        {
+          "status": "pending",
+          "timestamp": "2026-06-25T03:00:55.224Z",
+          "updatedBy": "Lupo Administración"
+        },
+        {
+          "status": "assigned",
+          "timestamp": "2026-06-25T03:10:55.224Z",
+          "updatedBy": "Lupo Administración"
+        }
+      ],
+      "locationHistory": []
+    },
+    {
+      "id": "PED-2003",
+      "clientName": "Matías Fernández",
+      "clientPhone": "+54 11 5555-9012",
+      "address": "Av. Medrano 400, Almagro, CABA",
+      "lat": -34.6162,
+      "lng": -58.4194,
+      "status": "pending",
+      "repartidorId": null,
+      "repartidorName": null,
+      "createdAt": "2026-06-25T03:15:55.224Z",
+      "updatedAt": "2026-06-25T03:15:55.224Z",
+      "notes": "Llamar antes de llegar para bajar.",
+      "history": [
+        {
+          "status": "pending",
+          "timestamp": "2026-06-25T03:15:55.224Z",
+          "updatedBy": "Lupo Administración"
+        }
+      ],
+      "locationHistory": []
+    },
+    {
+      "id": "PED-2004",
+      "clientName": "Lucía Benítez",
+      "clientPhone": "+54 11 5555-3456",
+      "address": "Alicia Moreau de Justo 1200, Puerto Madero, CABA",
+      "lat": -34.6118,
+      "lng": -58.3647,
+      "status": "delivered",
+      "repartidorId": "u4",
+      "repartidorName": "Juan Pérez",
+      "createdAt": "2026-06-25T01:30:55.224Z",
+      "updatedAt": "2026-06-25T02:30:55.224Z",
+      "notes": "Entregado en mano en piso 4.",
+      "history": [
+        {
+          "status": "pending",
+          "timestamp": "2026-06-25T01:30:55.224Z",
+          "updatedBy": "Lupo Administración"
+        },
+        {
+          "status": "assigned",
+          "timestamp": "2026-06-25T01:45:55.224Z",
+          "updatedBy": "Lupo Administración"
+        },
+        {
+          "status": "delivering",
+          "timestamp": "2026-06-25T02:00:55.224Z",
+          "updatedBy": "Juan Pérez"
+        },
+        {
+          "status": "delivered",
+          "timestamp": "2026-06-25T02:30:55.224Z",
+          "updatedBy": "Juan Pérez"
+        }
+      ],
+      "locationHistory": [
+        {
+          "lat": -34.5885,
+          "lng": -58.4306,
+          "timestamp": "2026-06-25T02:00:55.224Z"
+        },
+        {
+          "lat": -34.6,
+          "lng": -58.4,
+          "timestamp": "2026-06-25T02:10:55.224Z"
+        },
+        {
+          "lat": -34.6118,
+          "lng": -58.3647,
+          "timestamp": "2026-06-25T02:30:55.224Z"
+        }
+      ]
+    }
+  ],
+  "notifications": [
+    {
+      "id": "n1",
+      "userId": "all",
+      "title": "¡Bienvenido al sistema Lupo!",
+      "body": "Nueva PWA de rastreo de pedidos activa. Repartidores, recuerden activar el GPS al iniciar un envío.",
+      "createdAt": "2026-06-25T01:30:55.224Z",
+      "read": false,
+      "type": "info"
+    },
+    {
+      "id": "n2",
+      "userId": "u3",
+      "title": "Nuevo pedido asignado",
+      "body": "Se te ha asignado el pedido PED-2002 para Sofía Martínez.",
+      "createdAt": "2026-06-25T03:10:55.224Z",
+      "read": false,
+      "type": "order_assigned",
+      "orderId": "PED-2002"
+    }
+  ]
+}
