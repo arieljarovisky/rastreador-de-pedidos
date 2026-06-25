@@ -19,11 +19,29 @@ Editá `.env` con tus credenciales de MySQL.
 
 ## Base de datos
 
-El script crea la base `lupo_tracking`, las tablas y los datos demo:
+### Local (primera vez)
 
 ```bash
 npm run db:setup
 ```
+
+### Railway — reemplazar base existente (ej. tablas de otro proyecto)
+
+Si el MySQL de Railway ya tiene tablas de otro sistema, usá **reset** para borrarlas todas y crear las de tracking:
+
+```bash
+npm run db:reset
+```
+
+Esto elimina **todas** las tablas del schema actual y crea: `users`, `orders`, `order_history`, `order_location_history`, `notifications`.
+
+**Desde Railway:** entrá al servicio del **backend** → pestaña **Settings** → **Run command** (o consola one-off) y ejecutá:
+
+```bash
+npm run db:reset
+```
+
+Asegurate de que el backend tenga las variables del MySQL vinculado (ver sección Deploy).
 
 Usuarios demo:
 
@@ -67,3 +85,41 @@ El frontend en `http://localhost:5173` usa proxy hacia `/api` en el backend.
 - `GET /api/notifications` — Notificaciones
 - `POST /api/notifications/read` — Marcar como leídas
 - `POST /api/simulator/tick` — Simulador GPS (demo)
+
+## Deploy en Railway
+
+### 1. Variables del backend
+
+En el servicio **backend** (`gran-dt-mundial-2026` o similar), agregá estas variables referenciando tu plugin MySQL:
+
+| Variable      | Valor en Railway                          |
+|---------------|-------------------------------------------|
+| `DB_HOST`     | `${{MySQL.MYSQLHOST}}`                    |
+| `DB_PORT`     | `${{MySQL.MYSQLPORT}}`                    |
+| `DB_USER`     | `${{MySQL.MYSQLUSER}}`                    |
+| `DB_PASSWORD` | `${{MySQL.MYSQLPASSWORD}}`              |
+| `DB_NAME`     | `${{MySQL.MYSQLDATABASE}}`                |
+| `JWT_SECRET`  | una clave larga aleatoria                 |
+| `CORS_ORIGIN` | URL de tu frontend (ej. `https://...`)    |
+
+También podés usar directamente `MYSQLHOST`, `MYSQLPORT`, etc. si las inyectás en el mismo servicio.
+
+### 2. Root Directory
+
+Configurá **Root Directory** = `backend/`.
+
+### 3. Reemplazar la base de datos vieja
+
+Después del deploy, en el servicio backend ejecutá **una vez**:
+
+```bash
+npm run db:reset:prod
+```
+
+(O en local: `npm run db:reset`)
+
+Eso borra tablas como `fantasy_teams`, `tournaments`, etc. y crea el esquema de LupoEnvios.
+
+### 4. Build
+
+El build usa `node ./node_modules/typescript/lib/tsc.js` para evitar el error `tsc: Permission denied` en Linux.

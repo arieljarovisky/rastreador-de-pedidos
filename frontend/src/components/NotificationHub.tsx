@@ -161,7 +161,7 @@ export default function NotificationHub({
             <Bell className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-xs text-zinc-200">Notificaciones PWA</h3>
+            <h3 className="font-bold text-xs lg:text-sm text-zinc-200">Notificaciones PWA</h3>
             <p className="text-[10px] text-zinc-500 font-mono">Estado: {permission === 'granted' ? 'PERMITIDO' : permission === 'denied' ? 'DENEGADO' : 'PENDIENTE'}</p>
           </div>
           <button 

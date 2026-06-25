@@ -180,7 +180,7 @@ export default function AdminDashboard({
         <div className="shrink-0 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-zinc-100 flex items-center gap-1.5">
+              <h2 className="text-sm lg:text-base font-bold text-zinc-100 flex items-center gap-1.5">
                 {userRole === UserRole.STORE_ADMIN ? '🛒 Lupo Ventas (Local)' : '⚙️ Lupo Logística'}
               </h2>
               <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono">
@@ -201,19 +201,19 @@ export default function AdminDashboard({
           <div className="grid grid-cols-4 gap-1.5 text-center">
             <div className="bg-zinc-950 border border-zinc-800/80 p-1.5 rounded">
               <p className="text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-tight">Total</p>
-              <p className="text-sm font-bold text-zinc-200 mt-0.5 font-mono">{stats.total}</p>
+              <p className="text-sm lg:text-lg font-bold text-zinc-200 mt-0.5 font-mono">{stats.total}</p>
             </div>
             <div className="bg-zinc-950 border border-zinc-800/80 p-1.5 rounded">
               <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-tight">Pend.</p>
-              <p className="text-sm font-bold text-zinc-300 mt-0.5 font-mono">{stats.pending}</p>
+              <p className="text-sm lg:text-lg font-bold text-zinc-300 mt-0.5 font-mono">{stats.pending}</p>
             </div>
             <div className="bg-amber-500/5 border border-amber-500/20 p-1.5 rounded">
               <p className="text-[9px] text-amber-500 font-mono font-bold uppercase tracking-tight">Ruta</p>
-              <p className="text-sm font-bold text-amber-400 mt-0.5 font-mono">{stats.delivering}</p>
+              <p className="text-sm lg:text-lg font-bold text-amber-400 mt-0.5 font-mono">{stats.delivering}</p>
             </div>
             <div className="bg-emerald-500/5 border border-emerald-500/20 p-1.5 rounded">
               <p className="text-[9px] text-emerald-500 font-mono font-bold uppercase tracking-tight">Listos</p>
-              <p className="text-sm font-bold text-emerald-400 mt-0.5 font-mono">{stats.delivered}</p>
+              <p className="text-sm lg:text-lg font-bold text-emerald-400 mt-0.5 font-mono">{stats.delivered}</p>
             </div>
           </div>
 
@@ -476,7 +476,7 @@ export default function AdminDashboard({
                     </span>
                   </div>
 
-                  <h4 className="font-bold text-xs text-zinc-200 mt-2 group-hover:text-white transition">
+                  <h4 className="font-bold text-xs lg:text-sm text-zinc-200 mt-2 group-hover:text-white transition">
                     {order.clientName}
                   </h4>
                   <p className="text-[11px] text-zinc-400 mt-0.5 truncate leading-normal">
@@ -556,12 +556,12 @@ export default function AdminDashboard({
         </div>
 
         {/* Panel Inferior: Detalles de pedido activo o visor de repartidores */}
-        <div className="h-[190px] lg:h-[210px] shrink-0 bg-zinc-900/30 border border-zinc-800 rounded-lg p-4 overflow-hidden flex flex-col">
+        <div className="h-[190px] lg:h-[280px] shrink-0 bg-zinc-900/30 border border-zinc-800 rounded-lg p-4 lg:p-5 overflow-hidden flex flex-col">
           {selectedOrder ? (
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left scrollbar-thin scrollbar-thumb-zinc-800">
               <div className="flex items-start justify-between border-b border-zinc-800 pb-2">
                 <div>
-                  <h3 className="font-bold text-xs text-zinc-100 flex items-center gap-1.5 uppercase font-mono tracking-wider">
+                  <h3 className="font-bold text-xs lg:text-sm text-zinc-100 flex items-center gap-1.5 uppercase font-mono tracking-wider">
                     📦 Envío {selectedOrder.id}
                   </h3>
                   <p className="text-[10px] text-zinc-400 font-sans mt-0.5">Destinatario: {selectedOrder.clientName}</p>
@@ -575,7 +575,7 @@ export default function AdminDashboard({
               </div>
 
               {/* Fila de Detalles */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs lg:text-sm">
                 {/* Info Cliente */}
                 <div className="space-y-1">
                   <p className="flex items-center gap-1.5 text-zinc-300 text-[11px]">

@@ -77,6 +77,43 @@
   background: #3f3f46;
 }
 
+/* Tipografía más legible en escritorio (la UI usa tamaños "high density" para móvil) */
+@media (min-width: 1024px) {
+  html {
+    font-size: 16px;
+  }
+
+  .text-xs {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .text-sm {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .text-\[8px\] {
+    font-size: 0.6875rem !important;
+    line-height: 1rem !important;
+  }
+
+  .text-\[9px\] {
+    font-size: 0.75rem !important;
+    line-height: 1.125rem !important;
+  }
+
+  .text-\[10px\] {
+    font-size: 0.8125rem !important;
+    line-height: 1.25rem !important;
+  }
+
+  .text-\[11px\] {
+    font-size: 0.875rem !important;
+    line-height: 1.375rem !important;
+  }
+}
+
 /* Map Grid Lines visual styling */
 .map-grid-overlay {
   background-image: radial-gradient(#ffffff 0.5px, transparent 0.5px);

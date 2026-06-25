@@ -284,15 +284,15 @@ export default function App() {
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans select-none overflow-hidden h-screen">
       
       {/* NAVEGACIÓN Y CABECERA PRINCIPAL (HIGH DENSITY STYLE) */}
-      <header className="h-16 flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-900/50 shrink-0 relative z-40">
+      <header className="h-16 lg:h-[4.5rem] flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-900/50 shrink-0 relative z-40">
         <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold text-white shadow-md shadow-blue-600/20 text-sm">
+          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white shadow-md shadow-blue-600/20 text-sm lg:text-base">
             LP
           </div>
           <div>
-            <h1 className="text-sm font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
+            <h1 className="text-sm lg:text-lg font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
               LupoEnvios
-              <span className="text-zinc-500 font-normal text-xs">v2.4.0</span>
+              <span className="text-zinc-500 font-normal text-xs lg:text-sm">v2.4.0</span>
               {isOnline ? (
                 <span className="flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">
                   <Wifi className="w-2.5 h-2.5 text-emerald-400 shrink-0" /> ONLINE
@@ -313,14 +313,14 @@ export default function App() {
         <div className="flex gap-4 md:gap-8 items-center">
           <div className="hidden sm:flex flex-col items-end">
             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-mono">Pedidos Activos</span>
-            <span className="text-base font-mono text-emerald-400 font-semibold leading-none mt-0.5">
+            <span className="text-base lg:text-xl font-mono text-emerald-400 font-semibold leading-none mt-0.5">
               {orders.filter(o => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED).length}
             </span>
           </div>
           
           <div className="hidden sm:flex flex-col items-end">
             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-mono">Repartidores</span>
-            <span className="text-base font-mono text-blue-400 font-semibold leading-none mt-0.5">
+            <span className="text-base lg:text-xl font-mono text-blue-400 font-semibold leading-none mt-0.5">
               {repartidores.length > 0 ? String(repartidores.length).padStart(2, '0') : '04'}
             </span>
           </div>
@@ -339,12 +339,12 @@ export default function App() {
             </div>
 
             <div className="hidden md:block text-right">
-              <p className="text-xs font-medium text-zinc-200">{user.name}</p>
+              <p className="text-xs lg:text-sm font-medium text-zinc-200">{user.name}</p>
               <p className="text-[9px] text-zinc-500 uppercase font-mono">{user.role}</p>
             </div>
 
             {/* Avatar circle */}
-            <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300 uppercase shrink-0">
+            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs lg:text-sm font-bold text-zinc-300 uppercase shrink-0">
               {user.name.slice(0, 2)}
             </div>
 
