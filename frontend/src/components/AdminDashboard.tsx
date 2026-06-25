@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { Plus, Navigation, Clock, Sparkles, MapPin, Search, Phone, FileText, CheckCircle2, RefreshCw, Play, Pause, UserPlus, Warehouse, Trash2 } from 'lucide-react';
-import MapComponent from './MapComponent.tsx';
+
+const MapComponent = React.lazy(() => import('./MapComponent.tsx'));
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -1035,14 +1036,22 @@ export default function AdminDashboard({
         
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-lg border border-zinc-800 overflow-hidden relative">
-          <MapComponent
-            orders={orders}
-            repartidores={repartidores}
-            departurePoint={departurePoint}
-            pickupPoints={pickupPoints}
-            activeOrderId={activeOrderId}
-            onSelectOrder={onSelectOrder}
-          />
+          <Suspense
+            fallback={
+              <div className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-500 text-xs font-mono">
+                Cargando mapa…
+              </div>
+            }
+          >
+            <MapComponent
+              orders={orders}
+              repartidores={repartidores}
+              departurePoint={departurePoint}
+              pickupPoints={pickupPoints}
+              activeOrderId={activeOrderId}
+              onSelectOrder={onSelectOrder}
+            />
+          </Suspense>
           {/* Overlay Map Grid design like in the spec */}
           <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
         </div>

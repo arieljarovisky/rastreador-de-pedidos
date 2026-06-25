@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Order, OrderStatus, User } from '../types.js';
 import { MapPin, Phone, Clock, FileText, CheckCircle2, Navigation, AlertTriangle, Play, Check, ShieldAlert, CheckSquare, Sparkles } from 'lucide-react';
-import MapComponent from './MapComponent.tsx';
+
+const MapComponent = lazy(() => import('./MapComponent.tsx'));
 
 interface RepartidorDashboardProps {
   orders: Order[];
@@ -248,12 +249,20 @@ export default function RepartidorDashboard({
               
               {/* Mapa */}
               <div className="flex-1 min-h-[180px] rounded-lg border border-zinc-800 overflow-hidden relative">
-                <MapComponent
-                  orders={[activeOrder]}
-                  repartidores={[]}
-                  activeOrderId={activeOrder.id}
-                  interactive={true}
-                />
+                <Suspense
+                  fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-500 text-xs font-mono">
+                      Cargando mapa…
+                    </div>
+                  }
+                >
+                  <MapComponent
+                    orders={[activeOrder]}
+                    repartidores={[]}
+                    activeOrderId={activeOrder.id}
+                    interactive={true}
+                  />
+                </Suspense>
                 <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
               </div>
 
