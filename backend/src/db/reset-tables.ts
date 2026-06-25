@@ -13,6 +13,14 @@ export async function getConnection(database?: string): Promise<mysql.Connection
   });
 }
 
+function tableNameFromRow(row: RowDataPacket): string {
+  const name = row.tableName ?? row.TABLE_NAME ?? row.table_name;
+  if (!name) {
+    throw new Error(`No se pudo leer el nombre de tabla: ${JSON.stringify(row)}`);
+  }
+  return String(name);
+}
+
 export async function listTables(connection: mysql.Connection): Promise<string[]> {
   const [rows] = await connection.query<RowDataPacket[]>(
     `SELECT table_name AS tableName
@@ -21,7 +29,7 @@ export async function listTables(connection: mysql.Connection): Promise<string[]
      ORDER BY table_name`,
     [env.db.database]
   );
-  return rows.map((row) => String(row.tableName));
+  return rows.map(tableNameFromRow);
 }
 
 export async function dropAllTables(connection: mysql.Connection): Promise<number> {

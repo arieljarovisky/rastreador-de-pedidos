@@ -11,6 +11,17 @@ export async function resetDatabase(): Promise<void> {
 
   console.log(`[db:reset] Conectando a ${env.db.host}:${env.db.port}/${env.db.database}...`);
 
+  // Asegurar que la base exista (Railway ya la crea; en local puede faltar)
+  const adminConnection = await getConnection();
+  try {
+    await adminConnection.query(
+      `CREATE DATABASE IF NOT EXISTS \`${env.db.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+    );
+  } catch {
+    console.log('[db:reset] Sin permiso CREATE DATABASE; usando base existente.');
+  }
+  await adminConnection.end();
+
   const connection = await getConnection(env.db.database);
 
   console.log('[db:reset] Eliminando todas las tablas existentes...');
