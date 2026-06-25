@@ -1,0 +1,29 @@
+import { pool } from '../config/database.js';
+import { env } from '../config/env.js';
+import { dropAllTables, getConnection } from './reset-tables.js';
+import { runSchema } from './run-schema.js';
+import { seedDatabase } from './seed.js';
+
+export async function resetDatabase(): Promise<void> {
+  if (!env.db.host || !env.db.user || !env.db.database) {
+    throw new Error('Faltan variables de base de datos (DB_HOST, DB_USER, DB_NAME o MYSQL*).');
+  }
+
+  console.log(`[db:reset] Conectando a ${env.db.host}:${env.db.port}/${env.db.database}...`);
+
+  const connection = await getConnection(env.db.database);
+
+  console.log('[db:reset] Eliminando todas las tablas existentes...');
+  const dropped = await dropAllTables(connection);
+
+  console.log('[db:reset] Creando tablas de LupoEnvios (tracking)...');
+  await runSchema(connection);
+  await connection.end();
+
+  await pool.query('SELECT 1');
+
+  console.log('[db:reset] Cargando datos demo...');
+  await seedDatabase();
+
+  console.log(`[db:reset] Listo. Se reemplazaron ${dropped} tabla(s) anteriores.`);
+}

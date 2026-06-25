@@ -27,21 +27,23 @@ npm run db:setup
 
 ### Railway — reemplazar base existente (ej. tablas de otro proyecto)
 
-Si el MySQL de Railway ya tiene tablas de otro sistema, usá **reset** para borrarlas todas y crear las de tracking:
+**Opción A (recomendada):** En el servicio **backend**, agregá la variable:
 
-```bash
-npm run db:reset
+```
+DB_RESET_ON_START=true
 ```
 
-Esto elimina **todas** las tablas del schema actual y crea: `users`, `orders`, `order_history`, `order_location_history`, `notifications`.
+Redeployá. Al arrancar, el backend borra todas las tablas viejas y crea las de tracking con datos demo. **Después quitá esa variable** y redeployá de nuevo.
 
-**Desde Railway:** entrá al servicio del **backend** → pestaña **Settings** → **Run command** (o consola one-off) y ejecutá:
+**Opción B:** En el servicio backend → Run command:
 
 ```bash
-npm run db:reset
+npm run db:reset:prod
 ```
 
-Asegurate de que el backend tenga las variables del MySQL vinculado (ver sección Deploy).
+**Opción C (manual):** En MySQL → **Query**, pegá el contenido de `src/db/railway-manual-reset.sql` y ejecutalo. Luego corré `npm run db:reset:prod` para cargar datos demo.
+
+Verificá que el backend tenga `DB_HOST`, `DB_USER`, `DB_PASSWORD` y `DB_NAME` apuntando al MySQL de Railway (no a localhost).
 
 Usuarios demo:
 
