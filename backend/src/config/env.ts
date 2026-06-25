@@ -6,6 +6,18 @@ function firstDefined(...values: Array<string | undefined>): string | undefined 
   return values.find((value) => value !== undefined && value !== '');
 }
 
+function parseOrigins(...sources: Array<string | undefined>): string[] {
+  const origins = new Set<string>();
+  for (const source of sources) {
+    if (!source) continue;
+    for (const part of source.split(',')) {
+      const origin = part.trim();
+      if (origin) origins.add(origin);
+    }
+  }
+  return [...origins];
+}
+
 export const env = {
   port: Number(process.env.PORT) || 4000,
   db: {
@@ -16,8 +28,10 @@ export const env = {
     database: firstDefined(process.env.DB_NAME, process.env.MYSQLDATABASE, process.env.MYSQL_DATABASE) || 'lupo_tracking',
   },
   jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me',
-  corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  corsOrigins: parseOrigins(
+    'http://localhost:5173',
+    'https://rastreador-de-pedidos-seven.vercel.app',
+    process.env.CORS_ORIGIN,
+    process.env.FRONTEND_URL
+  ),
 };

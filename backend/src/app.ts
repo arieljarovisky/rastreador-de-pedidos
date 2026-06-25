@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import cors, { CorsOptions } from 'cors';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.routes.js';
@@ -11,15 +11,24 @@ import simulatorRoutes from './routes/simulator.routes.js';
 
 const app = express();
 
-app.use(
-  cors({
-    origin: env.corsOrigins.length === 1 ? env.corsOrigins[0] : env.corsOrigins,
-  })
-);
+const corsOptions: CorsOptions = {
+  origin(origin, callback) {
+    if (!origin || env.corsOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error(`CORS no permitido para: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', corsOrigins: env.corsOrigins });
 });
 
 app.use('/api/auth', authRoutes);
