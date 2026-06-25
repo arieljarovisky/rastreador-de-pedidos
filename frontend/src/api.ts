@@ -4,3 +4,7 @@ export function apiUrl(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   return API_BASE ? `${API_BASE}${normalized}` : normalized;
 }
+
+export function socketUrl(): string {
+  return API_BASE || window.location.origin;
+}

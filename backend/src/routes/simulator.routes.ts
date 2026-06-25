@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth.js';
-import { simulatorTick } from '../services/orders.service.js';
+import { simulatorTick, listDeliveringOrders, getSellerIdForOrder } from '../services/orders.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getDefaultSellerId } from '../services/users.service.js';
+import { emitOrderUpdated, emitOrderLocation } from '../realtime/io.js';
 import { pool } from '../config/database.js';
 import { RowDataPacket } from 'mysql2';
 import { OrderStatus } from '../types/index.js';
@@ -13,6 +14,22 @@ router.post('/tick', authenticate, async (_req: Request, res: Response) => {
   const updatedCount = await simulatorTick();
 
   if (updatedCount > 0) {
+    const delivering = await listDeliveringOrders();
+    for (const order of delivering) {
+      const sellerId = await getSellerIdForOrder(order.id);
+      emitOrderUpdated(order, sellerId);
+      const lastPoint = order.locationHistory[order.locationHistory.length - 1];
+      if (lastPoint && order.repartidorId) {
+        emitOrderLocation({
+          orderId: order.id,
+          sellerId,
+          repartidorId: order.repartidorId,
+          repartidorName: order.repartidorName,
+          point: lastPoint,
+        });
+      }
+    }
+
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT o.id, r.name AS repartidor_name
        FROM orders o

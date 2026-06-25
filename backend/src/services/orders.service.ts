@@ -280,13 +280,22 @@ export async function reportOrderLocation(
   orderId: string,
   lat: number,
   lng: number
-): Promise<{ success: boolean; orderStatus: OrderStatus }> {
+): Promise<{
+  success: boolean;
+  orderStatus: OrderStatus;
+  orderId: string;
+  sellerId: string | null;
+  point: LocationHistoryPoint;
+}> {
   const order = await getOrderById(orderId);
   if (!order) throw new Error('NOT_FOUND');
   if (order.repartidorId !== user.id) throw new Error('FORBIDDEN');
 
   const now = new Date();
+  const timestamp = now.toISOString();
   await updateUserLocation(user.id, lat, lng);
+
+  const point: LocationHistoryPoint = { lat, lng, timestamp };
 
   if (order.status === OrderStatus.DELIVERING) {
     await pool.query(
@@ -296,7 +305,23 @@ export async function reportOrderLocation(
     await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [now, orderId]);
   }
 
-  return { success: true, orderStatus: order.status };
+  const sellerId = await getSellerIdForOrder(orderId);
+
+  return {
+    success: true,
+    orderStatus: order.status,
+    orderId,
+    sellerId,
+    point,
+  };
+}
+
+export async function listDeliveringOrders(): Promise<Order[]> {
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT} WHERE o.status = ? ORDER BY o.updated_at DESC`,
+    [OrderStatus.DELIVERING]
+  );
+  return enrichOrders(rows);
 }
 
 export async function simulatorTick(): Promise<number> {

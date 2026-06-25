@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification } from './types.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
@@ -11,6 +11,7 @@ import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
 import { LogOut, Wifi, WifiOff, Bell, User as UserIcon } from 'lucide-react';
 import { apiUrl } from './api.ts';
+import { useRealtimeSocket } from './useRealtimeSocket.ts';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -27,6 +28,8 @@ export default function App() {
 
   // Estado de red
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<Date>(new Date());
 
   // Al iniciar, verificar sesión guardada en LocalStorage
   useEffect(() => {
@@ -52,22 +55,113 @@ export default function App() {
     };
   }, []);
 
-  // Carga de datos periódica (Short Polling) para simular tiempo real
+  const fetchData = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const ordersRes = await fetch(apiUrl('/api/orders'), { headers });
+      if (ordersRes.ok) {
+        const data = await ordersRes.json();
+        setOrders(data);
+      }
+
+      const notifsRes = await fetch(apiUrl('/api/notifications'), { headers });
+      if (notifsRes.ok) {
+        const data = await notifsRes.json();
+        setNotifications(data);
+      }
+
+      if (user?.role === UserRole.STORE_ADMIN || user?.role === UserRole.LOGISTICS_ADMIN) {
+        const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
+        if (repsRes.ok) {
+          const data = await repsRes.json();
+          setRepartidores(data);
+        }
+      }
+
+      setLastSyncAt(new Date());
+    } catch (e) {
+      console.warn('Error syncing data from server.', e);
+    }
+  }, [token, user?.role]);
+
+  const mergeOrder = useCallback((order: Order) => {
+    setOrders((prev) => {
+      const index = prev.findIndex((o) => o.id === order.id);
+      if (index === -1) return [order, ...prev];
+      const next = [...prev];
+      next[index] = order;
+      return next;
+    });
+    setLastSyncAt(new Date());
+  }, []);
+
+  const applyOrderLocation = useCallback(
+    (payload: {
+      orderId: string;
+      repartidorId: string;
+      point: { lat: number; lng: number; timestamp: string };
+    }) => {
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== payload.orderId) return order;
+          const last = order.locationHistory[order.locationHistory.length - 1];
+          if (last?.timestamp === payload.point.timestamp) return order;
+          return {
+            ...order,
+            locationHistory: [...order.locationHistory, payload.point],
+            updatedAt: payload.point.timestamp,
+          };
+        })
+      );
+
+      setRepartidores((prev) =>
+        prev.map((rep) =>
+          rep.id === payload.repartidorId
+            ? { ...rep, currentLocation: payload.point }
+            : rep
+        )
+      );
+      setLastSyncAt(new Date());
+    },
+    []
+  );
+
+  useRealtimeSocket({
+    token,
+    activeOrderId,
+    onOrderUpdated: mergeOrder,
+    onOrderLocation: applyOrderLocation,
+    onRepartidorLocation: (payload) => {
+      setRepartidores((prev) =>
+        prev.map((rep) =>
+          rep.id === payload.repartidorId
+            ? { ...rep, currentLocation: payload.location }
+            : rep
+        )
+      );
+      setLastSyncAt(new Date());
+    },
+    onConnectionChange: setWsConnected,
+  });
+
+  // Sincronización inicial + respaldo si WebSocket cae
   useEffect(() => {
     if (!token) return;
 
-    // Cargar datos inicialmente
     fetchData();
 
-    // Sincronizar cada 4 segundos
+    const intervalMs = wsConnected ? 45000 : 8000;
     const interval = setInterval(() => {
       if (navigator.onLine) {
         fetchData();
       }
-    }, 4000);
+    }, intervalMs);
 
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, wsConnected, fetchData]);
 
   // Almacenar en caché local para soporte offline
   useEffect(() => {
@@ -91,39 +185,6 @@ export default function App() {
       if (cachedNotifs) setNotifications(JSON.parse(cachedNotifs));
     }
   }, [isOnline]);
-
-  const fetchData = async () => {
-    if (!token) return;
-
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // 1. Obtener Pedidos
-      const ordersRes = await fetch(apiUrl('/api/orders'), { headers });
-      if (ordersRes.ok) {
-        const data = await ordersRes.json();
-        setOrders(data);
-      }
-
-      // 2. Obtener Notificaciones
-      const notifsRes = await fetch(apiUrl('/api/notifications'), { headers });
-      if (notifsRes.ok) {
-        const data = await notifsRes.json();
-        setNotifications(data);
-      }
-
-      // 3. Obtener Repartidores si es admin (ventas o logística)
-      if (user?.role === UserRole.STORE_ADMIN || user?.role === UserRole.LOGISTICS_ADMIN) {
-        const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
-        if (repsRes.ok) {
-          const data = await repsRes.json();
-          setRepartidores(data);
-        }
-      }
-    } catch (e) {
-      console.warn('Error syncing data from server. Polling offline fallback active.', e);
-    }
-  };
 
   const handleLogin = async (username: string, password: string) => {
     setLoading(true);
@@ -295,8 +356,12 @@ export default function App() {
               LupoEnvios
               <span className="text-zinc-500 font-normal text-xs lg:text-sm">v2.4.0</span>
               {isOnline ? (
-                <span className="flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">
-                  <Wifi className="w-2.5 h-2.5 text-emerald-400 shrink-0" /> ONLINE
+                <span className={`flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold border ${
+                  wsConnected
+                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                    : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                }`}>
+                  <Wifi className="w-2.5 h-2.5 shrink-0" /> {wsConnected ? 'LIVE' : 'ONLINE'}
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-[9px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded font-bold">
@@ -452,11 +517,14 @@ export default function App() {
           </div>
           <span className="text-[9px] text-zinc-800 uppercase tracking-tighter">|</span>
           <div className="flex items-center gap-2 text-[9px] text-zinc-500 uppercase tracking-tighter">
-            WS Protocol: <span className="text-zinc-300 font-mono">Conectado (Active Polling)</span>
+            WS Protocol:{' '}
+            <span className={`font-mono ${wsConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {wsConnected ? 'Tiempo real (WebSocket)' : 'Respaldo (Polling)'}
+            </span>
           </div>
         </div>
         <div className="text-[9px] text-zinc-500 font-mono uppercase tracking-tighter flex items-center gap-1">
-          <span>Sincronizado: {new Date().toLocaleTimeString()}</span>
+          <span>Sincronizado: {lastSyncAt.toLocaleTimeString()}</span>
         </div>
       </footer>
     </div>

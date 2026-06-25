@@ -12,6 +12,7 @@ import {
 } from '../services/orders.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getDefaultSellerId } from '../services/users.service.js';
+import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation } from '../realtime/io.js';
 
 const router = Router();
 
@@ -44,6 +45,9 @@ router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.LOGIS
     type: 'info',
     orderId: order.id,
   });
+
+  const sellerId = await getSellerIdForOrder(order.id);
+  emitOrderUpdated(order, sellerId);
 
   res.status(201).json(order);
 });
@@ -98,6 +102,9 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
       });
     }
 
+    const sellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, sellerId);
+
     res.json(order);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
@@ -134,7 +141,21 @@ router.post('/:id/location', authenticate, requireRoles(UserRole.REPARTIDOR), as
 
   try {
     const result = await reportOrderLocation(req.user!, req.params.id, Number(lat), Number(lng));
-    res.json(result);
+
+    emitOrderLocation({
+      orderId: result.orderId,
+      sellerId: result.sellerId,
+      repartidorId: req.user!.id,
+      repartidorName: req.user!.name,
+      point: result.point,
+    });
+
+    emitRepartidorLocation({
+      ...req.user!,
+      currentLocation: result.point,
+    });
+
+    res.json({ success: result.success, orderStatus: result.orderStatus });
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'NOT_FOUND') {

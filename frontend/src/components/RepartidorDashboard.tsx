@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Order, OrderStatus, User } from '../types.js';
 import { MapPin, Phone, Clock, FileText, CheckCircle2, Navigation, AlertTriangle, Play, Check, ShieldAlert, CheckSquare, Sparkles } from 'lucide-react';
 import MapComponent from './MapComponent.tsx';
@@ -29,6 +29,14 @@ export default function RepartidorDashboard({
   const [gpsActive, setGpsActive] = useState(false);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const lastGpsSentAt = useRef(0);
+
+  const reportGps = (orderId: string, latitude: number, longitude: number) => {
+    const now = Date.now();
+    if (now - lastGpsSentAt.current < 2000) return;
+    lastGpsSentAt.current = now;
+    onReportLocation(orderId, latitude, longitude);
+  };
 
   // Filtrar pedidos del repartidor actual
   const myAssignedOrders = orders.filter(
@@ -51,8 +59,7 @@ export default function RepartidorDashboard({
           (position) => {
             const { latitude, longitude } = position.coords;
             setCurrentCoords({ lat: latitude, lng: longitude });
-            // Reportar ubicación al servidor en tiempo real
-            onReportLocation(activeOrder.id, latitude, longitude);
+            reportGps(activeOrder.id, latitude, longitude);
           },
           (error) => {
             console.error('Error de Geolocalización:', error);
@@ -62,7 +69,7 @@ export default function RepartidorDashboard({
             setGpsError(errMsg);
             setGpsActive(false);
           },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
         );
       } else {
         setGpsError('Este dispositivo no soporta geolocalización.');
