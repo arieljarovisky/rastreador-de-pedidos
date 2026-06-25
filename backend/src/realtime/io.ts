@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import { Order, User, LocationHistoryPoint } from '../types/index.js';
 import { UserRole } from '../types/index.js';
+import { isAgencyAdmin } from '../utils/roles.js';
 
 let io: Server | null = null;
 
@@ -60,7 +61,7 @@ export function joinUserRooms(socketId: string, user: { id: string; role: UserRo
   socket.join('tracking');
   socket.join(`user:${user.id}`);
 
-  if (user.role === UserRole.LOGISTICS_ADMIN) {
+  if (isAgencyAdmin(user.role)) {
     socket.join('logistics');
   }
   if (user.role === UserRole.STORE_ADMIN) {

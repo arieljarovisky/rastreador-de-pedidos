@@ -4,9 +4,15 @@
  */
 
 export enum UserRole {
+  SUPER_ADMIN = 'super_admin',
   STORE_ADMIN = 'store_admin',
   LOGISTICS_ADMIN = 'logistics_admin',
   REPARTIDOR = 'repartidor',
+}
+
+/** Dueño de la agencia (registro) o admin de logística */
+export function isAgencyAdmin(role: UserRole): boolean {
+  return role === UserRole.SUPER_ADMIN || role === UserRole.LOGISTICS_ADMIN;
 }
 
 export enum OrderStatus {

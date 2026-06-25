@@ -11,6 +11,7 @@ import {
   UserRole,
 } from '../types/index.js';
 import { getRepartidorById, getUserById, updateUserLocation, getAgencyDeparture } from './users.service.js';
+import { isAgencyAdmin } from '../utils/roles.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -144,7 +145,7 @@ export async function listOrdersForUser(user: User): Promise<Order[]> {
       `${ORDER_SELECT} WHERE o.seller_id = ? ORDER BY o.created_at DESC`,
       [user.id]
     );
-  } else if (user.role === UserRole.LOGISTICS_ADMIN) {
+  } else if (isAgencyAdmin(user.role)) {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
       `${ORDER_SELECT} ORDER BY o.created_at DESC`
     );
@@ -159,7 +160,7 @@ export async function listOrdersForUser(user: User): Promise<Order[]> {
 }
 
 export function canViewOrder(user: User, order: Order, sellerId?: string | null): boolean {
-  if (user.role === UserRole.LOGISTICS_ADMIN) return true;
+  if (isAgencyAdmin(user.role)) return true;
   if (user.role === UserRole.STORE_ADMIN) return sellerId === user.id;
   if (user.role === UserRole.REPARTIDOR) {
     return order.repartidorId === user.id || order.status === OrderStatus.PENDING;
@@ -195,7 +196,7 @@ export async function createOrder(
   let sellerId: string | null = null;
   if (user.role === UserRole.STORE_ADMIN) {
     sellerId = user.id;
-  } else if (user.role === UserRole.LOGISTICS_ADMIN) {
+  } else if (isAgencyAdmin(user.role)) {
     if (data.sellerId) {
       const seller = await getUserById(data.sellerId);
       if (!seller || seller.role !== UserRole.STORE_ADMIN) {
@@ -246,7 +247,7 @@ export async function assignOrderToSeller(
   orderId: string,
   sellerId: string
 ): Promise<Order> {
-  if (user.role !== UserRole.LOGISTICS_ADMIN) {
+  if (!isAgencyAdmin(user.role)) {
     throw new Error('FORBIDDEN');
   }
 

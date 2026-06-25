@@ -7,7 +7,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import { User, UserRole, Order, OrderStatus, AppNotification, LocationHistoryPoint } from './src/types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationHistoryPoint, isAgencyAdmin } from './src/types.js';
 
 const PORT = 3000;
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -46,7 +46,7 @@ function initDatabase(): DatabaseSchema {
 
       // Asegurar que exista 'logistica' en la base de datos
       if (!loaded.users.some(u => u.username === 'logistica')) {
-        loaded.users.push({ id: 'u5', username: 'logistica', name: 'Lupo Logística (Envíos)', role: UserRole.LOGISTICS_ADMIN });
+        loaded.users.push({ id: 'u5', username: 'logistica', name: 'Lupo Logística (Envíos)', role: UserRole.SUPER_ADMIN });
         loaded.passwords['u5'] = 'logistica123';
         modified = true;
       }
@@ -64,7 +64,7 @@ function initDatabase(): DatabaseSchema {
   const initialData: DatabaseSchema = {
     users: [
       { id: 'u1', username: 'admin', name: 'Lupo Ventas (Local)', role: UserRole.STORE_ADMIN },
-      { id: 'u5', username: 'logistica', name: 'Lupo Logística (Envíos)', role: UserRole.LOGISTICS_ADMIN },
+      { id: 'u5', username: 'logistica', name: 'Lupo Logística (Envíos)', role: UserRole.SUPER_ADMIN },
       { id: 'u2', username: 'carlos', name: 'Carlos Gómez', role: UserRole.REPARTIDOR, currentLocation: { lat: -34.5901, lng: -58.4215, timestamp: new Date().toISOString() } },
       { id: 'u3', username: 'maria', name: 'María Rodríguez', role: UserRole.REPARTIDOR, currentLocation: { lat: -34.5712, lng: -58.4412, timestamp: new Date().toISOString() } },
       { id: 'u4', username: 'juan', name: 'Juan Pérez', role: UserRole.REPARTIDOR, currentLocation: { lat: -34.6000, lng: -58.4100, timestamp: new Date().toISOString() } }
@@ -289,7 +289,7 @@ async function startServer() {
       return;
     }
 
-    if (user.role === UserRole.STORE_ADMIN || user.role === UserRole.LOGISTICS_ADMIN) {
+    if (user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) {
       // El admin ve todos los pedidos
       res.json(db.orders);
     } else {
@@ -304,7 +304,7 @@ async function startServer() {
   // Crear pedido (Solo admin)
   app.post('/api/orders', (req, res) => {
     const user = getAuthenticatedUser(req);
-    if (!user || (user.role !== UserRole.STORE_ADMIN && user.role !== UserRole.LOGISTICS_ADMIN)) {
+    if (!user || (user.role !== UserRole.STORE_ADMIN && !isAgencyAdmin(user.role))) {
       res.status(403).json({ error: 'Solo los administradores pueden crear pedidos.' });
       return;
     }
@@ -371,7 +371,7 @@ async function startServer() {
     }
 
     // Permitir acceso si es admin, o si el pedido está asignado a este repartidor o está libre
-    if (user.role === UserRole.STORE_ADMIN || user.role === UserRole.LOGISTICS_ADMIN || order.repartidorId === user.id || order.status === OrderStatus.PENDING) {
+    if (user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role) || order.repartidorId === user.id || order.status === OrderStatus.PENDING) {
       res.json(order);
     } else {
       res.status(403).json({ error: 'No tienes permiso para ver este pedido.' });
@@ -580,7 +580,7 @@ async function startServer() {
   // Obtener todos los repartidores y sus últimas ubicaciones (Solo admin)
   app.get('/api/repartidores', (req, res) => {
     const user = getAuthenticatedUser(req);
-    if (!user || (user.role !== UserRole.STORE_ADMIN && user.role !== UserRole.LOGISTICS_ADMIN)) {
+    if (!user || (user.role !== UserRole.STORE_ADMIN && !isAgencyAdmin(user.role))) {
       res.status(403).json({ error: 'Solo administradores pueden consultar todos los repartidores.' });
       return;
     }

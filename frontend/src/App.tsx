@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint } from './types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin } from './types.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
@@ -76,7 +76,7 @@ export default function App() {
         setNotifications(data);
       }
 
-      if (user?.role === UserRole.STORE_ADMIN || user?.role === UserRole.LOGISTICS_ADMIN) {
+      if (user?.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) {
         const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
         if (repsRes.ok) {
           const data = await repsRes.json();
@@ -96,7 +96,7 @@ export default function App() {
         }
       }
 
-      if (user?.role === UserRole.LOGISTICS_ADMIN) {
+      if (isAgencyAdmin(user.role)) {
         const sellersRes = await fetch(apiUrl('/api/accounts/sellers'), { headers });
         if (sellersRes.ok) {
           const data = await sellersRes.json();
@@ -301,6 +301,24 @@ export default function App() {
     } else {
       fetchData();
     }
+  };
+
+  const handleCreateRepartidor = async (data: { username: string; password: string; name: string }) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/repartidores'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo crear el repartidor');
+    }
+    const created = await res.json();
+    setRepartidores((prev) => [...prev, created]);
   };
 
   const handleAssignOrderSeller = async (orderId: string, sellerId: string) => {
@@ -653,7 +671,7 @@ export default function App() {
 
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main className="flex-1 overflow-hidden p-3 md:p-4 relative h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]">
-        {(user.role === UserRole.STORE_ADMIN || user.role === UserRole.LOGISTICS_ADMIN) ? (
+        {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
             {/* Admin Dashboard */}
             <div className={`xl:col-span-9 h-full overflow-hidden ${mobileTab !== 'dashboard' ? 'hidden xl:block' : ''}`}>
@@ -668,11 +686,12 @@ export default function App() {
                 onCreateOrder={handleCreateOrder}
                 onUpdateOrderStatus={handleUpdateOrderStatus}
                 onAssignOrderSeller={handleAssignOrderSeller}
-                onUpdateDeparture={user.role === UserRole.LOGISTICS_ADMIN ? handleUpdateDeparture : undefined}
+                onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
                 onCreatePickupPoint={handleCreatePickupPoint}
                 onDeletePickupPoint={handleDeletePickupPoint}
                 onTriggerSimulatorTick={handleTriggerSimulatorTick}
-                onCreateSeller={user.role === UserRole.LOGISTICS_ADMIN ? handleCreateSeller : undefined}
+                onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
+                onCreateRepartidor={isAgencyAdmin(user.role) ? handleCreateRepartidor : undefined}
                 userRole={user.role}
               />
             </div>

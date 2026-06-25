@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { JwtPayload, User, UserRole } from '../types/index.js';
 import { getUserById } from '../services/users.service.js';
+import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 
 export function signToken(userId: string, role: UserRole): string {
   return jwt.sign({ userId, role } satisfies JwtPayload, env.jwtSecret, { expiresIn: '24h' });
@@ -37,6 +38,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
   req.user = user;
   next();
+}
+
+export function requireAgencyAdmin() {
+  return requireRoles(...AGENCY_ADMIN_ROLES);
 }
 
 export function requireRoles(...roles: UserRole[]) {

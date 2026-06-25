@@ -23,7 +23,7 @@ CREATE TABLE `users` (
   `username` VARCHAR(100) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
   `name` VARCHAR(255) NOT NULL,
-  `role` ENUM('store_admin', 'logistics_admin', 'repartidor') NOT NULL,
+  `role` ENUM('super_admin', 'store_admin', 'logistics_admin', 'repartidor') NOT NULL,
   `current_lat` DECIMAL(10, 7) NULL,
   `current_lng` DECIMAL(10, 7) NULL,
   `location_updated_at` DATETIME(3) NULL,

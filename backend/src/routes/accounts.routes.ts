@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate, requireRoles } from '../middleware/auth.js';
+import { authenticate, requireRoles, requireAgencyAdmin } from '../middleware/auth.js';
 import { UserRole } from '../types/index.js';
 import {
   createUser,
@@ -17,15 +17,37 @@ import {
   getPickupPointById,
   canManagePickupPoint,
 } from '../services/pickup-points.service.js';
+import { isAgencyAdmin } from '../utils/roles.js';
 
 const router = Router();
 
-router.get('/sellers', authenticate, requireRoles(UserRole.LOGISTICS_ADMIN), async (_req: Request, res: Response) => {
+function handleCreateUserError(res: Response, err: unknown): boolean {
+  const message = err instanceof Error ? err.message : '';
+  if (message === 'USERNAME_TAKEN') {
+    res.status(409).json({ error: 'Ese nombre de usuario ya está en uso.' });
+    return true;
+  }
+  if (message === 'USERNAME_SHORT') {
+    res.status(400).json({ error: 'El usuario debe tener al menos 3 caracteres.' });
+    return true;
+  }
+  if (message === 'PASSWORD_SHORT') {
+    res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    return true;
+  }
+  if (message === 'NAME_REQUIRED') {
+    res.status(400).json({ error: 'El nombre es obligatorio.' });
+    return true;
+  }
+  return false;
+}
+
+router.get('/sellers', authenticate, requireAgencyAdmin(), async (_req: Request, res: Response) => {
   const sellers = await listSellers();
   res.json(sellers);
 });
 
-router.post('/sellers', authenticate, requireRoles(UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
+router.post('/sellers', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   const { username, password, name, pickupLabel, pickupAddress, pickupLat, pickupLng } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: 'Usuario, contraseña y nombre son requeridos.' });
@@ -52,23 +74,28 @@ router.post('/sellers', authenticate, requireRoles(UserRole.LOGISTICS_ADMIN), as
     const enriched = await getUserById(user.id);
     res.status(201).json(enriched ?? user);
   } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    if (message === 'USERNAME_TAKEN') {
-      res.status(409).json({ error: 'Ese nombre de usuario ya está en uso.' });
-      return;
-    }
-    if (message === 'USERNAME_SHORT') {
-      res.status(400).json({ error: 'El usuario debe tener al menos 3 caracteres.' });
-      return;
-    }
-    if (message === 'PASSWORD_SHORT') {
-      res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
-      return;
-    }
-    if (message === 'NAME_REQUIRED') {
-      res.status(400).json({ error: 'El nombre es obligatorio.' });
-      return;
-    }
+    if (handleCreateUserError(res, err)) return;
+    throw err;
+  }
+});
+
+router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const { username, password, name } = req.body;
+  if (!username || !password || !name) {
+    res.status(400).json({ error: 'Usuario, contraseña y nombre son requeridos.' });
+    return;
+  }
+
+  try {
+    const user = await createUser({
+      username,
+      password,
+      name,
+      role: UserRole.REPARTIDOR,
+    });
+    res.status(201).json(user);
+  } catch (err) {
+    if (handleCreateUserError(res, err)) return;
     throw err;
   }
 });
@@ -78,7 +105,7 @@ router.get('/agency/departure', authenticate, async (_req: Request, res: Respons
   res.json(departure);
 });
 
-router.put('/agency/departure', authenticate, requireRoles(UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
+router.put('/agency/departure', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   const { address, lat, lng } = req.body;
   if (!address || lat === undefined || lng === undefined) {
     res.status(400).json({ error: 'Dirección, lat y lng son requeridos.' });
@@ -105,7 +132,7 @@ router.put('/agency/departure', authenticate, requireRoles(UserRole.LOGISTICS_AD
 router.get('/pickup-points', authenticate, async (req: Request, res: Response) => {
   const user = req.user!;
 
-  if (user.role === UserRole.LOGISTICS_ADMIN) {
+  if (isAgencyAdmin(user.role)) {
     const sellerId = req.query.sellerId as string | undefined;
     if (sellerId) {
       const points = await listPickupPointsForUser(sellerId);
@@ -126,7 +153,7 @@ router.get('/pickup-points', authenticate, async (req: Request, res: Response) =
   res.status(403).json({ error: 'No tienes permiso para ver puntos de colecta.' });
 });
 
-router.post('/pickup-points', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
+router.post('/pickup-points', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
   const { label, address, lat, lng, sellerId } = req.body;
   if (!address || lat === undefined || lng === undefined) {
     res.status(400).json({ error: 'Dirección, lat y lng son requeridos.' });
@@ -134,7 +161,7 @@ router.post('/pickup-points', authenticate, requireRoles(UserRole.STORE_ADMIN, U
   }
 
   let ownerId = req.user!.id;
-  if (req.user!.role === UserRole.LOGISTICS_ADMIN) {
+  if (isAgencyAdmin(req.user!.role)) {
     if (!sellerId) {
       res.status(400).json({ error: 'Debe indicar el sellerId del vendedor.' });
       return;
@@ -156,7 +183,7 @@ router.post('/pickup-points', authenticate, requireRoles(UserRole.STORE_ADMIN, U
   res.status(201).json(point);
 });
 
-router.put('/pickup-points/:id', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
+router.put('/pickup-points/:id', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
   const point = await getPickupPointById(req.params.id);
   if (!point) {
     res.status(404).json({ error: 'Punto de colecta no encontrado.' });
@@ -177,7 +204,7 @@ router.put('/pickup-points/:id', authenticate, requireRoles(UserRole.STORE_ADMIN
   res.json(updated);
 });
 
-router.delete('/pickup-points/:id', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
+router.delete('/pickup-points/:id', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
   const point = await getPickupPointById(req.params.id);
   if (!point) {
     res.status(404).json({ error: 'Punto de colecta no encontrado.' });

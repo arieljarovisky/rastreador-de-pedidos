@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { pool } from '../config/database.js';
 import { DbUserRow, LocationPoint, PickupPoint, User, UserRole } from '../types/index.js';
 import { listPickupPointsForUser } from './pickup-points.service.js';
+import { isAgencyAdmin } from '../utils/roles.js';
 
 const USER_COLUMNS = `id, username, name, role, password_hash, current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng`;
@@ -101,9 +102,14 @@ export async function updateAgencyDeparture(
   userId: string,
   data: { address: string; lat: number; lng: number }
 ): Promise<User> {
+  const existing = await getUserById(userId);
+  if (!existing || !isAgencyAdmin(existing.role)) {
+    throw new Error('NOT_FOUND');
+  }
+
   await pool.query(
-    `UPDATE users SET departure_address = ?, departure_lat = ?, departure_lng = ? WHERE id = ? AND role = ?`,
-    [data.address, data.lat, data.lng, userId, UserRole.LOGISTICS_ADMIN]
+    `UPDATE users SET departure_address = ?, departure_lat = ?, departure_lng = ? WHERE id = ?`,
+    [data.address, data.lat, data.lng, userId]
   );
   const user = await getUserById(userId);
   if (!user) throw new Error('NOT_FOUND');
@@ -113,8 +119,11 @@ export async function updateAgencyDeparture(
 export async function getAgencyDeparture(): Promise<LocationPoint | null> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT departure_address, departure_lat, departure_lng
-     FROM users WHERE role = ? AND departure_lat IS NOT NULL LIMIT 1`,
-    [UserRole.LOGISTICS_ADMIN]
+     FROM users
+     WHERE role IN (?, ?) AND departure_lat IS NOT NULL
+     ORDER BY FIELD(role, ?, ?)
+     LIMIT 1`,
+    [UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN]
   );
   const row = rows[0];
   if (!row?.departure_address || row.departure_lat == null || row.departure_lng == null) {

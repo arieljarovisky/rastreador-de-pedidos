@@ -73,7 +73,7 @@ router.post('/register/agency', async (req: Request, res: Response) => {
       username,
       password,
       name,
-      role: UserRole.LOGISTICS_ADMIN,
+      role: UserRole.SUPER_ADMIN,
     });
     const fullUser = await getUserById(user.id);
     const token = signToken(user.id, user.role);

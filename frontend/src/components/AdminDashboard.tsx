@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint } from '../types.js';
+import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { Plus, Navigation, Clock, Sparkles, MapPin, Search, Phone, FileText, CheckCircle2, RefreshCw, Play, Pause, UserPlus, Warehouse, Trash2 } from 'lucide-react';
 import MapComponent from './MapComponent.tsx';
 
@@ -38,6 +38,7 @@ interface AdminDashboardProps {
     pickupLat?: number;
     pickupLng?: number;
   }) => Promise<void>;
+  onCreateRepartidor?: (data: { username: string; password: string; name: string }) => Promise<void>;
   userRole?: UserRole;
 }
 
@@ -66,6 +67,7 @@ export default function AdminDashboard({
   onDeletePickupPoint,
   onTriggerSimulatorTick,
   onCreateSeller,
+  onCreateRepartidor,
   userRole = UserRole.STORE_ADMIN,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
@@ -103,6 +105,13 @@ export default function AdminDashboard({
   const [sellerPassword, setSellerPassword] = useState('');
   const [sellerFormLoading, setSellerFormLoading] = useState(false);
   const [sellerFormMessage, setSellerFormMessage] = useState<string | null>(null);
+
+  const [showRepartidorForm, setShowRepartidorForm] = useState(false);
+  const [repartidorName, setRepartidorName] = useState('');
+  const [repartidorUsername, setRepartidorUsername] = useState('');
+  const [repartidorPassword, setRepartidorPassword] = useState('');
+  const [repartidorFormLoading, setRepartidorFormLoading] = useState(false);
+  const [repartidorFormMessage, setRepartidorFormMessage] = useState<string | null>(null);
 
   const [showDepartureForm, setShowDepartureForm] = useState(false);
   const [departureAddress, setDepartureAddress] = useState(departurePoint?.address ?? '');
@@ -257,7 +266,7 @@ export default function AdminDashboard({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm lg:text-base font-bold text-zinc-100 flex items-center gap-1.5">
-                {userRole === UserRole.STORE_ADMIN ? '🛒 Lupo Ventas (Local)' : '⚙️ Lupo Logística'}
+                {userRole === UserRole.STORE_ADMIN ? '🛒 Lupo Ventas (Local)' : userRole === UserRole.SUPER_ADMIN ? '👑 Lupo Agencia (Super Admin)' : '⚙️ Lupo Logística'}
               </h2>
               <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono">
                 {userRole === UserRole.STORE_ADMIN ? 'Carga de envíos' : 'Asignación de viajes y flota'}
@@ -536,7 +545,7 @@ export default function AdminDashboard({
             </div>
           )}
 
-          {userRole === UserRole.LOGISTICS_ADMIN && onCreateSeller && (
+          {isAgencyAdmin(userRole) && onCreateSeller && (
             <div className="bg-purple-950/20 border border-purple-900/30 rounded p-2.5">
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -634,6 +643,108 @@ export default function AdminDashboard({
                   </button>
                   {sellerFormMessage && (
                     <p className="text-[10px] text-emerald-400 font-mono">{sellerFormMessage}</p>
+                  )}
+                </form>
+              )}
+            </div>
+          )}
+
+          {isAgencyAdmin(userRole) && onCreateRepartidor && (
+            <div className="bg-sky-950/20 border border-sky-900/30 rounded p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold text-sky-300 flex items-center gap-1">
+                    🏍️ Repartidores de tu flota
+                  </p>
+                  <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
+                    Creá cuentas para quienes entregan los envíos ({repartidores.length} activos)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRepartidorForm(!showRepartidorForm)}
+                  className="px-2 py-1 rounded bg-sky-600/20 border border-sky-500/30 text-sky-200 text-[10px] font-bold uppercase"
+                >
+                  {showRepartidorForm ? 'Cerrar' : '+ Nuevo'}
+                </button>
+              </div>
+
+              {repartidores.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {repartidores.map((rep) => (
+                    <li
+                      key={rep.id}
+                      className="text-[10px] bg-zinc-950/60 border border-zinc-800 rounded px-2 py-1 text-zinc-300 font-mono"
+                    >
+                      🏍️ {rep.name} <span className="text-zinc-500">@{rep.username}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {showRepartidorForm && (
+                <form
+                  className="mt-2 space-y-2"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setRepartidorFormLoading(true);
+                    setRepartidorFormMessage(null);
+                    try {
+                      await onCreateRepartidor({
+                        name: repartidorName,
+                        username: repartidorUsername,
+                        password: repartidorPassword,
+                      });
+                      setRepartidorFormMessage('Repartidor creado correctamente.');
+                      setRepartidorName('');
+                      setRepartidorUsername('');
+                      setRepartidorPassword('');
+                    } catch (err: any) {
+                      setRepartidorFormMessage(err.message || 'Error al crear repartidor.');
+                    } finally {
+                      setRepartidorFormLoading(false);
+                    }
+                  }}
+                >
+                  <input
+                    required
+                    value={repartidorName}
+                    onChange={(e) => setRepartidorName(e.target.value)}
+                    placeholder="Nombre del repartidor"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <input
+                    required
+                    value={repartidorUsername}
+                    onChange={(e) => setRepartidorUsername(e.target.value)}
+                    placeholder="Usuario (mín. 3 caracteres)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <input
+                    required
+                    type="password"
+                    value={repartidorPassword}
+                    onChange={(e) => setRepartidorPassword(e.target.value)}
+                    placeholder="Contraseña (mín. 6 caracteres)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
+                  />
+                  <button
+                    type="submit"
+                    disabled={repartidorFormLoading}
+                    className="w-full py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
+                  >
+                    {repartidorFormLoading ? 'Creando...' : 'Crear repartidor'}
+                  </button>
+                  {repartidorFormMessage && (
+                    <p
+                      className={`text-[10px] font-mono ${
+                        repartidorFormMessage.includes('correctamente')
+                          ? 'text-emerald-400'
+                          : 'text-red-400'
+                      }`}
+                    >
+                      {repartidorFormMessage}
+                    </p>
                   )}
                 </form>
               )}
@@ -852,7 +963,7 @@ export default function AdminDashboard({
                   <p className="text-[11px] text-zinc-400 mt-0.5 truncate leading-normal">
                     📍 {order.address}
                   </p>
-                  {userRole === UserRole.LOGISTICS_ADMIN && (
+                  {isAgencyAdmin(userRole) && (
                     <p className="text-[10px] mt-1 font-mono">
                       {order.sellerName ? (
                         <span className="text-purple-300">🛒 {order.sellerName}</span>
@@ -897,7 +1008,7 @@ export default function AdminDashboard({
                   </div>
 
                   {/* Acciones rápidas flotantes en hover */}
-                  {order.status === OrderStatus.PENDING && userRole === UserRole.LOGISTICS_ADMIN && (
+                  {order.status === OrderStatus.PENDING && isAgencyAdmin(userRole) && (
                     <div className="absolute right-3 bottom-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => {
@@ -979,7 +1090,7 @@ export default function AdminDashboard({
 
                 {/* Info Repartidor / Asignador */}
                 <div className="space-y-2">
-                  {userRole === UserRole.LOGISTICS_ADMIN && (
+                  {isAgencyAdmin(userRole) && (
                     <div className="flex items-center gap-2 text-[11px]">
                       <span className="font-semibold text-zinc-400">Vendedor / tienda:</span>
                       {selectedOrder.sellerName ? (
@@ -1006,7 +1117,7 @@ export default function AdminDashboard({
                   </div>
 
                    {/* Asignar vendedor (logística) */}
-                  {userRole === UserRole.LOGISTICS_ADMIN &&
+                  {isAgencyAdmin(userRole) &&
                     onAssignOrderSeller &&
                     selectedOrder.status === OrderStatus.PENDING &&
                     (assigningOrderId === selectedOrder.id || !selectedOrder.sellerId) && (

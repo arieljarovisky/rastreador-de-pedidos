@@ -1,6 +1,7 @@
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { PickupPoint, User, UserRole } from '../types/index.js';
+import { isAgencyAdmin } from '../utils/roles.js';
 
 interface PickupRow extends RowDataPacket {
   id: string;
@@ -106,7 +107,7 @@ export async function deletePickupPoint(id: string): Promise<void> {
 }
 
 export function canManagePickupPoint(user: User, point: PickupPoint): boolean {
-  if (user.role === UserRole.LOGISTICS_ADMIN) return true;
+  if (isAgencyAdmin(user.role)) return true;
   if (user.role === UserRole.STORE_ADMIN) return point.userId === user.id;
   return false;
 }

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate, requireRoles } from '../middleware/auth.js';
+import { authenticate, requireRoles, requireAgencyAdmin } from '../middleware/auth.js';
 import { UserRole, OrderStatus } from '../types/index.js';
 import {
   listOrdersForUser,
@@ -21,7 +21,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
   res.json(orders);
 });
 
-router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
+router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
   const { clientName, clientPhone, address, lat, lng, notes, sellerId } = req.body;
   if (!clientName || !address || lat === undefined || lng === undefined) {
     res.status(400).json({ error: 'Campos requeridos faltantes (clientName, address, lat, lng).' });
@@ -147,7 +147,7 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
   }
 });
 
-router.put('/:id/seller', authenticate, requireRoles(UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
+router.put('/:id/seller', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   const { sellerId } = req.body;
   if (!sellerId) {
     res.status(400).json({ error: 'Debe especificar el sellerId del vendedor.' });
