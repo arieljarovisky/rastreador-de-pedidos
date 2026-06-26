@@ -23,6 +23,8 @@ import {
   Key,
   X,
 } from 'lucide-react';
+import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
+import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 const DIRECTORY_PRESETS = [
   { name: 'Palermo Chico (Av. del Libertador 2400)', lat: -34.5802, lng: -58.4035 },
@@ -65,6 +67,18 @@ interface SettingsPageProps {
   ) => Promise<void>;
   onDeletePickupPoint?: (id: string) => Promise<void>;
   onTriggerSimulatorTick?: () => Promise<void>;
+  integrationStatus?: MarketplaceIntegrationStatus | null;
+  integrationStatusLoading?: boolean;
+  onRefreshIntegrationStatus?: () => Promise<void>;
+  onConnectMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
+  onDisconnectMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
+  onFetchMarketplaceShipments?: (
+    platform: 'mercadolibre' | 'tiendanube'
+  ) => Promise<MarketplaceShipmentPreview[]>;
+  onImportMarketplaceShipments?: (
+    platform: 'mercadolibre' | 'tiendanube',
+    externalIds?: string[]
+  ) => Promise<{ imported: number; skipped: number }>;
 }
 
 export default function SettingsPage({
@@ -84,6 +98,13 @@ export default function SettingsPage({
   onUpdatePickupPoint,
   onDeletePickupPoint,
   onTriggerSimulatorTick,
+  integrationStatus = null,
+  integrationStatusLoading = false,
+  onRefreshIntegrationStatus,
+  onConnectMarketplace,
+  onDisconnectMarketplace,
+  onFetchMarketplaceShipments,
+  onImportMarketplaceShipments,
 }: SettingsPageProps) {
   const userRole = user.role;
   const agency = isAgencyAdmin(userRole);
@@ -248,6 +269,22 @@ export default function SettingsPage({
 
       <div className="flex-1 overflow-y-auto mt-3 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pb-2 auto-rows-min">
+        {userRole === UserRole.STORE_ADMIN &&
+          onRefreshIntegrationStatus &&
+          onConnectMarketplace &&
+          onDisconnectMarketplace &&
+          onFetchMarketplaceShipments &&
+          onImportMarketplaceShipments && (
+            <MarketplaceIntegrations
+              status={integrationStatus}
+              statusLoading={integrationStatusLoading}
+              onRefreshStatus={onRefreshIntegrationStatus}
+              onConnect={onConnectMarketplace}
+              onDisconnect={onDisconnectMarketplace}
+              onFetchShipments={onFetchMarketplaceShipments}
+              onImport={onImportMarketplaceShipments}
+            />
+          )}
         {agency && onUpdateDeparture && (
           <section className={`bg-indigo-950/20 border border-indigo-900/30 rounded-xl p-3 lg:col-span-2 ${showDepartureForm ? 'xl:col-span-2' : ''}`}>
             <div className="flex flex-wrap items-center gap-2">

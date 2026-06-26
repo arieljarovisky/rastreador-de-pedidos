@@ -10,6 +10,7 @@ import repartidoresRoutes from './routes/repartidores.routes.js';
 import notificationsRoutes from './routes/notifications.routes.js';
 import simulatorRoutes from './routes/simulator.routes.js';
 import geocodeRoutes from './routes/geocode.routes.js';
+import integrationsRoutes from './routes/integrations.routes.js';
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api/repartidores', repartidoresRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/simulator', simulatorRoutes);
 app.use('/api/geocode', geocodeRoutes);
+app.use('/api/integrations', integrationsRoutes);
 
 app.use(errorHandler);
 

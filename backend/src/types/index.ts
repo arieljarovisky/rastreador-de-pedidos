@@ -76,6 +76,9 @@ export interface Order {
   history: OrderHistoryEvent[];
   locationHistory: LocationHistoryPoint[];
   notes?: string;
+  externalSource?: string | null;
+  externalOrderId?: string | null;
+  shippingType?: string | null;
 }
 
 export interface AppNotification {
@@ -111,6 +114,9 @@ export interface DbUserRow {
 export interface DbOrderRow {
   id: string;
   seller_id: string | null;
+  external_source: string | null;
+  external_order_id: string | null;
+  shipping_type: string | null;
   client_name: string;
   client_phone: string;
   address: string;

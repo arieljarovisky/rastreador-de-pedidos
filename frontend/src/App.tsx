@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail } from './types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from './types.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -48,11 +48,40 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
+  const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
+  const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
 
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const integration = params.get('integration');
+    const status = params.get('status');
+    const message = params.get('message');
+    const tab = params.get('tab');
+    if (tab === 'settings') setMobileTabState('settings');
+    if (integration && status) {
+      setMobileTabState('settings');
+      const platformLabel = integration === 'mercadolibre' ? 'Mercado Libre' : 'Tienda Nube';
+      if (status === 'connected') {
+        void showAlert({
+          title: 'Cuenta conectada',
+          message: `Tu cuenta de ${platformLabel} fue vinculada correctamente.`,
+          variant: 'success',
+        });
+      } else {
+        void showAlert({
+          title: 'Error de conexión',
+          message: message || `No se pudo conectar ${platformLabel}.`,
+          variant: 'error',
+        });
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [showAlert]);
 
   const [notifsSidebarOpen, setNotifsSidebarOpen] = useState(readNotifsSidebarOpen);
 
@@ -581,6 +610,75 @@ export default function App() {
     }
   };
 
+  const fetchIntegrationStatus = useCallback(async () => {
+    if (!token) return;
+    setIntegrationStatusLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/integrations/status'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setIntegrationStatus(await res.json());
+      }
+    } finally {
+      setIntegrationStatusLoading(false);
+    }
+  }, [token]);
+
+  const connectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/integrations/${platform}/connect`), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudo iniciar la conexión');
+    window.location.href = body.url;
+  };
+
+  const disconnectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/integrations/${platform}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 204) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'No se pudo desconectar');
+    }
+    await fetchIntegrationStatus();
+  };
+
+  const fetchMarketplaceShipments = async (
+    platform: 'mercadolibre' | 'tiendanube'
+  ): Promise<MarketplaceShipmentPreview[]> => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/integrations/${platform}/shipments`), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudieron cargar los envíos');
+    return body;
+  };
+
+  const importMarketplaceShipments = async (
+    platform: 'mercadolibre' | 'tiendanube',
+    externalIds?: string[]
+  ) => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/integrations/${platform}/import`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ externalIds }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudo importar');
+    fetchData();
+    return body as { imported: number; skipped: number };
+  };
+
   // Actualizar estado de pedido (Asignar, Entregar, etc.)
   const handleUpdateOrderStatus = async (
     orderId: string,
@@ -938,6 +1036,13 @@ export default function App() {
                   onUpdatePickupPoint={handleUpdatePickupPoint}
                   onDeletePickupPoint={handleDeletePickupPoint}
                   onTriggerSimulatorTick={isAgencyAdmin(user.role) ? handleTriggerSimulatorTick : undefined}
+                  integrationStatus={integrationStatus}
+                  integrationStatusLoading={integrationStatusLoading}
+                  onRefreshIntegrationStatus={fetchIntegrationStatus}
+                  onConnectMarketplace={user.role === UserRole.STORE_ADMIN ? connectMarketplace : undefined}
+                  onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}
+                  onFetchMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? fetchMarketplaceShipments : undefined}
+                  onImportMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? importMarketplaceShipments : undefined}
                 />
               </div>
             )}

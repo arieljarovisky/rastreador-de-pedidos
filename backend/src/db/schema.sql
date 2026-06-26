@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS pickup_points (
 CREATE TABLE IF NOT EXISTS orders (
   id VARCHAR(36) PRIMARY KEY,
   seller_id VARCHAR(36) NULL,
+  external_source VARCHAR(32) NULL,
+  external_order_id VARCHAR(100) NULL,
+  shipping_type VARCHAR(32) NULL,
   client_name VARCHAR(255) NOT NULL,
   client_phone VARCHAR(50) NOT NULL DEFAULT '',
   address VARCHAR(500) NOT NULL,
@@ -40,9 +43,27 @@ CREATE TABLE IF NOT EXISTS orders (
   updated_at DATETIME(3) NOT NULL,
   INDEX idx_orders_status (status),
   INDEX idx_orders_seller (seller_id),
+  INDEX idx_orders_external (seller_id, external_source, external_order_id),
   INDEX idx_orders_repartidor (repartidor_id),
   CONSTRAINT fk_orders_seller FOREIGN KEY (seller_id) REFERENCES users(id),
   CONSTRAINT fk_orders_repartidor FOREIGN KEY (repartidor_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS store_integrations (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  platform ENUM('mercadolibre', 'tiendanube') NOT NULL,
+  external_user_id VARCHAR(100) NULL,
+  external_store_id VARCHAR(100) NULL,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NULL,
+  token_expires_at DATETIME(3) NULL,
+  metadata JSON NULL,
+  connected_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  UNIQUE KEY uk_user_platform (user_id, platform),
+  INDEX idx_integrations_user (user_id),
+  CONSTRAINT fk_integrations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS order_history (

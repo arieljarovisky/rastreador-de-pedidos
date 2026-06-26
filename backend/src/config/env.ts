@@ -34,4 +34,20 @@ export const env = {
     process.env.CORS_ORIGIN,
     process.env.FRONTEND_URL
   ),
+  publicUrl: (process.env.PUBLIC_URL || process.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, ''),
+  frontendUrl: (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, ''),
+  mercadolibre: {
+    appId: process.env.ML_APP_ID?.trim() || '',
+    appSecret: process.env.ML_APP_SECRET?.trim() || '',
+    redirectUri:
+      process.env.ML_REDIRECT_URI?.trim() ||
+      `${(process.env.PUBLIC_URL || process.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '')}/api/integrations/mercadolibre/callback`,
+  },
+  tiendanube: {
+    appId: process.env.TN_APP_ID?.trim() || process.env.TIENDANUBE_APP_ID?.trim() || '',
+    appSecret: process.env.TN_APP_SECRET?.trim() || process.env.TIENDANUBE_APP_SECRET?.trim() || '',
+    redirectUri:
+      process.env.TN_REDIRECT_URI?.trim() ||
+      `${(process.env.PUBLIC_URL || process.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '')}/api/integrations/tiendanube/callback`,
+  },
 };

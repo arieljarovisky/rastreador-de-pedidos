@@ -100,13 +100,17 @@ function rowToOrder(
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
     notes: row.notes ?? undefined,
+    externalSource: row.external_source ?? null,
+    externalOrderId: row.external_order_id ?? null,
+    shippingType: row.shipping_type ?? null,
     history,
     locationHistory,
   };
 }
 
 const ORDER_SELECT = `
-  SELECT o.id, o.seller_id, o.client_name, o.client_phone, o.address, o.lat, o.lng,
+  SELECT o.id, o.seller_id, o.external_source, o.external_order_id, o.shipping_type,
+         o.client_name, o.client_phone, o.address, o.lat, o.lng,
          o.status, o.repartidor_id, o.notes, o.created_at, o.updated_at,
          r.name AS repartidor_name,
          s.name AS seller_name
@@ -186,6 +190,9 @@ export async function createOrder(
     lng: number;
     notes?: string;
     sellerId?: string;
+    externalSource?: string;
+    externalOrderId?: string;
+    shippingType?: string;
   }
 ): Promise<Order> {
   const [countRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) AS cnt FROM orders');
@@ -208,12 +215,21 @@ export async function createOrder(
     throw new Error('FORBIDDEN');
   }
 
+  if (data.externalSource && data.externalOrderId && sellerId) {
+    const existing = await findOrderByExternal(sellerId, data.externalSource, data.externalOrderId);
+    if (existing) throw new Error('EXTERNAL_ORDER_EXISTS');
+  }
+
   await pool.query(
-    `INSERT INTO orders (id, seller_id, client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+    `INSERT INTO orders (id, seller_id, external_source, external_order_id, shipping_type,
+       client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
     [
       newId,
       sellerId,
+      data.externalSource ?? null,
+      data.externalOrderId ?? null,
+      data.shippingType ?? null,
       data.clientName,
       data.clientPhone ?? '',
       data.address,
@@ -240,6 +256,20 @@ export async function createOrder(
   const order = await getOrderById(newId);
   if (!order) throw new Error('No se pudo crear el pedido');
   return order;
+}
+
+export async function findOrderByExternal(
+  sellerId: string,
+  externalSource: string,
+  externalOrderId: string
+): Promise<Order | null> {
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT} WHERE o.seller_id = ? AND o.external_source = ? AND o.external_order_id = ? LIMIT 1`,
+    [sellerId, externalSource, externalOrderId]
+  );
+  if (!rows[0]) return null;
+  const orders = await enrichOrders([rows[0]]);
+  return orders[0] ?? null;
 }
 
 export async function assignOrderToSeller(

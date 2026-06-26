@@ -98,6 +98,45 @@ export interface Order {
   history: OrderHistoryEvent[];
   locationHistory: LocationHistoryPoint[];
   notes?: string;
+  externalSource?: string | null;
+  externalOrderId?: string | null;
+  shippingType?: string | null;
+}
+
+export interface MarketplaceIntegrationAccount {
+  platform: 'mercadolibre' | 'tiendanube';
+  connected: boolean;
+  externalUserId: string | null;
+  externalStoreId: string | null;
+  nickname: string | null;
+  connectedAt: string;
+}
+
+export interface MarketplaceIntegrationStatus {
+  mercadolibre: {
+    configured: boolean;
+    connected: boolean;
+    account: MarketplaceIntegrationAccount | null;
+  };
+  tiendanube: {
+    configured: boolean;
+    connected: boolean;
+    account: MarketplaceIntegrationAccount | null;
+  };
+}
+
+export interface MarketplaceShipmentPreview {
+  externalId: string;
+  platform: 'mercadolibre' | 'tiendanube';
+  shippingType: 'flex' | 'express';
+  clientName: string;
+  clientPhone: string;
+  address: string;
+  lat?: number;
+  lng?: number;
+  notes: string;
+  createdAt: string;
+  alreadyImported: boolean;
 }
 
 export interface AppNotification {
