@@ -24,6 +24,7 @@ import {
   importMarketplaceShipments,
   listImportableShipments,
 } from '../services/marketplace-import.service.js';
+import { parseTiendaNubeDateRange } from '../services/tiendanube.service.js';
 import {
   getMercadoLibreWebhookUrl,
   processMercadoLibreNotification,
@@ -197,10 +198,30 @@ router.get('/:platform/shipments', authenticate, requireRoles(UserRole.STORE_ADM
   }
 
   try {
-    const shipments = await listImportableShipments(req.user!.id, platform);
+    const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : undefined;
+    const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : undefined;
+    const tnDateRange =
+      platform === 'tiendanube' ? parseTiendaNubeDateRange(dateFrom, dateTo) : undefined;
+
+    const shipments = await listImportableShipments(req.user!.id, platform, {
+      dateFrom: tnDateRange?.dateFrom,
+      dateTo: tnDateRange?.dateTo,
+    });
     res.json(shipments);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
+    if (message === 'TN_INVALID_DATE') {
+      res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
+      return;
+    }
+    if (message === 'TN_INVALID_DATE_RANGE') {
+      res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
+      return;
+    }
+    if (message === 'TN_DATE_RANGE_TOO_LONG') {
+      res.status(400).json({ error: 'El período máximo de búsqueda es de 90 días.' });
+      return;
+    }
     if (message === 'ML_NOT_CONNECTED' || message === 'TN_NOT_CONNECTED') {
       res.status(400).json({ error: 'Conectá tu cuenta antes de importar envíos.' });
       return;
@@ -220,13 +241,34 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
     return;
   }
 
-  const { externalIds } = req.body as { externalIds?: string[] };
+  const { externalIds, dateFrom, dateTo } = req.body as {
+    externalIds?: string[];
+    dateFrom?: string;
+    dateTo?: string;
+  };
 
   try {
-    const result = await importMarketplaceShipments(req.user!, platform, externalIds);
+    const tnDateRange =
+      platform === 'tiendanube' ? parseTiendaNubeDateRange(dateFrom, dateTo) : undefined;
+    const result = await importMarketplaceShipments(req.user!, platform, externalIds, {
+      dateFrom: tnDateRange?.dateFrom,
+      dateTo: tnDateRange?.dateTo,
+    });
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
+    if (message === 'TN_INVALID_DATE') {
+      res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
+      return;
+    }
+    if (message === 'TN_INVALID_DATE_RANGE') {
+      res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
+      return;
+    }
+    if (message === 'TN_DATE_RANGE_TOO_LONG') {
+      res.status(400).json({ error: 'El período máximo de búsqueda es de 90 días.' });
+      return;
+    }
     if (message === 'ML_NOT_CONNECTED' || message === 'TN_NOT_CONNECTED') {
       res.status(400).json({ error: 'Conectá tu cuenta antes de importar envíos.' });
       return;

@@ -140,6 +140,11 @@ export interface MarketplaceShipmentPreview {
   alreadyImported: boolean;
 }
 
+export interface MarketplaceDateRange {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 export interface AppNotification {
   id: string;
   userId: string; // 'all' o un id de usuario específico

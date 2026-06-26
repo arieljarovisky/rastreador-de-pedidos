@@ -73,11 +73,13 @@ interface SettingsPageProps {
   onConnectMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
   onDisconnectMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
   onFetchMarketplaceShipments?: (
-    platform: 'mercadolibre' | 'tiendanube'
+    platform: 'mercadolibre' | 'tiendanube',
+    options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<MarketplaceShipmentPreview[]>;
   onImportMarketplaceShipments?: (
     platform: 'mercadolibre' | 'tiendanube',
-    externalIds?: string[]
+    externalIds?: string[],
+    options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
 }
 

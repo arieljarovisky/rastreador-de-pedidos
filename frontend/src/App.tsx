@@ -649,12 +649,20 @@ export default function App() {
   };
 
   const fetchMarketplaceShipments = async (
-    platform: 'mercadolibre' | 'tiendanube'
+    platform: 'mercadolibre' | 'tiendanube',
+    options?: { dateFrom?: string; dateTo?: string }
   ): Promise<MarketplaceShipmentPreview[]> => {
     if (!token) throw new Error('Sin sesión');
-    const res = await fetch(apiUrl(`/api/integrations/${platform}/shipments`), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const params = new URLSearchParams();
+    if (platform === 'tiendanube' && options?.dateFrom) params.set('dateFrom', options.dateFrom);
+    if (platform === 'tiendanube' && options?.dateTo) params.set('dateTo', options.dateTo);
+    const query = params.toString();
+    const res = await fetch(
+      apiUrl(`/api/integrations/${platform}/shipments${query ? `?${query}` : ''}`),
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'No se pudieron cargar los envíos');
     return body;
@@ -662,7 +670,8 @@ export default function App() {
 
   const importMarketplaceShipments = async (
     platform: 'mercadolibre' | 'tiendanube',
-    externalIds?: string[]
+    externalIds?: string[],
+    options?: { dateFrom?: string; dateTo?: string }
   ) => {
     if (!token) throw new Error('Sin sesión');
     const res = await fetch(apiUrl(`/api/integrations/${platform}/import`), {
@@ -671,7 +680,11 @@ export default function App() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ externalIds }),
+      body: JSON.stringify({
+        externalIds,
+        dateFrom: platform === 'tiendanube' ? options?.dateFrom : undefined,
+        dateTo: platform === 'tiendanube' ? options?.dateTo : undefined,
+      }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'No se pudo importar');

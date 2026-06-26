@@ -7,6 +7,7 @@ import {
 } from './mercadolibre.service.js';
 import {
   listTiendaNubeExpressShipments,
+  type TiendaNubeDateRange,
   type TiendaNubeExpressShipment,
 } from './tiendanube.service.js';
 import type { IntegrationPlatform } from './integrations.service.js';
@@ -44,24 +45,36 @@ async function markImported(
   return previews;
 }
 
+export interface MarketplaceListOptions {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
 export async function listImportableShipments(
   userId: string,
-  platform: IntegrationPlatform
+  platform: IntegrationPlatform,
+  options?: MarketplaceListOptions
 ): Promise<MarketplaceShipmentPreview[]> {
   if (platform === 'mercadolibre') {
     const flex = await listMercadoLibreFlexShipments(userId);
     return markImported(userId, flex);
   }
-  const express = await listTiendaNubeExpressShipments(userId);
+
+  const dateRange: TiendaNubeDateRange | undefined =
+    options?.dateFrom || options?.dateTo
+      ? { dateFrom: options.dateFrom, dateTo: options.dateTo }
+      : undefined;
+  const express = await listTiendaNubeExpressShipments(userId, dateRange);
   return markImported(userId, express);
 }
 
 export async function importMarketplaceShipments(
   user: User,
   platform: IntegrationPlatform,
-  externalIds?: string[]
+  externalIds?: string[],
+  options?: MarketplaceListOptions
 ): Promise<{ imported: number; skipped: number; orders: string[]; errors: string[] }> {
-  const all = await listImportableShipments(user.id, platform);
+  const all = await listImportableShipments(user.id, platform, options);
   const toImport = externalIds?.length
     ? all.filter((s) => externalIds.includes(s.externalId) && !s.alreadyImported)
     : all.filter((s) => !s.alreadyImported);

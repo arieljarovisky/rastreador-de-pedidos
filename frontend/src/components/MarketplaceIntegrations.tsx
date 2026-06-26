@@ -13,10 +13,14 @@ interface MarketplaceIntegrationsProps {
   onRefreshStatus: () => Promise<void>;
   onConnect: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
   onDisconnect: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
-  onFetchShipments: (platform: 'mercadolibre' | 'tiendanube') => Promise<MarketplaceShipmentPreview[]>;
+  onFetchShipments: (
+    platform: 'mercadolibre' | 'tiendanube',
+    options?: { dateFrom?: string; dateTo?: string }
+  ) => Promise<MarketplaceShipmentPreview[]>;
   onImport: (
     platform: 'mercadolibre' | 'tiendanube',
-    externalIds?: string[]
+    externalIds?: string[],
+    options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
 }
 
@@ -24,6 +28,28 @@ const btnPrimary =
   'px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-[11px] font-bold uppercase tracking-wider transition';
 const btnGhost =
   'px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-[11px] font-bold uppercase tracking-wider transition disabled:opacity-50';
+const dateInputClass =
+  'bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-[10px] text-zinc-200 min-w-0';
+
+function toDateInputValue(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function defaultTnDateRange(): { dateFrom: string; dateTo: string } {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 30);
+  return { dateFrom: toDateInputValue(from), dateTo: toDateInputValue(to) };
+}
+
+function formatShipmentDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
 
 function PlatformCard({
   title,
@@ -38,6 +64,10 @@ function PlatformCard({
   shipmentsLoading,
   importLoading,
   importingId,
+  dateFrom,
+  dateTo,
+  onDateFromChange,
+  onDateToChange,
   onConnect,
   onDisconnect,
   onRefreshShipments,
@@ -56,6 +86,10 @@ function PlatformCard({
   shipmentsLoading: boolean;
   importLoading: boolean;
   importingId: string | 'all' | null;
+  dateFrom?: string;
+  dateTo?: string;
+  onDateFromChange?: (value: string) => void;
+  onDateToChange?: (value: string) => void;
   onConnect: () => void;
   onDisconnect: () => void;
   onRefreshShipments: () => void;
@@ -111,11 +145,38 @@ function PlatformCard({
 
       {connected && (
         <>
+          {platform === 'tiendanube' && dateFrom && dateTo && onDateFromChange && onDateToChange && (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
+                <span className="text-[9px] text-zinc-500 uppercase tracking-wide">Desde</span>
+                <input
+                  type="date"
+                  className={dateInputClass}
+                  value={dateFrom}
+                  max={dateTo}
+                  disabled={shipmentsLoading || importLoading}
+                  onChange={(e) => onDateFromChange(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
+                <span className="text-[9px] text-zinc-500 uppercase tracking-wide">Hasta</span>
+                <input
+                  type="date"
+                  className={dateInputClass}
+                  value={dateTo}
+                  min={dateFrom}
+                  disabled={shipmentsLoading || importLoading}
+                  onChange={(e) => onDateToChange(e.target.value)}
+                />
+              </label>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
               className={btnGhost}
-              disabled={shipmentsLoading}
+              disabled={shipmentsLoading || importLoading}
               onClick={onRefreshShipments}
             >
               <span className="inline-flex items-center gap-1">
@@ -156,7 +217,8 @@ function PlatformCard({
           {!shipmentsLoading && shipments.length === 0 && (
             <p className="text-[10px] text-zinc-500">
               Tocá &quot;Buscar envíos&quot; para ver pedidos{' '}
-              {platform === 'mercadolibre' ? 'Flex' : 'Express'} pendientes de importar.
+              {platform === 'mercadolibre' ? 'Flex' : 'Express'} pendientes de importar
+              {platform === 'tiendanube' ? ' en el período seleccionado' : ''}.
             </p>
           )}
 
@@ -175,6 +237,12 @@ function PlatformCard({
                     <div className="min-w-0">
                       <p className="font-medium text-zinc-200 truncate">
                         #{s.externalId} · {s.clientName}
+                        {s.createdAt && (
+                          <span className="text-zinc-500 font-normal">
+                            {' '}
+                            · {formatShipmentDate(s.createdAt)}
+                          </span>
+                        )}
                       </p>
                       <p className="text-zinc-500 truncate">{s.address}</p>
                     </div>
@@ -225,12 +293,16 @@ export default function MarketplaceIntegrations({
   const [tnImporting, setTnImporting] = useState(false);
   const [mlImportingId, setMlImportingId] = useState<string | 'all' | null>(null);
   const [tnImportingId, setTnImportingId] = useState<string | 'all' | null>(null);
+  const [tnDateFrom, setTnDateFrom] = useState(() => defaultTnDateRange().dateFrom);
+  const [tnDateTo, setTnDateTo] = useState(() => defaultTnDateRange().dateTo);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<'success' | 'error'>('success');
 
   useEffect(() => {
     void onRefreshStatus();
   }, [onRefreshStatus]);
+
+  const tnDateOptions = { dateFrom: tnDateFrom, dateTo: tnDateTo };
 
   const refreshMl = useCallback(async () => {
     setMlLoading(true);
@@ -247,10 +319,16 @@ export default function MarketplaceIntegrations({
   }, [onFetchShipments]);
 
   const refreshTn = useCallback(async () => {
+    if (tnDateFrom > tnDateTo) {
+      setMessageTone('error');
+      setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
+      return;
+    }
+
     setTnLoading(true);
     setMessage(null);
     try {
-      const list = await onFetchShipments('tiendanube');
+      const list = await onFetchShipments('tiendanube', tnDateOptions);
       setTnShipments(list);
     } catch (err: unknown) {
       setMessageTone('error');
@@ -258,7 +336,7 @@ export default function MarketplaceIntegrations({
     } finally {
       setTnLoading(false);
     }
-  }, [onFetchShipments]);
+  }, [onFetchShipments, tnDateFrom, tnDateTo]);
 
   const runImport = async (
     platform: 'mercadolibre' | 'tiendanube',
@@ -267,11 +345,19 @@ export default function MarketplaceIntegrations({
     const setImporting = platform === 'mercadolibre' ? setMlImporting : setTnImporting;
     const setImportingId = platform === 'mercadolibre' ? setMlImportingId : setTnImportingId;
     const refresh = platform === 'mercadolibre' ? refreshMl : refreshTn;
+    const options = platform === 'tiendanube' ? tnDateOptions : undefined;
+
+    if (platform === 'tiendanube' && tnDateFrom > tnDateTo) {
+      setMessageTone('error');
+      setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
+      return;
+    }
+
     setImporting(true);
     setImportingId(externalIds?.length === 1 ? externalIds[0]! : 'all');
     setMessage(null);
     try {
-      const result = await onImport(platform, externalIds);
+      const result = await onImport(platform, externalIds, options);
       if (result.imported > 0) {
         setMessageTone('success');
         setMessage(
@@ -343,7 +429,7 @@ export default function MarketplaceIntegrations({
         />
         <PlatformCard
           title="Tienda Nube"
-          subtitle="Solo envíos Express"
+          subtitle="Solo envíos Express · filtrá por período"
           icon={<Store className="w-4 h-4 text-violet-400" />}
           platform="tiendanube"
           configured={status?.tiendanube.configured ?? false}
@@ -355,6 +441,10 @@ export default function MarketplaceIntegrations({
           shipmentsLoading={tnLoading}
           importLoading={tnImporting}
           importingId={tnImportingId}
+          dateFrom={tnDateFrom}
+          dateTo={tnDateTo}
+          onDateFromChange={setTnDateFrom}
+          onDateToChange={setTnDateTo}
           onConnect={() => void onConnect('tiendanube')}
           onDisconnect={() => void onDisconnect('tiendanube')}
           onRefreshShipments={() => void refreshTn()}

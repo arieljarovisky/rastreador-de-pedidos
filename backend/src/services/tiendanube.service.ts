@@ -321,26 +321,103 @@ function extractTnShipment(order: TnOrder): TiendaNubeExpressShipment | null {
   };
 }
 
-export async function listTiendaNubeExpressShipments(userId: string): Promise<TiendaNubeExpressShipment[]> {
+export interface TiendaNubeDateRange {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_TN_RANGE_DAYS = 90;
+
+export function parseTiendaNubeDateRange(
+  dateFrom?: string,
+  dateTo?: string
+): TiendaNubeDateRange | undefined {
+  const from = dateFrom?.trim();
+  const to = dateTo?.trim();
+  if (!from && !to) return undefined;
+
+  if ((from && !DATE_ONLY_RE.test(from)) || (to && !DATE_ONLY_RE.test(to))) {
+    throw new Error('TN_INVALID_DATE');
+  }
+  if (from && to && from > to) {
+    throw new Error('TN_INVALID_DATE_RANGE');
+  }
+
+  if (from && to) {
+    const start = new Date(`${from}T00:00:00`);
+    const end = new Date(`${to}T00:00:00`);
+    const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > MAX_TN_RANGE_DAYS) {
+      throw new Error('TN_DATE_RANGE_TOO_LONG');
+    }
+  }
+
+  return { dateFrom: from, dateTo: to };
+}
+
+function toTnCreatedAtMin(date: string): string {
+  return `${date}T00:00:00-03:00`;
+}
+
+function toTnCreatedAtMax(date: string): string {
+  return `${date}T23:59:59-03:00`;
+}
+
+async function fetchTiendaNubeOrders(
+  storeId: string,
+  accessToken: string,
+  dateRange?: TiendaNubeDateRange
+): Promise<TnOrder[]> {
+  const allOrders: TnOrder[] = [];
+  const baseParams = new URLSearchParams({
+    per_page: '200',
+    payment_status: 'paid',
+    aggregates: 'fulfillment_orders',
+  });
+
+  if (dateRange?.dateFrom) {
+    baseParams.set('created_at_min', toTnCreatedAtMin(dateRange.dateFrom));
+  }
+  if (dateRange?.dateTo) {
+    baseParams.set('created_at_max', toTnCreatedAtMax(dateRange.dateTo));
+  }
+
+  for (let page = 1; page <= 50; page++) {
+    const params = new URLSearchParams(baseParams);
+    params.set('page', String(page));
+
+    const res = await fetch(`https://api.tiendanube.com/v1/${storeId}/orders?${params}`, {
+      headers: tnHeaders(accessToken),
+    });
+
+    if (!res.ok) {
+      console.error('[TN] orders API error:', res.status, await res.text().catch(() => ''));
+      throw new Error('TN_API_ERROR');
+    }
+
+    const orders = (await res.json()) as TnOrder[];
+    if (!Array.isArray(orders)) {
+      console.error('[TN] unexpected orders response:', orders);
+      throw new Error('TN_API_ERROR');
+    }
+
+    if (orders.length === 0) break;
+    allOrders.push(...orders);
+    if (orders.length < 200) break;
+  }
+
+  return allOrders;
+}
+export async function listTiendaNubeExpressShipments(
+  userId: string,
+  dateRange?: TiendaNubeDateRange
+): Promise<TiendaNubeExpressShipment[]> {
   const integration = await getValidTiendaNubeIntegration(userId);
   const storeId = integration.externalStoreId;
   if (!storeId) throw new Error('TN_NOT_CONNECTED');
 
-  const res = await fetch(
-    `https://api.tiendanube.com/v1/${storeId}/orders?per_page=50&payment_status=paid&aggregates=fulfillment_orders`,
-    { headers: tnHeaders(integration.accessToken) }
-  );
-
-  if (!res.ok) {
-    console.error('[TN] orders API error:', res.status, await res.text().catch(() => ''));
-    throw new Error('TN_API_ERROR');
-  }
-
-  const orders = (await res.json()) as TnOrder[];
-  if (!Array.isArray(orders)) {
-    console.error('[TN] unexpected orders response:', orders);
-    throw new Error('TN_API_ERROR');
-  }
+  const orders = await fetchTiendaNubeOrders(storeId, integration.accessToken, dateRange);
 
   const shipments: TiendaNubeExpressShipment[] = [];
   for (const order of orders) {
