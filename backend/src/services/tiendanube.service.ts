@@ -160,25 +160,63 @@ function isPickupShipping(text: string | undefined): boolean {
   );
 }
 
+function isStandardShipping(text: string | undefined): boolean {
+  if (!text) return false;
+  const normalized = normalizeShippingText(text);
+  if (normalized.includes('express') || normalized.includes('rapido') || normalized.includes('urgente')) {
+    return false;
+  }
+  return (
+    normalized.includes('estandar') ||
+    normalized.includes('standard') ||
+    normalized.includes('economico') ||
+    normalized.includes('paquete') ||
+    normalized.includes('normal') ||
+    normalized.includes('clasico')
+  );
+}
+
+function normalizeShippingText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
+
 function isExpressShipping(text: string | undefined): boolean {
   if (!text) return false;
-  const normalized = text.toLowerCase();
-  return (
-    normalized.includes('express') ||
-    normalized.includes('rápido') ||
+  const normalized = normalizeShippingText(text);
+
+  if (isStandardShipping(text)) return false;
+
+  if (
+    /\bexpress\b/.test(normalized) ||
+    normalized.includes('_express') ||
+    normalized.includes('express_')
+  ) {
+    return true;
+  }
+
+  if (
     normalized.includes('rapido') ||
     normalized.includes('urgente') ||
-    normalized.includes('nube') ||
-    normalized.includes('envío') ||
-    normalized.includes('envio') ||
-    normalized.includes('domicilio') ||
     normalized.includes('same day') ||
     normalized.includes('sameday') ||
-    normalized.includes('flash') ||
-    normalized.includes('correo') ||
-    normalized.includes('andreani') ||
-    normalized.includes('oca')
-  );
+    normalized.includes('flash')
+  ) {
+    return true;
+  }
+
+  if (normalized.includes('envio express')) return true;
+
+  if (
+    (normalized.includes('nube') || normalized.includes('tiendanube')) &&
+    (normalized.includes('express') || normalized.includes('rapido') || normalized.includes('urgente'))
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function fulfillmentIsPickup(fulfillment: TnFulfillment): boolean {
@@ -218,21 +256,6 @@ function orderIsExpress(order: TnOrder): boolean {
   return false;
 }
 
-function orderHasDeliveryAddress(order: TnOrder): boolean {
-  const fulfillment = getOrderFulfillments(order).find((f) => !fulfillmentIsPickup(f));
-  if (fulfillment?.destination) {
-    const addr = formatTnAddress(fulfillment.destination);
-    if (addr.replace(/,?\s*Argentina$/i, '').trim().length > 5) return true;
-  }
-
-  if (order.shipping_address) {
-    const addr = formatTnAddress(order.shipping_address);
-    if (addr.replace(/,?\s*Argentina$/i, '').trim().length > 5) return true;
-  }
-
-  return false;
-}
-
 export interface TiendaNubeExpressShipment {
   externalId: string;
   platform: IntegrationPlatform;
@@ -257,7 +280,7 @@ function extractTnShipment(order: TnOrder): TiendaNubeExpressShipment | null {
     return null;
   }
 
-  if (!orderIsExpress(order) && !orderHasDeliveryAddress(order)) return null;
+  if (!orderIsExpress(order)) return null;
 
   const fulfillment = deliverableFulfillment ?? fulfillments[0];
   const dest = fulfillment?.destination;
@@ -293,7 +316,7 @@ function extractTnShipment(order: TnOrder): TiendaNubeExpressShipment | null {
     clientName,
     clientPhone,
     address,
-    notes: `Tienda Nube · Pedido #${order.number ?? order.id} · ${shippingLabel}`,
+    notes: `Tienda Nube Express · Pedido #${order.number ?? order.id} · ${shippingLabel}`,
     createdAt: order.created_at,
   };
 }

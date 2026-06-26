@@ -155,7 +155,8 @@ function PlatformCard({
 
           {!shipmentsLoading && shipments.length === 0 && (
             <p className="text-[10px] text-zinc-500">
-              Tocá &quot;Buscar envíos&quot; para ver pedidos {platform === 'mercadolibre' ? 'Flex' : 'Express'} pendientes.
+              Tocá &quot;Buscar envíos&quot; para ver pedidos{' '}
+              {platform === 'mercadolibre' ? 'Flex' : 'Express'} pendientes de importar.
             </p>
           )}
 
@@ -342,7 +343,7 @@ export default function MarketplaceIntegrations({
         />
         <PlatformCard
           title="Tienda Nube"
-          subtitle="Envíos Express"
+          subtitle="Solo envíos Express"
           icon={<Store className="w-4 h-4 text-violet-400" />}
           platform="tiendanube"
           configured={status?.tiendanube.configured ?? false}
