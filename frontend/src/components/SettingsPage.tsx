@@ -18,6 +18,7 @@ import {
   Trash2,
   Settings,
   ArrowLeft,
+  Pencil,
 } from 'lucide-react';
 
 const DIRECTORY_PRESETS = [
@@ -53,6 +54,10 @@ interface SettingsPageProps {
     lat: number;
     lng: number;
   }) => Promise<void>;
+  onUpdatePickupPoint?: (
+    id: string,
+    data: { label?: string; address: string; lat: number; lng: number }
+  ) => Promise<void>;
   onDeletePickupPoint?: (id: string) => Promise<void>;
   onTriggerSimulatorTick?: () => Promise<void>;
 }
@@ -69,6 +74,7 @@ export default function SettingsPage({
   onCreateRepartidor,
   onDeleteRepartidor,
   onCreatePickupPoint,
+  onUpdatePickupPoint,
   onDeletePickupPoint,
   onTriggerSimulatorTick,
 }: SettingsPageProps) {
@@ -109,6 +115,10 @@ export default function SettingsPage({
   const [pickupLat, setPickupLat] = useState(-34.58);
   const [pickupLng, setPickupLng] = useState(-58.4);
   const [pickupLoading, setPickupLoading] = useState(false);
+  const [editingPickupId, setEditingPickupId] = useState<string | null>(null);
+  const [editPickupLabel, setEditPickupLabel] = useState('');
+  const [editPickupAddress, setEditPickupAddress] = useState('');
+  const [editPickupLoading, setEditPickupLoading] = useState(false);
 
   useEffect(() => {
     if (departurePoint) {
@@ -134,6 +144,23 @@ export default function SettingsPage({
     setPickupAddress(preset.name);
     setPickupLat(preset.lat);
     setPickupLng(preset.lng);
+  };
+
+  const applyEditPickupPreset = (preset: (typeof DIRECTORY_PRESETS)[0]) => {
+    setEditPickupAddress(preset.name);
+  };
+
+  const startEditPickup = (point: PickupPoint) => {
+    setEditingPickupId(point.id);
+    setEditPickupLabel(point.label);
+    setEditPickupAddress(point.address);
+    setShowPickupForm(false);
+  };
+
+  const cancelEditPickup = () => {
+    setEditingPickupId(null);
+    setEditPickupLabel('');
+    setEditPickupAddress('');
   };
 
   return (
@@ -593,21 +620,106 @@ export default function SettingsPage({
                 {pickupPoints.map((point) => (
                   <li
                     key={point.id}
-                    className="flex items-start justify-between gap-2 bg-zinc-950/60 border border-zinc-800 rounded px-3 py-2 text-[11px]"
+                    className="bg-zinc-950/60 border border-zinc-800 rounded px-3 py-2 text-[11px]"
                   >
-                    <div>
-                      <span className="font-bold text-emerald-300">{point.label}</span>
-                      <p className="text-zinc-400 mt-0.5">📍 {point.address}</p>
-                    </div>
-                    {onDeletePickupPoint && (
-                      <button
-                        type="button"
-                        onClick={() => onDeletePickupPoint(point.id)}
-                        className="text-red-400 hover:text-red-300 shrink-0"
-                        title="Eliminar"
+                    {editingPickupId === point.id && onUpdatePickupPoint ? (
+                      <form
+                        className="space-y-2"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setEditPickupLoading(true);
+                          try {
+                            const located = await geocodeAddress(editPickupAddress);
+                            await onUpdatePickupPoint(point.id, {
+                              label: editPickupLabel || 'Punto de colecta',
+                              address: editPickupAddress,
+                              lat: located.lat,
+                              lng: located.lng,
+                            });
+                            cancelEditPickup();
+                          } catch (err: unknown) {
+                            const message =
+                              err instanceof Error ? err.message : 'No se pudo actualizar el punto';
+                            void showAlert({ title: 'Error', message, variant: 'error' });
+                          } finally {
+                            setEditPickupLoading(false);
+                          }
+                        }}
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <p className="text-[9px] font-bold uppercase text-emerald-400 tracking-wider">
+                          Editando punto de colecta
+                        </p>
+                        <input
+                          value={editPickupLabel}
+                          onChange={(e) => setEditPickupLabel(e.target.value)}
+                          placeholder="Nombre (ej: Depósito, Local)"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                        />
+                        <input
+                          required
+                          value={editPickupAddress}
+                          onChange={(e) => setEditPickupAddress(e.target.value)}
+                          placeholder="Dirección de colecta"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                        />
+                        <div className="flex flex-wrap gap-1">
+                          {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => applyEditPickupPreset(preset)}
+                              className="text-[9px] px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                            >
+                              {preset.name.split('(')[0].trim()}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={cancelEditPickup}
+                            className="flex-1 py-2 border border-zinc-700 text-zinc-400 text-[10px] font-bold uppercase rounded hover:bg-zinc-900"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={editPickupLoading}
+                            className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
+                          >
+                            {editPickupLoading ? 'Guardando...' : 'Guardar cambios'}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="font-bold text-emerald-300">{point.label}</span>
+                          <p className="text-zinc-400 mt-0.5">📍 {point.address}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {onUpdatePickupPoint && (
+                            <button
+                              type="button"
+                              onClick={() => startEditPickup(point)}
+                              className="text-zinc-400 hover:text-emerald-300 p-1"
+                              title="Editar"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          {onDeletePickupPoint && (
+                            <button
+                              type="button"
+                              onClick={() => onDeletePickupPoint(point.id)}
+                              className="text-red-400 hover:text-red-300 p-1"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </li>
                 ))}

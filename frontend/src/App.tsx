@@ -457,6 +457,38 @@ export default function App() {
     }
   };
 
+  const handleUpdatePickupPoint = async (
+    id: string,
+    data: { label?: string; address: string; lat: number; lng: number }
+  ) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/pickup-points/${id}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo actualizar el punto de colecta');
+    }
+    const updated = await res.json();
+    setPickupPoints((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    if (user?.role === UserRole.STORE_ADMIN) {
+      setUser((prev) => {
+        if (!prev) return prev;
+        const next = {
+          ...prev,
+          pickupPoints: (prev.pickupPoints ?? []).map((p) => (p.id === id ? updated : p)),
+        };
+        localStorage.setItem('lupo_user', JSON.stringify(next));
+        return next;
+      });
+    }
+  };
+
   const handleDeletePickupPoint = async (id: string) => {
     if (!token) return;
     const res = await fetch(apiUrl(`/api/accounts/pickup-points/${id}`), {
@@ -872,6 +904,7 @@ export default function App() {
                   onCreateRepartidor={isAgencyAdmin(user.role) ? handleCreateRepartidor : undefined}
                   onDeleteRepartidor={isAgencyAdmin(user.role) ? handleDeleteRepartidor : undefined}
                   onCreatePickupPoint={handleCreatePickupPoint}
+                  onUpdatePickupPoint={handleUpdatePickupPoint}
                   onDeletePickupPoint={handleDeletePickupPoint}
                   onTriggerSimulatorTick={isAgencyAdmin(user.role) ? handleTriggerSimulatorTick : undefined}
                 />
