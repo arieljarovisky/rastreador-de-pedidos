@@ -126,7 +126,7 @@ export default function NotificationHub({
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <>
+    <div className="h-full w-full flex flex-col min-h-0">
       {/* Banner de Notificación Push Flotante Realtime */}
       <AnimatePresence>
         {activeBanner && (
@@ -264,6 +264,6 @@ export default function NotificationHub({
         </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

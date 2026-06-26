@@ -798,7 +798,11 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main className="flex-1 overflow-hidden p-3 md:p-4 relative h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]">
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
-          <div className="flex flex-col xl:flex-row gap-4 h-full overflow-hidden">
+          <div
+            className={`flex flex-col xl:flex-row h-full overflow-hidden ${
+              notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'
+            }`}
+          >
             {mobileTab !== 'settings' && (
               <div
                 className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
@@ -852,7 +856,11 @@ export default function App() {
             </NotifsSidebar>
           </div>
         ) : (
-          <div className="flex flex-col xl:flex-row gap-4 h-full overflow-hidden">
+          <div
+            className={`flex flex-col xl:flex-row h-full overflow-hidden ${
+              notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'
+            }`}
+          >
             <div
               className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
                 mobileTab !== 'dashboard' ? 'hidden xl:block' : ''

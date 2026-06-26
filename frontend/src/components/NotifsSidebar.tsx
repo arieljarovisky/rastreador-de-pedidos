@@ -4,7 +4,8 @@
  */
 
 import { ReactNode } from 'react';
-import { motion } from 'motion/react';
+
+const SIDEBAR_WIDTH = '18rem'; // 288px — ancho fijo del panel
 
 interface NotifsSidebarProps {
   open: boolean;
@@ -13,36 +14,38 @@ interface NotifsSidebarProps {
 }
 
 export default function NotifsSidebar({ open, mobileShow, children }: NotifsSidebarProps) {
-  const visibleOnDesktop = open;
+  const showOnDesktop = open;
 
+  // Vista móvil: pestaña Alertas a pantalla completa
+  if (mobileShow) {
+    return (
+      <aside className="flex flex-1 min-h-0 w-full h-full overflow-hidden xl:hidden">
+        {children}
+      </aside>
+    );
+  }
+
+  // Escritorio: ancho animado, sin reservar espacio cuando está cerrado
   return (
     <aside
-      aria-hidden={!mobileShow && !visibleOnDesktop}
+      aria-hidden={!showOnDesktop}
+      style={{ width: showOnDesktop ? SIDEBAR_WIDTH : 0 }}
       className={[
-        'flex-col h-full overflow-hidden shrink-0',
-        'transition-[width,opacity,transform,margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
-        mobileShow ? 'flex flex-1 min-h-0 w-full' : 'hidden',
-        'xl:flex xl:min-h-0 xl:overflow-hidden',
-        visibleOnDesktop
-          ? 'xl:w-[min(25%,20rem)] xl:opacity-100 xl:translate-x-0 xl:ml-0'
-          : 'xl:w-0 xl:opacity-0 xl:translate-x-6 xl:pointer-events-none xl:ml-0',
+        'hidden xl:block h-full shrink-0 overflow-hidden',
+        'transition-[width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+        showOnDesktop ? 'opacity-100' : 'opacity-0 pointer-events-none',
       ].join(' ')}
     >
-      <motion.div
-        initial={false}
-        animate={{
-          opacity: visibleOnDesktop || mobileShow ? 1 : 0,
-          x: visibleOnDesktop || mobileShow ? 0 : 16,
-        }}
-        transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+      <div
+        style={{ width: SIDEBAR_WIDTH }}
         className={[
           'h-full flex flex-col',
-          mobileShow ? 'w-full' : 'w-[min(25%,20rem)]',
-          visibleOnDesktop || mobileShow ? 'min-w-[16rem]' : 'min-w-0',
+          'transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+          showOnDesktop ? 'translate-x-0' : 'translate-x-4',
         ].join(' ')}
       >
         {children}
-      </motion.div>
+      </div>
     </aside>
   );
 }
