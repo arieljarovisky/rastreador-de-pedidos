@@ -197,6 +197,12 @@ router.get('/pickup-points', authenticate, async (req: Request, res: Response) =
     return;
   }
 
+  if (user.role === UserRole.REPARTIDOR) {
+    const points = await listPickupPointsForLogistics();
+    res.json(points);
+    return;
+  }
+
   res.status(403).json({ error: 'No tienes permiso para ver puntos de colecta.' });
 });
 

@@ -7,6 +7,45 @@ import { useEffect, useRef } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import * as L from 'leaflet';
 
+const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
+
+function getRepartidorPosition(
+  order: Order,
+  repartidores: User[],
+  liveLocation?: { lat: number; lng: number } | null
+): [number, number] | null {
+  const rep = repartidores.find((r) => r.id === order.repartidorId);
+  if (liveLocation) return [liveLocation.lat, liveLocation.lng];
+  if (rep?.currentLocation) return [rep.currentLocation.lat, rep.currentLocation.lng];
+  if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 0) {
+    const last = order.locationHistory[order.locationHistory.length - 1];
+    return [last.lat, last.lng];
+  }
+  return null;
+}
+
+function upsertPolyline(
+  map: L.Map,
+  store: { [key: string]: L.Polyline },
+  key: string,
+  coords: [number, number][],
+  style: L.PolylineOptions
+) {
+  if (coords.length < 2) {
+    if (store[key]) {
+      store[key].remove();
+      delete store[key];
+    }
+    return;
+  }
+  if (store[key]) {
+    store[key].setLatLngs(coords);
+    store[key].setStyle(style);
+  } else {
+    store[key] = L.polyline(coords, style).addTo(map);
+  }
+}
+
 interface MapComponentProps {
   orders: Order[];
   repartidores?: User[];
@@ -15,6 +54,10 @@ interface MapComponentProps {
   activeOrderId: string | null;
   onSelectOrder?: (orderId: string) => void;
   interactive?: boolean;
+  /** Ubicación GPS en vivo del repartidor activo (antes de sincronizar con el servidor) */
+  liveRepartidorLocation?: { lat: number; lng: number } | null;
+  /** Ocultar marcador de salida cuando el foco es la ruta al cliente */
+  showDepartureHub?: boolean;
 }
 
 // Configuración de Pines Personalizados con SVGs para evitar enlaces rotos de Leaflet
@@ -62,8 +105,6 @@ const createRepartidorIcon = (name: string) => {
   });
 };
 
-const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
-
 export default function MapComponent({
   orders,
   repartidores = [],
@@ -72,6 +113,8 @@ export default function MapComponent({
   activeOrderId,
   onSelectOrder,
   interactive = true,
+  liveRepartidorLocation = null,
+  showDepartureHub = true,
 }: MapComponentProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -156,7 +199,13 @@ export default function MapComponent({
       hubMarkerRef.current = null;
     }
 
-    if (!departurePoint) return;
+    if (!departurePoint || !showDepartureHub) {
+      if (hubMarkerRef.current) {
+        hubMarkerRef.current.remove();
+        hubMarkerRef.current = null;
+      }
+      return;
+    }
 
     const hubIcon = L.divIcon({
       html: `
@@ -183,7 +232,7 @@ export default function MapComponent({
           <p class="text-[10px] text-zinc-400 mt-0.5">📍 ${departurePoint.address}</p>
         </div>
       `);
-  }, [departurePoint]);
+  }, [departurePoint, showDepartureHub]);
 
   // Observer de redimensionamiento para evitar problemas de tiles negros en layouts responsivos (flex/tabs)
   useEffect(() => {
@@ -226,10 +275,22 @@ export default function MapComponent({
     });
 
     // Limpiar polilíneas obsoletas
-    Object.keys(polylinesRef.current).forEach((id) => {
-      if (!activeOrderIds.has(id)) {
-        polylinesRef.current[id].remove();
-        delete polylinesRef.current[id];
+    const activePolylineKeys = new Set<string>();
+    orders.forEach((order) => {
+      if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 0) {
+        activePolylineKeys.add(`${order.id}__trail`);
+      }
+      if (
+        order.id === activeOrderId &&
+        (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)
+      ) {
+        activePolylineKeys.add(`${order.id}__route`);
+      }
+    });
+    Object.keys(polylinesRef.current).forEach((key) => {
+      if (!activePolylineKeys.has(key)) {
+        polylinesRef.current[key].remove();
+        delete polylinesRef.current[key];
       }
     });
 
@@ -304,28 +365,41 @@ export default function MapComponent({
         markersRef.current[order.id] = marker;
       }
 
-      // Dibujar polilínea de trayectoria si tiene historial de localización y está activo
-      if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 0) {
-        const hubCoords: [number, number] = departurePoint
-          ? [departurePoint.lat, departurePoint.lng]
-          : DEFAULT_HUB;
-        const pathCoords: [number, number][] = [
-          hubCoords,
-          ...order.locationHistory.map((pt) => [pt.lat, pt.lng] as [number, number]),
-        ];
+      // Recorrido GPS real (sin forzar punto de salida)
+      if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 1) {
+        const trailCoords: [number, number][] = order.locationHistory.map(
+          (pt) => [pt.lat, pt.lng] as [number, number]
+        );
+        upsertPolyline(map, polylinesRef.current, `${order.id}__trail`, trailCoords, {
+          color: '#fbbf24',
+          weight: 3.5,
+          opacity: 0.85,
+          dashArray: '6, 6',
+        });
+      } else if (polylinesRef.current[`${order.id}__trail`]) {
+        polylinesRef.current[`${order.id}__trail`].remove();
+        delete polylinesRef.current[`${order.id}__trail`];
+      }
 
-        if (polylinesRef.current[order.id]) {
-          polylinesRef.current[order.id].setLatLngs(pathCoords);
-        } else {
-          const polyline = L.polyline(pathCoords, {
-            color: '#fbbf24', // Amber/Yellow
-            weight: 3.5,
-            opacity: 0.8,
-            dashArray: '6, 6',
-          }).addTo(map);
+      // Ruta al destino del cliente (pedido activo, asignado o en viaje)
+      const isActiveRouteOrder =
+        order.id === activeOrderId &&
+        (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING);
+      const repPos = isActiveRouteOrder
+        ? getRepartidorPosition(order, repartidores, liveRepartidorLocation)
+        : null;
+      const dest: [number, number] = [order.lat, order.lng];
 
-          polylinesRef.current[order.id] = polyline;
-        }
+      if (isActiveRouteOrder && repPos) {
+        upsertPolyline(map, polylinesRef.current, `${order.id}__route`, [repPos, dest], {
+          color: '#3b82f6',
+          weight: 3,
+          opacity: 0.75,
+          dashArray: '10, 8',
+        });
+      } else if (polylinesRef.current[`${order.id}__route`]) {
+        polylinesRef.current[`${order.id}__route`].remove();
+        delete polylinesRef.current[`${order.id}__route`];
       }
     });
 
@@ -390,7 +464,7 @@ export default function MapComponent({
         markersRef.current[markerId] = marker;
       }
     });
-  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder]);
+  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation]);
 
   // Centrar solo al elegir un pedido (no en cada actualización GPS)
   useEffect(() => {
@@ -410,16 +484,27 @@ export default function MapComponent({
     }
 
     const rep = repartidoresRef.current.find((r) => r.id === activeOrder.repartidorId);
-    if (activeOrder.status === OrderStatus.DELIVERING && rep?.currentLocation) {
-      const bounds = L.latLngBounds([
-        [activeOrder.lat, activeOrder.lng],
-        [rep.currentLocation.lat, rep.currentLocation.lng],
-      ]);
-      map.fitBounds(bounds, { padding: [50, 50], animate: true });
+    const repPos = getRepartidorPosition(activeOrder, repartidoresRef.current, liveRepartidorLocation);
+    const dest: [number, number] = [activeOrder.lat, activeOrder.lng];
+
+    if (repPos) {
+      map.fitBounds(L.latLngBounds([repPos, dest]), { padding: [50, 50], animate: true });
+    } else if (
+      activeOrder.status === OrderStatus.ASSIGNED &&
+      departurePoint &&
+      showDepartureHub
+    ) {
+      map.fitBounds(
+        L.latLngBounds([
+          [departurePoint.lat, departurePoint.lng],
+          dest,
+        ]),
+        { padding: [50, 50], animate: true }
+      );
     } else {
-      map.setView([activeOrder.lat, activeOrder.lng], 15, { animate: true });
+      map.setView(dest, 15, { animate: true });
     }
-  }, [activeOrderId]);
+  }, [activeOrderId, liveRepartidorLocation, departurePoint, showDepartureHub]);
 
   // Ajuste inicial una sola vez al cargar pedidos
   useEffect(() => {
@@ -442,6 +527,10 @@ export default function MapComponent({
       {/* Indicador de mapa oscuro */}
       <div className="absolute top-3 left-12 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1 rounded text-[9px] font-mono border border-zinc-800 text-zinc-400 uppercase tracking-wider font-bold">
         🛰️ MAPA REALTIME LUPO
+      </div>
+      <div className="absolute bottom-3 left-3 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1.5 rounded text-[8px] font-mono border border-zinc-800 text-zinc-500 space-y-0.5">
+        <div><span className="inline-block w-3 h-0.5 bg-blue-500 mr-1 align-middle" style={{ borderTop: '2px dashed #3b82f6' }} /> Ruta al destino</div>
+        <div><span className="inline-block w-3 h-0.5 bg-amber-400 mr-1 align-middle" /> Recorrido GPS</div>
       </div>
       <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
     </div>

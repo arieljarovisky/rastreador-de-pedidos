@@ -140,13 +140,7 @@ export default function App() {
         setNotifications(data);
       }
 
-      if (user?.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) {
-        const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
-        if (repsRes.ok) {
-          const data = await repsRes.json();
-          setRepartidores(data);
-        }
-
+      if (user?.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role) || user?.role === UserRole.REPARTIDOR) {
         const depRes = await fetch(apiUrl('/api/accounts/agency/departure'), { headers });
         if (depRes.ok) {
           const data = await depRes.json();
@@ -157,6 +151,14 @@ export default function App() {
         if (ppRes.ok) {
           const data = await ppRes.json();
           setPickupPoints(data);
+        }
+      }
+
+      if (user?.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) {
+        const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
+        if (repsRes.ok) {
+          const data = await repsRes.json();
+          setRepartidores(data);
         }
       }
 
@@ -1085,6 +1087,8 @@ export default function App() {
                 orders={orders}
                 currentUser={user}
                 activeOrderId={activeOrderId}
+                departurePoint={departurePoint}
+                pickupPoints={pickupPoints}
                 onSelectOrder={setActiveOrderId}
                 onUpdateOrderStatus={handleUpdateOrderStatus}
                 onReportLocation={handleReportLocation}
