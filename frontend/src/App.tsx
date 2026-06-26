@@ -10,7 +10,7 @@ import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
-import { LogOut, Wifi, WifiOff, Bell, Settings } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard } from 'lucide-react';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 
@@ -630,18 +630,32 @@ export default function App() {
 
           <div className="flex items-center gap-3">
             {showSettings && (
-              <button
-                type="button"
-                onClick={() => setMobileTab('settings')}
-                title="Configuración"
-                className={`hidden xl:flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
-                  mobileTab === 'settings'
-                    ? 'bg-zinc-800 border-zinc-600 text-zinc-100'
-                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                <Settings className="w-3.5 h-3.5" /> Config
-              </button>
+              <div className="hidden xl:flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('dashboard')}
+                  title="Panel principal y mapa"
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                    mobileTab !== 'settings'
+                      ? 'bg-blue-950/40 border-blue-800 text-blue-300'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" /> Panel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('settings')}
+                  title="Configuración"
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                    mobileTab === 'settings'
+                      ? 'bg-zinc-800 border-zinc-600 text-zinc-100'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <Settings className="w-3.5 h-3.5" /> Config
+                </button>
+              </div>
             )}
 
             <div
@@ -753,6 +767,7 @@ export default function App() {
               <div className="xl:col-span-9 h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4">
                 <SettingsPage
                   user={user}
+                  onBack={() => setMobileTab('dashboard')}
                   departurePoint={departurePoint}
                   repartidores={repartidores}
                   sellers={sellers}

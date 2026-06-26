@@ -15,6 +15,7 @@ import {
   MapPin,
   Trash2,
   Settings,
+  ArrowLeft,
 } from 'lucide-react';
 
 const DIRECTORY_PRESETS = [
@@ -27,6 +28,7 @@ const DIRECTORY_PRESETS = [
 
 interface SettingsPageProps {
   user: User;
+  onBack?: () => void;
   departurePoint?: LocationPoint | null;
   repartidores: User[];
   sellers?: User[];
@@ -55,6 +57,7 @@ interface SettingsPageProps {
 
 export default function SettingsPage({
   user,
+  onBack,
   departurePoint = null,
   repartidores,
   sellers = [],
@@ -134,13 +137,27 @@ export default function SettingsPage({
     <div className="h-full overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
       <div className="max-w-2xl mx-auto space-y-4 pb-6">
         <div className="border-b border-zinc-800 pb-3">
-          <h2 className="text-sm lg:text-base font-bold text-zinc-100 flex items-center gap-2">
-            <Settings className="w-4 h-4 text-zinc-400" />
-            Configuración
-          </h2>
-          <p className="text-[10px] text-zinc-500 font-mono mt-1 uppercase tracking-wider">
-            {user.name} · {userRole === UserRole.SUPER_ADMIN ? 'Super Admin' : userRole}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm lg:text-base font-bold text-zinc-100 flex items-center gap-2">
+                <Settings className="w-4 h-4 text-zinc-400" />
+                Configuración
+              </h2>
+              <p className="text-[10px] text-zinc-500 font-mono mt-1 uppercase tracking-wider">
+                {user.name} · {userRole === UserRole.SUPER_ADMIN ? 'Super Admin' : userRole}
+              </p>
+            </div>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-zinc-700 bg-zinc-950 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 text-[10px] font-bold uppercase shrink-0"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Volver al panel
+              </button>
+            )}
+          </div>
         </div>
 
         {agency && onUpdateDeparture && (
