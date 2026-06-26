@@ -1,7 +1,7 @@
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/database.js';
-import { DbUserRow, LocationPoint, PickupPoint, User, UserRole } from '../types/index.js';
+import { DbUserRow, LocationPoint, PickupPoint, User, UserRole, OrderStatus } from '../types/index.js';
 import { listPickupPointsForUser } from './pickup-points.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 
@@ -180,20 +180,34 @@ export async function listSellers(): Promise<User[]> {
   return Promise.all(sellers.map((seller) => enrichUser(seller)));
 }
 
-export async function deleteRepartidor(id: string): Promise<void> {
+export async function deleteRepartidor(id: string): Promise<{ finalizedOrders: number }> {
   const repartidor = await getRepartidorById(id);
   if (!repartidor) {
     throw new Error('NOT_FOUND');
   }
 
+  const now = new Date();
   const [activeRows] = await pool.query<RowDataPacket[]>(
     `SELECT id FROM orders
-     WHERE repartidor_id = ? AND status IN ('assigned', 'delivering')
-     LIMIT 1`,
-    [id]
+     WHERE repartidor_id = ? AND status IN (?, ?)`,
+    [id, OrderStatus.ASSIGNED, OrderStatus.DELIVERING]
   );
-  if (activeRows.length > 0) {
-    throw new Error('HAS_ACTIVE_ORDERS');
+
+  for (const row of activeRows) {
+    await pool.query(
+      'UPDATE orders SET status = ?, updated_at = ? WHERE id = ?',
+      [OrderStatus.DELIVERED, now, row.id]
+    );
+    await pool.query(
+      `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+      [
+        row.id,
+        OrderStatus.DELIVERED,
+        'Sistema',
+        `Viaje finalizado automáticamente al eliminar al repartidor ${repartidor.name}`,
+        now,
+      ]
+    );
   }
 
   await pool.query('UPDATE orders SET repartidor_id = NULL WHERE repartidor_id = ?', [id]);
@@ -206,6 +220,8 @@ export async function deleteRepartidor(id: string): Promise<void> {
   if (result.affectedRows === 0) {
     throw new Error('NOT_FOUND');
   }
+
+  return { finalizedOrders: activeRows.length };
 }
 
 export function userToApiResponse(user: User): User {

@@ -45,7 +45,7 @@ interface SettingsPageProps {
     pickupLng?: number;
   }) => Promise<void>;
   onCreateRepartidor?: (data: { username: string; password: string; name: string }) => Promise<void>;
-  onDeleteRepartidor?: (id: string) => Promise<void>;
+  onDeleteRepartidor?: (id: string) => Promise<{ finalizedOrders: number }>;
   onCreatePickupPoint?: (data: {
     label?: string;
     address: string;
@@ -417,7 +417,7 @@ export default function SettingsPage({
                         onClick={async () => {
                           if (
                             !window.confirm(
-                              `¿Eliminar a ${rep.name} (@${rep.username})? Esta acción no se puede deshacer.`
+                              `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente. Esta acción no se puede deshacer.`
                             )
                           ) {
                             return;
@@ -425,8 +425,12 @@ export default function SettingsPage({
                           setDeletingRepartidorId(rep.id);
                           setRepartidorFormMessage(null);
                           try {
-                            await onDeleteRepartidor(rep.id);
-                            setRepartidorFormMessage('Repartidor eliminado correctamente.');
+                            const result = await onDeleteRepartidor(rep.id);
+                            const extra =
+                              result.finalizedOrders > 0
+                                ? ` Se finalizaron ${result.finalizedOrders} viaje(s) en curso.`
+                                : '';
+                            setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
                           } catch (err: unknown) {
                             const message = err instanceof Error ? err.message : 'Error al eliminar repartidor.';
                             setRepartidorFormMessage(message);

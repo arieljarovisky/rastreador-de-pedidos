@@ -103,18 +103,12 @@ router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Req
 
 router.delete('/repartidores/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   try {
-    await deleteRepartidor(req.params.id);
-    res.status(204).send();
+    const result = await deleteRepartidor(req.params.id);
+    res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'NOT_FOUND') {
       res.status(404).json({ error: 'Repartidor no encontrado.' });
-      return;
-    }
-    if (message === 'HAS_ACTIVE_ORDERS') {
-      res.status(409).json({
-        error: 'No se puede eliminar: el repartidor tiene envíos en curso. Reasignalos o finalizalos primero.',
-      });
       return;
     }
     throw err;

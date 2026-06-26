@@ -322,22 +322,20 @@ export default function App() {
     setRepartidores((prev) => [...prev, created]);
   };
 
-  const handleDeleteRepartidor = async (id: string) => {
-    if (!token) return;
+  const handleDeleteRepartidor = async (id: string): Promise<{ finalizedOrders: number }> => {
+    if (!token) return { finalizedOrders: 0 };
     const res = await fetch(apiUrl(`/api/accounts/repartidores/${id}`), {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok && res.status !== 204) {
+    if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'No se pudo eliminar el repartidor');
     }
+    const data = (await res.json()) as { finalizedOrders: number };
     setRepartidores((prev) => prev.filter((r) => r.id !== id));
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.repartidorId === id ? { ...o, repartidorId: null, repartidorName: null } : o
-      )
-    );
+    await fetchData();
+    return data;
   };
 
   const handleAssignOrderSeller = async (orderId: string, sellerId: string) => {
