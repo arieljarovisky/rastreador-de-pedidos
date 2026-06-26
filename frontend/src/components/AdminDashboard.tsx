@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
+import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 
 const MapComponent = React.lazy(() => import('./MapComponent.tsx'));
 
@@ -21,6 +22,7 @@ interface AdminDashboardProps {
   onCreateOrder: (orderData: Partial<Order> & { sellerId?: string }) => Promise<void>;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
+  onDeleteOrder?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
 }
 
@@ -44,9 +46,13 @@ export default function AdminDashboard({
   onCreateOrder,
   onUpdateOrderStatus,
   onAssignOrderSeller,
+  onDeleteOrder,
   userRole = UserRole.STORE_ADMIN,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
+  const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   useEffect(() => {
     if (activeOrderId) {
@@ -167,6 +173,86 @@ export default function AdminDashboard({
 
   const selectedOrder = orders.find((o) => o.id === activeOrderId);
 
+  const buildOrderMenuItems = (order: Order): ContextMenuItem[] => {
+    const agency = isAgencyAdmin(userRole);
+    const isSeller = userRole === UserRole.STORE_ADMIN;
+    const canDelete =
+      (agency && onDeleteOrder) ||
+      (isSeller && onDeleteOrder && order.status === OrderStatus.PENDING);
+    const canCancel =
+      order.status !== OrderStatus.DELIVERED &&
+      order.status !== OrderStatus.CANCELLED &&
+      (agency || (isSeller && order.status === OrderStatus.PENDING));
+
+    const items: ContextMenuItem[] = [
+      {
+        id: 'view',
+        label: '📍 Ver en mapa',
+        onClick: () => {
+          onSelectOrder(order.id);
+          setAdminMobileTab('map');
+        },
+      },
+      {
+        id: 'copy-id',
+        label: '📋 Copiar ID',
+        onClick: () => void navigator.clipboard.writeText(order.id),
+      },
+      {
+        id: 'copy-address',
+        label: '📫 Copiar dirección',
+        onClick: () => void navigator.clipboard.writeText(order.address),
+      },
+    ];
+
+    if (agency && order.status === OrderStatus.PENDING && onAssignOrderSeller) {
+      items.push({
+        id: 'assign-seller',
+        label: '🛒 Asignar vendedor',
+        onClick: () => {
+          onSelectOrder(order.id);
+          setAssigningOrderId(order.id);
+          setAdminMobileTab('map');
+        },
+      });
+    }
+
+    if (agency && (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)) {
+      items.push({
+        id: 'mark-delivered',
+        label: '✓ Marcar como entregado',
+        onClick: () =>
+          void onUpdateOrderStatus(order.id, OrderStatus.DELIVERED, undefined, 'Marcado como entregado desde menú'),
+      });
+    }
+
+    if (canCancel) {
+      items.push({
+        id: 'cancel',
+        label: '✕ Cancelar pedido',
+        onClick: () => {
+          if (!window.confirm(`¿Cancelar el pedido ${order.id}?`)) return;
+          void onUpdateOrderStatus(order.id, OrderStatus.CANCELLED, undefined, 'Cancelado desde menú contextual');
+        },
+      });
+    }
+
+    if (canDelete && onDeleteOrder) {
+      items.push({ id: 'sep-delete', label: '', separator: true, onClick: () => {} });
+      items.push({
+        id: 'delete',
+        label: '🗑️ Eliminar pedido',
+        danger: true,
+        onClick: () => {
+          if (!window.confirm(`¿Eliminar ${order.id} permanentemente? Esta acción no se puede deshacer.`)) return;
+          void onDeleteOrder(order.id);
+        },
+      });
+    }
+
+    return items;
+  };
+
   // Contadores para resúmenes estadísticos rápidos
   const stats = {
     total: orders.length,
@@ -177,7 +263,15 @@ export default function AdminDashboard({
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 h-full overflow-hidden" id="admin-dashboard">
-      
+      {contextMenu && (
+        <OrderContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={buildOrderMenuItems(contextMenu.order)}
+          onClose={closeContextMenu}
+        />
+      )}
+
       {/* Selector de sub-pestañas para panel de control admin (visible solo en móvil/tablet < lg) */}
       <div className="lg:hidden flex bg-zinc-950 p-1 border border-zinc-800 rounded shrink-0 gap-1">
         <button
@@ -483,6 +577,11 @@ export default function AdminDashboard({
                 <div
                   key={order.id}
                   onClick={() => onSelectOrder(order.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenu({ order, x: e.clientX, y: e.clientY });
+                  }}
                   className={`p-3.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
                     isSelected
                       ? 'bg-blue-500/5 border-l-2 border-blue-500 border-t-zinc-800 border-r-zinc-800 border-b-zinc-800'

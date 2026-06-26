@@ -154,6 +154,12 @@ export default function App() {
     setLastSyncAt(new Date());
   }, []);
 
+  const removeOrder = useCallback((orderId: string) => {
+    setOrders((prev) => prev.filter((o) => o.id !== orderId));
+    setActiveOrderId((current) => (current === orderId ? null : current));
+    setLastSyncAt(new Date());
+  }, []);
+
   const applyOrderLocation = useCallback(
     (payload: {
       orderId: string;
@@ -189,6 +195,7 @@ export default function App() {
     token,
     activeOrderId,
     onOrderUpdated: mergeOrder,
+    onOrderDeleted: removeOrder,
     onOrderLocation: applyOrderLocation,
     onRepartidorLocation: (payload) => {
       setRepartidores((prev) =>
@@ -534,6 +541,25 @@ export default function App() {
     }
   };
 
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(apiUrl(`/api/orders/${orderId}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok && res.status !== 204) {
+        const err = await res.json();
+        throw new Error(err.error || 'No se pudo eliminar el pedido');
+      }
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      if (activeOrderId === orderId) setActiveOrderId(null);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'No se pudo eliminar el pedido';
+      alert(message);
+    }
+  };
+
   // Enviar ubicación de repartidor (Repartidor)
   const handleReportLocation = async (orderId: string, lat: number, lng: number) => {
     if (!token) return;
@@ -820,6 +846,7 @@ export default function App() {
                   onCreateOrder={handleCreateOrder}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
                   onAssignOrderSeller={handleAssignOrderSeller}
+                  onDeleteOrder={handleDeleteOrder}
                   userRole={user.role}
                 />
               </div>

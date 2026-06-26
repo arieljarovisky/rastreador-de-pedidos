@@ -28,6 +28,14 @@ export function emitOrderUpdated(order: Order, sellerId: string | null): void {
   }
 }
 
+export function emitOrderDeleted(orderId: string, sellerId: string | null): void {
+  if (!io) return;
+  io.to('tracking').emit('order:deleted', { orderId, sellerId });
+  if (sellerId) {
+    io.to(`seller:${sellerId}`).emit('order:deleted', { orderId, sellerId });
+  }
+}
+
 export function emitOrderLocation(
   payload: {
     orderId: string;

@@ -10,9 +10,10 @@ import {
   canViewOrder,
   getSellerIdForOrder,
   assignOrderToSeller,
+  deleteOrder,
 } from '../services/orders.service.js';
 import { createNotification } from '../services/notifications.service.js';
-import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation } from '../realtime/io.js';
+import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
 
 const router = Router();
 
@@ -170,6 +171,31 @@ router.put('/:id/seller', authenticate, requireAgencyAdmin(), async (req: Reques
     }
     if (message === 'SELLER_NOT_FOUND') {
       res.status(400).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.delete('/:id', authenticate, async (req: Request, res: Response) => {
+  try {
+    const result = await deleteOrder(req.user!, req.params.id);
+    emitOrderDeleted(req.params.id, result.sellerId);
+    res.status(204).send();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Pedido no encontrado.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tienes permiso para eliminar este pedido.' });
+      return;
+    }
+    if (message === 'ORDER_NOT_DELETABLE') {
+      res.status(409).json({
+        error: 'Solo se pueden eliminar pedidos pendientes. Cancelalos primero si ya están en curso.',
+      });
       return;
     }
     throw err;

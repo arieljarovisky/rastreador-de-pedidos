@@ -453,3 +453,20 @@ export async function countOrders(): Promise<number> {
   const [rows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) AS cnt FROM orders');
   return Number(rows[0]?.cnt ?? 0);
 }
+
+export async function deleteOrder(user: User, orderId: string): Promise<{ sellerId: string | null }> {
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error('NOT_FOUND');
+
+  if (isAgencyAdmin(user.role)) {
+    // La agencia puede eliminar cualquier pedido
+  } else if (user.role === UserRole.STORE_ADMIN) {
+    if (order.sellerId !== user.id) throw new Error('FORBIDDEN');
+    if (order.status !== OrderStatus.PENDING) throw new Error('ORDER_NOT_DELETABLE');
+  } else {
+    throw new Error('FORBIDDEN');
+  }
+
+  await pool.query('DELETE FROM orders WHERE id = ?', [orderId]);
+  return { sellerId: order.sellerId };
+}

@@ -21,6 +21,7 @@ interface UseRealtimeSocketOptions {
   token: string | null;
   activeOrderId: string | null;
   onOrderUpdated: (order: Order) => void;
+  onOrderDeleted?: (orderId: string) => void;
   onOrderLocation: (payload: OrderLocationPayload) => void;
   onRepartidorLocation: (payload: RepartidorLocationPayload) => void;
   onConnectionChange: (connected: boolean) => void;
@@ -30,6 +31,7 @@ export function useRealtimeSocket({
   token,
   activeOrderId,
   onOrderUpdated,
+  onOrderDeleted,
   onOrderLocation,
   onRepartidorLocation,
   onConnectionChange,
@@ -39,6 +41,7 @@ export function useRealtimeSocket({
 
   const callbacksRef = useRef({
     onOrderUpdated,
+    onOrderDeleted,
     onOrderLocation,
     onRepartidorLocation,
     onConnectionChange,
@@ -46,6 +49,7 @@ export function useRealtimeSocket({
 
   callbacksRef.current = {
     onOrderUpdated,
+    onOrderDeleted,
     onOrderLocation,
     onRepartidorLocation,
     onConnectionChange,
@@ -74,6 +78,9 @@ export function useRealtimeSocket({
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('order:updated', (order: Order) => callbacksRef.current.onOrderUpdated(order));
+    socket.on('order:deleted', (payload: { orderId: string }) => {
+      callbacksRef.current.onOrderDeleted?.(payload.orderId);
+    });
     socket.on('order:location', (payload: OrderLocationPayload) =>
       callbacksRef.current.onOrderLocation(payload)
     );
