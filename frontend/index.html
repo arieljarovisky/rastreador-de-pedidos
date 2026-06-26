@@ -8,23 +8,14 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <!-- PWA Manifest & Theme Color -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#7c3aed" />
-    <script>
-      (function () {
-        try {
-          if (localStorage.getItem('lupo_theme') === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <meta name="theme-color" content="#0f172a" />
     <!-- Apple Mobile Support -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Lupo Rastreo" />
   </head>
-  <body class="antialiased font-sans">
+  <body class="bg-slate-900 text-slate-100 antialiased font-sans">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -7,7 +7,6 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Order, OrderStatus, User } from '../types.js';
 import { MapPin, Phone, Clock, FileText, CheckCircle2, Navigation, AlertTriangle, Play, Check, ShieldAlert, CheckSquare, Sparkles } from 'lucide-react';
 import { useModal } from '../context/ModalContext.tsx';
-import { ui, orderBadgeClass } from '../styles/ui.ts';
 
 const MapComponent = lazy(() => import('./MapComponent.tsx'));
 
@@ -149,33 +148,43 @@ export default function RepartidorDashboard({
   return (
     <div className="flex flex-col h-full overflow-hidden" id="repartidor-dashboard">
       
-      <div className="grid grid-cols-2 p-0.5 border-b border-[var(--lupo-border-subtle)] shrink-0 bg-[var(--lupo-bg)] gap-0.5">
+      {/* Selector de Tabs Mobile (Asignados vs Disponibles - HIGH DENSITY) */}
+      <div className="grid grid-cols-2 bg-zinc-950 p-0.5 border-b border-zinc-800 shrink-0">
         <button
           onClick={() => {
             setActiveTab('assigned');
             if (myAssignedOrders.length > 0) onSelectOrder(myAssignedOrders[0].id);
           }}
-          className={activeTab === 'assigned' ? ui.navTabActive : ui.navTab}
+          className={`py-2 text-center text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
+            activeTab === 'assigned' 
+              ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' 
+              : 'text-zinc-500'
+          }`}
         >
-          Mis envíos ({myAssignedOrders.length})
+          🏍️ Mis Envíos ({myAssignedOrders.length})
         </button>
         <button
           onClick={() => {
             setActiveTab('available');
             onSelectOrder(null);
           }}
-          className={activeTab === 'available' ? ui.navTabPurple : ui.navTab}
+          className={`py-2 text-center text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
+            activeTab === 'available' 
+              ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/5' 
+              : 'text-zinc-500'
+          }`}
         >
-          Disponibles ({availableOrders.length})
+          📦 Disponibles ({availableOrders.length})
         </button>
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row gap-4 p-4">
         
-        <div className={`w-full md:w-1/3 flex flex-col h-full ${ui.panel} overflow-hidden ${
+        {/* LISTADO DE PEDIDOS DEPENDIENDO DE LA PESTAÑA (HIGH DENSITY) */}
+        <div className={`w-full md:w-1/3 flex flex-col h-full bg-zinc-900/30 border border-zinc-800 rounded-lg p-3.5 overflow-hidden ${
           activeOrder && activeTab === 'assigned' ? 'hidden md:flex' : 'flex'
         }`}>
-          <h3 className={ui.pageSubtitle}>
+          <h3 className="font-bold text-[10px] text-zinc-500 mb-3 uppercase tracking-wider font-mono">
             {activeTab === 'assigned' ? 'Tareas en Proceso' : 'Pedidos en Almacén'}
           </h3>
 

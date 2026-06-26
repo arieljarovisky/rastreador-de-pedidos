@@ -11,13 +11,10 @@ import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
-import AppSidebar, { SidebarAction } from './components/AppSidebar.tsx';
-import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard, Moon, Sun } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard } from 'lucide-react';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
-import { ui } from './styles/ui.ts';
-import { useTheme } from './context/ThemeContext.tsx';
 
 type AppTab = 'dashboard' | 'notifications' | 'settings';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
@@ -37,7 +34,6 @@ function readNotifsSidebarOpen(): boolean {
 
 export default function App() {
   const { alert: showAlert } = useModal();
-  const { isDark, toggleTheme } = useTheme();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -59,7 +55,6 @@ export default function App() {
   }, []);
 
   const [notifsSidebarOpen, setNotifsSidebarOpen] = useState(readNotifsSidebarOpen);
-  const [adminView, setAdminView] = useState<'orders' | 'map'>('orders');
 
   const toggleNotifsSidebar = useCallback(() => {
     setNotifsSidebarOpen((prev) => {
@@ -654,49 +649,6 @@ export default function App() {
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
   const showSettings =
     user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false);
-  const activeOrdersCount = orders.filter(
-    (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
-  ).length;
-
-  const handleSidebarNavigate = useCallback(
-    (action: SidebarAction) => {
-      if (action === 'coming-soon') {
-        void showAlert({
-          title: 'Próximamente',
-          message: 'Esta sección estará disponible en una próxima actualización.',
-          variant: 'info',
-        });
-        return;
-      }
-      if (action === 'settings' || action === 'repartidores') {
-        setMobileTab('settings');
-        return;
-      }
-      setMobileTab('dashboard');
-      if (action === 'map') setAdminView('map');
-      else setAdminView('orders');
-    },
-    [setMobileTab, showAlert]
-  );
-
-  function MetricSparkline({ color }: { color: string }) {
-    return (
-      <svg className={ui.metricSparkline} viewBox="0 0 56 20" fill="none" aria-hidden>
-        <path
-          d="M2 14 L10 10 L18 12 L26 6 L34 8 L42 4 L54 2"
-          stroke={color}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M2 14 L10 10 L18 12 L26 6 L34 8 L42 4 L54 2 V20 H2 Z"
-          fill={color}
-          fillOpacity="0.12"
-        />
-      </svg>
-    );
-  }
 
   useEffect(() => {
     if (!user) return;
@@ -707,14 +659,12 @@ export default function App() {
 
   if (loading && !user) {
     return (
-      <div className={ui.loadingScreen}>
-        <svg className="animate-spin h-7 w-7 text-[var(--lupo-accent)]" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-          <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-4">
+        <svg className="animate-spin h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
-        <span className="text-xs font-medium mt-4 tracking-wide text-[var(--lupo-text-muted)]">
-          Cargando panel…
-        </span>
+        <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-wider font-bold mt-3">Sincronizando Sistema...</span>
       </div>
     );
   }
@@ -731,76 +681,69 @@ export default function App() {
   }
 
   return (
-    <div className={`${ui.shell} select-none`}>
-      <AppSidebar
-        activeTab={mobileTab}
-        showSettings={showSettings}
-        onNavigate={handleSidebarNavigate}
-      />
-
-      <div className={ui.content}>
-      <header className={ui.header}>
-        <div className="flex items-center gap-4 xl:hidden">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] flex items-center justify-center font-bold text-white text-sm shadow-md shadow-purple-200">
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans select-none overflow-hidden h-screen">
+      
+      {/* NAVEGACIÓN Y CABECERA PRINCIPAL (HIGH DENSITY STYLE) */}
+      <header className="h-16 lg:h-[4.5rem] flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-900/50 shrink-0 relative z-40">
+        <div className="flex items-center gap-4">
+          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white shadow-md shadow-blue-600/20 text-sm lg:text-base">
             LP
           </div>
           <div>
-            <h1 className="text-sm font-semibold tracking-tight text-[var(--lupo-text)] flex items-center gap-2 flex-wrap">
+            <h1 className="text-sm lg:text-lg font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
               LupoEnvios
-              <span className="text-[var(--lupo-text-muted)] font-normal text-xs">v2.4</span>
+              <span className="text-zinc-500 font-normal text-xs lg:text-sm">v2.4.0</span>
               {isOnline ? (
-                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                <span className={`flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold border ${
                   wsConnected
-                    ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
-                    : 'text-amber-600 bg-amber-50 border-amber-200'
+                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                    : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
                 }`}>
-                  <Wifi className="w-3 h-3 shrink-0" /> {wsConnected ? 'En vivo' : 'Online'}
+                  <Wifi className="w-2.5 h-2.5 shrink-0" /> {wsConnected ? 'LIVE' : 'ONLINE'}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                  <WifiOff className="w-3 h-3" /> Sin conexión
+                <span className="flex items-center gap-1 text-[9px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded font-bold">
+                  <WifiOff className="w-2.5 h-2.5 text-red-400 shrink-0" /> OFFLINE
                 </span>
               )}
             </h1>
-            <p className="text-xs text-[var(--lupo-text-muted)] mt-0.5">
-              {user.name}
+            <p className="text-[10px] text-zinc-500 font-mono">
+              Operador: <span className="text-zinc-300 font-bold">{user.name}</span>
             </p>
           </div>
         </div>
 
-        <div className="hidden xl:block" />
-
-        <div className="flex gap-4 md:gap-6 items-center">
-          <div className="hidden sm:flex items-center gap-3">
-            <div className="flex flex-col items-end">
-              <span className={ui.metricLabel}>Pedidos activos</span>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className={`${ui.metricValue} ${ui.metricValueSuccess}`}>{activeOrdersCount}</span>
-                <MetricSparkline color="#059669" />
-              </div>
-            </div>
-            <div className="flex flex-col items-end">
-              <span className={ui.metricLabel}>Repartidores</span>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className={`${ui.metricValue} ${ui.metricValueAccent}`}>
-                  {String(repartidores.length).padStart(2, '0')}
-                </span>
-                <MetricSparkline color="#7c3aed" />
-              </div>
-            </div>
+        {/* METRICS & QUICK CONTROLS (HIGH DENSITY) */}
+        <div className="flex gap-4 md:gap-8 items-center">
+          <div className="hidden sm:flex flex-col items-end">
+            <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-mono">Pedidos Activos</span>
+            <span className="text-base lg:text-xl font-mono text-emerald-400 font-semibold leading-none mt-0.5">
+              {orders.filter(o => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED).length}
+            </span>
+          </div>
+          
+          <div className="hidden sm:flex flex-col items-end">
+            <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-mono">Repartidores</span>
+            <span className="text-base lg:text-xl font-mono text-blue-400 font-semibold leading-none mt-0.5">
+              {String(repartidores.length).padStart(2, '0')}
+            </span>
           </div>
 
-          <div className="hidden sm:block h-8 w-px bg-[var(--lupo-border)]" />
+          <div className="hidden sm:block h-8 w-[1px] bg-zinc-800 mx-1"></div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="hidden xl:flex items-center gap-1.5">
+          <div className="flex items-center gap-3">
+            <div className="hidden xl:flex items-center gap-1">
               {showSettings && (
                 <>
                   <button
                     type="button"
                     onClick={() => setMobileTab('dashboard')}
-                    title="Panel principal"
-                    className={mobileTab !== 'settings' ? ui.headerNavBtnActive : ui.headerNavBtn}
+                    title="Panel principal y mapa"
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                      mobileTab !== 'settings'
+                        ? 'bg-blue-950/40 border-blue-800 text-blue-300'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
                   >
                     <LayoutDashboard className="w-3.5 h-3.5" /> Panel
                   </button>
@@ -808,7 +751,11 @@ export default function App() {
                     type="button"
                     onClick={() => setMobileTab('settings')}
                     title="Configuración"
-                    className={mobileTab === 'settings' ? ui.headerNavBtnActive : ui.headerNavBtn}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                      mobileTab === 'settings'
+                        ? 'bg-zinc-800 border-zinc-600 text-zinc-100'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
                   >
                     <Settings className="w-3.5 h-3.5" /> Config
                   </button>
@@ -817,50 +764,45 @@ export default function App() {
               <button
                 type="button"
                 onClick={toggleNotifsSidebar}
-                title={notifsSidebarOpen ? 'Ocultar alertas' : 'Mostrar alertas'}
-                className={`relative ${notifsSidebarOpen ? ui.headerNavBtnPurple : ui.headerNavBtn}`}
+                title={notifsSidebarOpen ? 'Ocultar panel de alertas' : 'Mostrar panel de alertas'}
+                className={`relative flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                  notifsSidebarOpen
+                    ? 'bg-purple-950/40 border-purple-800 text-purple-300'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                }`}
               >
                 <Bell className="w-3.5 h-3.5" /> Alertas
                 {!notifsSidebarOpen && unreadNotifsCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-[var(--lupo-accent)] text-white font-bold text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-zinc-950 font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center border border-[#09090b]">
                     {unreadNotifsCount}
                   </span>
                 )}
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={toggleTheme}
-              title={isDark ? 'Modo claro' : 'Modo oscuro'}
-              className={`xl:hidden p-1.5 rounded-lg border border-[var(--lupo-border-subtle)] text-[var(--lupo-text-muted)] hover:text-[var(--lupo-text)] hover:bg-[var(--lupo-accent-soft)] transition`}
-              aria-label="Alternar tema"
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-
             <div
-              className="relative cursor-pointer p-1.5 hover:bg-white/5 rounded-lg transition xl:hidden"
+              className="relative cursor-pointer p-1.5 hover:bg-zinc-800/50 rounded-lg transition xl:hidden"
               title="Ver notificaciones"
               onClick={() => setMobileTab('notifications')}
               onKeyDown={(e) => e.key === 'Enter' && setMobileTab('notifications')}
               role="button"
               tabIndex={0}
             >
-              <Bell className={`w-4 h-4 text-[var(--lupo-text-muted)] hover:text-[var(--lupo-text)] transition ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
+              <Bell className={`w-4 h-4 text-zinc-400 hover:text-white transition ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
               {unreadNotifsCount > 0 && (
-                <span className="absolute top-0 right-0 bg-[var(--lupo-accent)] text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute top-0 right-0 bg-blue-500 text-zinc-950 font-extrabold text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-[#09090b]">
                   {unreadNotifsCount}
                 </span>
               )}
             </div>
 
             <div className="hidden md:block text-right">
-              <p className="text-xs lg:text-sm font-medium text-[var(--lupo-text)]">{user.name}</p>
-              <p className={`${ui.hint} uppercase`}>{user.role}</p>
+              <p className="text-xs lg:text-sm font-medium text-zinc-200">{user.name}</p>
+              <p className="text-[9px] text-zinc-500 uppercase font-mono">{user.role}</p>
             </div>
 
-            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-[var(--lupo-accent-soft)] border border-[#e9d5ff] flex items-center justify-center text-xs lg:text-sm font-semibold text-[var(--lupo-accent)] uppercase shrink-0">
+            {/* Avatar circle */}
+            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs lg:text-sm font-bold text-zinc-300 uppercase shrink-0">
               {user.name.slice(0, 2)}
             </div>
 
@@ -868,7 +810,7 @@ export default function App() {
               onClick={handleLogout}
               id="btn-logout"
               title="Cerrar sesión"
-              className={`${ui.btnGhost} ${ui.btnSm}`}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-zinc-950 hover:bg-red-950/20 border border-zinc-800 hover:border-red-900 text-zinc-400 hover:text-red-400 font-bold text-[11px] transition"
             >
               <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Salir</span>
             </button>
@@ -876,35 +818,49 @@ export default function App() {
         </div>
       </header>
       
-      <div className="xl:hidden flex shrink-0 h-11 z-40 border-b border-[var(--lupo-border-subtle)] bg-[var(--lupo-surface)]">
+      {/* Selector de pestañas para vista mobile/tablet */}
+      <div className="xl:hidden bg-zinc-950 border-b border-zinc-800 flex shrink-0 h-11 z-40">
         <button
           onClick={() => setMobileTab('dashboard')}
-          className={mobileTab === 'dashboard' ? ui.navTabActive : ui.navTab}
+          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+            mobileTab === 'dashboard'
+              ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
         >
-          Panel
+          <span>📊 Panel Principal</span>
         </button>
         {showSettings && (
           <button
             onClick={() => setMobileTab('settings')}
-            className={mobileTab === 'settings' ? ui.navTabNeutral : ui.navTab}
+            className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+              mobileTab === 'settings'
+                ? 'text-zinc-200 border-b-2 border-zinc-400 bg-zinc-800/50'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
           >
-            Configuración
+            <span>⚙️ Configuración</span>
           </button>
         )}
         <button
           onClick={() => setMobileTab('notifications')}
-          className={`relative ${mobileTab === 'notifications' ? ui.navTabPurple : ui.navTab}`}
+          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all relative ${
+            mobileTab === 'notifications'
+              ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/5'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
         >
-          Alertas
+          <span>🔔 Alertas PWA</span>
           {unreadNotifsCount > 0 && (
-            <span className="ml-1 bg-[var(--lupo-accent)] text-white font-bold text-[9px] min-w-[1rem] h-4 px-1 rounded-full inline-flex items-center justify-center">
+            <span className="absolute top-2.5 right-[30%] bg-blue-500 text-zinc-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
               {unreadNotifsCount}
             </span>
           )}
         </button>
       </div>
 
-      <main className={`${ui.main} h-[calc(100vh-140px)] xl:h-[calc(100vh-4.25rem-2.25rem)]`}>
+      {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
+      <main className="flex-1 overflow-hidden p-3 md:p-4 relative h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]">
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col xl:flex-row h-full overflow-hidden ${
@@ -930,15 +886,12 @@ export default function App() {
                   onAssignOrderSeller={handleAssignOrderSeller}
                   onDeleteOrder={handleDeleteOrder}
                   userRole={user.role}
-                  userName={user.name}
-                  adminView={adminView}
-                  onGoToSettings={showSettings ? () => setMobileTab('settings') : undefined}
                 />
               </div>
             )}
 
             {mobileTab === 'settings' && (
-              <div className={`flex-1 min-w-0 h-full overflow-hidden ${ui.panel} transition-all duration-300 ease-out`}>
+              <div className="flex-1 min-w-0 h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4 transition-all duration-300 ease-out">
                 <SettingsPage
                   user={user}
                   onBack={() => setMobileTab('dashboard')}
@@ -1002,25 +955,25 @@ export default function App() {
         )}
       </main>
 
-      <footer className={ui.footer}>
+      {/* FOOTER STATUS BAR (HIGH DENSITY DESIGN) */}
+      <footer className="h-8 bg-zinc-950 border-t border-zinc-800 px-6 flex items-center justify-between shrink-0 select-none z-40">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
-            <span className={ui.hint}>Sistema: {isOnline ? 'Operativo' : 'Local (sin conexión)'}</span>
+            <span className="text-[9px] text-zinc-500 uppercase tracking-tighter">Sistema: {isOnline ? 'Operativo' : 'Local (Sin Conexión)'}</span>
           </div>
-          <span className="text-[var(--lupo-border)]">|</span>
-          <div className={`flex items-center gap-2 ${ui.hint}`}>
-            WS:{' '}
-            <span className={wsConnected ? 'text-emerald-400' : 'text-amber-400'}>
-              {wsConnected ? 'Tiempo real' : 'Polling'}
+          <span className="text-[9px] text-zinc-800 uppercase tracking-tighter">|</span>
+          <div className="flex items-center gap-2 text-[9px] text-zinc-500 uppercase tracking-tighter">
+            WS Protocol:{' '}
+            <span className={`font-mono ${wsConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {wsConnected ? 'Tiempo real (WebSocket)' : 'Respaldo (Polling)'}
             </span>
           </div>
         </div>
-        <div className={`${ui.hint} flex items-center gap-1`}>
+        <div className="text-[9px] text-zinc-500 font-mono uppercase tracking-tighter flex items-center gap-1">
           <span>Sincronizado: {lastSyncAt.toLocaleTimeString()}</span>
         </div>
       </footer>
-      </div>
     </div>
   );
 }
