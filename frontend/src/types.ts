@@ -54,6 +54,7 @@ export interface User {
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];
+  deliveryZone?: string | null;
 }
 
 export interface SellerStats {

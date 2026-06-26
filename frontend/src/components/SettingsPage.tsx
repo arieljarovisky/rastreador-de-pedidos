@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
+import { DELIVERY_ZONES, zoneLabel, getDeliveryZone } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 const DIRECTORY_PRESETS = [
@@ -53,7 +54,8 @@ interface SettingsPageProps {
   }) => Promise<User>;
   onFetchSellerDetail?: (sellerId: string) => Promise<SellerDetail>;
   onUpdateSellerPassword?: (sellerId: string, password: string) => Promise<void>;
-  onCreateRepartidor?: (data: { username: string; password: string; name: string }) => Promise<void>;
+  onCreateRepartidor?: (data: { username: string; password: string; name: string; deliveryZone?: string | null }) => Promise<void>;
+  onUpdateRepartidorZone?: (repartidorId: string, deliveryZone: string | null) => Promise<void>;
   onDeleteRepartidor?: (id: string) => Promise<{ finalizedOrders: number }>;
   onCreatePickupPoint?: (data: {
     label?: string;
@@ -95,6 +97,7 @@ export default function SettingsPage({
   onFetchSellerDetail,
   onUpdateSellerPassword,
   onCreateRepartidor,
+  onUpdateRepartidorZone,
   onDeleteRepartidor,
   onCreatePickupPoint,
   onUpdatePickupPoint,
@@ -143,7 +146,9 @@ export default function SettingsPage({
   const [repartidorName, setRepartidorName] = useState('');
   const [repartidorUsername, setRepartidorUsername] = useState('');
   const [repartidorPassword, setRepartidorPassword] = useState('');
+  const [repartidorZone, setRepartidorZone] = useState('');
   const [repartidorFormLoading, setRepartidorFormLoading] = useState(false);
+  const [updatingZoneId, setUpdatingZoneId] = useState<string | null>(null);
   const [repartidorFormMessage, setRepartidorFormMessage] = useState<string | null>(null);
   const [deletingRepartidorId, setDeletingRepartidorId] = useState<string | null>(null);
 
@@ -700,7 +705,7 @@ export default function SettingsPage({
               </div>
               <div className="flex-1 min-w-[10rem]">
                 <p className="text-xs font-bold text-sky-200">Repartidores</p>
-                <p className="text-[10px] text-zinc-500">{repartidores.length} activo{repartidores.length !== 1 ? 's' : ''}</p>
+                <p className="text-[10px] text-zinc-500">{repartidores.length} activo{repartidores.length !== 1 ? 's' : ''} · asigná una zona por repartidor</p>
               </div>
               {onCreateRepartidor && (
                 <button
@@ -717,46 +722,89 @@ export default function SettingsPage({
                 {repartidores.map((rep) => (
                   <li
                     key={rep.id}
-                    className="flex items-center justify-between gap-2 text-[11px] bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-2 text-zinc-300"
+                    className="flex flex-col gap-2 text-[11px] bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-2 text-zinc-300"
                   >
-                    <span className="truncate min-w-0">
-                      <span className="font-medium text-zinc-200">{rep.name}</span>
-                      <span className="text-zinc-500"> @{rep.username}</span>
-                    </span>
-                    {onDeleteRepartidor && (
-                      <button
-                        type="button"
-                        disabled={deletingRepartidorId === rep.id}
-                        onClick={async () => {
-                          const ok = await confirm({
-                            title: 'Eliminar repartidor',
-                            message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente. Esta acción no se puede deshacer.`,
-                            variant: 'danger',
-                            confirmText: 'Eliminar',
-                            cancelText: 'Cancelar',
-                          });
-                          if (!ok) return;
-                          setDeletingRepartidorId(rep.id);
-                          setRepartidorFormMessage(null);
-                          try {
-                            const result = await onDeleteRepartidor(rep.id);
-                            const extra =
-                              result.finalizedOrders > 0
-                                ? ` Se finalizaron ${result.finalizedOrders} viaje(s) en curso.`
-                                : '';
-                            setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
-                          } catch (err: unknown) {
-                            const message = err instanceof Error ? err.message : 'Error al eliminar repartidor.';
-                            setRepartidorFormMessage(message);
-                          } finally {
-                            setDeletingRepartidorId(null);
-                          }
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate min-w-0">
+                        <span className="font-medium text-zinc-200">{rep.name}</span>
+                        <span className="text-zinc-500"> @{rep.username}</span>
+                      </span>
+                      {onDeleteRepartidor && (
+                        <button
+                          type="button"
+                          disabled={deletingRepartidorId === rep.id}
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: 'Eliminar repartidor',
+                              message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente. Esta acción no se puede deshacer.`,
+                              variant: 'danger',
+                              confirmText: 'Eliminar',
+                              cancelText: 'Cancelar',
+                            });
+                            if (!ok) return;
+                            setDeletingRepartidorId(rep.id);
+                            setRepartidorFormMessage(null);
+                            try {
+                              const result = await onDeleteRepartidor(rep.id);
+                              const extra =
+                                result.finalizedOrders > 0
+                                  ? ` Se finalizaron ${result.finalizedOrders} viaje(s) en curso.`
+                                  : '';
+                              setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
+                            } catch (err: unknown) {
+                              const message = err instanceof Error ? err.message : 'Error al eliminar repartidor.';
+                              setRepartidorFormMessage(message);
+                            } finally {
+                              setDeletingRepartidorId(null);
+                            }
+                          }}
+                          className="text-red-400 hover:text-red-300 shrink-0 disabled:opacity-50"
+                          title="Eliminar repartidor"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {onUpdateRepartidorZone && (
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3 text-sky-400 shrink-0" />
+                        <select
+                          value={rep.deliveryZone ?? ''}
+                          disabled={updatingZoneId === rep.id}
+                          onChange={async (e) => {
+                            const zone = e.target.value || null;
+                            setUpdatingZoneId(rep.id);
+                            try {
+                              await onUpdateRepartidorZone(rep.id, zone);
+                            } catch (err: unknown) {
+                              const message = err instanceof Error ? err.message : 'No se pudo actualizar la zona.';
+                              void showAlert({ title: 'Error', message, variant: 'error' });
+                            } finally {
+                              setUpdatingZoneId(null);
+                            }
+                          }}
+                          className="flex-1 min-w-0 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-1 text-[10px] text-zinc-300 focus:outline-none focus:border-sky-500"
+                        >
+                          <option value="">Sin zona asignada</option>
+                          {DELIVERY_ZONES.map((zone) => (
+                            <option key={zone.id} value={zone.id}>
+                              {zone.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {rep.deliveryZone && (
+                      <span
+                        className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded w-fit"
+                        style={{
+                          color: getDeliveryZone(rep.deliveryZone)?.color ?? '#64748b',
+                          backgroundColor: `${getDeliveryZone(rep.deliveryZone)?.color ?? '#64748b'}18`,
+                          border: `1px solid ${getDeliveryZone(rep.deliveryZone)?.color ?? '#64748b'}40`,
                         }}
-                        className="text-red-400 hover:text-red-300 shrink-0 disabled:opacity-50"
-                        title="Eliminar repartidor"
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        {zoneLabel(rep.deliveryZone)}
+                      </span>
                     )}
                   </li>
                 ))}
@@ -783,11 +831,13 @@ export default function SettingsPage({
                       name: repartidorName,
                       username: repartidorUsername,
                       password: repartidorPassword,
+                      deliveryZone: repartidorZone || null,
                     });
                     setRepartidorFormMessage('Repartidor creado correctamente.');
                     setRepartidorName('');
                     setRepartidorUsername('');
                     setRepartidorPassword('');
+                    setRepartidorZone('');
                   } catch (err: any) {
                     setRepartidorFormMessage(err.message || 'Error al crear repartidor.');
                   } finally {
@@ -819,6 +869,18 @@ export default function SettingsPage({
                   className={inputClass}
                 />
                 </div>
+                <select
+                  value={repartidorZone}
+                  onChange={(e) => setRepartidorZone(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Zona de entrega (opcional)</option>
+                  {DELIVERY_ZONES.map((zone) => (
+                    <option key={zone.id} value={zone.id}>
+                      {zone.name}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="submit"
                   disabled={repartidorFormLoading}

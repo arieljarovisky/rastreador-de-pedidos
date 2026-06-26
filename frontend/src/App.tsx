@@ -405,7 +405,12 @@ export default function App() {
     }
   };
 
-  const handleCreateRepartidor = async (data: { username: string; password: string; name: string }) => {
+  const handleCreateRepartidor = async (data: {
+    username: string;
+    password: string;
+    name: string;
+    deliveryZone?: string | null;
+  }) => {
     if (!token) return;
     const res = await fetch(apiUrl('/api/accounts/repartidores'), {
       method: 'POST',
@@ -421,6 +426,24 @@ export default function App() {
     }
     const created = await res.json();
     setRepartidores((prev) => [...prev, created]);
+  };
+
+  const handleUpdateRepartidorZone = async (repartidorId: string, deliveryZone: string | null) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/repartidores/${repartidorId}/zone`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ deliveryZone }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo actualizar la zona');
+    }
+    const updated = await res.json();
+    setRepartidores((prev) => prev.map((r) => (r.id === repartidorId ? updated : r)));
   };
 
   const handleDeleteRepartidor = async (id: string): Promise<{ finalizedOrders: number }> => {
@@ -1046,6 +1069,7 @@ export default function App() {
                   onFetchSellerDetail={isAgencyAdmin(user.role) ? handleFetchSellerDetail : undefined}
                   onUpdateSellerPassword={isAgencyAdmin(user.role) ? handleUpdateSellerPassword : undefined}
                   onCreateRepartidor={isAgencyAdmin(user.role) ? handleCreateRepartidor : undefined}
+                  onUpdateRepartidorZone={isAgencyAdmin(user.role) ? handleUpdateRepartidorZone : undefined}
                   onDeleteRepartidor={isAgencyAdmin(user.role) ? handleDeleteRepartidor : undefined}
                   onCreatePickupPoint={handleCreatePickupPoint}
                   onUpdatePickupPoint={handleUpdatePickupPoint}

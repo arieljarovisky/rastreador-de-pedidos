@@ -10,11 +10,11 @@ async function hash(password: string): Promise<string> {
 
 export async function seedDatabase(): Promise<void> {
   const users = [
-    { id: 'u1', username: 'admin', name: 'Lupo Ventas (Local)', role: UserRole.STORE_ADMIN, password: 'admin123', lat: null, lng: null },
-    { id: 'u5', username: 'logistica', name: 'Lupo Logística (Envíos)', role: UserRole.SUPER_ADMIN, password: 'logistica123', lat: null, lng: null },
-    { id: 'u2', username: 'carlos', name: 'Carlos Gómez', role: UserRole.REPARTIDOR, password: 'carlos123', lat: -34.5901, lng: -58.4215 },
-    { id: 'u3', username: 'maria', name: 'María Rodríguez', role: UserRole.REPARTIDOR, password: 'maria123', lat: -34.5712, lng: -58.4412 },
-    { id: 'u4', username: 'juan', name: 'Juan Pérez', role: UserRole.REPARTIDOR, password: 'juan123', lat: -34.6, lng: -58.41 },
+    { id: 'u1', username: 'admin', name: 'Lupo Ventas (Local)', role: UserRole.STORE_ADMIN, password: 'admin123', lat: null, lng: null, zone: null },
+    { id: 'u5', username: 'logistica', name: 'Lupo Logística (Envíos)', role: UserRole.SUPER_ADMIN, password: 'logistica123', lat: null, lng: null, zone: null },
+    { id: 'u2', username: 'carlos', name: 'Carlos Gómez', role: UserRole.REPARTIDOR, password: 'carlos123', lat: -34.5901, lng: -58.4215, zone: 'zona_sur' },
+    { id: 'u3', username: 'maria', name: 'María Rodríguez', role: UserRole.REPARTIDOR, password: 'maria123', lat: -34.5712, lng: -58.4412, zone: 'zona_norte' },
+    { id: 'u4', username: 'juan', name: 'Juan Pérez', role: UserRole.REPARTIDOR, password: 'juan123', lat: -34.6, lng: -58.41, zone: 'zona_oeste' },
   ];
 
   for (const u of users) {
@@ -30,10 +30,11 @@ export async function seedDatabase(): Promise<void> {
         : null;
     await pool.query(
       `INSERT INTO users (id, username, password_hash, name, role, current_lat, current_lng, location_updated_at,
-        departure_address, departure_lat, departure_lng)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        departure_address, departure_lat, departure_lng, delivery_zone)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name), role = VALUES(role),
-         departure_address = VALUES(departure_address), departure_lat = VALUES(departure_lat), departure_lng = VALUES(departure_lng)`,
+         departure_address = VALUES(departure_address), departure_lat = VALUES(departure_lat), departure_lng = VALUES(departure_lng),
+         delivery_zone = VALUES(delivery_zone)`,
       [
         u.id,
         u.username,
@@ -46,6 +47,7 @@ export async function seedDatabase(): Promise<void> {
         departure?.address ?? null,
         departure?.lat ?? null,
         departure?.lng ?? null,
+        u.zone ?? null,
       ]
     );
   }

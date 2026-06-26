@@ -349,7 +349,12 @@ export default function RepartidorDashboard({
                   <div className="flex gap-2">
                     {activeOrder.status === OrderStatus.ASSIGNED && (
                       <button
-                        onClick={() => onUpdateOrderStatus(activeOrder.id, OrderStatus.DELIVERING, undefined, 'Repartidor inició viaje al destino')}
+                        onClick={async () => {
+                          await onUpdateOrderStatus(activeOrder.id, OrderStatus.DELIVERING, undefined, 'Repartidor inició viaje al destino');
+                          if (currentCoords) {
+                            await onReportLocation(activeOrder.id, currentCoords.lat, currentCoords.lng);
+                          }
+                        }}
                         className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/10 uppercase tracking-wider"
                       >
                         <Play className="w-4 h-4" /> Iniciar Viaje de Entrega

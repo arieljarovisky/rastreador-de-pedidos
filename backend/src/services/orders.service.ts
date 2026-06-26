@@ -10,7 +10,7 @@ import {
   User,
   UserRole,
 } from '../types/index.js';
-import { getRepartidorById, getUserById, updateUserLocation, getAgencyDeparture } from './users.service.js';
+import { getRepartidorById, getUserById, updateUserLocation } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 
 interface HistoryRow extends RowDataPacket {
@@ -392,20 +392,16 @@ export async function updateOrderStatus(
 
   if (status === OrderStatus.DELIVERING) {
     await pool.query('DELETE FROM order_location_history WHERE order_id = ?', [orderId]);
-    const hub = await getAgencyDeparture();
-    let lat = hub?.lat ?? -34.5885;
-    let lng = hub?.lng ?? -58.4306;
+    // Solo registrar punto inicial si el repartidor ya tiene GPS real (nunca usar el hub)
     if (assignedRepartidorId) {
       const rep = await getUserById(assignedRepartidorId);
       if (rep?.currentLocation) {
-        lat = rep.currentLocation.lat;
-        lng = rep.currentLocation.lng;
+        await pool.query(
+          `INSERT INTO order_location_history (order_id, lat, lng, created_at) VALUES (?, ?, ?, ?)`,
+          [orderId, rep.currentLocation.lat, rep.currentLocation.lng, now]
+        );
       }
     }
-    await pool.query(
-      `INSERT INTO order_location_history (order_id, lat, lng, created_at) VALUES (?, ?, ?, ?)`,
-      [orderId, lat, lng, now]
-    );
   }
 
   const updated = await getOrderById(orderId);
@@ -476,13 +472,21 @@ export async function simulatorTick(): Promise<number> {
   let updatedCount = 0;
   const now = new Date();
   const nowStr = now.toISOString();
-  const hub = await getAgencyDeparture();
 
   for (const order of orders) {
-    const lastPoint =
+    let lastPoint: LocationHistoryPoint | null =
       order.locationHistory.length > 0
         ? order.locationHistory[order.locationHistory.length - 1]
-        : { lat: hub?.lat ?? -34.5885, lng: hub?.lng ?? -58.4306, timestamp: nowStr };
+        : null;
+
+    if (!lastPoint && order.repartidorId) {
+      const rep = await getUserById(order.repartidorId);
+      if (rep?.currentLocation) {
+        lastPoint = rep.currentLocation;
+      }
+    }
+
+    if (!lastPoint) continue;
 
     const deltaLat = order.lat - lastPoint.lat;
     const deltaLng = order.lng - lastPoint.lng;

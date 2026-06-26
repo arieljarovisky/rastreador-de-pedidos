@@ -10,6 +10,7 @@ import {
   getAgencyDeparture,
   getUserById,
   deleteRepartidor,
+  updateRepartidorZone,
 } from '../services/users.service.js';
 import {
   listPickupPointsForUser,
@@ -113,7 +114,7 @@ router.post('/sellers', authenticate, requireAgencyAdmin(), async (req: Request,
 });
 
 router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
-  const { username, password, name } = req.body;
+  const { username, password, name, deliveryZone } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: 'Usuario, contraseña y nombre son requeridos.' });
     return;
@@ -125,10 +126,34 @@ router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Req
       password,
       name,
       role: UserRole.REPARTIDOR,
+      deliveryZone: deliveryZone || null,
     });
     res.status(201).json(user);
   } catch (err) {
     if (handleCreateUserError(res, err)) return;
+    if (err instanceof Error && err.message === 'INVALID_ZONE') {
+      res.status(400).json({ error: 'Zona de entrega inválida.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/repartidores/:id/zone', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const { deliveryZone } = req.body as { deliveryZone?: string | null };
+  try {
+    const user = await updateRepartidorZone(req.params.id, deliveryZone ?? null);
+    res.json(user);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Repartidor no encontrado.' });
+      return;
+    }
+    if (message === 'INVALID_ZONE') {
+      res.status(400).json({ error: 'Zona de entrega inválida.' });
+      return;
+    }
     throw err;
   }
 });

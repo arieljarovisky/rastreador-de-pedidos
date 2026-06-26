@@ -459,20 +459,13 @@ async function startServer() {
     // Si pasa a en viaje y no tiene historial de localización, registrar posición inicial del repartidor
     if (status === OrderStatus.DELIVERING) {
       const rep = db.users.find(u => u.id === order.repartidorId);
-      if (rep?.currentLocation) {
-        order.locationHistory = [{
-          lat: rep.currentLocation.lat,
-          lng: rep.currentLocation.lng,
-          timestamp: new Date().toISOString()
-        }];
-      } else {
-        // Fallback de Palermo Hub
-        order.locationHistory = [{
-          lat: -34.5885,
-          lng: -58.4306,
-          timestamp: new Date().toISOString()
-        }];
-      }
+      order.locationHistory = rep?.currentLocation
+        ? [{
+            lat: rep.currentLocation.lat,
+            lng: rep.currentLocation.lng,
+            timestamp: new Date().toISOString()
+          }]
+        : [];
     }
 
     // Notificación al administrador cuando se entrega un pedido
@@ -632,9 +625,12 @@ async function startServer() {
     db.orders = db.orders.map(order => {
       if (order.status === OrderStatus.DELIVERING && order.repartidorId) {
         // Obtener último punto del historial o fallback
-        const lastPoint = order.locationHistory.length > 0 
+        const rep = db.users.find(u => u.id === order.repartidorId);
+        const lastPoint = order.locationHistory.length > 0
           ? order.locationHistory[order.locationHistory.length - 1]
-          : { lat: -34.5885, lng: -58.4306 }; // Palermo Hub
+          : rep?.currentLocation ?? null;
+
+        if (!lastPoint) return order;
 
         // Calcular paso intermedio hacia las coordenadas del cliente
         const deltaLat = order.lat - lastPoint.lat;

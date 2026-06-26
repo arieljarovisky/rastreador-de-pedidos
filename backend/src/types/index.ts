@@ -44,6 +44,7 @@ export interface User {
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];
+  deliveryZone?: string | null;
 }
 
 export interface OrderHistoryEvent {
@@ -109,6 +110,7 @@ export interface DbUserRow {
   departure_address: string | null;
   departure_lat: number | null;
   departure_lng: number | null;
+  delivery_zone: string | null;
 }
 
 export interface DbOrderRow {

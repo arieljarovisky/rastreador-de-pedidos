@@ -4,9 +4,10 @@ import { pool } from '../config/database.js';
 import { DbUserRow, LocationPoint, PickupPoint, User, UserRole, OrderStatus } from '../types/index.js';
 import { listPickupPointsForUser } from './pickup-points.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import { isValidZoneId } from '../config/delivery-zones.js';
 
 const USER_COLUMNS = `id, username, name, role, password_hash, current_lat, current_lng, location_updated_at,
-  departure_address, departure_lat, departure_lng`;
+  departure_address, departure_lat, departure_lng, delivery_zone`;
 
 function departureFromRow(row: DbUserRow): LocationPoint | undefined {
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
@@ -36,6 +37,9 @@ function rowToUser(row: DbUserRow): User {
   const departure = departureFromRow(row);
   if (departure) {
     user.departurePoint = departure;
+  }
+  if (row.delivery_zone) {
+    user.deliveryZone = row.delivery_zone;
   }
   return user;
 }
@@ -141,6 +145,7 @@ export async function createUser(data: {
   password: string;
   name: string;
   role: UserRole;
+  deliveryZone?: string | null;
 }): Promise<User> {
   const normalizedUsername = data.username.trim().toLowerCase();
   if (normalizedUsername.length < 3) {
@@ -152,6 +157,9 @@ export async function createUser(data: {
   if (!data.name.trim()) {
     throw new Error('NAME_REQUIRED');
   }
+  if (data.deliveryZone && !isValidZoneId(data.deliveryZone)) {
+    throw new Error('INVALID_ZONE');
+  }
 
   const existing = await findUserByUsername(normalizedUsername);
   if (existing) {
@@ -162,13 +170,30 @@ export async function createUser(data: {
   const passwordHash = await bcrypt.hash(data.password, 10);
 
   await pool.query(
-    `INSERT INTO users (id, username, password_hash, name, role) VALUES (?, ?, ?, ?, ?)`,
-    [id, normalizedUsername, passwordHash, data.name.trim(), data.role]
+    `INSERT INTO users (id, username, password_hash, name, role, delivery_zone) VALUES (?, ?, ?, ?, ?, ?)`,
+    [id, normalizedUsername, passwordHash, data.name.trim(), data.role, data.deliveryZone ?? null]
   );
 
   const user = await getUserById(id);
   if (!user) throw new Error('CREATE_FAILED');
   return user;
+}
+
+export async function updateRepartidorZone(
+  repartidorId: string,
+  deliveryZone: string | null
+): Promise<User> {
+  const rep = await getRepartidorById(repartidorId);
+  if (!rep) {
+    throw new Error('NOT_FOUND');
+  }
+  if (deliveryZone && !isValidZoneId(deliveryZone)) {
+    throw new Error('INVALID_ZONE');
+  }
+  await pool.query('UPDATE users SET delivery_zone = ? WHERE id = ?', [deliveryZone, repartidorId]);
+  const updated = await getUserById(repartidorId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
 }
 
 export async function listSellers(): Promise<User[]> {

@@ -11,6 +11,7 @@ import notificationsRoutes from './routes/notifications.routes.js';
 import simulatorRoutes from './routes/simulator.routes.js';
 import geocodeRoutes from './routes/geocode.routes.js';
 import integrationsRoutes from './routes/integrations.routes.js';
+import { DELIVERY_ZONES } from './config/delivery-zones.js';
 
 const app = express();
 
@@ -32,6 +33,10 @@ app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', corsOrigins: env.corsOrigins });
+});
+
+app.get('/api/delivery-zones', (_req, res) => {
+  res.json(DELIVERY_ZONES);
 });
 
 app.use('/api/auth', authRoutes);

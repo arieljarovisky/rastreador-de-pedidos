@@ -5,6 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
+import { getDeliveryZone } from '../config/deliveryZones.js';
 import * as L from 'leaflet';
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
@@ -58,6 +59,8 @@ interface MapComponentProps {
   liveRepartidorLocation?: { lat: number; lng: number } | null;
   /** Ocultar marcador de salida cuando el foco es la ruta al cliente */
   showDepartureHub?: boolean;
+  /** Dibujar zonas asignadas a repartidores */
+  showDeliveryZones?: boolean;
 }
 
 // Configuración de Pines Personalizados con SVGs para evitar enlaces rotos de Leaflet
@@ -115,11 +118,13 @@ export default function MapComponent({
   interactive = true,
   liveRepartidorLocation = null,
   showDepartureHub = true,
+  showDeliveryZones = true,
 }: MapComponentProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<{ [key: string]: L.Marker }>({});
   const polylinesRef = useRef<{ [key: string]: L.Polyline }>({});
+  const zoneLayersRef = useRef<L.Rectangle[]>([]);
   const hubMarkerRef = useRef<L.Marker | null>(null);
   const initialFitDoneRef = useRef(false);
   const lastCenteredOrderIdRef = useRef<string | null>(null);
@@ -234,7 +239,53 @@ export default function MapComponent({
       `);
   }, [departurePoint, showDepartureHub]);
 
-  // Observer de redimensionamiento para evitar problemas de tiles negros en layouts responsivos (flex/tabs)
+  // Zonas de entrega asignadas a repartidores
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    zoneLayersRef.current.forEach((layer) => layer.remove());
+    zoneLayersRef.current = [];
+
+    if (!showDeliveryZones) return;
+
+    const zoneReps = new Map<string, string[]>();
+    repartidores.forEach((rep) => {
+      if (!rep.deliveryZone) return;
+      const list = zoneReps.get(rep.deliveryZone) ?? [];
+      list.push(rep.name.split(' ')[0]);
+      zoneReps.set(rep.deliveryZone, list);
+    });
+
+    zoneReps.forEach((names, zoneId) => {
+      const zone = getDeliveryZone(zoneId);
+      if (!zone) return;
+
+      const rect = L.rectangle(
+        [
+          [zone.south, zone.west],
+          [zone.north, zone.east],
+        ],
+        {
+          color: zone.color,
+          weight: 2,
+          fillColor: zone.color,
+          fillOpacity: 0.1,
+          dashArray: '10, 6',
+        }
+      )
+        .addTo(map)
+        .bindTooltip(`<strong>${zone.name}</strong><br/>🏍️ ${names.join(', ')}`, {
+          sticky: true,
+          direction: 'center',
+          className: 'zone-map-tooltip',
+        });
+
+      zoneLayersRef.current.push(rect);
+    });
+  }, [repartidores, showDeliveryZones]);
+
+  // Observer de redimensionamiento
   useEffect(() => {
     if (!mapContainerRef.current) return;
 

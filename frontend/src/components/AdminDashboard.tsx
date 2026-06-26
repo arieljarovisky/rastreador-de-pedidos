@@ -7,6 +7,7 @@ import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
+import { findZoneForPoint, zoneLabel } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 
@@ -619,6 +620,15 @@ export default function AdminDashboard({
                   <p className="text-[11px] text-zinc-400 mt-0.5 truncate leading-normal">
                     📍 {order.address}
                   </p>
+                  {isAgencyAdmin(userRole) && (() => {
+                    const orderZone = findZoneForPoint(order.lat, order.lng);
+                    if (!orderZone) return null;
+                    return (
+                      <p className="text-[9px] mt-1 font-mono font-bold uppercase tracking-wider" style={{ color: orderZone.color }}>
+                        🗺️ {orderZone.name}
+                      </p>
+                    );
+                  })()}
                   {isAgencyAdmin(userRole) && (
                     <p className="text-[10px] mt-1 font-mono">
                       {order.sellerName ? (
@@ -835,25 +845,50 @@ export default function AdminDashboard({
                     ) : (
                       <div className="bg-zinc-950 border border-zinc-800 p-2 rounded space-y-1">
                         <p className="text-[9px] font-mono font-bold uppercase text-zinc-500">Asignar repartidor al viaje:</p>
-                        <div className="flex gap-1.5">
-                          <select
-                            id={`select-repartidor-${selectedOrder.id}`}
-                            defaultValue=""
-                            onChange={async (e) => {
-                              if (!e.target.value) return;
-                              await onUpdateOrderStatus(selectedOrder.id, OrderStatus.ASSIGNED, e.target.value, 'Pedido asignado desde panel de control');
-                              setAssigningOrderId(null);
-                            }}
-                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded p-1 text-[11px] text-zinc-300 focus:outline-none"
-                          >
-                            <option value="" disabled>Seleccionar...</option>
-                            {repartidores.map((rep) => (
-                              <option key={rep.id} value={rep.id}>
-                                {rep.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        {(() => {
+                          const orderZone = findZoneForPoint(selectedOrder.lat, selectedOrder.lng);
+                          const suggestedRep = orderZone
+                            ? repartidores.find((r) => r.deliveryZone === orderZone.id)
+                            : null;
+                          return (
+                            <>
+                              {orderZone && (
+                                <p className="text-[9px] font-mono text-zinc-400">
+                                  Zona del pedido:{' '}
+                                  <span style={{ color: orderZone.color }} className="font-bold">
+                                    {orderZone.name}
+                                  </span>
+                                  {suggestedRep && (
+                                    <span className="text-blue-400"> · Sugerido: {suggestedRep.name}</span>
+                                  )}
+                                </p>
+                              )}
+                              <div className="flex gap-1.5">
+                                <select
+                                  id={`select-repartidor-${selectedOrder.id}`}
+                                  defaultValue={suggestedRep?.id ?? ''}
+                                  onChange={async (e) => {
+                                    if (!e.target.value) return;
+                                    await onUpdateOrderStatus(selectedOrder.id, OrderStatus.ASSIGNED, e.target.value, 'Pedido asignado desde panel de control');
+                                    setAssigningOrderId(null);
+                                  }}
+                                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded p-1 text-[11px] text-zinc-300 focus:outline-none"
+                                >
+                                  <option value="" disabled>
+                                    Seleccionar...
+                                  </option>
+                                  {repartidores.map((rep) => (
+                                    <option key={rep.id} value={rep.id}>
+                                      {rep.name}
+                                      {rep.deliveryZone ? ` (${zoneLabel(rep.deliveryZone)})` : ''}
+                                      {suggestedRep?.id === rep.id ? ' ★' : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     )
                   )}

@@ -39,6 +39,10 @@ export async function runMigrations(): Promise<void> {
     );
   }
 
+  if (!(await columnExists('users', 'delivery_zone'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN delivery_zone VARCHAR(64) NULL AFTER departure_lng');
+  }
+
   if (!(await tableExists('store_integrations'))) {
     await pool.query(`
       CREATE TABLE store_integrations (
