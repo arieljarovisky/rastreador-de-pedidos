@@ -10,7 +10,7 @@ import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
-import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard, PanelRightOpen } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard } from 'lucide-react';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 
@@ -667,37 +667,56 @@ export default function App() {
           <div className="hidden sm:block h-8 w-[1px] bg-zinc-800 mx-1"></div>
 
           <div className="flex items-center gap-3">
-            {showSettings && (
-              <div className="hidden xl:flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setMobileTab('dashboard')}
-                  title="Panel principal y mapa"
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
-                    mobileTab !== 'settings'
-                      ? 'bg-blue-950/40 border-blue-800 text-blue-300'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  <LayoutDashboard className="w-3.5 h-3.5" /> Panel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileTab('settings')}
-                  title="Configuración"
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
-                    mobileTab === 'settings'
-                      ? 'bg-zinc-800 border-zinc-600 text-zinc-100'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  <Settings className="w-3.5 h-3.5" /> Config
-                </button>
-              </div>
-            )}
+            <div className="hidden xl:flex items-center gap-1">
+              {showSettings && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab('dashboard')}
+                    title="Panel principal y mapa"
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                      mobileTab !== 'settings'
+                        ? 'bg-blue-950/40 border-blue-800 text-blue-300'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <LayoutDashboard className="w-3.5 h-3.5" /> Panel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab('settings')}
+                    title="Configuración"
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                      mobileTab === 'settings'
+                        ? 'bg-zinc-800 border-zinc-600 text-zinc-100'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Settings className="w-3.5 h-3.5" /> Config
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={toggleNotifsSidebar}
+                title={notifsSidebarOpen ? 'Ocultar panel de alertas' : 'Mostrar panel de alertas'}
+                className={`relative flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                  notifsSidebarOpen
+                    ? 'bg-purple-950/40 border-purple-800 text-purple-300'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <Bell className="w-3.5 h-3.5" /> Alertas
+                {!notifsSidebarOpen && unreadNotifsCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-zinc-950 font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center border border-[#09090b]">
+                    {unreadNotifsCount}
+                  </span>
+                )}
+              </button>
+            </div>
 
             <div
-              className="relative cursor-pointer p-1.5 hover:bg-zinc-800/50 rounded-lg transition"
+              className="relative cursor-pointer p-1.5 hover:bg-zinc-800/50 rounded-lg transition xl:hidden"
               title="Ver notificaciones"
               onClick={() => setMobileTab('notifications')}
               onKeyDown={(e) => e.key === 'Enter' && setMobileTab('notifications')}
@@ -777,25 +796,6 @@ export default function App() {
 
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main className="flex-1 overflow-hidden p-3 md:p-4 relative h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]">
-        {!notifsSidebarOpen && (
-          <button
-            type="button"
-            onClick={toggleNotifsSidebar}
-            title="Mostrar panel de alertas"
-            className="hidden xl:flex fixed right-0 top-1/2 -translate-y-1/2 z-50 flex-col items-center gap-1 py-3 px-1.5 rounded-l-lg bg-zinc-900 border border-r-0 border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 shadow-lg transition"
-          >
-            <PanelRightOpen className="w-4 h-4" />
-            <span className="text-[8px] font-bold uppercase tracking-wider [writing-mode:vertical-rl]">
-              Alertas
-            </span>
-            {unreadNotifsCount > 0 && (
-              <span className="bg-blue-500 text-zinc-950 font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center">
-                {unreadNotifsCount}
-              </span>
-            )}
-          </button>
-        )}
-
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
             {mobileTab !== 'settings' && (

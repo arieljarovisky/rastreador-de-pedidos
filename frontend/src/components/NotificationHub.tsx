@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { AppNotification } from '../types.js';
-import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, PanelRightClose } from 'lucide-react';
+import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface NotificationHubProps {
@@ -159,7 +159,20 @@ export default function NotificationHub({
       </AnimatePresence>
 
       {/* Widget lateral de Configuración de Notificaciones PWA (HIGH DENSITY) */}
-      <div className="bg-zinc-900/30 border border-zinc-800 rounded-lg p-3.5 backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
+      <div className="bg-zinc-900/30 border border-zinc-800 rounded-lg backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
+        {showCollapseButton && onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title="Ocultar panel de alertas"
+            className="hidden xl:flex items-center justify-center gap-1.5 w-full py-1.5 border-b border-zinc-800 bg-zinc-950/60 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 transition shrink-0"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+            Ocultar panel
+          </button>
+        )}
+
+        <div className="p-3.5 flex flex-col flex-1 overflow-hidden min-h-0">
         <div className="flex items-center gap-2 mb-3 shrink-0">
           <div className="w-8 h-8 rounded bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
             <Bell className="w-4 h-4" />
@@ -176,16 +189,6 @@ export default function NotificationHub({
             >
               <Volume2 className="w-4 h-4" />
             </button>
-            {showCollapseButton && onToggleCollapse && (
-              <button
-                type="button"
-                onClick={onToggleCollapse}
-                title="Ocultar panel de alertas"
-                className="hidden xl:flex text-zinc-400 hover:text-zinc-200 p-1.5 rounded hover:bg-zinc-800 transition border border-transparent hover:border-zinc-700"
-              >
-                <PanelRightClose className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </div>
 
@@ -258,6 +261,7 @@ export default function NotificationHub({
               ))
             )}
           </div>
+        </div>
         </div>
       </div>
     </>
