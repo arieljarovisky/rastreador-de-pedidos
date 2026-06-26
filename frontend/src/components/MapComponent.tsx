@@ -78,6 +78,14 @@ export default function MapComponent({
   const markersRef = useRef<{ [key: string]: L.Marker }>({});
   const polylinesRef = useRef<{ [key: string]: L.Polyline }>({});
   const hubMarkerRef = useRef<L.Marker | null>(null);
+  const initialFitDoneRef = useRef(false);
+  const lastCenteredOrderIdRef = useRef<string | null>(null);
+  const userInteractedRef = useRef(false);
+  const ordersRef = useRef(orders);
+  const repartidoresRef = useRef(repartidores);
+
+  ordersRef.current = orders;
+  repartidoresRef.current = repartidores;
 
   // Inicializar mapa
   useEffect(() => {
@@ -99,14 +107,21 @@ export default function MapComponent({
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
         zoom: initialZoom,
-        minZoom: 11,
+        minZoom: 9,
         maxZoom: 18,
         maxBounds: gbaBounds,
-        maxBoundsViscosity: 1.0,
+        maxBoundsViscosity: 0.85,
         zoomControl: interactive,
         scrollWheelZoom: interactive,
         dragging: interactive,
         touchZoom: interactive,
+      });
+
+      map.on('zoomstart', () => {
+        userInteractedRef.current = true;
+      });
+      map.on('movestart', () => {
+        userInteractedRef.current = true;
       });
 
       // Capa de mapa (CartoDB Dark Matter o OpenStreetMap de noche)
@@ -375,33 +390,52 @@ export default function MapComponent({
         markersRef.current[markerId] = marker;
       }
     });
+  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder]);
 
-    // --- 4. CENTRAR MAPA EN ACTIVO ---
-    if (activeOrderId && markersRef.current[activeOrderId]) {
-      const activeOrder = orders.find((o) => o.id === activeOrderId);
-      if (activeOrder) {
-        // Si el pedido se está entregando y tiene repartidor, centrar entre el repartidor y el destino
-        const rep = repartidores.find((r) => r.id === activeOrder.repartidorId);
-        if (activeOrder.status === OrderStatus.DELIVERING && rep?.currentLocation) {
-          const bounds = L.latLngBounds([
-            [activeOrder.lat, activeOrder.lng],
-            [rep.currentLocation.lat, rep.currentLocation.lng],
-          ]);
-          map.fitBounds(bounds, { padding: [50, 50] });
-        } else {
-          // Centrar solo en el pedido
-          map.setView([activeOrder.lat, activeOrder.lng], 14, { animate: true });
-        }
-      }
-    } else if (orders.length > 0 && !activeOrderId) {
-      // Ajustar límites a todos los pedidos iniciales si se cargan varios por primera vez
-      const validCoords = orders.map((o) => [o.lat, o.lng] as [number, number]);
-      if (validCoords.length > 0) {
-        const bounds = L.latLngBounds(validCoords);
-        map.fitBounds(bounds, { padding: [40, 40] });
-      }
+  // Centrar solo al elegir un pedido (no en cada actualización GPS)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !activeOrderId) return;
+
+    if (lastCenteredOrderIdRef.current === activeOrderId && userInteractedRef.current) {
+      return;
     }
-  }, [orders, repartidores, pickupPoints, departurePoint, activeOrderId, onSelectOrder]);
+
+    const activeOrder = ordersRef.current.find((o) => o.id === activeOrderId);
+    if (!activeOrder || !markersRef.current[activeOrderId]) return;
+
+    if (lastCenteredOrderIdRef.current !== activeOrderId) {
+      lastCenteredOrderIdRef.current = activeOrderId;
+      userInteractedRef.current = false;
+    }
+
+    const rep = repartidoresRef.current.find((r) => r.id === activeOrder.repartidorId);
+    if (activeOrder.status === OrderStatus.DELIVERING && rep?.currentLocation) {
+      const bounds = L.latLngBounds([
+        [activeOrder.lat, activeOrder.lng],
+        [rep.currentLocation.lat, rep.currentLocation.lng],
+      ]);
+      map.fitBounds(bounds, { padding: [50, 50], animate: true });
+    } else {
+      map.setView([activeOrder.lat, activeOrder.lng], 15, { animate: true });
+    }
+  }, [activeOrderId]);
+
+  // Ajuste inicial una sola vez al cargar pedidos
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || initialFitDoneRef.current || activeOrderId) return;
+
+    const validCoords = orders
+      .filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lng))
+      .map((o) => [o.lat, o.lng] as [number, number]);
+
+    if (validCoords.length === 0) return;
+
+    const bounds = L.latLngBounds(validCoords);
+    map.fitBounds(bounds, { padding: [40, 40] });
+    initialFitDoneRef.current = true;
+  }, [orders.length, activeOrderId]);
 
   return (
     <div className="relative w-full h-full rounded overflow-hidden border border-zinc-800 shadow-2xl">

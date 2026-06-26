@@ -6,6 +6,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2 } from 'lucide-react';
+import { geocodeAddress } from '../utils/geocode.js';
 
 const MapComponent = React.lazy(() => import('./MapComponent.tsx'));
 
@@ -66,6 +67,9 @@ export default function AdminDashboard({
   const [lng, setLng] = useState(-58.40);
   const [notes, setNotes] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+  const [geocodeLoading, setGeocodeLoading] = useState(false);
+  const [geocodeMessage, setGeocodeMessage] = useState<string | null>(null);
+  const [coordsConfirmed, setCoordsConfirmed] = useState(false);
 
   // Estados para Asignación Rápida
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
@@ -75,6 +79,35 @@ export default function AdminDashboard({
     setAddress(preset.name);
     setLat(preset.lat);
     setLng(preset.lng);
+    setCoordsConfirmed(true);
+    setGeocodeMessage(`Ubicación: ${preset.name.split('(')[0].trim()}`);
+  };
+
+  const resolveAddressCoords = async (rawAddress: string) => {
+    const result = await geocodeAddress(rawAddress);
+    setLat(result.lat);
+    setLng(result.lng);
+    setCoordsConfirmed(true);
+    setGeocodeMessage(`Ubicación confirmada en el mapa`);
+    return result;
+  };
+
+  const handleLocateAddress = async () => {
+    if (!address.trim()) {
+      setGeocodeMessage('Escribí la dirección antes de ubicarla.');
+      return;
+    }
+    setGeocodeLoading(true);
+    setGeocodeMessage(null);
+    try {
+      await resolveAddressCoords(address);
+    } catch (err: unknown) {
+      setCoordsConfirmed(false);
+      const message = err instanceof Error ? err.message : 'No se pudo ubicar la dirección.';
+      setGeocodeMessage(message);
+    } finally {
+      setGeocodeLoading(false);
+    }
   };
 
   // Manejar envío del formulario
@@ -83,13 +116,23 @@ export default function AdminDashboard({
     if (!clientName || !address) return;
 
     setFormLoading(true);
+    setGeocodeMessage(null);
     try {
+      let finalLat = lat;
+      let finalLng = lng;
+
+      if (!coordsConfirmed) {
+        const result = await resolveAddressCoords(address);
+        finalLat = result.lat;
+        finalLng = result.lng;
+      }
+
       await onCreateOrder({
         clientName,
         clientPhone,
         address,
-        lat,
-        lng,
+        lat: finalLat,
+        lng: finalLng,
         notes,
       });
       // Reset
@@ -99,9 +142,12 @@ export default function AdminDashboard({
       setLat(-34.58);
       setLng(-58.40);
       setNotes('');
+      setCoordsConfirmed(false);
+      setGeocodeMessage(null);
       setShowCreateForm(false);
-    } catch (err) {
-      alert('Error al crear el pedido.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al crear el pedido.';
+      setGeocodeMessage(message);
     } finally {
       setFormLoading(false);
     }
@@ -343,39 +389,53 @@ export default function AdminDashboard({
 
               <div>
                 <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Dirección de Entrega *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Calle, altura, departamento, barrio"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Av. Santa Fe 3200, Palermo"
+                    value={address}
+                    onChange={(e) => {
+                      setAddress(e.target.value);
+                      setCoordsConfirmed(false);
+                      setGeocodeMessage(null);
+                    }}
+                    onBlur={() => {
+                      if (address.trim().length > 8 && !coordsConfirmed) {
+                        void handleLocateAddress();
+                      }
+                    }}
+                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleLocateAddress()}
+                    disabled={geocodeLoading || !address.trim()}
+                    className="shrink-0 px-2.5 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-bold uppercase text-zinc-300 hover:border-blue-500 hover:text-blue-300 disabled:opacity-50"
+                  >
+                    {geocodeLoading ? '...' : 'Ubicar'}
+                  </button>
+                </div>
+                {geocodeMessage && (
+                  <p
+                    className={`mt-1 text-[10px] font-mono ${
+                      coordsConfirmed ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    {coordsConfirmed ? '✓ ' : '⚠ '}
+                    {geocodeMessage}
+                  </p>
+                )}
+                {coordsConfirmed && (
+                  <p className="mt-0.5 text-[9px] text-zinc-600 font-mono">
+                    Coordenadas: {lat.toFixed(4)}, {lng.toFixed(4)}
+                  </p>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Latitud GPS</label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    required
-                    value={lat}
-                    onChange={(e) => setLat(Number(e.target.value))}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Longitud GPS</label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    required
-                    value={lng}
-                    onChange={(e) => setLng(Number(e.target.value))}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all font-mono"
-                  />
-                </div>
+              <div className="hidden">
+                <input type="hidden" value={lat} readOnly />
+                <input type="hidden" value={lng} readOnly />
               </div>
 
               <div>

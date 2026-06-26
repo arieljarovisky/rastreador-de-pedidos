@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
+import { geocodeAddress } from '../utils/geocode.js';
 import {
   Warehouse,
   Sparkles,
@@ -189,15 +190,19 @@ export default function SettingsPage({
                   setDepartureLoading(true);
                   setDepartureMessage(null);
                   try {
+                    const located = await geocodeAddress(departureAddress);
                     await onUpdateDeparture({
                       address: departureAddress,
-                      lat: departureLat,
-                      lng: departureLng,
+                      lat: located.lat,
+                      lng: located.lng,
                     });
+                    setDepartureLat(located.lat);
+                    setDepartureLng(located.lng);
                     setDepartureMessage('Punto de salida actualizado.');
                     setShowDepartureForm(false);
-                  } catch (err: any) {
-                    setDepartureMessage(err.message || 'Error al guardar.');
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : 'Error al guardar.';
+                    setDepartureMessage(message);
                   } finally {
                     setDepartureLoading(false);
                   }
@@ -230,7 +235,13 @@ export default function SettingsPage({
                   {departureLoading ? 'Guardando...' : 'Guardar punto de salida'}
                 </button>
                 {departureMessage && (
-                  <p className="text-[10px] text-emerald-400 font-mono">{departureMessage}</p>
+                  <p
+                    className={`text-[10px] font-mono ${
+                      departureMessage.includes('actualizado') ? 'text-emerald-400' : 'text-red-400'
+                    }`}
+                  >
+                    {departureMessage}
+                  </p>
                 )}
               </form>
             )}
@@ -276,18 +287,28 @@ export default function SettingsPage({
                   setSellerFormLoading(true);
                   setSellerFormMessage(null);
                   try {
+                    let pickupPayload: {
+                      pickupLabel?: string;
+                      pickupAddress?: string;
+                      pickupLat?: number;
+                      pickupLng?: number;
+                    } = {};
+
+                    if (sellerPickupAddress.trim()) {
+                      const located = await geocodeAddress(sellerPickupAddress);
+                      pickupPayload = {
+                        pickupLabel: sellerPickupLabel || 'Punto de colecta',
+                        pickupAddress: sellerPickupAddress,
+                        pickupLat: located.lat,
+                        pickupLng: located.lng,
+                      };
+                    }
+
                     await onCreateSeller({
                       name: sellerName,
                       username: sellerUsername,
                       password: sellerPassword,
-                      ...(sellerPickupAddress
-                        ? {
-                            pickupLabel: sellerPickupLabel || 'Punto de colecta',
-                            pickupAddress: sellerPickupAddress,
-                            pickupLat: sellerPickupLat,
-                            pickupLng: sellerPickupLng,
-                          }
-                        : {}),
+                      ...pickupPayload,
                     });
                     setSellerFormMessage('Vendedor creado correctamente.');
                     setSellerName('');
@@ -592,19 +613,21 @@ export default function SettingsPage({
                   e.preventDefault();
                   setPickupLoading(true);
                   try {
+                    const located = await geocodeAddress(pickupAddress);
                     await onCreatePickupPoint({
                       label: pickupLabel || 'Punto de colecta',
                       address: pickupAddress,
-                      lat: pickupLat,
-                      lng: pickupLng,
+                      lat: located.lat,
+                      lng: located.lng,
                     });
                     setPickupLabel('');
                     setPickupAddress('');
                     setPickupLat(-34.58);
                     setPickupLng(-58.4);
                     setShowPickupForm(false);
-                  } catch (err: any) {
-                    alert(err.message || 'No se pudo crear el punto de colecta');
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : 'No se pudo crear el punto de colecta';
+                    alert(message);
                   } finally {
                     setPickupLoading(false);
                   }
