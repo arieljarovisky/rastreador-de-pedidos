@@ -8,6 +8,7 @@ import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgenc
 import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
+import { useModal } from '../context/ModalContext.tsx';
 
 const MapComponent = React.lazy(() => import('./MapComponent.tsx'));
 
@@ -51,6 +52,7 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
+  const { confirm, alert: showAlert } = useModal();
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
@@ -231,8 +233,16 @@ export default function AdminDashboard({
         id: 'cancel',
         label: '✕ Cancelar pedido',
         onClick: () => {
-          if (!window.confirm(`¿Cancelar el pedido ${order.id}?`)) return;
-          void onUpdateOrderStatus(order.id, OrderStatus.CANCELLED, undefined, 'Cancelado desde menú contextual');
+          void confirm({
+            title: 'Cancelar pedido',
+            message: `¿Cancelar el pedido ${order.id}?\n\nEl envío dejará de estar activo en el panel.`,
+            variant: 'warning',
+            confirmText: 'Sí, cancelar',
+            cancelText: 'Volver',
+          }).then((ok) => {
+            if (!ok) return;
+            void onUpdateOrderStatus(order.id, OrderStatus.CANCELLED, undefined, 'Cancelado desde menú contextual');
+          });
         },
       });
     }
@@ -244,8 +254,16 @@ export default function AdminDashboard({
         label: '🗑️ Eliminar pedido',
         danger: true,
         onClick: () => {
-          if (!window.confirm(`¿Eliminar ${order.id} permanentemente? Esta acción no se puede deshacer.`)) return;
-          void onDeleteOrder(order.id);
+          void confirm({
+            title: 'Eliminar pedido',
+            message: `¿Eliminar ${order.id} permanentemente?\n\nEsta acción no se puede deshacer.`,
+            variant: 'danger',
+            confirmText: 'Eliminar',
+            cancelText: 'Cancelar',
+          }).then((ok) => {
+            if (!ok) return;
+            void onDeleteOrder(order.id);
+          });
         },
       });
     }
@@ -783,8 +801,9 @@ export default function AdminDashboard({
                               try {
                                 await onAssignOrderSeller(selectedOrder.id, e.target.value);
                                 setAssigningOrderId(null);
-                              } catch (err: any) {
-                                alert(err.message || 'No se pudo asignar el vendedor');
+                              } catch (err: unknown) {
+                                const message = err instanceof Error ? err.message : 'No se pudo asignar el vendedor';
+                                void showAlert({ title: 'Error al asignar', message, variant: 'error' });
                               }
                             }}
                             className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-[11px] text-zinc-300 focus:outline-none"

@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { AppNotification } from '../types.js';
 import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useModal } from '../context/ModalContext.tsx';
 
 interface NotificationHubProps {
   notifications: AppNotification[];
@@ -56,6 +57,7 @@ export default function NotificationHub({
   onToggleCollapse,
   showCollapseButton = false,
 }: NotificationHubProps) {
+  const { alert: showAlert } = useModal();
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [activeBanner, setActiveBanner] = useState<AppNotification | null>(null);
 
@@ -105,7 +107,11 @@ export default function NotificationHub({
 
   const requestPermission = async () => {
     if (!('Notification' in window)) {
-      alert('Las notificaciones del sistema no están soportadas en este navegador.');
+      void showAlert({
+        title: 'No compatible',
+        message: 'Las notificaciones del sistema no están soportadas en este navegador.',
+        variant: 'warning',
+      });
       return;
     }
     try {

@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Order, OrderStatus, User } from '../types.js';
 import { MapPin, Phone, Clock, FileText, CheckCircle2, Navigation, AlertTriangle, Play, Check, ShieldAlert, CheckSquare, Sparkles } from 'lucide-react';
+import { useModal } from '../context/ModalContext.tsx';
 
 const MapComponent = lazy(() => import('./MapComponent.tsx'));
 
@@ -26,6 +27,7 @@ export default function RepartidorDashboard({
   onUpdateOrderStatus,
   onReportLocation,
 }: RepartidorDashboardProps) {
+  const { alert: showAlert } = useModal();
   const [activeTab, setActiveTab] = useState<'assigned' | 'available'>('assigned');
   const [gpsActive, setGpsActive] = useState(false);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -120,7 +122,11 @@ export default function RepartidorDashboard({
         // Autocompletar la entrega tras la simulación
         await onUpdateOrderStatus(activeOrder.id, OrderStatus.DELIVERED, undefined, 'Pedido entregado en destino final (Simulación completa)');
         setCurrentCoords(null);
-        alert('¡Simulación completada! Pedido entregado exitosamente.');
+        void showAlert({
+          title: 'Simulación completada',
+          message: 'El pedido fue entregado exitosamente.',
+          variant: 'success',
+        });
       }
     }, 1500);
   };
@@ -131,7 +137,11 @@ export default function RepartidorDashboard({
       onSelectOrder(orderId);
       setActiveTab('assigned');
     } catch (err) {
-      alert('Error al tomar el pedido.');
+      void showAlert({
+        title: 'Error',
+        message: 'No se pudo tomar el pedido. Intentá de nuevo.',
+        variant: 'error',
+      });
     }
   };
 

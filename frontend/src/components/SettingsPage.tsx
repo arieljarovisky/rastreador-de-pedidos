@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
+import { useModal } from '../context/ModalContext.tsx';
 import {
   Warehouse,
   Sparkles,
@@ -73,6 +74,7 @@ export default function SettingsPage({
 }: SettingsPageProps) {
   const userRole = user.role;
   const agency = isAgencyAdmin(userRole);
+  const { confirm, alert: showAlert } = useModal();
 
   const [isSimulating, setIsSimulating] = useState(false);
   const [showDepartureForm, setShowDepartureForm] = useState(false);
@@ -415,13 +417,14 @@ export default function SettingsPage({
                         type="button"
                         disabled={deletingRepartidorId === rep.id}
                         onClick={async () => {
-                          if (
-                            !window.confirm(
-                              `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente. Esta acción no se puede deshacer.`
-                            )
-                          ) {
-                            return;
-                          }
+                          const ok = await confirm({
+                            title: 'Eliminar repartidor',
+                            message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente. Esta acción no se puede deshacer.`,
+                            variant: 'danger',
+                            confirmText: 'Eliminar',
+                            cancelText: 'Cancelar',
+                          });
+                          if (!ok) return;
                           setDeletingRepartidorId(rep.id);
                           setRepartidorFormMessage(null);
                           try {
@@ -631,7 +634,7 @@ export default function SettingsPage({
                     setShowPickupForm(false);
                   } catch (err: unknown) {
                     const message = err instanceof Error ? err.message : 'No se pudo crear el punto de colecta';
-                    alert(message);
+                    void showAlert({ title: 'Error', message, variant: 'error' });
                   } finally {
                     setPickupLoading(false);
                   }

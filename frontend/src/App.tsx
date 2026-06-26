@@ -14,6 +14,7 @@ import NotifsSidebar from './components/NotifsSidebar.tsx';
 import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard } from 'lucide-react';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
+import { useModal } from './context/ModalContext.tsx';
 
 type AppTab = 'dashboard' | 'notifications' | 'settings';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
@@ -32,6 +33,7 @@ function readNotifsSidebarOpen(): boolean {
 }
 
 export default function App() {
+  const { alert: showAlert } = useModal();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -510,7 +512,11 @@ export default function App() {
       fetchData();
     } catch (e) {
       console.error(e);
-      alert('Error de conexión al crear pedido.');
+      void showAlert({
+        title: 'Error al crear pedido',
+        message: 'No se pudo guardar el envío. Verificá la conexión e intentá de nuevo.',
+        variant: 'error',
+      });
     }
   };
 
@@ -556,7 +562,7 @@ export default function App() {
       if (activeOrderId === orderId) setActiveOrderId(null);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'No se pudo eliminar el pedido';
-      alert(message);
+      void showAlert({ title: 'No se pudo eliminar', message, variant: 'error' });
     }
   };
 
