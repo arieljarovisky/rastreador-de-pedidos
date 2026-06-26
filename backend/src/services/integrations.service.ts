@@ -85,6 +85,24 @@ export async function findMercadoLibreIntegrationByMlUserId(
   return rows[0] ? rowToIntegration(rows[0]) : null;
 }
 
+export async function findTiendaNubeIntegrationByStoreId(
+  storeId: string | number
+): Promise<StoreIntegration | null> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT * FROM store_integrations
+     WHERE platform = 'tiendanube' AND external_store_id = ? LIMIT 1`,
+    [String(storeId)]
+  );
+  return rows[0] ? rowToIntegration(rows[0]) : null;
+}
+
+export async function deleteTiendaNubeIntegrationByStoreId(storeId: string | number): Promise<void> {
+  await pool.query(
+    `DELETE FROM store_integrations WHERE platform = 'tiendanube' AND external_store_id = ?`,
+    [String(storeId)]
+  );
+}
+
 export async function upsertIntegration(data: {
   userId: string;
   platform: IntegrationPlatform;

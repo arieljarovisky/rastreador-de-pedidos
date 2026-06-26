@@ -29,6 +29,15 @@ import {
   processMercadoLibreNotification,
   type MercadoLibreNotificationPayload,
 } from '../services/mercadolibre-webhook.service.js';
+import {
+  getTiendaNubePrivacyWebhookUrls,
+  processTiendaNubeCustomerDataRequest,
+  processTiendaNubeCustomerRedact,
+  processTiendaNubeStoreRedact,
+  type TiendaNubeCustomerDataRequestPayload,
+  type TiendaNubeCustomerRedactPayload,
+  type TiendaNubeStoreRedactPayload,
+} from '../services/tiendanube-privacy.service.js';
 
 const router = Router();
 
@@ -73,6 +82,7 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
     tiendanube: {
       configured: isTiendaNubeConfigured(),
       connected: integrations.some((i) => i.platform === 'tiendanube'),
+      privacyWebhooks: getTiendaNubePrivacyWebhookUrls(),
       account: integrations.find((i) => i.platform === 'tiendanube')
         ? integrationStatusPublic(integrations.find((i) => i.platform === 'tiendanube')!)
         : null,
@@ -141,6 +151,27 @@ router.post('/mercadolibre/notifications', async (req: Request, res: Response) =
 
 router.get('/mercadolibre/notifications', (_req: Request, res: Response) => {
   res.status(200).json({ ok: true, webhook: getMercadoLibreWebhookUrl() });
+});
+
+router.post('/tiendanube/webhooks/store-redact', (req: Request, res: Response) => {
+  res.status(200).send('OK');
+  void processTiendaNubeStoreRedact(req.body as TiendaNubeStoreRedactPayload).catch((err) => {
+    console.error('[TN LGPD] store-redact:', err);
+  });
+});
+
+router.post('/tiendanube/webhooks/customers-redact', (req: Request, res: Response) => {
+  res.status(200).send('OK');
+  void processTiendaNubeCustomerRedact(req.body as TiendaNubeCustomerRedactPayload).catch((err) => {
+    console.error('[TN LGPD] customers-redact:', err);
+  });
+});
+
+router.post('/tiendanube/webhooks/customers-data-request', (req: Request, res: Response) => {
+  res.status(200).send('OK');
+  void processTiendaNubeCustomerDataRequest(req.body as TiendaNubeCustomerDataRequestPayload).catch((err) => {
+    console.error('[TN LGPD] customers-data-request:', err);
+  });
 });
 
 router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
