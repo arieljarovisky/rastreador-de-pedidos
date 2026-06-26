@@ -13,6 +13,7 @@ import {
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, CheckCircle2, Info, XCircle, X } from 'lucide-react';
+import { ui } from '../styles/ui.ts';
 
 export type AlertVariant = 'info' | 'success' | 'error' | 'warning';
 export type ConfirmVariant = 'default' | 'danger' | 'warning';
@@ -93,7 +94,7 @@ function ModalOverlay({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.18 }}
-        className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm"
+        className={ui.modalBackdrop}
         onClick={() => onClose(false)}
       >
         <motion.div
@@ -103,15 +104,13 @@ function ModalOverlay({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, y: 4 }}
           transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-          className={`relative w-full max-w-md rounded-xl border bg-zinc-950 shadow-2xl shadow-black/50 ${
-            isAlert ? ALERT_STYLES[variant as AlertVariant].borderClass : 'border-zinc-700'
-          }`}
+          className={ui.modal}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             type="button"
             onClick={() => onClose(false)}
-            className="absolute top-3 right-3 p-1 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition"
+            className="absolute top-3 right-3 p-1 rounded-md text-[var(--lupo-text-muted)] hover:text-[var(--lupo-text)] hover:bg-white/5 transition"
             aria-label="Cerrar"
           >
             <X className="w-4 h-4" />
@@ -125,22 +124,22 @@ function ModalOverlay({
                 <Icon className="w-5 h-5" />
               </div>
               <div className="min-w-0 pr-6">
-                <h2 className="text-sm font-bold text-zinc-100 leading-snug">
+                <h2 className="text-sm font-semibold text-[var(--lupo-text)] leading-snug">
                   {modal.options.title}
                 </h2>
-                <p className="mt-2 text-[13px] text-zinc-400 leading-relaxed whitespace-pre-wrap">
+                <p className="mt-2 text-[13px] text-[var(--lupo-text-secondary)] leading-relaxed whitespace-pre-wrap">
                   {modal.options.message}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-zinc-800/80 bg-zinc-950/80 rounded-b-xl">
+          <div className={ui.modalFooter}>
             {!isAlert && (
               <button
                 type="button"
                 onClick={() => onClose(false)}
-                className="px-4 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-bold uppercase tracking-wider hover:bg-zinc-800 hover:text-zinc-100 transition"
+                className={ui.btnSecondary}
               >
                 {(modal.options as ConfirmOptions).cancelText ?? 'Cancelar'}
               </button>
@@ -150,10 +149,8 @@ function ModalOverlay({
               autoFocus
               onClick={() => onClose(true)}
               className={[
-                'px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition',
-                isAlert
-                  ? 'bg-zinc-100 hover:bg-white text-zinc-900'
-                  : (styles as (typeof CONFIRM_STYLES)[ConfirmVariant]).btnClass,
+                isAlert ? ui.btnPrimary : (styles as (typeof CONFIRM_STYLES)[ConfirmVariant]).btnClass,
+                'lupo-btn',
               ].join(' ')}
             >
               {isAlert

@@ -9,6 +9,7 @@ import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2 
 import { geocodeAddress } from '../utils/geocode.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
+import { ui, orderBadgeClass } from '../styles/ui.ts';
 
 const MapComponent = React.lazy(() => import('./MapComponent.tsx'));
 
@@ -290,43 +291,32 @@ export default function AdminDashboard({
         />
       )}
 
-      {/* Selector de sub-pestañas para panel de control admin (visible solo en móvil/tablet < lg) */}
-      <div className="lg:hidden flex bg-zinc-950 p-1 border border-zinc-800 rounded shrink-0 gap-1">
+      <div className="lg:hidden flex p-1 border border-[var(--lupo-border-subtle)] rounded-lg shrink-0 gap-1 bg-[var(--lupo-bg)]">
         <button
           onClick={() => setAdminMobileTab('orders')}
-          className={`flex-1 py-1.5 text-center text-[10px] font-bold uppercase tracking-wider transition rounded ${
-            adminMobileTab === 'orders'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-          }`}
+          className={adminMobileTab === 'orders' ? ui.segmentActive : ui.segment}
         >
-          📋 Pedidos ({filteredOrders.length})
+          Pedidos ({filteredOrders.length})
         </button>
         <button
           onClick={() => setAdminMobileTab('map')}
-          className={`flex-1 py-1.5 text-center text-[10px] font-bold uppercase tracking-wider transition rounded ${
-            adminMobileTab === 'map'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-          }`}
+          className={adminMobileTab === 'map' ? ui.segmentActive : ui.segment}
         >
-          🗺️ Monitoreo GPS
+          Mapa GPS
         </button>
       </div>
 
-      {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN (5 COLUMNAS - HIGH DENSITY) */}
-      <div className={`lg:col-span-5 flex flex-col h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4 shadow-xl ${
+      <div className={`lg:col-span-5 flex flex-col h-full overflow-hidden ${ui.panel} ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
-        {/* Cabecera, Búsqueda y Filtros */}
         <div className="shrink-0 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm lg:text-base font-bold text-zinc-100 flex items-center gap-1.5">
-                {userRole === UserRole.STORE_ADMIN ? '🛒 Lupo Ventas (Local)' : userRole === UserRole.SUPER_ADMIN ? '👑 Lupo Agencia (Super Admin)' : '⚙️ Lupo Logística'}
+              <h2 className={ui.pageTitle}>
+                {userRole === UserRole.STORE_ADMIN ? 'Lupo Ventas' : userRole === UserRole.SUPER_ADMIN ? 'Lupo Agencia' : 'Lupo Logística'}
               </h2>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono">
+              <p className={ui.pageSubtitle}>
                 {userRole === UserRole.STORE_ADMIN ? 'Carga de envíos' : 'Asignación de viajes y flota'}
               </p>
             </div>
@@ -335,63 +325,59 @@ export default function AdminDashboard({
               <button
                 onClick={() => setShowCreateForm(!showCreateForm)}
                 id="btn-toggle-create-form"
-                className="px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shadow-blue-600/10"
+                className={`${ui.btnPrimary} ${ui.btnSm}`}
               >
                 <Plus className="w-3.5 h-3.5" /> Cargar envío
               </button>
             )}
           </div>
 
-          {/* Tarjetas de Estadísticas Rápidas */}
           <div className="grid grid-cols-4 gap-1.5 text-center">
-            <div className="bg-zinc-950 border border-zinc-800/80 p-1.5 rounded">
-              <p className="text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-tight">Total</p>
-              <p className="text-sm lg:text-lg font-bold text-zinc-200 mt-0.5 font-mono">{stats.total}</p>
+            <div className={ui.stat}>
+              <p className={ui.metricLabel}>Total</p>
+              <p className={ui.metricValue}>{stats.total}</p>
             </div>
-            <div className="bg-zinc-950 border border-zinc-800/80 p-1.5 rounded">
-              <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-tight">Pend.</p>
-              <p className="text-sm lg:text-lg font-bold text-zinc-300 mt-0.5 font-mono">{stats.pending}</p>
+            <div className={ui.stat}>
+              <p className={ui.metricLabel}>Pend.</p>
+              <p className={ui.metricValue}>{stats.pending}</p>
             </div>
-            <div className="bg-amber-500/5 border border-amber-500/20 p-1.5 rounded">
-              <p className="text-[9px] text-amber-500 font-mono font-bold uppercase tracking-tight">Ruta</p>
-              <p className="text-sm lg:text-lg font-bold text-amber-400 mt-0.5 font-mono">{stats.delivering}</p>
+            <div className={ui.statWarning}>
+              <p className={ui.metricLabel}>Ruta</p>
+              <p className={ui.metricValue}>{stats.delivering}</p>
             </div>
-            <div className="bg-emerald-500/5 border border-emerald-500/20 p-1.5 rounded">
-              <p className="text-[9px] text-emerald-500 font-mono font-bold uppercase tracking-tight">Listos</p>
-              <p className="text-sm lg:text-lg font-bold text-emerald-400 mt-0.5 font-mono">{stats.delivered}</p>
+            <div className={ui.statSuccess}>
+              <p className={ui.metricLabel}>Listos</p>
+              <p className={ui.metricValueSuccess}>{stats.delivered}</p>
             </div>
           </div>
 
           {userRole === UserRole.STORE_ADMIN && (
-            <div className="bg-blue-950/20 border border-blue-900/30 rounded p-2 flex items-center justify-between">
+            <div className={`${ui.hintBox} flex items-center justify-between gap-3`}>
               <div>
-                <p className="text-[11px] font-bold text-blue-400 flex items-center gap-1">
-                  🛒 Canal de Ventas Activo
+                <p className="text-[11px] font-semibold text-[var(--lupo-accent)]">
+                  Canal de ventas activo
                 </p>
-                <p className="text-[9px] text-zinc-400 font-mono mt-0.5">Tus envíos se sincronizan con la agencia de logística</p>
+                <p className={`${ui.hint} mt-0.5`}>Tus envíos se sincronizan con la agencia de logística</p>
               </div>
-              <div className="text-[10px] bg-blue-500/10 text-blue-400 font-mono font-bold px-1.5 py-0.5 rounded border border-blue-500/20 uppercase">
-                Online
-              </div>
+              <span className={`${ui.badgeAssigned} text-[10px]`}>Online</span>
             </div>
           )}
 
           {userRole === UserRole.STORE_ADMIN && (
-            <div className="bg-zinc-950/60 border border-zinc-800 rounded p-2 text-[10px] text-zinc-500 font-mono">
-              Configurá tus puntos de colecta en la pestaña <span className="text-zinc-300 font-bold">Configuración</span>.
+            <div className={ui.hintBox}>
+              Configurá tus puntos de colecta en la pestaña <span className="text-[var(--lupo-text)] font-semibold">Configuración</span>.
             </div>
           )}
 
           {isAgencyAdmin(userRole) && (
-            <div className="bg-zinc-950/60 border border-zinc-800 rounded p-2 text-[10px] text-zinc-500 font-mono">
-              Gestioná vendedores, repartidores y punto de salida desde la pestaña <span className="text-zinc-300 font-bold">Configuración</span>.
+            <div className={ui.hintBox}>
+              Gestioná vendedores, repartidores y punto de salida desde la pestaña <span className="text-[var(--lupo-text)] font-semibold">Configuración</span>.
             </div>
           )}
 
-          {/* Buscador e hilos de estado */}
           <div className="space-y-1.5">
             <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--lupo-text-muted)]">
                 <Search className="w-3.5 h-3.5" />
               </span>
               <input
@@ -399,41 +385,32 @@ export default function AdminDashboard({
                 placeholder="Buscar repartidor, pedido o dirección..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 pl-8 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 placeholder:text-zinc-600 font-sans"
+                className={`${ui.input} pl-8`}
               />
             </div>
 
-            {/* Selector de Tabs de Filtros */}
-            <div className="flex bg-zinc-950 p-0.5 rounded border border-zinc-800/80 text-[10px]">
+            <div className="flex p-0.5 rounded-lg border border-[var(--lupo-border-subtle)] bg-[var(--lupo-bg)] text-[10px] gap-0.5">
               <button
                 onClick={() => setStatusFilter('all')}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === 'all' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                className={statusFilter === 'all' ? ui.segmentActive : ui.segment}
               >
                 Todos
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.PENDING)}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.PENDING ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                className={statusFilter === OrderStatus.PENDING ? ui.segmentActive : ui.segment}
               >
                 Pend.
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.DELIVERING ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                className={statusFilter === OrderStatus.DELIVERING ? ui.segmentActive : ui.segment}
               >
                 Ruta
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.DELIVERED ? 'bg-emerald-600 text-zinc-950' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                className={statusFilter === OrderStatus.DELIVERED ? ui.segmentActive : ui.segment}
               >
                 Listos
               </button>
@@ -444,63 +421,61 @@ export default function AdminDashboard({
         {/* LISTADO DE PEDIDOS / FORMULARIO CREACIÓN (CON SCROLL) */}
         <div className="flex-1 overflow-y-auto mt-3 space-y-2 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
           
-          {/* Formulario de creación desplegable (HIGH DENSITY MODERN STYLE) */}
           {showCreateForm && userRole === UserRole.STORE_ADMIN && (
-            <form onSubmit={handleSubmitOrder} className="bg-zinc-950 border border-zinc-800 rounded p-3.5 space-y-3 animate-slide-down shadow-xl">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-2 mb-2">
-                <h3 className="font-bold text-xs text-blue-400 flex items-center gap-1">📝 Cargar nuevo envío</h3>
+            <form onSubmit={handleSubmitOrder} className={`${ui.card} p-3.5 space-y-3 animate-slide-down`}>
+              <div className="flex items-center justify-between border-b border-[var(--lupo-border-subtle)] pb-2 mb-2">
+                <h3 className="font-semibold text-xs text-[var(--lupo-accent)]">Cargar nuevo envío</h3>
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
-                  className="text-zinc-500 hover:text-zinc-300 text-[10px] uppercase font-mono tracking-wider font-bold"
+                  className={`${ui.btnGhost} ${ui.btnSm}`}
                 >
-                  [Cancelar]
+                  Cancelar
                 </button>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Nombre Cliente *</label>
+                  <label className={ui.label}>Nombre cliente *</label>
                   <input
                     type="text"
                     required
                     placeholder="Ej: Marcelo"
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                    className={ui.input}
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Celular / Teléfono</label>
+                  <label className={ui.label}>Celular / teléfono</label>
                   <input
                     type="text"
                     placeholder="Ej: +5411531234"
                     value={clientPhone}
                     onChange={(e) => setClientPhone(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                    className={ui.input}
                   />
                 </div>
               </div>
 
-              {/* Presets Rápidos de Direcciones */}
               <div>
-                <span className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Sugerencias Rápidas de Destinos (Buenos Aires)</span>
+                <span className={ui.label}>Destinos sugeridos (CABA)</span>
                 <div className="flex flex-wrap gap-1">
                   {DIRECTORY_PRESETS.map((preset, index) => (
                     <button
                       key={index}
                       type="button"
                       onClick={() => applyPreset(preset)}
-                      className="text-[9px] bg-zinc-900 border border-zinc-800 hover:border-blue-500 hover:text-white text-zinc-400 rounded px-1.5 py-0.5 transition font-mono"
+                      className={`${ui.btnSecondary} ${ui.btnSm} text-[9px]`}
                     >
-                      📍 {preset.name.split(' (')[0]}
+                      {preset.name.split(' (')[0]}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Dirección de Entrega *</label>
+                <label className={ui.label}>Dirección de entrega *</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -517,29 +492,25 @@ export default function AdminDashboard({
                         void handleLocateAddress();
                       }
                     }}
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                    className={`${ui.input} flex-1`}
                   />
                   <button
                     type="button"
                     onClick={() => void handleLocateAddress()}
                     disabled={geocodeLoading || !address.trim()}
-                    className="shrink-0 px-2.5 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-bold uppercase text-zinc-300 hover:border-blue-500 hover:text-blue-300 disabled:opacity-50"
+                    className={`${ui.btnSecondary} ${ui.btnSm} shrink-0`}
                   >
                     {geocodeLoading ? '...' : 'Ubicar'}
                   </button>
                 </div>
                 {geocodeMessage && (
-                  <p
-                    className={`mt-1 text-[10px] font-mono ${
-                      coordsConfirmed ? 'text-emerald-400' : 'text-amber-400'
-                    }`}
-                  >
+                  <p className={`mt-1 text-[10px] ${coordsConfirmed ? 'text-emerald-400' : 'text-amber-400'}`}>
                     {coordsConfirmed ? '✓ ' : '⚠ '}
                     {geocodeMessage}
                   </p>
                 )}
                 {coordsConfirmed && (
-                  <p className="mt-0.5 text-[9px] text-zinc-600 font-mono">
+                  <p className={`${ui.hint} mt-0.5`}>
                     Coordenadas: {lat.toFixed(4)}, {lng.toFixed(4)}
                   </p>
                 )}
@@ -551,43 +522,33 @@ export default function AdminDashboard({
               </div>
 
               <div>
-                <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Indicaciones / Notas</label>
+                <label className={ui.label}>Indicaciones / notas</label>
                 <textarea
                   placeholder="Indicaciones para el timbre, ascensor, conserje..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                  className={ui.input}
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={formLoading}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-[11px] uppercase tracking-wider transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/10"
+                className={`${ui.btnPrimary} w-full`}
               >
-                {formLoading ? 'Registrando...' : 'Confirmar y Guardar Pedido'}
+                {formLoading ? 'Registrando...' : 'Confirmar y guardar pedido'}
               </button>
             </form>
           )}
 
-          {/* Listado de pedidos filtrados (HIGH DENSITY STYLE) */}
           {filteredOrders.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 font-mono text-xs">
+            <div className="text-center py-12 text-[var(--lupo-text-muted)] text-xs">
               Ningún pedido coincide con los filtros aplicados.
             </div>
           ) : (
             filteredOrders.map((order) => {
               const isSelected = order.id === activeOrderId;
-              
-              // Estilos de badges (High Density)
-              let badgeColor = 'bg-zinc-950 text-zinc-500 border-zinc-800';
-              if (order.status === OrderStatus.ASSIGNED) badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-              else if (order.status === OrderStatus.DELIVERING) badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-500/25';
-              else if (order.status === OrderStatus.DELIVERED) badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-              else if (order.status === OrderStatus.CANCELLED) badgeColor = 'bg-red-500/10 text-red-400 border-red-500/20';
-
-              // Deterministic fake stats for telemetry based on order ID
               const batteryValue = Math.floor(45 + (parseInt(order.id.replace(/\D/g, '')) || 42) % 50);
               const speedValue = order.status === OrderStatus.DELIVERING ? Math.floor(12 + (parseInt(order.id.replace(/\D/g, '')) || 7) % 20) : 0;
 
@@ -600,24 +561,22 @@ export default function AdminDashboard({
                     e.stopPropagation();
                     setContextMenu({ order, x: e.clientX, y: e.clientY });
                   }}
-                  className={`p-3.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
-                    isSelected
-                      ? 'bg-blue-500/5 border-l-2 border-blue-500 border-t-zinc-800 border-r-zinc-800 border-b-zinc-800'
-                      : 'bg-zinc-950/40 border-zinc-800/80 hover:bg-zinc-800/50'
+                  className={`p-3.5 transition cursor-pointer text-left relative overflow-hidden group ${
+                    isSelected ? ui.cardSelected : ui.cardInteractive
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold text-zinc-500">ID: {order.id}</span>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${badgeColor}`}>
-                      {order.status === 'delivering' ? '🚲 En Viaje' : order.status === 'assigned' ? '✓ Asignado' : order.status === 'delivered' ? '✓ Entregado' : 'En Almacén'}
+                    <span className={`${ui.hint} font-mono`}>ID: {order.id}</span>
+                    <span className={orderBadgeClass(order.status)}>
+                      {order.status === 'delivering' ? 'En viaje' : order.status === 'assigned' ? 'Asignado' : order.status === 'delivered' ? 'Entregado' : order.status === 'cancelled' ? 'Cancelado' : 'En almacén'}
                     </span>
                   </div>
 
-                  <h4 className="font-bold text-xs lg:text-sm text-zinc-200 mt-2 group-hover:text-white transition">
+                  <h4 className="font-semibold text-xs lg:text-sm text-[var(--lupo-text)] mt-2 group-hover:text-white transition">
                     {order.clientName}
                   </h4>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 truncate leading-normal">
-                    📍 {order.address}
+                  <p className="text-[11px] text-[var(--lupo-text-secondary)] mt-0.5 truncate leading-normal flex items-center gap-1">
+                    <MapPin className="w-3 h-3 shrink-0" /> {order.address}
                   </p>
                   {isAgencyAdmin(userRole) && (
                     <p className="text-[10px] mt-1 font-mono">
@@ -690,10 +649,10 @@ export default function AdminDashboard({
       }`}>
         
         {/* Mapa Interactivo */}
-        <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-lg border border-zinc-800 overflow-hidden relative">
+        <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-xl border border-[var(--lupo-border-subtle)] overflow-hidden relative shadow-[var(--lupo-shadow-sm)]">
           <Suspense
             fallback={
-              <div className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-500 text-xs font-mono">
+              <div className="w-full h-full flex items-center justify-center bg-[var(--lupo-bg)] text-[var(--lupo-text-muted)] text-xs">
                 Cargando mapa…
               </div>
             }
@@ -712,7 +671,7 @@ export default function AdminDashboard({
         </div>
 
         {/* Panel Inferior: Detalles de pedido activo o visor de repartidores */}
-        <div className="h-[190px] lg:h-[280px] shrink-0 bg-zinc-900/30 border border-zinc-800 rounded-lg p-4 lg:p-5 overflow-hidden flex flex-col">
+        <div className={`h-[190px] lg:h-[280px] shrink-0 ${ui.panel} overflow-hidden flex flex-col`}>
           {selectedOrder ? (
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left scrollbar-thin scrollbar-thumb-zinc-800">
               <div className="flex items-start justify-between border-b border-zinc-800 pb-2">

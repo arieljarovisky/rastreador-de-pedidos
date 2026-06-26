@@ -8,6 +8,7 @@ import { AppNotification } from '../types.js';
 import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useModal } from '../context/ModalContext.tsx';
+import { ui } from '../styles/ui.ts';
 
 interface NotificationHubProps {
   notifications: AppNotification[];
@@ -141,7 +142,7 @@ export default function NotificationHub({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
             id="notification-banner-alert"
-            className="fixed top-4 right-4 z-[9999] max-w-sm w-full bg-slate-900/95 border-2 border-amber-500 text-white rounded-2xl p-4 shadow-2xl backdrop-blur-md flex items-start gap-3"
+            className="fixed top-4 right-4 z-[9999] max-w-sm w-full border border-amber-500/40 text-white rounded-xl p-4 shadow-[var(--lupo-shadow)] backdrop-blur-md flex items-start gap-3 bg-[var(--lupo-elevated)]"
           >
             <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0 border border-amber-500/20">
               <Bell className="w-5 h-5 animate-bounce" />
@@ -165,13 +166,13 @@ export default function NotificationHub({
       </AnimatePresence>
 
       {/* Widget lateral de Configuración de Notificaciones PWA (HIGH DENSITY) */}
-      <div className="bg-zinc-900/30 border border-zinc-800 rounded-lg backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
+      <div className={`${ui.panel} flex flex-col flex-1 overflow-hidden`} id="pwa-notification-config">
         {showCollapseButton && onToggleCollapse && (
           <button
             type="button"
             onClick={onToggleCollapse}
             title="Ocultar panel de alertas"
-            className="hidden xl:flex items-center justify-center gap-1.5 w-full py-1.5 border-b border-zinc-800 bg-zinc-950/60 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 transition shrink-0"
+            className={`hidden xl:flex items-center justify-center gap-1.5 w-full py-1.5 border-b border-[var(--lupo-border-subtle)] text-[10px] font-semibold uppercase tracking-wider text-[var(--lupo-text-muted)] hover:text-[var(--lupo-text)] hover:bg-white/5 transition shrink-0`}
           >
             <ChevronRight className="w-3.5 h-3.5" />
             Ocultar panel

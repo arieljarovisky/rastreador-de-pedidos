@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
+import { ui } from '../styles/ui.ts';
 import {
   Warehouse,
   Sparkles,
@@ -164,16 +165,16 @@ export default function SettingsPage({
   };
 
   return (
-    <div className="h-full overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+    <div className="h-full overflow-y-auto pr-1 scrollbar-thin">
       <div className="max-w-2xl mx-auto space-y-4 pb-6">
-        <div className="border-b border-zinc-800 pb-3">
+        <div className="border-b border-[var(--lupo-border-subtle)] pb-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm lg:text-base font-bold text-zinc-100 flex items-center gap-2">
-                <Settings className="w-4 h-4 text-zinc-400" />
+              <h2 className={`${ui.pageTitle} flex items-center gap-2`}>
+                <Settings className="w-4 h-4 text-[var(--lupo-text-muted)]" />
                 Configuración
               </h2>
-              <p className="text-[10px] text-zinc-500 font-mono mt-1 uppercase tracking-wider">
+              <p className={ui.pageSubtitle}>
                 {user.name} · {userRole === UserRole.SUPER_ADMIN ? 'Super Admin' : userRole}
               </p>
             </div>
@@ -181,7 +182,7 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={onBack}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-zinc-700 bg-zinc-950 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 text-[10px] font-bold uppercase shrink-0"
+                className={`${ui.btnSecondary} ${ui.btnSm} shrink-0`}
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Volver al panel
@@ -191,7 +192,7 @@ export default function SettingsPage({
         </div>
 
         {agency && onUpdateDeparture && (
-          <section className="bg-indigo-950/20 border border-indigo-900/30 rounded-lg p-4">
+          <section className={ui.sectionIndigo}>
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
@@ -206,7 +207,7 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={() => setShowDepartureForm(!showDepartureForm)}
-                className="px-2.5 py-1 rounded bg-indigo-600/20 border border-indigo-500/30 text-indigo-200 text-[10px] font-bold uppercase"
+                className={`${ui.btnSecondary} ${ui.btnSm}`}
               >
                 {showDepartureForm ? 'Cerrar' : 'Editar'}
               </button>
@@ -242,7 +243,7 @@ export default function SettingsPage({
                   value={departureAddress}
                   onChange={(e) => setDepartureAddress(e.target.value)}
                   placeholder="Dirección del depósito / hub"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <div className="flex flex-wrap gap-1">
                   {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
@@ -259,7 +260,7 @@ export default function SettingsPage({
                 <button
                   type="submit"
                   disabled={departureLoading}
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
+                  className={`${ui.btnPrimary} w-full`}
                 >
                   {departureLoading ? 'Guardando...' : 'Guardar punto de salida'}
                 </button>
@@ -278,7 +279,7 @@ export default function SettingsPage({
         )}
 
         {agency && onCreateSeller && (
-          <section className="bg-purple-950/20 border border-purple-900/30 rounded-lg p-4">
+          <section className={ui.sectionPurple}>
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
@@ -357,14 +358,14 @@ export default function SettingsPage({
                   value={sellerName}
                   onChange={(e) => setSellerName(e.target.value)}
                   placeholder="Nombre del vendedor / tienda"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <input
                   required
                   value={sellerUsername}
                   onChange={(e) => setSellerUsername(e.target.value)}
                   placeholder="Usuario (mín. 3 caracteres)"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <input
                   required
@@ -372,20 +373,20 @@ export default function SettingsPage({
                   value={sellerPassword}
                   onChange={(e) => setSellerPassword(e.target.value)}
                   placeholder="Contraseña (mín. 6 caracteres)"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <p className="text-[9px] text-zinc-500 font-mono uppercase">Punto de colecta (opcional)</p>
                 <input
                   value={sellerPickupLabel}
                   onChange={(e) => setSellerPickupLabel(e.target.value)}
                   placeholder="Nombre del local / depósito"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <input
                   value={sellerPickupAddress}
                   onChange={(e) => setSellerPickupAddress(e.target.value)}
                   placeholder="Dirección de colecta"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <button
                   type="submit"
@@ -409,7 +410,7 @@ export default function SettingsPage({
         )}
 
         {agency && (onCreateRepartidor || onDeleteRepartidor) && (
-          <section className="bg-sky-950/20 border border-sky-900/30 rounded-lg p-4">
+          <section className={ui.sectionSky}>
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
@@ -516,14 +517,14 @@ export default function SettingsPage({
                   value={repartidorName}
                   onChange={(e) => setRepartidorName(e.target.value)}
                   placeholder="Nombre del repartidor"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <input
                   required
                   value={repartidorUsername}
                   onChange={(e) => setRepartidorUsername(e.target.value)}
                   placeholder="Usuario (mín. 3 caracteres)"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <input
                   required
@@ -531,7 +532,7 @@ export default function SettingsPage({
                   value={repartidorPassword}
                   onChange={(e) => setRepartidorPassword(e.target.value)}
                   placeholder="Contraseña (mín. 6 caracteres)"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <button
                   type="submit"
@@ -555,7 +556,7 @@ export default function SettingsPage({
         )}
 
         {agency && onTriggerSimulatorTick && (
-          <section className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+          <section className={ui.section}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
@@ -597,7 +598,7 @@ export default function SettingsPage({
         )}
 
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
-          <section className="bg-emerald-950/20 border border-emerald-900/30 rounded-lg p-4">
+          <section className={ui.sectionEmerald}>
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
@@ -653,14 +654,14 @@ export default function SettingsPage({
                           value={editPickupLabel}
                           onChange={(e) => setEditPickupLabel(e.target.value)}
                           placeholder="Nombre (ej: Depósito, Local)"
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                          className={ui.input}
                         />
                         <input
                           required
                           value={editPickupAddress}
                           onChange={(e) => setEditPickupAddress(e.target.value)}
                           placeholder="Dirección de colecta"
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                          className={ui.input}
                         />
                         <div className="flex flex-wrap gap-1">
                           {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
@@ -756,14 +757,14 @@ export default function SettingsPage({
                   value={pickupLabel}
                   onChange={(e) => setPickupLabel(e.target.value)}
                   placeholder="Nombre (ej: Depósito, Local)"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <input
                   required
                   value={pickupAddress}
                   onChange={(e) => setPickupAddress(e.target.value)}
                   placeholder="Dirección de colecta"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-200"
+                  className={ui.input}
                 />
                 <div className="flex flex-wrap gap-1">
                   {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
