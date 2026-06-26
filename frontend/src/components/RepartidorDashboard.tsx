@@ -29,7 +29,6 @@ export default function RepartidorDashboard({
 }: RepartidorDashboardProps) {
   const { alert: showAlert } = useModal();
   const [activeTab, setActiveTab] = useState<'assigned' | 'available'>('assigned');
-  const [gpsActive, setGpsActive] = useState(false);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const lastGpsSentAt = useRef(0);
@@ -55,28 +54,27 @@ export default function RepartidorDashboard({
   useEffect(() => {
     let watchId: number | null = null;
 
-    if (gpsActive && activeOrder && activeOrder.status === OrderStatus.DELIVERING) {
+    if (activeOrder && activeOrder.status === OrderStatus.DELIVERING) {
       if ('geolocation' in navigator) {
         setGpsError(null);
         watchId = navigator.geolocation.watchPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
             setCurrentCoords({ lat: latitude, lng: longitude });
+            setGpsError(null);
             reportGps(activeOrder.id, latitude, longitude);
           },
           (error) => {
             console.error('Error de Geolocalización:', error);
             let errMsg = 'Error al leer el GPS.';
-            if (error.code === error.PERMISSION_DENIED) errMsg = 'Permiso de GPS denegado por el navegador.';
+            if (error.code === error.PERMISSION_DENIED) errMsg = 'Permiso de GPS denegado. Activá la ubicación en el navegador para continuar el viaje.';
             else if (error.code === error.POSITION_UNAVAILABLE) errMsg = 'Ubicación GPS no disponible.';
             setGpsError(errMsg);
-            setGpsActive(false);
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
         );
       } else {
         setGpsError('Este dispositivo no soporta geolocalización.');
-        setGpsActive(false);
       }
     } else {
       if (watchId !== null) {
@@ -87,7 +85,7 @@ export default function RepartidorDashboard({
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     };
-  }, [gpsActive, activeOrder?.id, activeOrder?.status]);
+  }, [activeOrder?.id, activeOrder?.status]);
 
   // Manejar simulación manual de GPS (avanzar ruta haciendo clic en el mapa o piloto automático)
   const handleAutoPilotSimulation = async () => {
@@ -349,32 +347,21 @@ export default function RepartidorDashboard({
                     )}
                   </div>
 
-                  {/* Controles del GPS de Tráfico */}
+                  {/* Estado GPS en vivo (siempre activo durante el viaje) */}
                   {activeOrder.status === OrderStatus.DELIVERING && (
-                    <div className="bg-zinc-950 border border-zinc-800 rounded p-2 flex items-center justify-between text-[11px]">
+                    <div className="bg-zinc-950 border border-zinc-800 rounded p-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <div className="flex items-center gap-1.5">
-                        <input
-                          type="checkbox"
-                          id="gps-toggle-switch"
-                          checked={gpsActive}
-                          onChange={(e) => setGpsActive(e.target.checked)}
-                          className="w-4 h-4 accent-blue-500"
-                        />
-                        <label htmlFor="gps-toggle-switch" className="font-bold text-zinc-300 cursor-pointer">
-                          📡 GPS En Vivo (Celular)
-                        </label>
+                        <span className="font-bold text-zinc-300">📡 GPS En Vivo</span>
+                        {!gpsError ? (
+                          <span className="text-emerald-400 font-bold font-mono text-[9px] animate-pulse">● Compartiendo ubicación</span>
+                        ) : (
+                          <span className="text-amber-400 font-mono text-[9px]">● Esperando señal GPS</span>
+                        )}
                       </div>
 
-                      {gpsActive ? (
-                        <span className="text-emerald-400 font-bold font-mono text-[9px] animate-pulse">● Compartiendo GPS</span>
-                      ) : (
-                        <span className="text-zinc-500 font-mono text-[9px]">Inactivo</span>
-                      )}
-
-                      {/* Simulador de ruta instantánea (Súper útil para testing local) */}
                       <button
                         onClick={handleAutoPilotSimulation}
-                        className="ml-auto text-amber-500 font-bold text-[9px] flex items-center gap-1 hover:text-amber-400 uppercase tracking-wider font-mono"
+                        className="text-amber-500 font-bold text-[9px] flex items-center gap-1 hover:text-amber-400 uppercase tracking-wider font-mono"
                       >
                         <Sparkles className="w-3.5 h-3.5" /> Simular Trayecto
                       </button>
