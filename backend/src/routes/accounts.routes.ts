@@ -4,6 +4,8 @@ import { UserRole } from '../types/index.js';
 import {
   createUser,
   listSellers,
+  getSellerDetail,
+  updateSellerPassword,
   updateAgencyDeparture,
   getAgencyDeparture,
   getUserById,
@@ -46,6 +48,36 @@ function handleCreateUserError(res: Response, err: unknown): boolean {
 router.get('/sellers', authenticate, requireAgencyAdmin(), async (_req: Request, res: Response) => {
   const sellers = await listSellers();
   res.json(sellers);
+});
+
+router.get('/sellers/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const detail = await getSellerDetail(req.params.id);
+  if (!detail) {
+    res.status(404).json({ error: 'Vendedor no encontrado.' });
+    return;
+  }
+  res.json(detail);
+});
+
+router.put('/sellers/:id/password', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const { password } = req.body;
+  if (!password || typeof password !== 'string') {
+    res.status(400).json({ error: 'La contraseña es requerida.' });
+    return;
+  }
+
+  try {
+    await updateSellerPassword(req.params.id, password);
+    res.json({ ok: true });
+  } catch (err) {
+    if (handleCreateUserError(res, err)) return;
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.post('/sellers', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {

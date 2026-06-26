@@ -180,6 +180,57 @@ export async function listSellers(): Promise<User[]> {
   return Promise.all(sellers.map((seller) => enrichUser(seller)));
 }
 
+export interface SellerStats {
+  totalOrders: number;
+  pendingOrders: number;
+  activeOrders: number;
+  deliveredOrders: number;
+}
+
+export async function getSellerDetail(
+  id: string
+): Promise<{ user: User; stats: SellerStats } | null> {
+  const user = await getUserById(id);
+  if (!user || user.role !== UserRole.STORE_ADMIN) {
+    return null;
+  }
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT
+      COUNT(*) AS total,
+      SUM(status = ?) AS pending,
+      SUM(status IN (?, ?)) AS active,
+      SUM(status = ?) AS delivered
+     FROM orders WHERE seller_id = ?`,
+    [OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.DELIVERING, OrderStatus.DELIVERED, id]
+  );
+  const row = rows[0] ?? {};
+
+  return {
+    user,
+    stats: {
+      totalOrders: Number(row.total) || 0,
+      pendingOrders: Number(row.pending) || 0,
+      activeOrders: Number(row.active) || 0,
+      deliveredOrders: Number(row.delivered) || 0,
+    },
+  };
+}
+
+export async function updateSellerPassword(sellerId: string, password: string): Promise<void> {
+  if (password.length < 6) {
+    throw new Error('PASSWORD_SHORT');
+  }
+
+  const user = await getUserById(sellerId);
+  if (!user || user.role !== UserRole.STORE_ADMIN) {
+    throw new Error('NOT_FOUND');
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, sellerId]);
+}
+
 export async function deleteRepartidor(id: string): Promise<{ finalizedOrders: number }> {
   const repartidor = await getRepartidorById(id);
   if (!repartidor) {

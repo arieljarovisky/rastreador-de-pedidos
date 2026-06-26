@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
+import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
 import {
@@ -19,6 +19,9 @@ import {
   Settings,
   ArrowLeft,
   Pencil,
+  ChevronRight,
+  Key,
+  X,
 } from 'lucide-react';
 
 const DIRECTORY_PRESETS = [
@@ -45,7 +48,9 @@ interface SettingsPageProps {
     pickupAddress?: string;
     pickupLat?: number;
     pickupLng?: number;
-  }) => Promise<void>;
+  }) => Promise<User>;
+  onFetchSellerDetail?: (sellerId: string) => Promise<SellerDetail>;
+  onUpdateSellerPassword?: (sellerId: string, password: string) => Promise<void>;
   onCreateRepartidor?: (data: { username: string; password: string; name: string }) => Promise<void>;
   onDeleteRepartidor?: (id: string) => Promise<{ finalizedOrders: number }>;
   onCreatePickupPoint?: (data: {
@@ -71,6 +76,8 @@ export default function SettingsPage({
   pickupPoints = [],
   onUpdateDeparture,
   onCreateSeller,
+  onFetchSellerDetail,
+  onUpdateSellerPassword,
   onCreateRepartidor,
   onDeleteRepartidor,
   onCreatePickupPoint,
@@ -100,6 +107,14 @@ export default function SettingsPage({
   const [sellerPickupLng, setSellerPickupLng] = useState(-58.4);
   const [sellerFormLoading, setSellerFormLoading] = useState(false);
   const [sellerFormMessage, setSellerFormMessage] = useState<string | null>(null);
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
+  const [sellerDetail, setSellerDetail] = useState<SellerDetail | null>(null);
+  const [sellerDetailLoading, setSellerDetailLoading] = useState(false);
+  const [sellerDetailError, setSellerDetailError] = useState<string | null>(null);
+  const [newSellerPassword, setNewSellerPassword] = useState('');
+  const [confirmSellerPassword, setConfirmSellerPassword] = useState('');
+  const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
+  const [passwordUpdateMessage, setPasswordUpdateMessage] = useState<string | null>(null);
 
   const [showRepartidorForm, setShowRepartidorForm] = useState(false);
   const [repartidorName, setRepartidorName] = useState('');
@@ -161,6 +176,36 @@ export default function SettingsPage({
     setEditingPickupId(null);
     setEditPickupLabel('');
     setEditPickupAddress('');
+  };
+
+  const loadSellerDetail = async (sellerId: string) => {
+    if (!onFetchSellerDetail) return;
+    setSelectedSellerId(sellerId);
+    setSellerDetail(null);
+    setSellerDetailError(null);
+    setNewSellerPassword('');
+    setConfirmSellerPassword('');
+    setPasswordUpdateMessage(null);
+    setShowSellerForm(false);
+    setSellerDetailLoading(true);
+    try {
+      const detail = await onFetchSellerDetail(sellerId);
+      setSellerDetail(detail);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al cargar el vendedor';
+      setSellerDetailError(message);
+    } finally {
+      setSellerDetailLoading(false);
+    }
+  };
+
+  const closeSellerDetail = () => {
+    setSelectedSellerId(null);
+    setSellerDetail(null);
+    setSellerDetailError(null);
+    setNewSellerPassword('');
+    setConfirmSellerPassword('');
+    setPasswordUpdateMessage(null);
   };
 
   const inputClass =
@@ -292,7 +337,7 @@ export default function SettingsPage({
         {agency && onCreateSeller && (
           <section
             className={`bg-purple-950/20 border border-purple-900/30 rounded-xl p-3 flex flex-col min-h-0 ${
-              showSellerForm ? 'lg:col-span-2' : ''
+              showSellerForm || selectedSellerId ? 'lg:col-span-2' : ''
             }`}
           >
             <div className="flex flex-wrap items-center gap-2">
@@ -305,24 +350,196 @@ export default function SettingsPage({
               </div>
               <button
                 type="button"
-                onClick={() => setShowSellerForm(!showSellerForm)}
+                onClick={() => {
+                  if (showSellerForm) {
+                    setShowSellerForm(false);
+                  } else {
+                    closeSellerDetail();
+                    setShowSellerForm(true);
+                  }
+                }}
                 className={`${btnGhost} border-purple-500/30 bg-purple-600/15 text-purple-200 hover:bg-purple-600/25`}
               >
                 {showSellerForm ? 'Cerrar' : '+ Nuevo'}
               </button>
             </div>
+
             {sellers.length > 0 && !showSellerForm && (
-              <ul className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {sellers.map((s) => (
-                  <li
-                    key={s.id}
-                    className="text-[11px] bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-2 text-zinc-300 truncate"
-                  >
-                    <span className="font-medium text-zinc-200">{s.name}</span>
-                    <span className="text-zinc-500"> @{s.username}</span>
-                  </li>
-                ))}
+              <ul className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                {sellers.map((s) => {
+                  const selected = selectedSellerId === s.id;
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => void loadSellerDetail(s.id)}
+                        className={`w-full text-left text-[11px] rounded-lg px-2.5 py-2 border transition flex items-center justify-between gap-2 ${
+                          selected
+                            ? 'bg-purple-500/15 border-purple-500/40 text-purple-100'
+                            : 'bg-zinc-950/60 border-zinc-800 text-zinc-300 hover:border-purple-500/30 hover:bg-purple-500/5'
+                        }`}
+                      >
+                        <span className="min-w-0 truncate">
+                          <span className="font-medium text-zinc-200">{s.name}</span>
+                          <span className="text-zinc-500"> @{s.username}</span>
+                        </span>
+                        <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${selected ? 'text-purple-300' : 'text-zinc-600'}`} />
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
+            )}
+
+            {selectedSellerId && !showSellerForm && (
+              <div className="mt-3 pt-3 border-t border-purple-900/30">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-xs font-bold text-purple-200">Detalle del vendedor</p>
+                  <button
+                    type="button"
+                    onClick={closeSellerDetail}
+                    className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50"
+                    title="Cerrar detalle"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {sellerDetailLoading && (
+                  <p className="text-[11px] text-zinc-500">Cargando datos…</p>
+                )}
+                {sellerDetailError && (
+                  <p className="text-[11px] text-red-400">{sellerDetailError}</p>
+                )}
+                {sellerDetail && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-3 space-y-2">
+                      <div>
+                        <p className="text-[9px] uppercase tracking-wide text-zinc-500">Nombre / tienda</p>
+                        <p className="text-sm font-semibold text-zinc-100">{sellerDetail.user.name}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wide text-zinc-500">Usuario</p>
+                          <p className="text-zinc-300">@{sellerDetail.user.username}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wide text-zinc-500">ID</p>
+                          <p className="text-zinc-400 font-mono truncate">{sellerDetail.user.id}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5 pt-1">
+                        <div className="text-center rounded-lg bg-zinc-900/80 border border-zinc-800 py-1.5">
+                          <p className="text-sm font-bold text-zinc-200">{sellerDetail.stats.totalOrders}</p>
+                          <p className="text-[8px] text-zinc-500 uppercase">Total</p>
+                        </div>
+                        <div className="text-center rounded-lg bg-zinc-900/80 border border-zinc-800 py-1.5">
+                          <p className="text-sm font-bold text-amber-400">{sellerDetail.stats.pendingOrders}</p>
+                          <p className="text-[8px] text-zinc-500 uppercase">Pend.</p>
+                        </div>
+                        <div className="text-center rounded-lg bg-zinc-900/80 border border-zinc-800 py-1.5">
+                          <p className="text-sm font-bold text-blue-400">{sellerDetail.stats.activeOrders}</p>
+                          <p className="text-[8px] text-zinc-500 uppercase">Activos</p>
+                        </div>
+                        <div className="text-center rounded-lg bg-zinc-900/80 border border-zinc-800 py-1.5">
+                          <p className="text-sm font-bold text-emerald-400">{sellerDetail.stats.deliveredOrders}</p>
+                          <p className="text-[8px] text-zinc-500 uppercase">Listos</p>
+                        </div>
+                      </div>
+                      {sellerDetail.user.pickupPoints && sellerDetail.user.pickupPoints.length > 0 && (
+                        <div className="pt-1">
+                          <p className="text-[9px] uppercase tracking-wide text-zinc-500 mb-1">Puntos de colecta</p>
+                          <ul className="space-y-1">
+                            {sellerDetail.user.pickupPoints.map((point) => (
+                              <li
+                                key={point.id}
+                                className="text-[10px] bg-zinc-900/60 border border-zinc-800 rounded-lg px-2 py-1.5"
+                              >
+                                <span className="font-medium text-emerald-300">{point.label}</span>
+                                <p className="text-zinc-500 truncate">{point.address}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {onUpdateSellerPassword && (
+                      <form
+                        className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-3 space-y-2"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (!selectedSellerId) return;
+                          if (newSellerPassword.length < 6) {
+                            setPasswordUpdateMessage('La contraseña debe tener al menos 6 caracteres.');
+                            return;
+                          }
+                          if (newSellerPassword !== confirmSellerPassword) {
+                            setPasswordUpdateMessage('Las contraseñas no coinciden.');
+                            return;
+                          }
+                          setPasswordUpdateLoading(true);
+                          setPasswordUpdateMessage(null);
+                          try {
+                            await onUpdateSellerPassword(selectedSellerId, newSellerPassword);
+                            setNewSellerPassword('');
+                            setConfirmSellerPassword('');
+                            setPasswordUpdateMessage('Contraseña actualizada correctamente.');
+                          } catch (err: unknown) {
+                            const message =
+                              err instanceof Error ? err.message : 'No se pudo actualizar la contraseña.';
+                            setPasswordUpdateMessage(message);
+                          } finally {
+                            setPasswordUpdateLoading(false);
+                          }
+                        }}
+                      >
+                        <p className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
+                          <Key className="w-3.5 h-3.5 text-purple-400" />
+                          Cambiar contraseña
+                        </p>
+                        <p className="text-[10px] text-zinc-500">
+                          La nueva contraseña reemplaza la actual del vendedor.
+                        </p>
+                        <input
+                          type="password"
+                          value={newSellerPassword}
+                          onChange={(e) => setNewSellerPassword(e.target.value)}
+                          placeholder="Nueva contraseña (mín. 6 caracteres)"
+                          className={inputClass}
+                          autoComplete="new-password"
+                        />
+                        <input
+                          type="password"
+                          value={confirmSellerPassword}
+                          onChange={(e) => setConfirmSellerPassword(e.target.value)}
+                          placeholder="Confirmar contraseña"
+                          className={inputClass}
+                          autoComplete="new-password"
+                        />
+                        <button
+                          type="submit"
+                          disabled={passwordUpdateLoading || !newSellerPassword || !confirmSellerPassword}
+                          className={btnPrimary('purple')}
+                        >
+                          {passwordUpdateLoading ? 'Guardando…' : 'Actualizar contraseña'}
+                        </button>
+                        {passwordUpdateMessage && (
+                          <p
+                            className={`text-[10px] ${
+                              passwordUpdateMessage.includes('correctamente')
+                                ? 'text-emerald-400'
+                                : 'text-red-400'
+                            }`}
+                          >
+                            {passwordUpdateMessage}
+                          </p>
+                        )}
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
             {showSellerForm && (
               <form
@@ -349,7 +566,7 @@ export default function SettingsPage({
                       };
                     }
 
-                    await onCreateSeller({
+                    const created = await onCreateSeller({
                       name: sellerName,
                       username: sellerUsername,
                       password: sellerPassword,
@@ -361,6 +578,10 @@ export default function SettingsPage({
                     setSellerPassword('');
                     setSellerPickupLabel('');
                     setSellerPickupAddress('');
+                    setShowSellerForm(false);
+                    if (onFetchSellerDetail && created?.id) {
+                      void loadSellerDetail(created.id);
+                    }
                   } catch (err: any) {
                     setSellerFormMessage(err.message || 'Error al crear vendedor.');
                   } finally {

@@ -56,6 +56,18 @@ export interface User {
   pickupPoints?: PickupPoint[];
 }
 
+export interface SellerStats {
+  totalOrders: number;
+  pendingOrders: number;
+  activeOrders: number;
+  deliveredOrders: number;
+}
+
+export interface SellerDetail {
+  user: User;
+  stats: SellerStats;
+}
+
 export interface OrderHistoryEvent {
   status: OrderStatus;
   timestamp: string;

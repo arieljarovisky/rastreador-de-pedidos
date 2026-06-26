@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin } from './types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail } from './types.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -342,6 +342,35 @@ export default function App() {
       setPickupPoints((prev) => [...prev, ...created.pickupPoints]);
     } else {
       fetchData();
+    }
+    return created;
+  };
+
+  const handleFetchSellerDetail = async (sellerId: string): Promise<SellerDetail> => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/accounts/sellers/${sellerId}`), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo cargar el vendedor');
+    }
+    return res.json();
+  };
+
+  const handleUpdateSellerPassword = async (sellerId: string, password: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/sellers/${sellerId}/password`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo actualizar la contraseña');
     }
   };
 
@@ -901,6 +930,8 @@ export default function App() {
                   pickupPoints={pickupPoints}
                   onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
                   onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
+                  onFetchSellerDetail={isAgencyAdmin(user.role) ? handleFetchSellerDetail : undefined}
+                  onUpdateSellerPassword={isAgencyAdmin(user.role) ? handleUpdateSellerPassword : undefined}
                   onCreateRepartidor={isAgencyAdmin(user.role) ? handleCreateRepartidor : undefined}
                   onDeleteRepartidor={isAgencyAdmin(user.role) ? handleDeleteRepartidor : undefined}
                   onCreatePickupPoint={handleCreatePickupPoint}
