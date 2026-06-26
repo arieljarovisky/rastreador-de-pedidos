@@ -18,6 +18,22 @@ function parseOrigins(...sources: Array<string | undefined>): string[] {
   return [...origins];
 }
 
+function resolvePublicUrl(): string {
+  const explicit = firstDefined(process.env.PUBLIC_URL, process.env.BACKEND_URL);
+  if (explicit) return explicit.replace(/\/$/, '');
+
+  const railwayStatic = process.env.RAILWAY_STATIC_URL?.trim();
+  if (railwayStatic) return railwayStatic.replace(/\/$/, '');
+
+  const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railwayDomain) {
+    const host = railwayDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return `https://${host}`;
+  }
+
+  return 'http://localhost:4000';
+}
+
 export const env = {
   port: Number(process.env.PORT) || 4000,
   db: {
@@ -34,20 +50,20 @@ export const env = {
     process.env.CORS_ORIGIN,
     process.env.FRONTEND_URL
   ),
-  publicUrl: (process.env.PUBLIC_URL || process.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, ''),
+  publicUrl: resolvePublicUrl(),
   frontendUrl: (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, ''),
   mercadolibre: {
     appId: process.env.ML_APP_ID?.trim() || '',
     appSecret: process.env.ML_APP_SECRET?.trim() || '',
     redirectUri:
       process.env.ML_REDIRECT_URI?.trim() ||
-      `${(process.env.PUBLIC_URL || process.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '')}/api/integrations/mercadolibre/callback`,
+      `${resolvePublicUrl()}/api/integrations/mercadolibre/callback`,
   },
   tiendanube: {
     appId: process.env.TN_APP_ID?.trim() || process.env.TIENDANUBE_APP_ID?.trim() || '',
     appSecret: process.env.TN_APP_SECRET?.trim() || process.env.TIENDANUBE_APP_SECRET?.trim() || '',
     redirectUri:
       process.env.TN_REDIRECT_URI?.trim() ||
-      `${(process.env.PUBLIC_URL || process.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '')}/api/integrations/tiendanube/callback`,
+      `${resolvePublicUrl()}/api/integrations/tiendanube/callback`,
   },
 };
