@@ -382,7 +382,7 @@ export default function RepartidorDashboard({
 
                   {activeOrder.status === OrderStatus.ASSIGNED && currentCoords && (
                     <div className="bg-zinc-950 border border-zinc-800 rounded p-2 text-[10px] text-blue-400 font-mono">
-                      📍 Ruta al destino visible en el mapa (línea azul)
+                      📍 Ruta por calles hacia el destino (línea azul en el mapa)
                     </div>
                   )}
 

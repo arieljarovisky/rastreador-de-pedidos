@@ -6,6 +6,7 @@
 import { useEffect, useRef } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { getDeliveryZone } from '../config/deliveryZones.js';
+import { fetchDrivingRoute } from '../utils/route.js';
 import * as L from 'leaflet';
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
@@ -325,7 +326,7 @@ export default function MapComponent({
       }
     });
 
-    // Limpiar polilíneas obsoletas (solo ruta al destino)
+    // Limpiar polilíneas obsoletas
     const activePolylineKeys = new Set<string>();
     orders.forEach((order) => {
       if (
@@ -412,27 +413,6 @@ export default function MapComponent({
 
         markersRef.current[order.id] = marker;
       }
-
-      // Ruta al destino del cliente (pedido activo, asignado o en viaje)
-      const isActiveRouteOrder =
-        order.id === activeOrderId &&
-        (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING);
-      const repPos = isActiveRouteOrder
-        ? getRepartidorPosition(order, repartidores, liveRepartidorLocation)
-        : null;
-      const dest: [number, number] = [order.lat, order.lng];
-
-      if (isActiveRouteOrder && repPos) {
-        upsertPolyline(map, polylinesRef.current, `${order.id}__route`, [repPos, dest], {
-          color: '#3b82f6',
-          weight: 3,
-          opacity: 0.75,
-          dashArray: '10, 8',
-        });
-      } else if (polylinesRef.current[`${order.id}__route`]) {
-        polylinesRef.current[`${order.id}__route`].remove();
-        delete polylinesRef.current[`${order.id}__route`];
-      }
     });
 
     // --- 2b. PUNTOS DE COLECTA ---
@@ -498,7 +478,53 @@ export default function MapComponent({
     });
   }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation]);
 
-  // Centrar solo al elegir un pedido (no en cada actualización GPS)
+  // Ruta por calles hacia el próximo destino (OSRM)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !activeOrderId) return;
+
+    const order = orders.find((o) => o.id === activeOrderId);
+    const routeKey = activeOrderId ? `${activeOrderId}__route` : null;
+
+    if (
+      !order ||
+      (order.status !== OrderStatus.ASSIGNED && order.status !== OrderStatus.DELIVERING)
+    ) {
+      if (routeKey && polylinesRef.current[routeKey]) {
+        polylinesRef.current[routeKey].remove();
+        delete polylinesRef.current[routeKey];
+      }
+      return;
+    }
+
+    const repPos = getRepartidorPosition(order, repartidores, liveRepartidorLocation);
+    const dest: [number, number] = [order.lat, order.lng];
+
+    if (!repPos) {
+      if (polylinesRef.current[`${order.id}__route`]) {
+        polylinesRef.current[`${order.id}__route`].remove();
+        delete polylinesRef.current[`${order.id}__route`];
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    void fetchDrivingRoute(repPos, dest).then((pathCoords) => {
+      if (cancelled || !mapInstanceRef.current) return;
+      upsertPolyline(mapInstanceRef.current, polylinesRef.current, `${order.id}__route`, pathCoords, {
+        color: '#3b82f6',
+        weight: 4,
+        opacity: 0.88,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrderId, orders, repartidores, liveRepartidorLocation]);
+
+  // Centrar solo al elegir un pedido
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !activeOrderId) return;
@@ -561,7 +587,7 @@ export default function MapComponent({
         🛰️ MAPA REALTIME LUPO
       </div>
       <div className="absolute bottom-3 left-3 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1.5 rounded text-[8px] font-mono border border-zinc-800 text-zinc-500">
-        <div><span className="inline-block w-3 h-0.5 bg-blue-500 mr-1 align-middle" style={{ borderTop: '2px dashed #3b82f6' }} /> Ruta al destino</div>
+        <div><span className="inline-block w-3 h-0.5 bg-blue-500 mr-1 align-middle" /> Ruta al próximo destino</div>
       </div>
       <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
     </div>
