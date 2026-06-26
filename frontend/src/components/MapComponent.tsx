@@ -325,12 +325,9 @@ export default function MapComponent({
       }
     });
 
-    // Limpiar polilíneas obsoletas
+    // Limpiar polilíneas obsoletas (solo ruta al destino)
     const activePolylineKeys = new Set<string>();
     orders.forEach((order) => {
-      if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 0) {
-        activePolylineKeys.add(`${order.id}__trail`);
-      }
       if (
         order.id === activeOrderId &&
         (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)
@@ -414,22 +411,6 @@ export default function MapComponent({
         });
 
         markersRef.current[order.id] = marker;
-      }
-
-      // Recorrido GPS real (sin forzar punto de salida)
-      if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 1) {
-        const trailCoords: [number, number][] = order.locationHistory.map(
-          (pt) => [pt.lat, pt.lng] as [number, number]
-        );
-        upsertPolyline(map, polylinesRef.current, `${order.id}__trail`, trailCoords, {
-          color: '#fbbf24',
-          weight: 3.5,
-          opacity: 0.85,
-          dashArray: '6, 6',
-        });
-      } else if (polylinesRef.current[`${order.id}__trail`]) {
-        polylinesRef.current[`${order.id}__trail`].remove();
-        delete polylinesRef.current[`${order.id}__trail`];
       }
 
       // Ruta al destino del cliente (pedido activo, asignado o en viaje)
@@ -579,9 +560,8 @@ export default function MapComponent({
       <div className="absolute top-3 left-12 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1 rounded text-[9px] font-mono border border-zinc-800 text-zinc-400 uppercase tracking-wider font-bold">
         🛰️ MAPA REALTIME LUPO
       </div>
-      <div className="absolute bottom-3 left-3 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1.5 rounded text-[8px] font-mono border border-zinc-800 text-zinc-500 space-y-0.5">
+      <div className="absolute bottom-3 left-3 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1.5 rounded text-[8px] font-mono border border-zinc-800 text-zinc-500">
         <div><span className="inline-block w-3 h-0.5 bg-blue-500 mr-1 align-middle" style={{ borderTop: '2px dashed #3b82f6' }} /> Ruta al destino</div>
-        <div><span className="inline-block w-3 h-0.5 bg-amber-400 mr-1 align-middle" /> Recorrido GPS</div>
       </div>
       <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
     </div>
