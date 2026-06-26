@@ -661,7 +661,7 @@ export default function App() {
           <div className="hidden sm:flex flex-col items-end">
             <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-mono">Repartidores</span>
             <span className="text-base lg:text-xl font-mono text-blue-400 font-semibold leading-none mt-0.5">
-              {repartidores.length > 0 ? String(repartidores.length).padStart(2, '0') : '04'}
+              {String(repartidores.length).padStart(2, '0')}
             </span>
           </div>
 
