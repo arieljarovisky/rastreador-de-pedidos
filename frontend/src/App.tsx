@@ -10,6 +10,7 @@ import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
+import NotifsSidebar from './components/NotifsSidebar.tsx';
 import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard } from 'lucide-react';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
@@ -797,10 +798,10 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main className="flex-1 overflow-hidden p-3 md:p-4 relative h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]">
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
+          <div className="flex flex-col xl:flex-row gap-4 h-full overflow-hidden">
             {mobileTab !== 'settings' && (
               <div
-                className={`${notifsSidebarOpen ? 'xl:col-span-9' : 'xl:col-span-12'} h-full overflow-hidden ${
+                className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
                   mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
                 }`}
               >
@@ -821,11 +822,7 @@ export default function App() {
             )}
 
             {mobileTab === 'settings' && (
-              <div
-                className={`${
-                  notifsSidebarOpen ? 'xl:col-span-9' : 'xl:col-span-12'
-                } h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4`}
-              >
+              <div className="flex-1 min-w-0 h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4 transition-all duration-300 ease-out">
                 <SettingsPage
                   user={user}
                   onBack={() => setMobileTab('dashboard')}
@@ -844,28 +841,20 @@ export default function App() {
               </div>
             )}
 
-            {/* Sidebar con Centro de Notificaciones PWA */}
-            {notifsSidebarOpen && (
-              <div
-                className={`xl:col-span-3 h-full overflow-hidden flex flex-col ${
-                  mobileTab !== 'notifications' ? 'hidden xl:flex' : ''
-                }`}
-              >
-                <NotificationHub
-                  notifications={notifications}
-                  onMarkAllRead={handleMarkAllRead}
-                  activeUserId={user.id}
-                  onToggleCollapse={toggleNotifsSidebar}
-                  showCollapseButton
-                />
-              </div>
-            )}
+            <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+              <NotificationHub
+                notifications={notifications}
+                onMarkAllRead={handleMarkAllRead}
+                activeUserId={user.id}
+                onToggleCollapse={toggleNotifsSidebar}
+                showCollapseButton
+              />
+            </NotifsSidebar>
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
-            {/* Repartidor Dashboard */}
+          <div className="flex flex-col xl:flex-row gap-4 h-full overflow-hidden">
             <div
-              className={`${notifsSidebarOpen ? 'xl:col-span-9' : 'xl:col-span-12'} h-full overflow-hidden ${
+              className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
                 mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
               }`}
             >
@@ -879,22 +868,15 @@ export default function App() {
               />
             </div>
 
-            {/* Sidebar con Centro de Notificaciones PWA */}
-            {notifsSidebarOpen && (
-              <div
-                className={`xl:col-span-3 h-full overflow-hidden flex flex-col ${
-                  mobileTab !== 'notifications' ? 'hidden xl:flex' : ''
-                }`}
-              >
-                <NotificationHub
-                  notifications={notifications}
-                  onMarkAllRead={handleMarkAllRead}
-                  activeUserId={user.id}
-                  onToggleCollapse={toggleNotifsSidebar}
-                  showCollapseButton
-                />
-              </div>
-            )}
+            <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+              <NotificationHub
+                notifications={notifications}
+                onMarkAllRead={handleMarkAllRead}
+                activeUserId={user.id}
+                onToggleCollapse={toggleNotifsSidebar}
+                showCollapseButton
+              />
+            </NotifsSidebar>
           </div>
         )}
       </main>
