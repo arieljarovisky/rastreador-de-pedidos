@@ -4,9 +4,17 @@
 
 export const ui = {
   shell: 'lupo-shell',
+  content: 'lupo-content',
   header: 'lupo-header',
   footer: 'lupo-footer',
   main: 'lupo-main',
+
+  sidebar: 'lupo-sidebar',
+  sidebarBrand: 'lupo-sidebar-brand',
+  sidebarNav: 'lupo-sidebar-nav',
+  sidebarItem: 'lupo-sidebar-item',
+  sidebarItemActive: 'lupo-sidebar-item lupo-sidebar-item--active',
+  sidebarPromo: 'lupo-sidebar-promo',
 
   navTab: 'lupo-nav-tab',
   navTabActive: 'lupo-nav-tab lupo-nav-tab--active',
@@ -33,6 +41,20 @@ export const ui = {
   stat: 'lupo-stat',
   statWarning: 'lupo-stat lupo-stat--warning',
   statSuccess: 'lupo-stat lupo-stat--success',
+  statCard: 'lupo-stat-card',
+  statIconPurple: 'lupo-stat-icon lupo-stat-icon--purple',
+  statIconAmber: 'lupo-stat-icon lupo-stat-icon--amber',
+  statIconBlue: 'lupo-stat-icon lupo-stat-icon--blue',
+  statIconGreen: 'lupo-stat-icon lupo-stat-icon--green',
+
+  welcome: 'lupo-welcome',
+  welcomeTitle: 'lupo-welcome-title',
+  welcomeSubtitle: 'lupo-welcome-subtitle',
+  ctaBanner: 'lupo-cta-banner',
+  emptyState: 'lupo-empty-state',
+  emptyIcon: 'lupo-empty-icon',
+  segmentGroup: 'lupo-segment-group',
+  metricSparkline: 'lupo-metric-sparkline',
 
   input: 'lupo-input',
   label: 'lupo-label',
@@ -73,6 +95,12 @@ export const ui = {
   modalBackdrop: 'lupo-modal-backdrop',
   modal: 'lupo-modal',
   modalFooter: 'lupo-modal-footer',
+
+  themeToggle: 'lupo-theme-toggle',
+  sidebarIllustration: 'lupo-sidebar-illustration',
+  mapControls: 'lupo-map-controls',
+  mapControlBtn: 'lupo-map-control-btn',
+  mapLiveBadge: 'lupo-map-live-badge',
 } as const;
 
 export function orderBadgeClass(status: string): string {

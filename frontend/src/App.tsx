@@ -11,11 +11,13 @@ import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
-import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard } from 'lucide-react';
+import AppSidebar, { SidebarAction } from './components/AppSidebar.tsx';
+import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard, Moon, Sun } from 'lucide-react';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 import { ui } from './styles/ui.ts';
+import { useTheme } from './context/ThemeContext.tsx';
 
 type AppTab = 'dashboard' | 'notifications' | 'settings';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
@@ -35,6 +37,7 @@ function readNotifsSidebarOpen(): boolean {
 
 export default function App() {
   const { alert: showAlert } = useModal();
+  const { isDark, toggleTheme } = useTheme();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -56,6 +59,7 @@ export default function App() {
   }, []);
 
   const [notifsSidebarOpen, setNotifsSidebarOpen] = useState(readNotifsSidebarOpen);
+  const [adminView, setAdminView] = useState<'orders' | 'map'>('orders');
 
   const toggleNotifsSidebar = useCallback(() => {
     setNotifsSidebarOpen((prev) => {
@@ -650,6 +654,49 @@ export default function App() {
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
   const showSettings =
     user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false);
+  const activeOrdersCount = orders.filter(
+    (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
+  ).length;
+
+  const handleSidebarNavigate = useCallback(
+    (action: SidebarAction) => {
+      if (action === 'coming-soon') {
+        void showAlert({
+          title: 'Próximamente',
+          message: 'Esta sección estará disponible en una próxima actualización.',
+          variant: 'info',
+        });
+        return;
+      }
+      if (action === 'settings' || action === 'repartidores') {
+        setMobileTab('settings');
+        return;
+      }
+      setMobileTab('dashboard');
+      if (action === 'map') setAdminView('map');
+      else setAdminView('orders');
+    },
+    [setMobileTab, showAlert]
+  );
+
+  function MetricSparkline({ color }: { color: string }) {
+    return (
+      <svg className={ui.metricSparkline} viewBox="0 0 56 20" fill="none" aria-hidden>
+        <path
+          d="M2 14 L10 10 L18 12 L26 6 L34 8 L42 4 L54 2"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M2 14 L10 10 L18 12 L26 6 L34 8 L42 4 L54 2 V20 H2 Z"
+          fill={color}
+          fillOpacity="0.12"
+        />
+      </svg>
+    );
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -685,53 +732,65 @@ export default function App() {
 
   return (
     <div className={`${ui.shell} select-none`}>
+      <AppSidebar
+        activeTab={mobileTab}
+        showSettings={showSettings}
+        onNavigate={handleSidebarNavigate}
+      />
+
+      <div className={ui.content}>
       <header className={ui.header}>
-        <div className="flex items-center gap-4">
-          <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg bg-gradient-to-br from-[#5b8aff] to-[#3d63d9] flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-blue-900/30 ring-1 ring-white/10">
+        <div className="flex items-center gap-4 xl:hidden">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] flex items-center justify-center font-bold text-white text-sm shadow-md shadow-purple-200">
             LP
           </div>
           <div>
-            <h1 className="text-sm lg:text-base font-semibold tracking-tight text-[var(--lupo-text)] flex items-center gap-2 flex-wrap">
+            <h1 className="text-sm font-semibold tracking-tight text-[var(--lupo-text)] flex items-center gap-2 flex-wrap">
               LupoEnvios
               <span className="text-[var(--lupo-text-muted)] font-normal text-xs">v2.4</span>
               {isOnline ? (
-                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                   wsConnected
-                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
-                    : 'text-amber-400 bg-amber-500/10 border-amber-500/25'
+                    ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                    : 'text-amber-600 bg-amber-50 border-amber-200'
                 }`}>
                   <Wifi className="w-3 h-3 shrink-0" /> {wsConnected ? 'En vivo' : 'Online'}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/25 px-2 py-0.5 rounded-md">
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
                   <WifiOff className="w-3 h-3" /> Sin conexión
                 </span>
               )}
             </h1>
             <p className="text-xs text-[var(--lupo-text-muted)] mt-0.5">
               {user.name}
-              <span className="mx-1.5 opacity-40">·</span>
-              <span className="uppercase text-[10px] tracking-wider">{user.role}</span>
             </p>
           </div>
         </div>
 
-        <div className="flex gap-5 md:gap-8 items-center">
-          <div className="hidden sm:flex flex-col items-end">
-            <span className={ui.metricLabel}>Pedidos activos</span>
-            <span className={`${ui.metricValue} ${ui.metricValueSuccess} mt-0.5`}>
-              {orders.filter(o => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED).length}
-            </span>
+        <div className="hidden xl:block" />
+
+        <div className="flex gap-4 md:gap-6 items-center">
+          <div className="hidden sm:flex items-center gap-3">
+            <div className="flex flex-col items-end">
+              <span className={ui.metricLabel}>Pedidos activos</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`${ui.metricValue} ${ui.metricValueSuccess}`}>{activeOrdersCount}</span>
+                <MetricSparkline color="#059669" />
+              </div>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className={ui.metricLabel}>Repartidores</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`${ui.metricValue} ${ui.metricValueAccent}`}>
+                  {String(repartidores.length).padStart(2, '0')}
+                </span>
+                <MetricSparkline color="#7c3aed" />
+              </div>
+            </div>
           </div>
 
-          <div className="hidden sm:flex flex-col items-end">
-            <span className={ui.metricLabel}>Repartidores</span>
-            <span className={`${ui.metricValue} ${ui.metricValueAccent} mt-0.5`}>
-              {String(repartidores.length).padStart(2, '0')}
-            </span>
-          </div>
-
-          <div className="hidden sm:block h-8 w-px bg-[var(--lupo-border-subtle)]" />
+          <div className="hidden sm:block h-8 w-px bg-[var(--lupo-border)]" />
 
           <div className="flex items-center gap-2.5">
             <div className="hidden xl:flex items-center gap-1.5">
@@ -770,6 +829,16 @@ export default function App() {
               </button>
             </div>
 
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={isDark ? 'Modo claro' : 'Modo oscuro'}
+              className={`xl:hidden p-1.5 rounded-lg border border-[var(--lupo-border-subtle)] text-[var(--lupo-text-muted)] hover:text-[var(--lupo-text)] hover:bg-[var(--lupo-accent-soft)] transition`}
+              aria-label="Alternar tema"
+            >
+              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
             <div
               className="relative cursor-pointer p-1.5 hover:bg-white/5 rounded-lg transition xl:hidden"
               title="Ver notificaciones"
@@ -791,7 +860,7 @@ export default function App() {
               <p className={`${ui.hint} uppercase`}>{user.role}</p>
             </div>
 
-            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-[var(--lupo-elevated)] border border-[var(--lupo-border)] flex items-center justify-center text-xs lg:text-sm font-semibold text-[var(--lupo-text-secondary)] uppercase shrink-0">
+            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-[var(--lupo-accent-soft)] border border-[#e9d5ff] flex items-center justify-center text-xs lg:text-sm font-semibold text-[var(--lupo-accent)] uppercase shrink-0">
               {user.name.slice(0, 2)}
             </div>
 
@@ -835,7 +904,7 @@ export default function App() {
         </button>
       </div>
 
-      <main className={`${ui.main} h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]`}>
+      <main className={`${ui.main} h-[calc(100vh-140px)] xl:h-[calc(100vh-4.25rem-2.25rem)]`}>
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col xl:flex-row h-full overflow-hidden ${
@@ -861,6 +930,9 @@ export default function App() {
                   onAssignOrderSeller={handleAssignOrderSeller}
                   onDeleteOrder={handleDeleteOrder}
                   userRole={user.role}
+                  userName={user.name}
+                  adminView={adminView}
+                  onGoToSettings={showSettings ? () => setMobileTab('settings') : undefined}
                 />
               </div>
             )}
@@ -948,6 +1020,7 @@ export default function App() {
           <span>Sincronizado: {lastSyncAt.toLocaleTimeString()}</span>
         </div>
       </footer>
+      </div>
     </div>
   );
 }

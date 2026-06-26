@@ -70,7 +70,7 @@ export default function LoginScreen({
   return (
     <div className={`${ui.shell} items-center justify-center p-6`} id="login-container">
       <div className="mb-8 text-center max-w-sm">
-        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#5b8aff] to-[#3d63d9] flex items-center justify-center shadow-xl shadow-blue-900/25 mx-auto mb-4 ring-1 ring-white/10">
+        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] flex items-center justify-center shadow-lg shadow-purple-200 mx-auto mb-4">
           <span className="text-2xl font-bold text-white">LP</span>
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-[var(--lupo-text)]">LupoEnvios</h1>
@@ -80,7 +80,7 @@ export default function LoginScreen({
       </div>
 
       <div className={ui.loginCard}>
-        <div className="flex p-1 rounded-lg border border-[var(--lupo-border-subtle)] bg-[var(--lupo-bg)] mb-5 gap-1">
+        <div className={`flex p-1 rounded-lg border border-[var(--lupo-border-subtle)] bg-[#f8f9fc] mb-5 gap-1`}>
           <button
             type="button"
             onClick={() => switchMode('login')}
@@ -91,7 +91,7 @@ export default function LoginScreen({
           <button
             type="button"
             onClick={() => switchMode('register-agency')}
-            className={mode === 'register-agency' ? `${ui.segment} bg-purple-600 text-white shadow-md` : ui.segment}
+            className={mode === 'register-agency' ? ui.segmentActive : ui.segment}
           >
             Agencia
           </button>

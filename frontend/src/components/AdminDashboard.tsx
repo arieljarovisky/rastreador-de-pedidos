@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
-import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2 } from 'lucide-react';
+import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Package, Truck, CheckCircle, SlidersHorizontal, ClipboardList, Send, ArrowRight, Settings } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
@@ -26,6 +26,9 @@ interface AdminDashboardProps {
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
   onDeleteOrder?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
+  userName?: string;
+  adminView?: 'orders' | 'map';
+  onGoToSettings?: () => void;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -50,12 +53,19 @@ export default function AdminDashboard({
   onAssignOrderSeller,
   onDeleteOrder,
   userRole = UserRole.STORE_ADMIN,
+  userName = 'Usuario',
+  adminView = 'orders',
+  onGoToSettings,
 }: AdminDashboardProps) {
-  const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
+  const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>(adminView);
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
   const { confirm, alert: showAlert } = useModal();
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  useEffect(() => {
+    setAdminMobileTab(adminView);
+  }, [adminView]);
 
   useEffect(() => {
     if (activeOrderId) {
@@ -281,7 +291,7 @@ export default function AdminDashboard({
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 h-full overflow-hidden" id="admin-dashboard">
+    <div className="flex flex-col h-full overflow-hidden gap-3" id="admin-dashboard">
       {contextMenu && (
         <OrderContextMenu
           x={contextMenu.x}
@@ -291,7 +301,71 @@ export default function AdminDashboard({
         />
       )}
 
-      <div className="lg:hidden flex p-1 border border-[var(--lupo-border-subtle)] rounded-lg shrink-0 gap-1 bg-[var(--lupo-bg)]">
+      <div className="hidden lg:block shrink-0 space-y-3">
+        <div className={ui.welcome}>
+          <h1 className={ui.welcomeTitle}>¡Bienvenido de vuelta, {userName}! 👋</h1>
+          <p className={ui.welcomeSubtitle}>
+            {userRole === UserRole.STORE_ADMIN
+              ? 'Gestioná tus envíos y seguí el estado en tiempo real.'
+              : 'Asigná viajes, monitoreá repartidores y optimizá la operación logística.'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-4 gap-3">
+          <div className={ui.statCard}>
+            <div className={ui.statIconPurple}><Package className="w-4 h-4" /></div>
+            <div>
+              <p className={`${ui.metricValue} text-lg`}>{stats.total}</p>
+              <p className={ui.metricLabel}>Total pedidos</p>
+            </div>
+          </div>
+          <div className={ui.statCard}>
+            <div className={ui.statIconAmber}><Clock className="w-4 h-4" /></div>
+            <div>
+              <p className={`${ui.metricValue} text-lg`}>{stats.pending}</p>
+              <p className={ui.metricLabel}>Pendientes</p>
+            </div>
+          </div>
+          <div className={ui.statCard}>
+            <div className={ui.statIconBlue}><Truck className="w-4 h-4" /></div>
+            <div>
+              <p className={`${ui.metricValue} text-lg`}>{stats.delivering}</p>
+              <p className={ui.metricLabel}>En ruta</p>
+            </div>
+          </div>
+          <div className={ui.statCard}>
+            <div className={ui.statIconGreen}><CheckCircle className="w-4 h-4" /></div>
+            <div>
+              <p className={`${ui.metricValueSuccess} text-lg`}>{stats.delivered}</p>
+              <p className={ui.metricLabel}>Listos</p>
+            </div>
+          </div>
+        </div>
+
+        {onGoToSettings && (
+          <div className={ui.ctaBanner}>
+            <div className="flex items-center gap-2.5">
+              <div className={`${ui.statIconPurple} w-8 h-8`}>
+                <Settings className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-[var(--lupo-text)]">
+                  {isAgencyAdmin(userRole)
+                    ? 'Gestioná vendedores, repartidores y punto de salida'
+                    : 'Configurá tus puntos de colecta'}
+                </p>
+                <p className={`${ui.hint} mt-0.5`}>Todo desde un solo lugar en Configuración</p>
+              </div>
+            </div>
+            <button type="button" onClick={onGoToSettings} className={`${ui.btnPrimary} ${ui.btnSm} shrink-0`}>
+              Ir a Configuración <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 flex-1 min-h-0 overflow-hidden">
+      <div className="lg:hidden flex p-1 border border-[var(--lupo-border-subtle)] rounded-lg shrink-0 gap-1 bg-[var(--lupo-surface)]">
         <button
           onClick={() => setAdminMobileTab('orders')}
           className={adminMobileTab === 'orders' ? ui.segmentActive : ui.segment}
@@ -311,85 +385,47 @@ export default function AdminDashboard({
       }`}>
         
         <div className="shrink-0 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className={ui.pageTitle}>
-                {userRole === UserRole.STORE_ADMIN ? 'Lupo Ventas' : userRole === UserRole.SUPER_ADMIN ? 'Lupo Agencia' : 'Lupo Logística'}
-              </h2>
+              <h2 className={ui.pageTitle}>Pedidos</h2>
               <p className={ui.pageSubtitle}>
-                {userRole === UserRole.STORE_ADMIN ? 'Carga de envíos' : 'Asignación de viajes y flota'}
+                {filteredOrders.length} resultado{filteredOrders.length !== 1 ? 's' : ''}
               </p>
             </div>
             
-            {userRole === UserRole.STORE_ADMIN && (
-              <button
-                onClick={() => setShowCreateForm(!showCreateForm)}
-                id="btn-toggle-create-form"
-                className={`${ui.btnPrimary} ${ui.btnSm}`}
-              >
-                <Plus className="w-3.5 h-3.5" /> Cargar envío
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-4 gap-1.5 text-center">
-            <div className={ui.stat}>
-              <p className={ui.metricLabel}>Total</p>
-              <p className={ui.metricValue}>{stats.total}</p>
-            </div>
-            <div className={ui.stat}>
-              <p className={ui.metricLabel}>Pend.</p>
-              <p className={ui.metricValue}>{stats.pending}</p>
-            </div>
-            <div className={ui.statWarning}>
-              <p className={ui.metricLabel}>Ruta</p>
-              <p className={ui.metricValue}>{stats.delivering}</p>
-            </div>
-            <div className={ui.statSuccess}>
-              <p className={ui.metricLabel}>Listos</p>
-              <p className={ui.metricValueSuccess}>{stats.delivered}</p>
+            <div className="flex items-center gap-1.5">
+              {userRole === UserRole.STORE_ADMIN && (
+                <button
+                  onClick={() => setShowCreateForm(!showCreateForm)}
+                  id="btn-toggle-create-form"
+                  className={`${ui.btnPrimary} ${ui.btnSm}`}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Cargar
+                </button>
+              )}
             </div>
           </div>
 
-          {userRole === UserRole.STORE_ADMIN && (
-            <div className={`${ui.hintBox} flex items-center justify-between gap-3`}>
-              <div>
-                <p className="text-[11px] font-semibold text-[var(--lupo-accent)]">
-                  Canal de ventas activo
-                </p>
-                <p className={`${ui.hint} mt-0.5`}>Tus envíos se sincronizan con la agencia de logística</p>
-              </div>
-              <span className={`${ui.badgeAssigned} text-[10px]`}>Online</span>
-            </div>
-          )}
-
-          {userRole === UserRole.STORE_ADMIN && (
-            <div className={ui.hintBox}>
-              Configurá tus puntos de colecta en la pestaña <span className="text-[var(--lupo-text)] font-semibold">Configuración</span>.
-            </div>
-          )}
-
-          {isAgencyAdmin(userRole) && (
-            <div className={ui.hintBox}>
-              Gestioná vendedores, repartidores y punto de salida desde la pestaña <span className="text-[var(--lupo-text)] font-semibold">Configuración</span>.
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <div className="relative">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--lupo-text-muted)]">
                 <Search className="w-3.5 h-3.5" />
               </span>
               <input
                 type="text"
-                placeholder="Buscar repartidor, pedido o dirección..."
+                placeholder="Buscar pedido, cliente o dirección..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`${ui.input} pl-8`}
               />
             </div>
+            <button type="button" className={`${ui.btnSecondary} ${ui.btnSm} shrink-0`} title="Filtros">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Filtros
+            </button>
+          </div>
 
-            <div className="flex p-0.5 rounded-lg border border-[var(--lupo-border-subtle)] bg-[var(--lupo-bg)] text-[10px] gap-0.5">
+          <div className={ui.segmentGroup}>
               <button
                 onClick={() => setStatusFilter('all')}
                 className={statusFilter === 'all' ? ui.segmentActive : ui.segment}
@@ -400,13 +436,13 @@ export default function AdminDashboard({
                 onClick={() => setStatusFilter(OrderStatus.PENDING)}
                 className={statusFilter === OrderStatus.PENDING ? ui.segmentActive : ui.segment}
               >
-                Pend.
+                Pendientes
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
                 className={statusFilter === OrderStatus.DELIVERING ? ui.segmentActive : ui.segment}
               >
-                Ruta
+                En ruta
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
@@ -414,7 +450,6 @@ export default function AdminDashboard({
               >
                 Listos
               </button>
-            </div>
           </div>
         </div>
 
@@ -543,8 +578,18 @@ export default function AdminDashboard({
           )}
 
           {filteredOrders.length === 0 ? (
-            <div className="text-center py-12 text-[var(--lupo-text-muted)] text-xs">
-              Ningún pedido coincide con los filtros aplicados.
+            <div className={ui.emptyState}>
+              <div className={ui.emptyIcon}>
+                <ClipboardList className="w-8 h-8" />
+              </div>
+              <p className="text-sm font-medium text-[var(--lupo-text-secondary)]">No hay pedidos para mostrar</p>
+              <p className={`${ui.hint} mt-1 max-w-xs`}>
+                {searchQuery || statusFilter !== 'all'
+                  ? 'Probá cambiar los filtros o la búsqueda.'
+                  : userRole === UserRole.STORE_ADMIN
+                    ? 'Cargá tu primer envío con el botón Cargar.'
+                    : 'Los envíos aparecerán cuando los vendedores los registren.'}
+              </p>
             </div>
           ) : (
             filteredOrders.map((order) => {
@@ -648,8 +693,10 @@ export default function AdminDashboard({
         adminMobileTab !== 'map' ? 'hidden lg:flex' : 'flex'
       }`}>
         
-        {/* Mapa Interactivo */}
-        <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-xl border border-[var(--lupo-border-subtle)] overflow-hidden relative shadow-[var(--lupo-shadow-sm)]">
+        <div className={`flex-1 min-h-[160px] lg:min-h-[200px] ${ui.panel} ${ui.panelFlush} overflow-hidden relative`}>
+          <div className="absolute top-3 left-3 z-[500] px-2.5 py-1 rounded-md bg-white/95 border border-[var(--lupo-border-subtle)] shadow-sm text-xs font-semibold text-[var(--lupo-text)]">
+            Mapa en tiempo real
+          </div>
           <Suspense
             fallback={
               <div className="w-full h-full flex items-center justify-center bg-[var(--lupo-bg)] text-[var(--lupo-text-muted)] text-xs">
@@ -850,15 +897,23 @@ export default function AdminDashboard({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-500 font-mono p-4">
-              <Navigation className="w-6 h-6 text-zinc-700 mb-1.5 animate-pulse" />
-              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Visor de Envíos Lupo</p>
-              <p className="text-[10px] text-zinc-600 mt-0.5 max-w-sm">
-                Haz clic en cualquier pedido en la lista o en el mapa para auditar su trayectoria GPS y bitácora en tiempo real.
+            <div className={`flex-1 flex flex-col items-center justify-center text-center p-4 ${ui.panel}`}>
+              <div className="lupo-radar">
+                <div className="lupo-radar-ring" />
+                <div className="lupo-radar-ring" />
+                <div className="lupo-radar-ring" />
+                <div className="lupo-radar-center">
+                  <Send className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-[var(--lupo-text-secondary)]">Visor de envíos Lupo</p>
+              <p className={`${ui.hint} mt-1 max-w-sm`}>
+                Seleccioná un pedido en la lista o en el mapa para ver su trayectoria y bitácora en tiempo real.
               </p>
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

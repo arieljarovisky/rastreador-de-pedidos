@@ -3,9 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
+import { Plus, Minus, Crosshair } from 'lucide-react';
 import * as L from 'leaflet';
+import { ui } from '../styles/ui.ts';
 
 interface MapComponentProps {
   orders: Order[];
@@ -64,6 +66,15 @@ const createRepartidorIcon = (name: string) => {
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
 
+function popupHtml(title: string, body: string, accent = 'var(--lupo-accent)'): string {
+  return `
+    <div style="font-family:inherit;padding:4px;font-size:11px;max-width:200px;color:var(--lupo-text)">
+      <div style="font-weight:700;font-size:12px;color:${accent};border-bottom:1px solid var(--lupo-border-subtle);padding-bottom:4px;margin-bottom:4px">${title}</div>
+      ${body}
+    </div>
+  `;
+}
+
 export default function MapComponent({
   orders,
   repartidores = [],
@@ -111,7 +122,7 @@ export default function MapComponent({
         maxZoom: 18,
         maxBounds: gbaBounds,
         maxBoundsViscosity: 0.85,
-        zoomControl: interactive,
+        zoomControl: false,
         scrollWheelZoom: interactive,
         dragging: interactive,
         touchZoom: interactive,
@@ -161,11 +172,11 @@ export default function MapComponent({
     const hubIcon = L.divIcon({
       html: `
         <div class="relative w-10 h-10 flex items-center justify-center filter drop-shadow-md">
-          <div class="absolute w-8 h-8 rounded-full bg-indigo-500 opacity-20 animate-pulse"></div>
-          <div class="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center text-white text-sm shadow">
-            🏬
+          <div class="absolute w-8 h-8 rounded-full bg-violet-500 opacity-25 animate-pulse"></div>
+          <div class="w-8 h-8 rounded-full bg-violet-600 border-2 border-white flex items-center justify-center text-white text-[9px] font-bold shadow">
+            S
           </div>
-          <div class="absolute -bottom-6 bg-indigo-900 border border-indigo-700 text-white font-mono font-bold text-[9px] px-1 rounded shadow-md whitespace-nowrap">
+          <div class="absolute -bottom-6 bg-violet-700 border border-violet-500 text-white font-bold text-[9px] px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">
             SALIDA
           </div>
         </div>
@@ -177,12 +188,7 @@ export default function MapComponent({
 
     hubMarkerRef.current = L.marker([departurePoint.lat, departurePoint.lng], { icon: hubIcon })
       .addTo(map)
-      .bindPopup(`
-        <div class="text-zinc-100 font-sans p-1 text-[11px]">
-          <h4 class="font-bold text-xs text-indigo-400">Punto de salida</h4>
-          <p class="text-[10px] text-zinc-400 mt-0.5">📍 ${departurePoint.address}</p>
-        </div>
-      `);
+      .bindPopup(popupHtml('Punto de salida', `<p style="margin:0;color:var(--lupo-text-secondary);font-size:10px">📍 ${departurePoint.address}</p>`, '#7c3aed'));
   }, [departurePoint]);
 
   // Observer de redimensionamiento para evitar problemas de tiles negros en layouts responsivos (flex/tabs)
@@ -242,7 +248,7 @@ export default function MapComponent({
       let glow = false;
 
       if (order.status === OrderStatus.ASSIGNED) {
-        color = '#a855f7'; // Purple (Assigned)
+        color = '#8b5cf6'; // Purple (Assigned)
         label = 'A';
       } else if (order.status === OrderStatus.DELIVERING) {
         color = '#f59e0b'; // Amber (Delivering)
@@ -271,22 +277,19 @@ export default function MapComponent({
         // Crear nuevo
         const marker = L.marker([order.lat, order.lng], { icon })
           .addTo(map)
-          .bindPopup(`
-            <div class="text-zinc-100 font-sans p-1 text-[11px] max-w-[200px]">
-              <div class="flex items-center gap-1 font-bold text-zinc-300 border-b border-zinc-800 pb-1 mb-1">
-                <span>📦 ${order.id}</span>
-                <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] text-white font-bold uppercase tracking-wider" style="background-color: ${color}">
-                  ${order.status.toUpperCase()}
-                </span>
-              </div>
-              <p class="font-bold text-zinc-200 mt-1">${order.clientName}</p>
-              <p class="text-zinc-400 text-[10px] mt-0.5">📍 ${order.address}</p>
-              ${order.repartidorName ? `<p class="mt-1.5 font-bold text-blue-400 text-[10px] font-mono">🏍️ REPARTIDOR: ${order.repartidorName.toUpperCase()}</p>` : ''}
-              <button id="btn-map-select-${order.id}" class="mt-2 w-full text-center py-1 bg-blue-600 text-white rounded text-[9px] font-bold uppercase tracking-wider hover:bg-blue-500 transition cursor-pointer">
-                Ver Detalles
+          .bindPopup(popupHtml(
+            `📦 ${order.id}`,
+            `
+              <p style="margin:0 0 4px;font-weight:600">${order.clientName}</p>
+              <p style="margin:0 0 6px;color:var(--lupo-text-muted);font-size:10px">📍 ${order.address}</p>
+              <span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;color:#fff;background:${color}">${order.status.toUpperCase()}</span>
+              ${order.repartidorName ? `<p style="margin:6px 0 0;font-size:10px;color:#7c3aed;font-weight:600">🏍️ ${order.repartidorName}</p>` : ''}
+              <button id="btn-map-select-${order.id}" style="margin-top:8px;width:100%;padding:6px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer">
+                Ver detalles
               </button>
-            </div>
-          `);
+            `,
+            color
+          ));
 
         // Vincular popup event para click
         marker.on('popupopen', () => {
@@ -347,13 +350,14 @@ export default function MapComponent({
       } else {
         const marker = L.marker([point.lat, point.lng], { icon })
           .addTo(map)
-          .bindPopup(`
-            <div class="text-zinc-100 font-sans p-1 text-[11px]">
-              <h4 class="font-bold text-emerald-400">🛒 ${point.label}</h4>
-              ${point.sellerName ? `<p class="text-[10px] text-purple-300">${point.sellerName}</p>` : ''}
-              <p class="text-zinc-400 text-[10px] mt-0.5">📍 ${point.address}</p>
-            </div>
-          `);
+          .bindPopup(popupHtml(
+            `🛒 ${point.label}`,
+            `
+              ${point.sellerName ? `<p style="margin:0 0 4px;font-size:10px;color:#7c3aed">${point.sellerName}</p>` : ''}
+              <p style="margin:0;color:var(--lupo-text-muted);font-size:10px">📍 ${point.address}</p>
+            `,
+            '#059669'
+          ));
         markersRef.current[markerId] = marker;
       }
     });
@@ -381,12 +385,11 @@ export default function MapComponent({
         // Crear nuevo marcador de repartidor
         const marker = L.marker([rep.currentLocation.lat, rep.currentLocation.lng], { icon })
           .addTo(map)
-          .bindPopup(`
-            <div class="text-zinc-100 font-sans p-1 text-[11px]">
-              <h4 class="font-bold text-blue-400 uppercase tracking-wider font-mono">🏍️ ${rep.name}</h4>
-              <p class="text-zinc-400 text-[10px] mt-0.5">Último reporte: ${new Date(rep.currentLocation.timestamp).toLocaleTimeString()}</p>
-            </div>
-          `);
+          .bindPopup(popupHtml(
+            `🏍️ ${rep.name}`,
+            `<p style="margin:0;color:var(--lupo-text-muted);font-size:10px">Último reporte: ${new Date(rep.currentLocation.timestamp).toLocaleTimeString()}</p>`,
+            '#2563eb'
+          ));
         markersRef.current[markerId] = marker;
       }
     });
@@ -437,12 +440,56 @@ export default function MapComponent({
     initialFitDoneRef.current = true;
   }, [orders.length, activeOrderId]);
 
+  const handleZoomIn = useCallback(() => {
+    mapInstanceRef.current?.zoomIn();
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    mapInstanceRef.current?.zoomOut();
+  }, []);
+
+  const handleLocate = useCallback(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (departurePoint) {
+      map.setView([departurePoint.lat, departurePoint.lng], 14, { animate: true });
+      return;
+    }
+
+    const validCoords = orders
+      .filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lng))
+      .map((o) => [o.lat, o.lng] as [number, number]);
+
+    if (validCoords.length > 0) {
+      map.fitBounds(L.latLngBounds(validCoords), { padding: [40, 40], animate: true });
+      return;
+    }
+
+    map.setView(DEFAULT_HUB, 12, { animate: true });
+  }, [departurePoint, orders]);
+
   return (
-    <div className="relative w-full h-full rounded overflow-hidden border border-zinc-800 shadow-2xl">
-      {/* Indicador de mapa oscuro */}
-      <div className="absolute top-3 left-12 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1 rounded text-[9px] font-mono border border-zinc-800 text-zinc-400 uppercase tracking-wider font-bold">
-        🛰️ MAPA REALTIME LUPO
+    <div className="relative w-full h-full overflow-hidden">
+      <div className={ui.mapLiveBadge}>
+        <span className="lupo-map-live-dot" />
+        En vivo
       </div>
+
+      {interactive && (
+        <div className={ui.mapControls}>
+          <button type="button" className={ui.mapControlBtn} onClick={handleZoomIn} title="Acercar">
+            <Plus className="w-4 h-4" />
+          </button>
+          <button type="button" className={ui.mapControlBtn} onClick={handleZoomOut} title="Alejar">
+            <Minus className="w-4 h-4" />
+          </button>
+          <button type="button" className={ui.mapControlBtn} onClick={handleLocate} title="Centrar mapa">
+            <Crosshair className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
     </div>
   );

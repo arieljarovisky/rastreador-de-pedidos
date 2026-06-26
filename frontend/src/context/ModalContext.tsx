@@ -48,27 +48,27 @@ const ALERT_STYLES: Record<
   AlertVariant,
   { icon: typeof Info; iconClass: string; borderClass: string }
 > = {
-  info: { icon: Info, iconClass: 'text-blue-400 bg-blue-500/10 border-blue-500/20', borderClass: 'border-zinc-700' },
-  success: { icon: CheckCircle2, iconClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', borderClass: 'border-emerald-900/40' },
-  error: { icon: XCircle, iconClass: 'text-red-400 bg-red-500/10 border-red-500/20', borderClass: 'border-red-900/40' },
-  warning: { icon: AlertTriangle, iconClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20', borderClass: 'border-amber-900/40' },
+  info: { icon: Info, iconClass: 'text-violet-600 bg-violet-50 border-violet-200', borderClass: 'border-[var(--lupo-border)]' },
+  success: { icon: CheckCircle2, iconClass: 'text-emerald-600 bg-emerald-50 border-emerald-200', borderClass: 'border-emerald-200' },
+  error: { icon: XCircle, iconClass: 'text-red-600 bg-red-50 border-red-200', borderClass: 'border-red-200' },
+  warning: { icon: AlertTriangle, iconClass: 'text-amber-600 bg-amber-50 border-amber-200', borderClass: 'border-amber-200' },
 };
 
 const CONFIRM_STYLES: Record<ConfirmVariant, { icon: typeof Info; iconClass: string; btnClass: string }> = {
   default: {
     icon: Info,
-    iconClass: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-    btnClass: 'bg-blue-600 hover:bg-blue-500 text-white',
+    iconClass: 'text-violet-600 bg-violet-50 border-violet-200',
+    btnClass: 'lupo-btn lupo-btn--primary',
   },
   danger: {
     icon: AlertTriangle,
-    iconClass: 'text-red-400 bg-red-500/10 border-red-500/20',
-    btnClass: 'bg-red-600 hover:bg-red-500 text-white',
+    iconClass: 'text-red-600 bg-red-50 border-red-200',
+    btnClass: 'lupo-btn lupo-btn--danger',
   },
   warning: {
     icon: AlertTriangle,
-    iconClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-    btnClass: 'bg-amber-600 hover:bg-amber-500 text-zinc-950',
+    iconClass: 'text-amber-600 bg-amber-50 border-amber-200',
+    btnClass: 'lupo-btn lupo-btn--primary',
   },
 };
 
