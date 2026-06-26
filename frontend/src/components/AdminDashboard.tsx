@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
-import { Plus, Navigation, Clock, Sparkles, MapPin, Search, Phone, FileText, CheckCircle2, RefreshCw, Play, Pause, UserPlus, Warehouse, Trash2 } from 'lucide-react';
+import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2 } from 'lucide-react';
 
 const MapComponent = React.lazy(() => import('./MapComponent.tsx'));
 
@@ -20,26 +20,6 @@ interface AdminDashboardProps {
   onCreateOrder: (orderData: Partial<Order> & { sellerId?: string }) => Promise<void>;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
-  onUpdateDeparture?: (data: LocationPoint) => Promise<void>;
-  onCreatePickupPoint?: (data: {
-    label?: string;
-    address: string;
-    lat: number;
-    lng: number;
-    sellerId?: string;
-  }) => Promise<void>;
-  onDeletePickupPoint?: (id: string) => Promise<void>;
-  onTriggerSimulatorTick: () => Promise<void>;
-  onCreateSeller?: (data: {
-    username: string;
-    password: string;
-    name: string;
-    pickupLabel?: string;
-    pickupAddress?: string;
-    pickupLat?: number;
-    pickupLng?: number;
-  }) => Promise<void>;
-  onCreateRepartidor?: (data: { username: string; password: string; name: string }) => Promise<void>;
   userRole?: UserRole;
 }
 
@@ -63,12 +43,6 @@ export default function AdminDashboard({
   onCreateOrder,
   onUpdateOrderStatus,
   onAssignOrderSeller,
-  onUpdateDeparture,
-  onCreatePickupPoint,
-  onDeletePickupPoint,
-  onTriggerSimulatorTick,
-  onCreateSeller,
-  onCreateRepartidor,
   userRole = UserRole.STORE_ADMIN,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
@@ -93,89 +67,14 @@ export default function AdminDashboard({
   const [notes, setNotes] = useState('');
   const [formLoading, setFormLoading] = useState(false);
 
-  // Estados del Simulador
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simInterval, setSimInterval] = useState<number | null>(null);
-
   // Estados para Asignación Rápida
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
-
-  const [showSellerForm, setShowSellerForm] = useState(false);
-  const [sellerName, setSellerName] = useState('');
-  const [sellerUsername, setSellerUsername] = useState('');
-  const [sellerPassword, setSellerPassword] = useState('');
-  const [sellerFormLoading, setSellerFormLoading] = useState(false);
-  const [sellerFormMessage, setSellerFormMessage] = useState<string | null>(null);
-
-  const [showRepartidorForm, setShowRepartidorForm] = useState(false);
-  const [repartidorName, setRepartidorName] = useState('');
-  const [repartidorUsername, setRepartidorUsername] = useState('');
-  const [repartidorPassword, setRepartidorPassword] = useState('');
-  const [repartidorFormLoading, setRepartidorFormLoading] = useState(false);
-  const [repartidorFormMessage, setRepartidorFormMessage] = useState<string | null>(null);
-
-  const [showDepartureForm, setShowDepartureForm] = useState(false);
-  const [departureAddress, setDepartureAddress] = useState(departurePoint?.address ?? '');
-  const [departureLat, setDepartureLat] = useState(departurePoint?.lat ?? -34.5885);
-  const [departureLng, setDepartureLng] = useState(departurePoint?.lng ?? -58.4306);
-  const [departureLoading, setDepartureLoading] = useState(false);
-  const [departureMessage, setDepartureMessage] = useState<string | null>(null);
-
-  const [showPickupForm, setShowPickupForm] = useState(false);
-  const [pickupLabel, setPickupLabel] = useState('');
-  const [pickupAddress, setPickupAddress] = useState('');
-  const [pickupLat, setPickupLat] = useState(-34.58);
-  const [pickupLng, setPickupLng] = useState(-58.4);
-  const [pickupLoading, setPickupLoading] = useState(false);
-
-  const [sellerPickupLabel, setSellerPickupLabel] = useState('');
-  const [sellerPickupAddress, setSellerPickupAddress] = useState('');
-  const [sellerPickupLat, setSellerPickupLat] = useState(-34.58);
-  const [sellerPickupLng, setSellerPickupLng] = useState(-58.4);
-
-  useEffect(() => {
-    if (departurePoint) {
-      setDepartureAddress(departurePoint.address);
-      setDepartureLat(departurePoint.lat);
-      setDepartureLng(departurePoint.lng);
-    }
-  }, [departurePoint]);
-
-  // Efecto para el tick automático del simulador
-  useEffect(() => {
-    if (isSimulating) {
-      const interval = window.setInterval(() => {
-        onTriggerSimulatorTick();
-      }, 3000);
-      setSimInterval(interval);
-    } else {
-      if (simInterval) {
-        clearInterval(simInterval);
-        setSimInterval(null);
-      }
-    }
-    return () => {
-      if (simInterval) clearInterval(simInterval);
-    };
-  }, [isSimulating]);
 
   // Aplicar preset de dirección
   const applyPreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
     setAddress(preset.name);
     setLat(preset.lat);
     setLng(preset.lng);
-  };
-
-  const applyDeparturePreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
-    setDepartureAddress(preset.name);
-    setDepartureLat(preset.lat);
-    setDepartureLng(preset.lng);
-  };
-
-  const applyPickupPreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
-    setPickupAddress(preset.name);
-    setPickupLat(preset.lat);
-    setPickupLng(preset.lng);
   };
 
   // Manejar envío del formulario
@@ -305,8 +204,7 @@ export default function AdminDashboard({
             </div>
           </div>
 
-          {/* Controles del Simulador de GPS o Panel de Ventas */}
-          {userRole === UserRole.STORE_ADMIN ? (
+          {userRole === UserRole.STORE_ADMIN && (
             <div className="bg-blue-950/20 border border-blue-900/30 rounded p-2 flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-bold text-blue-400 flex items-center gap-1">
@@ -318,437 +216,17 @@ export default function AdminDashboard({
                 Online
               </div>
             </div>
-          ) : (
-            <>
-              {onUpdateDeparture && (
-                <div className="bg-indigo-950/20 border border-indigo-900/30 rounded p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
-                        <Warehouse className="w-3.5 h-3.5" /> Punto de salida de la agencia
-                      </p>
-                      <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
-                        {departurePoint
-                          ? `📍 ${departurePoint.address}`
-                          : 'Definí desde dónde salen los repartidores'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowDepartureForm(!showDepartureForm)}
-                      className="px-2 py-1 rounded bg-indigo-600/20 border border-indigo-500/30 text-indigo-200 text-[10px] font-bold uppercase"
-                    >
-                      {showDepartureForm ? 'Cerrar' : 'Editar'}
-                    </button>
-                  </div>
-
-                  {showDepartureForm && (
-                    <form
-                      className="mt-2 space-y-2"
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        setDepartureLoading(true);
-                        setDepartureMessage(null);
-                        try {
-                          await onUpdateDeparture({
-                            address: departureAddress,
-                            lat: departureLat,
-                            lng: departureLng,
-                          });
-                          setDepartureMessage('Punto de salida actualizado.');
-                          setShowDepartureForm(false);
-                        } catch (err: any) {
-                          setDepartureMessage(err.message || 'Error al guardar.');
-                        } finally {
-                          setDepartureLoading(false);
-                        }
-                      }}
-                    >
-                      <input
-                        required
-                        value={departureAddress}
-                        onChange={(e) => setDepartureAddress(e.target.value)}
-                        placeholder="Dirección del depósito / hub"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                      />
-                      <div className="flex flex-wrap gap-1">
-                        {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
-                          <button
-                            key={preset.name}
-                            type="button"
-                            onClick={() => applyDeparturePreset(preset)}
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                          >
-                            {preset.name.split('(')[0].trim()}
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={departureLoading}
-                        className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
-                      >
-                        {departureLoading ? 'Guardando...' : 'Guardar punto de salida'}
-                      </button>
-                      {departureMessage && (
-                        <p className="text-[10px] text-emerald-400 font-mono">{departureMessage}</p>
-                      )}
-                    </form>
-                  )}
-                </div>
-              )}
-
-            <div className="bg-zinc-950 border border-zinc-800 rounded p-2 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-zinc-200 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Simulador GPS Realtime
-                </p>
-                <p className="text-[9px] text-zinc-500 font-mono mt-0.5">Mueve dinámicamente la flota activa</p>
-              </div>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={onTriggerSimulatorTick}
-                  id="btn-simulator-step"
-                  title="Avanzar paso manual"
-                  className="p-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 transition"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setIsSimulating(!isSimulating)}
-                  id="btn-simulator-toggle"
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded font-bold text-[10px] uppercase tracking-wider transition ${
-                    isSimulating 
-                      ? 'bg-amber-500 text-zinc-950 hover:bg-amber-400' 
-                      : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
-                  }`}
-                >
-                  {isSimulating ? (
-                    <>
-                      <Pause className="w-3 h-3" /> Pausar
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3 h-3" /> Autoplay
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            </>
           )}
 
-          {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
-            <div className="bg-emerald-950/20 border border-emerald-900/30 rounded p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[11px] font-bold text-emerald-300 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" /> Puntos de colecta
-                  </p>
-                  <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
-                    Direcciones donde la logística retira tus envíos
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPickupForm(!showPickupForm)}
-                  className="px-2 py-1 rounded bg-emerald-600/20 border border-emerald-500/30 text-emerald-200 text-[10px] font-bold uppercase"
-                >
-                  {showPickupForm ? 'Cerrar' : '+ Agregar'}
-                </button>
-              </div>
-
-              {pickupPoints.length > 0 && (
-                <ul className="mt-2 space-y-1">
-                  {pickupPoints.map((point) => (
-                    <li
-                      key={point.id}
-                      className="flex items-start justify-between gap-2 bg-zinc-950/60 border border-zinc-800 rounded px-2 py-1.5 text-[10px]"
-                    >
-                      <div>
-                        <span className="font-bold text-emerald-300">{point.label}</span>
-                        <p className="text-zinc-400 mt-0.5 truncate">📍 {point.address}</p>
-                      </div>
-                      {onDeletePickupPoint && (
-                        <button
-                          type="button"
-                          onClick={() => onDeletePickupPoint(point.id)}
-                          className="text-red-400 hover:text-red-300 shrink-0"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {showPickupForm && (
-                <form
-                  className="mt-2 space-y-2"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    setPickupLoading(true);
-                    try {
-                      await onCreatePickupPoint({
-                        label: pickupLabel || 'Punto de colecta',
-                        address: pickupAddress,
-                        lat: pickupLat,
-                        lng: pickupLng,
-                      });
-                      setPickupLabel('');
-                      setPickupAddress('');
-                      setPickupLat(-34.58);
-                      setPickupLng(-58.4);
-                      setShowPickupForm(false);
-                    } catch (err: any) {
-                      alert(err.message || 'No se pudo crear el punto de colecta');
-                    } finally {
-                      setPickupLoading(false);
-                    }
-                  }}
-                >
-                  <input
-                    value={pickupLabel}
-                    onChange={(e) => setPickupLabel(e.target.value)}
-                    placeholder="Nombre (ej: Depósito, Local)"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <input
-                    required
-                    value={pickupAddress}
-                    onChange={(e) => setPickupAddress(e.target.value)}
-                    placeholder="Dirección de colecta"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <div className="flex flex-wrap gap-1">
-                    {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
-                      <button
-                        key={preset.name}
-                        type="button"
-                        onClick={() => applyPickupPreset(preset)}
-                        className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                      >
-                        {preset.name.split('(')[0].trim()}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={pickupLoading}
-                    className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
-                  >
-                    {pickupLoading ? 'Guardando...' : 'Guardar punto de colecta'}
-                  </button>
-                </form>
-              )}
+          {userRole === UserRole.STORE_ADMIN && (
+            <div className="bg-zinc-950/60 border border-zinc-800 rounded p-2 text-[10px] text-zinc-500 font-mono">
+              Configurá tus puntos de colecta en la pestaña <span className="text-zinc-300 font-bold">Configuración</span>.
             </div>
           )}
 
-          {isAgencyAdmin(userRole) && onCreateSeller && (
-            <div className="bg-purple-950/20 border border-purple-900/30 rounded p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[11px] font-bold text-purple-300 flex items-center gap-1">
-                    <UserPlus className="w-3.5 h-3.5" /> Vendedores de tu agencia
-                  </p>
-                  <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
-                    Creá cuentas para tus vendedores; ellos cargan envíos y vos les asignás los viajes
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowSellerForm(!showSellerForm)}
-                  className="px-2 py-1 rounded bg-purple-600/20 border border-purple-500/30 text-purple-200 text-[10px] font-bold uppercase"
-                >
-                  {showSellerForm ? 'Cerrar' : '+ Nuevo'}
-                </button>
-              </div>
-
-              {showSellerForm && (
-                <form
-                  className="mt-2 space-y-2"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    setSellerFormLoading(true);
-                    setSellerFormMessage(null);
-                    try {
-                      await onCreateSeller({
-                        name: sellerName,
-                        username: sellerUsername,
-                        password: sellerPassword,
-                        ...(sellerPickupAddress
-                          ? {
-                              pickupLabel: sellerPickupLabel || 'Punto de colecta',
-                              pickupAddress: sellerPickupAddress,
-                              pickupLat: sellerPickupLat,
-                              pickupLng: sellerPickupLng,
-                            }
-                          : {}),
-                      });
-                      setSellerFormMessage('Vendedor creado correctamente.');
-                      setSellerName('');
-                      setSellerUsername('');
-                      setSellerPassword('');
-                      setSellerPickupLabel('');
-                      setSellerPickupAddress('');
-                    } catch (err: any) {
-                      setSellerFormMessage(err.message || 'Error al crear vendedor.');
-                    } finally {
-                      setSellerFormLoading(false);
-                    }
-                  }}
-                >
-                  <input
-                    required
-                    value={sellerName}
-                    onChange={(e) => setSellerName(e.target.value)}
-                    placeholder="Nombre del vendedor / tienda"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <input
-                    required
-                    value={sellerUsername}
-                    onChange={(e) => setSellerUsername(e.target.value)}
-                    placeholder="Usuario (mín. 3 caracteres)"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <input
-                    required
-                    type="password"
-                    value={sellerPassword}
-                    onChange={(e) => setSellerPassword(e.target.value)}
-                    placeholder="Contraseña (mín. 6 caracteres)"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <p className="text-[9px] text-zinc-500 font-mono uppercase">Punto de colecta (opcional)</p>
-                  <input
-                    value={sellerPickupLabel}
-                    onChange={(e) => setSellerPickupLabel(e.target.value)}
-                    placeholder="Nombre del local / depósito"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <input
-                    value={sellerPickupAddress}
-                    onChange={(e) => setSellerPickupAddress(e.target.value)}
-                    placeholder="Dirección de colecta"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <button
-                    type="submit"
-                    disabled={sellerFormLoading}
-                    className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
-                  >
-                    {sellerFormLoading ? 'Creando...' : 'Crear vendedor'}
-                  </button>
-                  {sellerFormMessage && (
-                    <p className="text-[10px] text-emerald-400 font-mono">{sellerFormMessage}</p>
-                  )}
-                </form>
-              )}
-            </div>
-          )}
-
-          {isAgencyAdmin(userRole) && onCreateRepartidor && (
-            <div className="bg-sky-950/20 border border-sky-900/30 rounded p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[11px] font-bold text-sky-300 flex items-center gap-1">
-                    🏍️ Repartidores de tu flota
-                  </p>
-                  <p className="text-[9px] text-zinc-500 font-mono mt-0.5">
-                    Creá cuentas para quienes entregan los envíos ({repartidores.length} activos)
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowRepartidorForm(!showRepartidorForm)}
-                  className="px-2 py-1 rounded bg-sky-600/20 border border-sky-500/30 text-sky-200 text-[10px] font-bold uppercase"
-                >
-                  {showRepartidorForm ? 'Cerrar' : '+ Nuevo'}
-                </button>
-              </div>
-
-              {repartidores.length > 0 && (
-                <ul className="mt-2 space-y-1">
-                  {repartidores.map((rep) => (
-                    <li
-                      key={rep.id}
-                      className="text-[10px] bg-zinc-950/60 border border-zinc-800 rounded px-2 py-1 text-zinc-300 font-mono"
-                    >
-                      🏍️ {rep.name} <span className="text-zinc-500">@{rep.username}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {showRepartidorForm && (
-                <form
-                  className="mt-2 space-y-2"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    setRepartidorFormLoading(true);
-                    setRepartidorFormMessage(null);
-                    try {
-                      await onCreateRepartidor({
-                        name: repartidorName,
-                        username: repartidorUsername,
-                        password: repartidorPassword,
-                      });
-                      setRepartidorFormMessage('Repartidor creado correctamente.');
-                      setRepartidorName('');
-                      setRepartidorUsername('');
-                      setRepartidorPassword('');
-                    } catch (err: any) {
-                      setRepartidorFormMessage(err.message || 'Error al crear repartidor.');
-                    } finally {
-                      setRepartidorFormLoading(false);
-                    }
-                  }}
-                >
-                  <input
-                    required
-                    value={repartidorName}
-                    onChange={(e) => setRepartidorName(e.target.value)}
-                    placeholder="Nombre del repartidor"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <input
-                    required
-                    value={repartidorUsername}
-                    onChange={(e) => setRepartidorUsername(e.target.value)}
-                    placeholder="Usuario (mín. 3 caracteres)"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <input
-                    required
-                    type="password"
-                    value={repartidorPassword}
-                    onChange={(e) => setRepartidorPassword(e.target.value)}
-                    placeholder="Contraseña (mín. 6 caracteres)"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-xs text-zinc-200"
-                  />
-                  <button
-                    type="submit"
-                    disabled={repartidorFormLoading}
-                    className="w-full py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-bold uppercase rounded disabled:opacity-50"
-                  >
-                    {repartidorFormLoading ? 'Creando...' : 'Crear repartidor'}
-                  </button>
-                  {repartidorFormMessage && (
-                    <p
-                      className={`text-[10px] font-mono ${
-                        repartidorFormMessage.includes('correctamente')
-                          ? 'text-emerald-400'
-                          : 'text-red-400'
-                      }`}
-                    >
-                      {repartidorFormMessage}
-                    </p>
-                  )}
-                </form>
-              )}
+          {isAgencyAdmin(userRole) && (
+            <div className="bg-zinc-950/60 border border-zinc-800 rounded p-2 text-[10px] text-zinc-500 font-mono">
+              Gestioná vendedores, repartidores y punto de salida desde la pestaña <span className="text-zinc-300 font-bold">Configuración</span>.
             </div>
           )}
 

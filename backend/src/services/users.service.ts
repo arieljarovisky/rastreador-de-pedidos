@@ -180,6 +180,34 @@ export async function listSellers(): Promise<User[]> {
   return Promise.all(sellers.map((seller) => enrichUser(seller)));
 }
 
+export async function deleteRepartidor(id: string): Promise<void> {
+  const repartidor = await getRepartidorById(id);
+  if (!repartidor) {
+    throw new Error('NOT_FOUND');
+  }
+
+  const [activeRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM orders
+     WHERE repartidor_id = ? AND status IN ('assigned', 'delivering')
+     LIMIT 1`,
+    [id]
+  );
+  if (activeRows.length > 0) {
+    throw new Error('HAS_ACTIVE_ORDERS');
+  }
+
+  await pool.query('UPDATE orders SET repartidor_id = NULL WHERE repartidor_id = ?', [id]);
+  await pool.query('DELETE FROM notifications WHERE user_id = ?', [id]);
+
+  const [result] = await pool.query<ResultSetHeader>(
+    'DELETE FROM users WHERE id = ? AND role = ?',
+    [id, UserRole.REPARTIDOR]
+  );
+  if (result.affectedRows === 0) {
+    throw new Error('NOT_FOUND');
+  }
+}
+
 export function userToApiResponse(user: User): User {
   return user;
 }

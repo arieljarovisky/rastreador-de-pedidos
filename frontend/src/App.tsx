@@ -7,9 +7,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin } from './types.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
+import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
-import { LogOut, Wifi, WifiOff, Bell, User as UserIcon } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Bell, Settings } from 'lucide-react';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 
@@ -27,7 +28,7 @@ export default function App() {
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const [mobileTab, setMobileTab] = useState<'dashboard' | 'notifications'>('dashboard');
+  const [mobileTab, setMobileTab] = useState<'dashboard' | 'notifications' | 'settings'>('dashboard');
 
   // Estado de red
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -321,6 +322,24 @@ export default function App() {
     setRepartidores((prev) => [...prev, created]);
   };
 
+  const handleDeleteRepartidor = async (id: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/repartidores/${id}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 204) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo eliminar el repartidor');
+    }
+    setRepartidores((prev) => prev.filter((r) => r.id !== id));
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.repartidorId === id ? { ...o, repartidorId: null, repartidorName: null } : o
+      )
+    );
+  };
+
   const handleAssignOrderSeller = async (orderId: string, sellerId: string) => {
     if (!token) return;
     const res = await fetch(apiUrl(`/api/orders/${orderId}/seller`), {
@@ -555,6 +574,8 @@ export default function App() {
   }
 
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
+  const showSettings =
+    user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role);
 
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans select-none overflow-hidden h-screen">
@@ -608,8 +629,29 @@ export default function App() {
           <div className="hidden sm:block h-8 w-[1px] bg-zinc-800 mx-1"></div>
 
           <div className="flex items-center gap-3">
-            {/* Indicador de alertas rápido */}
-            <div className="relative cursor-pointer p-1.5 hover:bg-zinc-800/50 rounded-lg transition" title="Ver notificaciones">
+            {showSettings && (
+              <button
+                type="button"
+                onClick={() => setMobileTab('settings')}
+                title="Configuración"
+                className={`hidden xl:flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                  mobileTab === 'settings'
+                    ? 'bg-zinc-800 border-zinc-600 text-zinc-100'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5" /> Config
+              </button>
+            )}
+
+            <div
+              className="relative cursor-pointer p-1.5 hover:bg-zinc-800/50 rounded-lg transition"
+              title="Ver notificaciones"
+              onClick={() => setMobileTab('notifications')}
+              onKeyDown={(e) => e.key === 'Enter' && setMobileTab('notifications')}
+              role="button"
+              tabIndex={0}
+            >
               <Bell className={`w-4 h-4 text-zinc-400 hover:text-white transition ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
               {unreadNotifsCount > 0 && (
                 <span className="absolute top-0 right-0 bg-blue-500 text-zinc-950 font-extrabold text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-[#09090b]">
@@ -652,6 +694,18 @@ export default function App() {
         >
           <span>📊 Panel Principal</span>
         </button>
+        {showSettings && (
+          <button
+            onClick={() => setMobileTab('settings')}
+            className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+              mobileTab === 'settings'
+                ? 'text-zinc-200 border-b-2 border-zinc-400 bg-zinc-800/50'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            <span>⚙️ Configuración</span>
+          </button>
+        )}
         <button
           onClick={() => setMobileTab('notifications')}
           className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all relative ${
@@ -673,31 +727,53 @@ export default function App() {
       <main className="flex-1 overflow-hidden p-3 md:p-4 relative h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]">
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
-            {/* Admin Dashboard */}
-            <div className={`xl:col-span-9 h-full overflow-hidden ${mobileTab !== 'dashboard' ? 'hidden xl:block' : ''}`}>
-              <AdminDashboard
-                orders={orders}
-                repartidores={repartidores}
-                sellers={sellers}
-                departurePoint={departurePoint}
-                pickupPoints={pickupPoints}
-                activeOrderId={activeOrderId}
-                onSelectOrder={setActiveOrderId}
-                onCreateOrder={handleCreateOrder}
-                onUpdateOrderStatus={handleUpdateOrderStatus}
-                onAssignOrderSeller={handleAssignOrderSeller}
-                onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
-                onCreatePickupPoint={handleCreatePickupPoint}
-                onDeletePickupPoint={handleDeletePickupPoint}
-                onTriggerSimulatorTick={handleTriggerSimulatorTick}
-                onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
-                onCreateRepartidor={isAgencyAdmin(user.role) ? handleCreateRepartidor : undefined}
-                userRole={user.role}
-              />
-            </div>
+            {mobileTab !== 'settings' && (
+              <div
+                className={`xl:col-span-9 h-full overflow-hidden ${
+                  mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
+                }`}
+              >
+                <AdminDashboard
+                  orders={orders}
+                  repartidores={repartidores}
+                  sellers={sellers}
+                  departurePoint={departurePoint}
+                  pickupPoints={pickupPoints}
+                  activeOrderId={activeOrderId}
+                  onSelectOrder={setActiveOrderId}
+                  onCreateOrder={handleCreateOrder}
+                  onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onAssignOrderSeller={handleAssignOrderSeller}
+                  userRole={user.role}
+                />
+              </div>
+            )}
+
+            {mobileTab === 'settings' && (
+              <div className="xl:col-span-9 h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4">
+                <SettingsPage
+                  user={user}
+                  departurePoint={departurePoint}
+                  repartidores={repartidores}
+                  sellers={sellers}
+                  pickupPoints={pickupPoints}
+                  onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
+                  onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
+                  onCreateRepartidor={isAgencyAdmin(user.role) ? handleCreateRepartidor : undefined}
+                  onDeleteRepartidor={isAgencyAdmin(user.role) ? handleDeleteRepartidor : undefined}
+                  onCreatePickupPoint={handleCreatePickupPoint}
+                  onDeletePickupPoint={handleDeletePickupPoint}
+                  onTriggerSimulatorTick={isAgencyAdmin(user.role) ? handleTriggerSimulatorTick : undefined}
+                />
+              </div>
+            )}
 
             {/* Sidebar con Centro de Notificaciones PWA */}
-            <div className={`xl:col-span-3 h-full overflow-hidden flex flex-col ${mobileTab !== 'notifications' ? 'hidden xl:block' : ''}`}>
+            <div
+              className={`xl:col-span-3 h-full overflow-hidden flex flex-col ${
+                mobileTab !== 'notifications' ? 'hidden xl:block' : ''
+              }`}
+            >
               <NotificationHub
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}

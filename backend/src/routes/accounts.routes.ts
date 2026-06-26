@@ -7,6 +7,7 @@ import {
   updateAgencyDeparture,
   getAgencyDeparture,
   getUserById,
+  deleteRepartidor,
 } from '../services/users.service.js';
 import {
   listPickupPointsForUser,
@@ -96,6 +97,26 @@ router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Req
     res.status(201).json(user);
   } catch (err) {
     if (handleCreateUserError(res, err)) return;
+    throw err;
+  }
+});
+
+router.delete('/repartidores/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  try {
+    await deleteRepartidor(req.params.id);
+    res.status(204).send();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Repartidor no encontrado.' });
+      return;
+    }
+    if (message === 'HAS_ACTIVE_ORDERS') {
+      res.status(409).json({
+        error: 'No se puede eliminar: el repartidor tiene envíos en curso. Reasignalos o finalizalos primero.',
+      });
+      return;
+    }
     throw err;
   }
 });
