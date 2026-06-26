@@ -181,7 +181,7 @@ export default function RepartidorDashboard({
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row gap-4 p-4">
         
         {/* LISTADO DE PEDIDOS DEPENDIENDO DE LA PESTAÑA (HIGH DENSITY) */}
-        <div className={`w-full md:w-1/3 flex flex-col h-full bg-zinc-900/30 border border-zinc-800 rounded-lg p-3.5 overflow-hidden ${
+        <div className={`w-full md:w-1/3 flex flex-col h-full bg-zinc-900/30 border border-zinc-800 rounded-2xl p-3.5 overflow-hidden ${
           activeOrder && activeTab === 'assigned' ? 'hidden md:flex' : 'flex'
         }`}>
           <h3 className="font-bold text-[10px] text-zinc-500 mb-3 uppercase tracking-wider font-mono">
@@ -258,7 +258,7 @@ export default function RepartidorDashboard({
             <div className="flex-1 flex flex-col gap-4 overflow-hidden">
               
               {/* Mapa */}
-              <div className="flex-1 min-h-[180px] rounded-lg border border-zinc-800 overflow-hidden relative">
+              <div className="flex-1 min-h-[180px] rounded-2xl border border-zinc-800 overflow-hidden relative">
                 <Suspense
                   fallback={
                     <div className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-500 text-xs font-mono">
@@ -277,7 +277,7 @@ export default function RepartidorDashboard({
               </div>
 
               {/* Controles de Viaje */}
-              <div className="bg-zinc-900/30 border border-zinc-800 rounded-lg p-3.5 shrink-0 text-left">
+              <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-3.5 shrink-0 text-left">
                 {/* Botón Volver para vista móvil */}
                 <div className="md:hidden flex items-center justify-between pb-2 border-b border-zinc-800/80 mb-2 shrink-0">
                   <button

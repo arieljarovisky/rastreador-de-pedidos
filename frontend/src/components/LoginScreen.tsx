@@ -69,7 +69,7 @@ export default function LoginScreen({
   return (
     <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-4" id="login-container">
       <div className="mb-6 text-center">
-        <div className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-sky-500 rounded flex items-center justify-center shadow-xl mx-auto mb-3 border border-blue-400/20">
+        <div className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-sky-500 rounded-2xl flex items-center justify-center shadow-xl mx-auto mb-3 border border-blue-400/20">
           <span className="text-2xl">🏍️</span>
         </div>
         <h1 className="text-xl font-bold font-sans tracking-tight text-white">LupoEnvios</h1>
@@ -78,10 +78,10 @@ export default function LoginScreen({
         </p>
       </div>
 
-      <div className="bg-zinc-900/30 border border-zinc-800 rounded-lg w-full max-w-sm p-6 shadow-2xl relative overflow-hidden">
+      <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl -z-10"></div>
 
-        <div className="flex bg-zinc-950 p-0.5 rounded border border-zinc-800 mb-4 text-[10px]">
+        <div className="flex bg-zinc-950 p-0.5 rounded-xl border border-zinc-800 mb-4 text-[10px]">
           <button
             type="button"
             onClick={() => switchMode('login')}

@@ -75,7 +75,7 @@ export default function OrderContextMenu({ x, y, items, onClose }: OrderContextM
     <div
       ref={menuRef}
       style={{ left: x, top: y }}
-      className="fixed z-[9999] min-w-[11rem] py-1 rounded-lg border border-zinc-700 bg-zinc-950 shadow-2xl shadow-black/50"
+      className="fixed z-[9999] min-w-[11rem] py-1 rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl shadow-black/50"
       role="menu"
     >
       {items.map((item) =>

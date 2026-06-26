@@ -191,7 +191,7 @@ export default function SettingsPage({
         </div>
 
         {agency && onUpdateDeparture && (
-          <section className="bg-indigo-950/20 border border-indigo-900/30 rounded-lg p-4">
+          <section className="bg-indigo-950/20 border border-indigo-900/30 rounded-2xl p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
@@ -278,7 +278,7 @@ export default function SettingsPage({
         )}
 
         {agency && onCreateSeller && (
-          <section className="bg-purple-950/20 border border-purple-900/30 rounded-lg p-4">
+          <section className="bg-purple-950/20 border border-purple-900/30 rounded-2xl p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
@@ -409,7 +409,7 @@ export default function SettingsPage({
         )}
 
         {agency && (onCreateRepartidor || onDeleteRepartidor) && (
-          <section className="bg-sky-950/20 border border-sky-900/30 rounded-lg p-4">
+          <section className="bg-sky-950/20 border border-sky-900/30 rounded-2xl p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
@@ -555,7 +555,7 @@ export default function SettingsPage({
         )}
 
         {agency && onTriggerSimulatorTick && (
-          <section className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+          <section className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
@@ -597,7 +597,7 @@ export default function SettingsPage({
         )}
 
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
-          <section className="bg-emerald-950/20 border border-emerald-900/30 rounded-lg p-4">
+          <section className="bg-emerald-950/20 border border-emerald-900/30 rounded-2xl p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">

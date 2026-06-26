@@ -120,7 +120,7 @@ function ModalOverlay({
           <div className="p-5 pt-6">
             <div className="flex gap-4">
               <div
-                className={`shrink-0 w-10 h-10 rounded-lg border flex items-center justify-center ${styles.iconClass}`}
+                className={`shrink-0 w-10 h-10 rounded-2xl border flex items-center justify-center ${styles.iconClass}`}
               >
                 <Icon className="w-5 h-5" />
               </div>
@@ -140,7 +140,7 @@ function ModalOverlay({
               <button
                 type="button"
                 onClick={() => onClose(false)}
-                className="px-4 py-2 rounded-lg border border-zinc-700 text-zinc-300 text-xs font-bold uppercase tracking-wider hover:bg-zinc-800 hover:text-zinc-100 transition"
+                className="px-4 py-2 rounded-2xl border border-zinc-700 text-zinc-300 text-xs font-bold uppercase tracking-wider hover:bg-zinc-800 hover:text-zinc-100 transition"
               >
                 {(modal.options as ConfirmOptions).cancelText ?? 'Cancelar'}
               </button>
@@ -150,7 +150,7 @@ function ModalOverlay({
               autoFocus
               onClick={() => onClose(true)}
               className={[
-                'px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition',
+                'px-4 py-2 rounded-2xl text-xs font-bold uppercase tracking-wider transition',
                 isAlert
                   ? 'bg-zinc-100 hover:bg-white text-zinc-900'
                   : (styles as (typeof CONFIRM_STYLES)[ConfirmVariant]).btnClass,

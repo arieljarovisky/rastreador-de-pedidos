@@ -156,7 +156,7 @@ export default function NotificationHub({
             </div>
             <button 
               onClick={() => setActiveBanner(null)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              className="text-slate-400 hover:text-white p-1 rounded-2xl hover:bg-slate-800 transition"
             >
               <X className="w-4 h-4" />
             </button>
@@ -165,7 +165,7 @@ export default function NotificationHub({
       </AnimatePresence>
 
       {/* Widget lateral de Configuración de Notificaciones PWA (HIGH DENSITY) */}
-      <div className="bg-zinc-900/30 border border-zinc-800 rounded-lg backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
+      <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
         {showCollapseButton && onToggleCollapse && (
           <button
             type="button"

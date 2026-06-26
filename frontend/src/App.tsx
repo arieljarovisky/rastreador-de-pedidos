@@ -686,7 +686,7 @@ export default function App() {
       {/* NAVEGACIÓN Y CABECERA PRINCIPAL (HIGH DENSITY STYLE) */}
       <header className="h-16 lg:h-[4.5rem] flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-900/50 shrink-0 relative z-40">
         <div className="flex items-center gap-4">
-          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white shadow-md shadow-blue-600/20 text-sm lg:text-base">
+          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white shadow-md shadow-blue-600/20 text-sm lg:text-base">
             LP
           </div>
           <div>
@@ -781,7 +781,7 @@ export default function App() {
             </div>
 
             <div
-              className="relative cursor-pointer p-1.5 hover:bg-zinc-800/50 rounded-lg transition xl:hidden"
+              className="relative cursor-pointer p-1.5 hover:bg-zinc-800/50 rounded-2xl transition xl:hidden"
               title="Ver notificaciones"
               onClick={() => setMobileTab('notifications')}
               onKeyDown={(e) => e.key === 'Enter' && setMobileTab('notifications')}
@@ -891,7 +891,7 @@ export default function App() {
             )}
 
             {mobileTab === 'settings' && (
-              <div className="flex-1 min-w-0 h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4 transition-all duration-300 ease-out">
+              <div className="flex-1 min-w-0 h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-2xl p-4 transition-all duration-300 ease-out">
                 <SettingsPage
                   user={user}
                   onBack={() => setMobileTab('dashboard')}

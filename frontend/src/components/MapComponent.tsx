@@ -438,7 +438,7 @@ export default function MapComponent({
   }, [orders.length, activeOrderId]);
 
   return (
-    <div className="relative w-full h-full rounded overflow-hidden border border-zinc-800 shadow-2xl">
+    <div className="relative w-full h-full rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
       {/* Indicador de mapa oscuro */}
       <div className="absolute top-3 left-12 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1 rounded text-[9px] font-mono border border-zinc-800 text-zinc-400 uppercase tracking-wider font-bold">
         🛰️ MAPA REALTIME LUPO
