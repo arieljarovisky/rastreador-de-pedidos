@@ -27,6 +27,7 @@ interface MlOrderSearchResult {
 
 interface MlOrder {
   id: number;
+  status?: string;
   date_created: string;
   buyer: { nickname?: string; first_name?: string; last_name?: string; phone?: { number?: string } };
   shipping: { id: number };
@@ -34,6 +35,7 @@ interface MlOrder {
 
 interface MlShipment {
   id: number;
+  order_id?: number;
   logistic_type?: string;
   status?: string;
   receiver_address?: {
@@ -196,6 +198,62 @@ export interface MercadoLibreFlexShipment {
   lng?: number;
   notes: string;
   createdAt: string;
+  mlShipmentStatus?: string;
+}
+
+function buildFlexShipmentFromMl(
+  order: MlOrder,
+  shipment: MlShipment
+): MercadoLibreFlexShipment | null {
+  if (shipment.logistic_type !== 'self_service') return null;
+  if (shipment.status === 'cancelled') return null;
+
+  const address = formatMlAddress(shipment);
+  if (!address) return null;
+
+  const lat = shipment.receiver_address?.latitude;
+  const lng = shipment.receiver_address?.longitude;
+
+  return {
+    externalId: String(order.id),
+    platform: 'mercadolibre',
+    shippingType: 'flex',
+    clientName: buyerName(order, shipment),
+    clientPhone:
+      shipment.receiver_address?.receiver_phone?.trim() ||
+      order.buyer.phone?.number?.trim() ||
+      '',
+    address,
+    lat: lat != null && Number.isFinite(Number(lat)) ? Number(lat) : undefined,
+    lng: lng != null && Number.isFinite(Number(lng)) ? Number(lng) : undefined,
+    notes: `Mercado Libre Flex · Orden #${order.id}`,
+    createdAt: order.date_created,
+    mlShipmentStatus: shipment.status,
+  };
+}
+
+export async function fetchMercadoLibreOrder(
+  integration: StoreIntegration,
+  mlOrderId: string
+): Promise<MlOrder> {
+  return mlFetch<MlOrder>(integration, `/orders/${mlOrderId}`);
+}
+
+export async function fetchMercadoLibreShipment(
+  integration: StoreIntegration,
+  mlShipmentId: string
+): Promise<MlShipment> {
+  return mlFetch<MlShipment>(integration, `/shipments/${mlShipmentId}`);
+}
+
+export async function fetchMercadoLibreFlexShipment(
+  integration: StoreIntegration,
+  mlOrderId: string
+): Promise<MercadoLibreFlexShipment | null> {
+  const order = await fetchMercadoLibreOrder(integration, mlOrderId);
+  if (!order.shipping?.id) return null;
+  const shipment = await fetchMercadoLibreShipment(integration, String(order.shipping.id));
+  return buildFlexShipmentFromMl(order, shipment);
 }
 
 export async function listMercadoLibreFlexShipments(userId: string): Promise<MercadoLibreFlexShipment[]> {
@@ -212,34 +270,9 @@ export async function listMercadoLibreFlexShipments(userId: string): Promise<Mer
 
   for (const item of search.results ?? []) {
     try {
-      const order = await mlFetch<MlOrder>(integration, `/orders/${item.id}`);
-      if (!order.shipping?.id) continue;
-
-      const shipment = await mlFetch<MlShipment>(integration, `/shipments/${order.shipping.id}`);
-      if (shipment.logistic_type !== 'self_service') continue;
-      if (shipment.status === 'cancelled' || shipment.status === 'delivered') continue;
-
-      const address = formatMlAddress(shipment);
-      if (!address) continue;
-
-      const lat = shipment.receiver_address?.latitude;
-      const lng = shipment.receiver_address?.longitude;
-
-      shipments.push({
-        externalId: String(order.id),
-        platform: 'mercadolibre',
-        shippingType: 'flex',
-        clientName: buyerName(order, shipment),
-        clientPhone:
-          shipment.receiver_address?.receiver_phone?.trim() ||
-          order.buyer.phone?.number?.trim() ||
-          '',
-        address,
-        lat: lat != null && Number.isFinite(Number(lat)) ? Number(lat) : undefined,
-        lng: lng != null && Number.isFinite(Number(lng)) ? Number(lng) : undefined,
-        notes: `Mercado Libre Flex · Orden #${order.id}`,
-        createdAt: order.date_created,
-      });
+      const flex = await fetchMercadoLibreFlexShipment(integration, String(item.id));
+      if (!flex || flex.mlShipmentStatus === 'delivered') continue;
+      shipments.push(flex);
     } catch {
       // skip individual order errors
     }

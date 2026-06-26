@@ -272,6 +272,47 @@ export async function findOrderByExternal(
   return orders[0] ?? null;
 }
 
+export async function findOrderByExternalGlobal(
+  externalSource: string,
+  externalOrderId: string
+): Promise<Order | null> {
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT} WHERE o.external_source = ? AND o.external_order_id = ? LIMIT 1`,
+    [externalSource, externalOrderId]
+  );
+  if (!rows[0]) return null;
+  const orders = await enrichOrders([rows[0]]);
+  return orders[0] ?? null;
+}
+
+export async function updateOrderStatusFromMarketplace(
+  orderId: string,
+  status: OrderStatus,
+  comment: string
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+
+  if (order.status === status) return order;
+  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+    return order;
+  }
+
+  const now = new Date();
+  await pool.query('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?', [
+    status,
+    now,
+    orderId,
+  ]);
+
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, status, 'Mercado Libre', comment, now]
+  );
+
+  return getOrderById(orderId);
+}
+
 export async function assignOrderToSeller(
   user: User,
   orderId: string,

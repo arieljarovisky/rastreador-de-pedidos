@@ -24,6 +24,11 @@ import {
   importMarketplaceShipments,
   listImportableShipments,
 } from '../services/marketplace-import.service.js';
+import {
+  getMercadoLibreWebhookUrl,
+  processMercadoLibreNotification,
+  type MercadoLibreNotificationPayload,
+} from '../services/mercadolibre-webhook.service.js';
 
 const router = Router();
 
@@ -60,6 +65,7 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
     mercadolibre: {
       configured: isMercadoLibreConfigured(),
       connected: integrations.some((i) => i.platform === 'mercadolibre'),
+      webhookUrl: getMercadoLibreWebhookUrl(),
       account: integrations.find((i) => i.platform === 'mercadolibre')
         ? integrationStatusPublic(integrations.find((i) => i.platform === 'mercadolibre')!)
         : null,
@@ -124,6 +130,17 @@ router.get('/tiendanube/callback', async (req: Request, res: Response) => {
   } catch {
     res.redirect(redirectToFrontend('tiendanube', 'error', 'No se pudo conectar Tienda Nube'));
   }
+});
+
+router.post('/mercadolibre/notifications', async (req: Request, res: Response) => {
+  res.status(200).send('OK');
+  const payload = req.body as MercadoLibreNotificationPayload;
+  if (!payload?.resource || !payload?.user_id || !payload?.topic) return;
+  void processMercadoLibreNotification(payload);
+});
+
+router.get('/mercadolibre/notifications', (_req: Request, res: Response) => {
+  res.status(200).json({ ok: true, webhook: getMercadoLibreWebhookUrl() });
 });
 
 router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {

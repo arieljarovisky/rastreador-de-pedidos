@@ -116,6 +116,7 @@ export interface MarketplaceIntegrationStatus {
   mercadolibre: {
     configured: boolean;
     connected: boolean;
+    webhookUrl?: string;
     account: MarketplaceIntegrationAccount | null;
   };
   tiendanube: {

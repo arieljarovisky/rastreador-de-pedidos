@@ -74,6 +74,17 @@ export async function getIntegration(
   return rows[0] ? rowToIntegration(rows[0]) : null;
 }
 
+export async function findMercadoLibreIntegrationByMlUserId(
+  mlUserId: string | number
+): Promise<StoreIntegration | null> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT * FROM store_integrations
+     WHERE platform = 'mercadolibre' AND external_user_id = ? LIMIT 1`,
+    [String(mlUserId)]
+  );
+  return rows[0] ? rowToIntegration(rows[0]) : null;
+}
+
 export async function upsertIntegration(data: {
   userId: string;
   platform: IntegrationPlatform;

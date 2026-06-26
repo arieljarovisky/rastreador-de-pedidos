@@ -33,6 +33,7 @@ function PlatformCard({
   configured,
   connected,
   accountName,
+  webhookUrl,
   shipments,
   shipmentsLoading,
   importLoading,
@@ -49,6 +50,7 @@ function PlatformCard({
   configured: boolean;
   connected: boolean;
   accountName: string | null;
+  webhookUrl?: string;
   shipments: MarketplaceShipmentPreview[];
   shipmentsLoading: boolean;
   importLoading: boolean;
@@ -75,6 +77,11 @@ function PlatformCard({
           {!configured && (
             <p className="text-[10px] text-amber-400 mt-0.5">
               Falta configurar credenciales en el servidor.
+            </p>
+          )}
+          {platform === 'mercadolibre' && configured && webhookUrl && (
+            <p className="text-[10px] text-zinc-500 mt-1 break-all">
+              Webhook ML: <span className="text-zinc-400 font-mono">{webhookUrl}</span>
             </p>
           )}
         </div>
@@ -256,7 +263,7 @@ export default function MarketplaceIntegrations({
         <div>
           <p className="text-xs font-bold text-blue-200">Tiendas conectadas</p>
           <p className="text-[10px] text-zinc-500">
-            Importá envíos Flex (Mercado Libre) y Express (Tienda Nube)
+            Importá envíos Flex (Mercado Libre) y Express (Tienda Nube). ML: importación y estados automáticos vía webhook.
           </p>
         </div>
         <button
@@ -280,6 +287,7 @@ export default function MarketplaceIntegrations({
           configured={status?.mercadolibre.configured ?? false}
           connected={status?.mercadolibre.connected ?? false}
           accountName={status?.mercadolibre.account?.nickname ?? null}
+          webhookUrl={status?.mercadolibre.webhookUrl}
           shipments={mlShipments}
           shipmentsLoading={mlLoading}
           importLoading={mlImporting}
