@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { AppNotification } from '../types.js';
-import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2 } from 'lucide-react';
+import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, PanelRightClose } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface NotificationHubProps {
@@ -13,6 +13,8 @@ interface NotificationHubProps {
   onMarkAllRead: () => void;
   onClearNotifications?: () => void;
   activeUserId: string;
+  onToggleCollapse?: () => void;
+  showCollapseButton?: boolean;
 }
 
 // Sonido de notificación sintetizado mediante Web Audio API para no necesitar un archivo de audio externo
@@ -51,6 +53,8 @@ export default function NotificationHub({
   onMarkAllRead,
   onClearNotifications,
   activeUserId,
+  onToggleCollapse,
+  showCollapseButton = false,
 }: NotificationHubProps) {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [activeBanner, setActiveBanner] = useState<AppNotification | null>(null);
@@ -164,13 +168,25 @@ export default function NotificationHub({
             <h3 className="font-bold text-xs lg:text-sm text-zinc-200">Notificaciones PWA</h3>
             <p className="text-[10px] text-zinc-500 font-mono">Estado: {permission === 'granted' ? 'PERMITIDO' : permission === 'denied' ? 'DENEGADO' : 'PENDIENTE'}</p>
           </div>
-          <button 
-            onClick={playNotificationSound}
-            title="Probar sonido de timbre"
-            className="ml-auto text-zinc-400 hover:text-blue-400 p-1.5 rounded hover:bg-zinc-800 transition"
-          >
-            <Volume2 className="w-4 h-4" />
-          </button>
+          <div className="ml-auto flex items-center gap-0.5">
+            <button
+              onClick={playNotificationSound}
+              title="Probar sonido de timbre"
+              className="text-zinc-400 hover:text-blue-400 p-1.5 rounded hover:bg-zinc-800 transition"
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
+            {showCollapseButton && onToggleCollapse && (
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                title="Ocultar panel de alertas"
+                className="hidden xl:flex text-zinc-400 hover:text-zinc-200 p-1.5 rounded hover:bg-zinc-800 transition border border-transparent hover:border-zinc-700"
+              >
+                <PanelRightClose className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {permission !== 'granted' ? (

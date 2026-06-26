@@ -10,9 +10,25 @@ import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
-import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard, PanelRightOpen } from 'lucide-react';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
+
+type AppTab = 'dashboard' | 'notifications' | 'settings';
+const ACTIVE_TAB_KEY = 'lupo_active_tab';
+const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
+
+function readSavedTab(): AppTab {
+  const saved = localStorage.getItem(ACTIVE_TAB_KEY);
+  if (saved === 'dashboard' || saved === 'notifications' || saved === 'settings') {
+    return saved;
+  }
+  return 'dashboard';
+}
+
+function readNotifsSidebarOpen(): boolean {
+  return localStorage.getItem(NOTIFS_SIDEBAR_KEY) !== 'closed';
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -28,7 +44,22 @@ export default function App() {
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const [mobileTab, setMobileTab] = useState<'dashboard' | 'notifications' | 'settings'>('dashboard');
+  const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
+
+  const setMobileTab = useCallback((tab: AppTab) => {
+    setMobileTabState(tab);
+    localStorage.setItem(ACTIVE_TAB_KEY, tab);
+  }, []);
+
+  const [notifsSidebarOpen, setNotifsSidebarOpen] = useState(readNotifsSidebarOpen);
+
+  const toggleNotifsSidebar = useCallback(() => {
+    setNotifsSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem(NOTIFS_SIDEBAR_KEY, next ? 'open' : 'closed');
+      return next;
+    });
+  }, []);
 
   // Estado de red
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -443,11 +474,13 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('lupo_token');
     localStorage.removeItem('lupo_user');
+    localStorage.removeItem(ACTIVE_TAB_KEY);
     setToken(null);
     setUser(null);
     setOrders([]);
     setNotifications([]);
     setActiveOrderId(null);
+    setMobileTabState('dashboard');
   };
 
   // Crear nuevo pedido (Admin)
@@ -548,6 +581,17 @@ export default function App() {
     }
   };
 
+  const unreadNotifsCount = notifications.filter((n) => !n.read).length;
+  const showSettings =
+    user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false);
+
+  useEffect(() => {
+    if (!user) return;
+    if (mobileTab === 'settings' && !showSettings) {
+      setMobileTab('dashboard');
+    }
+  }, [user, mobileTab, showSettings, setMobileTab]);
+
   if (loading && !user) {
     return (
       <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-4">
@@ -570,10 +614,6 @@ export default function App() {
       />
     );
   }
-
-  const unreadNotifsCount = notifications.filter((n) => !n.read).length;
-  const showSettings =
-    user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role);
 
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans select-none overflow-hidden h-screen">
@@ -737,11 +777,30 @@ export default function App() {
 
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main className="flex-1 overflow-hidden p-3 md:p-4 relative h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]">
+        {!notifsSidebarOpen && (
+          <button
+            type="button"
+            onClick={toggleNotifsSidebar}
+            title="Mostrar panel de alertas"
+            className="hidden xl:flex fixed right-0 top-1/2 -translate-y-1/2 z-50 flex-col items-center gap-1 py-3 px-1.5 rounded-l-lg bg-zinc-900 border border-r-0 border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 shadow-lg transition"
+          >
+            <PanelRightOpen className="w-4 h-4" />
+            <span className="text-[8px] font-bold uppercase tracking-wider [writing-mode:vertical-rl]">
+              Alertas
+            </span>
+            {unreadNotifsCount > 0 && (
+              <span className="bg-blue-500 text-zinc-950 font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center">
+                {unreadNotifsCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
             {mobileTab !== 'settings' && (
               <div
-                className={`xl:col-span-9 h-full overflow-hidden ${
+                className={`${notifsSidebarOpen ? 'xl:col-span-9' : 'xl:col-span-12'} h-full overflow-hidden ${
                   mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
                 }`}
               >
@@ -762,7 +821,11 @@ export default function App() {
             )}
 
             {mobileTab === 'settings' && (
-              <div className="xl:col-span-9 h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4">
+              <div
+                className={`${
+                  notifsSidebarOpen ? 'xl:col-span-9' : 'xl:col-span-12'
+                } h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-lg p-4`}
+              >
                 <SettingsPage
                   user={user}
                   onBack={() => setMobileTab('dashboard')}
@@ -782,22 +845,30 @@ export default function App() {
             )}
 
             {/* Sidebar con Centro de Notificaciones PWA */}
-            <div
-              className={`xl:col-span-3 h-full overflow-hidden flex flex-col ${
-                mobileTab !== 'notifications' ? 'hidden xl:block' : ''
-              }`}
-            >
-              <NotificationHub
-                notifications={notifications}
-                onMarkAllRead={handleMarkAllRead}
-                activeUserId={user.id}
-              />
-            </div>
+            {notifsSidebarOpen && (
+              <div
+                className={`xl:col-span-3 h-full overflow-hidden flex flex-col ${
+                  mobileTab !== 'notifications' ? 'hidden xl:flex' : ''
+                }`}
+              >
+                <NotificationHub
+                  notifications={notifications}
+                  onMarkAllRead={handleMarkAllRead}
+                  activeUserId={user.id}
+                  onToggleCollapse={toggleNotifsSidebar}
+                  showCollapseButton
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full overflow-hidden">
             {/* Repartidor Dashboard */}
-            <div className={`xl:col-span-9 h-full overflow-hidden ${mobileTab !== 'dashboard' ? 'hidden xl:block' : ''}`}>
+            <div
+              className={`${notifsSidebarOpen ? 'xl:col-span-9' : 'xl:col-span-12'} h-full overflow-hidden ${
+                mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
+              }`}
+            >
               <RepartidorDashboard
                 orders={orders}
                 currentUser={user}
@@ -809,13 +880,21 @@ export default function App() {
             </div>
 
             {/* Sidebar con Centro de Notificaciones PWA */}
-            <div className={`xl:col-span-3 h-full overflow-hidden flex flex-col ${mobileTab !== 'notifications' ? 'hidden xl:block' : ''}`}>
-              <NotificationHub
-                notifications={notifications}
-                onMarkAllRead={handleMarkAllRead}
-                activeUserId={user.id}
-              />
-            </div>
+            {notifsSidebarOpen && (
+              <div
+                className={`xl:col-span-3 h-full overflow-hidden flex flex-col ${
+                  mobileTab !== 'notifications' ? 'hidden xl:flex' : ''
+                }`}
+              >
+                <NotificationHub
+                  notifications={notifications}
+                  onMarkAllRead={handleMarkAllRead}
+                  activeUserId={user.id}
+                  onToggleCollapse={toggleNotifsSidebar}
+                  showCollapseButton
+                />
+              </div>
+            )}
           </div>
         )}
       </main>
