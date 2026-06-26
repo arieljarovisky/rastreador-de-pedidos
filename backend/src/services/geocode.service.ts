@@ -20,14 +20,36 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult | n
     ? trimmed
     : `${trimmed}, Buenos Aires, Argentina`;
 
+  const bounded = await nominatimSearch(query, true);
+  if (bounded) return bounded;
+
+  const unbounded = await nominatimSearch(query, false);
+  if (unbounded) return unbounded;
+
+  const cityOnly = trimmed
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .slice(-3)
+    .join(', ');
+  if (cityOnly && cityOnly !== trimmed) {
+    return nominatimSearch(`${cityOnly}, Argentina`, false);
+  }
+
+  return null;
+}
+
+async function nominatimSearch(query: string, bounded: boolean): Promise<GeocodeResult | null> {
   const params = new URLSearchParams({
     format: 'json',
     q: query,
     limit: '1',
     countrycodes: 'ar',
-    viewbox: GBA_VIEWBOX,
-    bounded: '1',
   });
+  if (bounded) {
+    params.set('viewbox', GBA_VIEWBOX);
+    params.set('bounded', '1');
+  }
 
   const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
     headers: {

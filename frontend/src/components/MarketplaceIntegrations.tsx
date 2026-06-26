@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link2, Unlink, Download, RefreshCw, ShoppingBag, Store } from 'lucide-react';
+import { Link2, Unlink, Download, RefreshCw, ShoppingBag, Store, Loader2 } from 'lucide-react';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 interface MarketplaceIntegrationsProps {
@@ -17,7 +17,7 @@ interface MarketplaceIntegrationsProps {
   onImport: (
     platform: 'mercadolibre' | 'tiendanube',
     externalIds?: string[]
-  ) => Promise<{ imported: number; skipped: number }>;
+  ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
 }
 
 const btnPrimary =
@@ -37,6 +37,7 @@ function PlatformCard({
   shipments,
   shipmentsLoading,
   importLoading,
+  importingId,
   onConnect,
   onDisconnect,
   onRefreshShipments,
@@ -54,6 +55,7 @@ function PlatformCard({
   shipments: MarketplaceShipmentPreview[];
   shipmentsLoading: boolean;
   importLoading: boolean;
+  importingId: string | 'all' | null;
   onConnect: () => void;
   onDisconnect: () => void;
   onRefreshShipments: () => void;
@@ -129,12 +131,23 @@ function PlatformCard({
                 onClick={onImportAll}
               >
                 <span className="inline-flex items-center gap-1">
-                  <Download className="w-3 h-3" />
-                  Importar todos ({pending.length})
+                  {importingId === 'all' ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Download className="w-3 h-3" />
+                  )}
+                  {importingId === 'all' ? 'Importando…' : `Importar todos (${pending.length})`}
                 </span>
               </button>
             )}
           </div>
+
+          {importLoading && (
+            <div className="flex items-center gap-2 rounded-lg border border-blue-900/40 bg-blue-950/30 px-2 py-1.5">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
+              <p className="text-[10px] text-blue-200">Importando envíos de {title}…</p>
+            </div>
+          )}
 
           {shipmentsLoading && (
             <p className="text-[10px] text-zinc-500">Consultando envíos en {title}…</p>
@@ -171,9 +184,16 @@ function PlatformCard({
                         type="button"
                         disabled={importLoading}
                         onClick={() => onImportOne(s.externalId)}
-                        className="shrink-0 text-[9px] uppercase font-bold text-blue-400 hover:text-blue-300"
+                        className="shrink-0 text-[9px] uppercase font-bold text-blue-400 hover:text-blue-300 disabled:opacity-50 inline-flex items-center gap-1"
                       >
-                        Importar
+                        {importingId === s.externalId ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Importando
+                          </>
+                        ) : (
+                          'Importar'
+                        )}
                       </button>
                     )}
                   </div>
@@ -202,7 +222,10 @@ export default function MarketplaceIntegrations({
   const [tnLoading, setTnLoading] = useState(false);
   const [mlImporting, setMlImporting] = useState(false);
   const [tnImporting, setTnImporting] = useState(false);
+  const [mlImportingId, setMlImportingId] = useState<string | 'all' | null>(null);
+  const [tnImportingId, setTnImportingId] = useState<string | 'all' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<'success' | 'error'>('success');
 
   useEffect(() => {
     void onRefreshStatus();
@@ -215,6 +238,7 @@ export default function MarketplaceIntegrations({
       const list = await onFetchShipments('mercadolibre');
       setMlShipments(list);
     } catch (err: unknown) {
+      setMessageTone('error');
       setMessage(err instanceof Error ? err.message : 'Error al buscar envíos de Mercado Libre');
     } finally {
       setMlLoading(false);
@@ -228,6 +252,7 @@ export default function MarketplaceIntegrations({
       const list = await onFetchShipments('tiendanube');
       setTnShipments(list);
     } catch (err: unknown) {
+      setMessageTone('error');
       setMessage(err instanceof Error ? err.message : 'Error al buscar envíos de Tienda Nube');
     } finally {
       setTnLoading(false);
@@ -239,21 +264,34 @@ export default function MarketplaceIntegrations({
     externalIds?: string[]
   ) => {
     const setImporting = platform === 'mercadolibre' ? setMlImporting : setTnImporting;
+    const setImportingId = platform === 'mercadolibre' ? setMlImportingId : setTnImportingId;
     const refresh = platform === 'mercadolibre' ? refreshMl : refreshTn;
     setImporting(true);
+    setImportingId(externalIds?.length === 1 ? externalIds[0]! : 'all');
     setMessage(null);
     try {
       const result = await onImport(platform, externalIds);
-      setMessage(
-        `Importación lista: ${result.imported} envío${result.imported !== 1 ? 's' : ''} importado${result.imported !== 1 ? 's' : ''}` +
-          (result.skipped ? `, ${result.skipped} omitido${result.skipped !== 1 ? 's' : ''}` : '') +
-          '.'
-      );
+      if (result.imported > 0) {
+        setMessageTone('success');
+        setMessage(
+          `Importación lista: ${result.imported} envío${result.imported !== 1 ? 's' : ''} importado${result.imported !== 1 ? 's' : ''}` +
+            (result.skipped ? `, ${result.skipped} omitido${result.skipped !== 1 ? 's' : ''}` : '') +
+            '.'
+        );
+      } else if (result.errors?.length) {
+        setMessageTone('error');
+        setMessage(result.errors.slice(0, 3).join(' '));
+      } else {
+        setMessageTone('error');
+        setMessage('No se importó ningún envío.');
+      }
       await refresh();
     } catch (err: unknown) {
+      setMessageTone('error');
       setMessage(err instanceof Error ? err.message : 'No se pudo importar');
     } finally {
       setImporting(false);
+      setImportingId(null);
     }
   };
 
@@ -276,7 +314,11 @@ export default function MarketplaceIntegrations({
         </button>
       </div>
 
-      {message && <p className="text-[10px] text-emerald-400 mb-2">{message}</p>}
+      {message && (
+        <p className={`text-[10px] mb-2 ${messageTone === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>
+          {message}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <PlatformCard
@@ -291,6 +333,7 @@ export default function MarketplaceIntegrations({
           shipments={mlShipments}
           shipmentsLoading={mlLoading}
           importLoading={mlImporting}
+          importingId={mlImportingId}
           onConnect={() => void onConnect('mercadolibre')}
           onDisconnect={() => void onDisconnect('mercadolibre')}
           onRefreshShipments={() => void refreshMl()}
@@ -310,6 +353,7 @@ export default function MarketplaceIntegrations({
           shipments={tnShipments}
           shipmentsLoading={tnLoading}
           importLoading={tnImporting}
+          importingId={tnImportingId}
           onConnect={() => void onConnect('tiendanube')}
           onDisconnect={() => void onDisconnect('tiendanube')}
           onRefreshShipments={() => void refreshTn()}

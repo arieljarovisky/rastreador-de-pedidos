@@ -78,7 +78,7 @@ interface SettingsPageProps {
   onImportMarketplaceShipments?: (
     platform: 'mercadolibre' | 'tiendanube',
     externalIds?: string[]
-  ) => Promise<{ imported: number; skipped: number }>;
+  ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
 }
 
 export default function SettingsPage({

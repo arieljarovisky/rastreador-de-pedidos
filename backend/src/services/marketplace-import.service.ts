@@ -60,15 +60,34 @@ export async function importMarketplaceShipments(
   user: User,
   platform: IntegrationPlatform,
   externalIds?: string[]
-): Promise<{ imported: number; skipped: number; orders: string[] }> {
+): Promise<{ imported: number; skipped: number; orders: string[]; errors: string[] }> {
   const all = await listImportableShipments(user.id, platform);
   const toImport = externalIds?.length
     ? all.filter((s) => externalIds.includes(s.externalId) && !s.alreadyImported)
     : all.filter((s) => !s.alreadyImported);
 
+  if (externalIds?.length && toImport.length === 0) {
+    const missing = externalIds.filter((id) => !all.some((s) => s.externalId === id));
+    if (missing.length > 0) {
+      return {
+        imported: 0,
+        skipped: externalIds.length,
+        orders: [],
+        errors: [`No se encontraron los pedidos #${missing.join(', #')} para importar. Buscá envíos de nuevo.`],
+      };
+    }
+    return {
+      imported: 0,
+      skipped: externalIds.length,
+      orders: [],
+      errors: ['Esos pedidos ya fueron importados.'],
+    };
+  }
+
   let imported = 0;
   let skipped = 0;
   const orderIds: string[] = [];
+  const errors: string[] = [];
 
   for (const shipment of toImport) {
     try {
@@ -84,6 +103,7 @@ export async function importMarketplaceShipments(
         const geocoded = await geocodeAddress(shipment.address);
         if (!geocoded) {
           skipped++;
+          errors.push(`#${shipment.externalId}: no se pudo ubicar la dirección en el mapa.`);
           continue;
         }
         lat = geocoded.lat;
@@ -116,10 +136,16 @@ export async function importMarketplaceShipments(
 
       orderIds.push(order.id);
       imported++;
-    } catch {
+    } catch (err) {
       skipped++;
+      const reason = err instanceof Error ? err.message : 'error desconocido';
+      errors.push(`#${shipment.externalId}: ${reason}`);
     }
   }
 
-  return { imported, skipped, orders: orderIds };
+  if (imported === 0 && toImport.length > 0 && errors.length === 0) {
+    errors.push('No se pudo importar ningún envío.');
+  }
+
+  return { imported, skipped, orders: orderIds, errors };
 }

@@ -676,7 +676,7 @@ export default function App() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'No se pudo importar');
     fetchData();
-    return body as { imported: number; skipped: number };
+    return body as { imported: number; skipped: number; errors?: string[] };
   };
 
   // Actualizar estado de pedido (Asignar, Entregar, etc.)
