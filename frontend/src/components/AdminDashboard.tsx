@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
-import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2 } from 'lucide-react';
+import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findZoneForPoint, zoneLabel } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
@@ -66,6 +66,7 @@ export default function AdminDashboard({
   // Estados para Filtros
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [mapRepartidorFilter, setMapRepartidorFilter] = useState<'all' | string>('all');
 
   // Estados del Formulario de Pedidos
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -173,6 +174,25 @@ export default function AdminDashboard({
 
     return matchesStatus && matchesSearch;
   });
+
+  const mapRepartidores = useMemo(() => {
+    if (mapRepartidorFilter === 'all') return repartidores;
+    const rep = repartidores.find((r) => r.id === mapRepartidorFilter);
+    return rep ? [rep] : [];
+  }, [repartidores, mapRepartidorFilter]);
+
+  const mapOrders = useMemo(() => {
+    if (mapRepartidorFilter === 'all') return orders;
+    return orders.filter((o) => o.repartidorId === mapRepartidorFilter);
+  }, [orders, mapRepartidorFilter]);
+
+  useEffect(() => {
+    if (mapRepartidorFilter === 'all' || !activeOrderId) return;
+    const order = orders.find((o) => o.id === activeOrderId);
+    if (order && order.repartidorId !== mapRepartidorFilter) {
+      onSelectOrder(null);
+    }
+  }, [mapRepartidorFilter, activeOrderId, orders, onSelectOrder]);
 
   const selectedOrder = orders.find((o) => o.id === activeOrderId);
 
@@ -701,6 +721,56 @@ export default function AdminDashboard({
         
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-2xl border border-zinc-800 overflow-hidden relative">
+          <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5 max-w-[min(100%,14rem)]">
+            <div className="bg-zinc-950/95 backdrop-blur-sm border border-zinc-800 rounded-lg p-2 shadow-lg">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Users className="w-3 h-3 text-blue-400 shrink-0" />
+                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-400">
+                  Repartidores en mapa
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => setMapRepartidorFilter('all')}
+                  className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide transition ${
+                    mapRepartidorFilter === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-zinc-900 text-zinc-400 border border-zinc-700 hover:border-zinc-500'
+                  }`}
+                >
+                  Todos
+                </button>
+                {repartidores.map((rep) => (
+                  <button
+                    key={rep.id}
+                    type="button"
+                    onClick={() => setMapRepartidorFilter(rep.id)}
+                    title={rep.currentLocation ? 'Con GPS activo' : 'Sin ubicación reportada'}
+                    className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide transition truncate max-w-full ${
+                      mapRepartidorFilter === rep.id
+                        ? 'bg-blue-600 text-white'
+                        : rep.currentLocation
+                          ? 'bg-zinc-900 text-zinc-300 border border-zinc-700 hover:border-zinc-500'
+                          : 'bg-zinc-900/60 text-zinc-500 border border-zinc-800 hover:border-zinc-600'
+                    }`}
+                  >
+                    {rep.name.split(' ')[0]}
+                    {rep.currentLocation ? ' ●' : ''}
+                  </button>
+                ))}
+              </div>
+              {repartidores.length === 0 && (
+                <p className="text-[9px] text-zinc-500">No hay repartidores cargados.</p>
+              )}
+              {mapRepartidorFilter !== 'all' && (
+                <p className="text-[8px] text-zinc-500 font-mono">
+                  Pedidos de{' '}
+                  {repartidores.find((r) => r.id === mapRepartidorFilter)?.name ?? 'repartidor'}
+                </p>
+              )}
+            </div>
+          </div>
           <Suspense
             fallback={
               <div className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-500 text-xs font-mono">
@@ -709,8 +779,8 @@ export default function AdminDashboard({
             }
           >
             <MapComponent
-              orders={orders}
-              repartidores={repartidores}
+              orders={mapOrders}
+              repartidores={mapRepartidores}
               departurePoint={departurePoint}
               pickupPoints={pickupPoints}
               activeOrderId={activeOrderId}
