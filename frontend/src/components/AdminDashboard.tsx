@@ -40,6 +40,12 @@ const DIRECTORY_PRESETS = [
 const MAP_ZONES_STORAGE_KEY = 'lupo_map_show_zones';
 const MAP_REPS_STORAGE_KEY = 'lupo_map_repartidor_ids';
 
+type MapRepartidorPrefs =
+  | { kind: 'default' }
+  | { kind: 'all' }
+  | { kind: 'none' }
+  | { kind: 'some'; ids: Set<string> };
+
 function loadShowMapZones(): boolean {
   try {
     const value = localStorage.getItem(MAP_ZONES_STORAGE_KEY);
@@ -51,22 +57,46 @@ function loadShowMapZones(): boolean {
   return true;
 }
 
-function loadMapRepartidorIds(): { ids: Set<string>; hasStoredPrefs: boolean } {
+function loadMapRepartidorPrefs(): MapRepartidorPrefs {
   try {
     const raw = localStorage.getItem(MAP_REPS_STORAGE_KEY);
-    if (raw !== null) {
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) {
-        return {
-          ids: new Set(parsed.filter((id): id is string => typeof id === 'string')),
-          hasStoredPrefs: true,
-        };
-      }
+    if (raw === null) return { kind: 'default' };
+    if (raw === 'all') return { kind: 'all' };
+    if (raw === 'none') return { kind: 'none' };
+    if (raw === '[]') return { kind: 'default' };
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      if (parsed.length === 0) return { kind: 'default' };
+      return {
+        kind: 'some',
+        ids: new Set(parsed.filter((id): id is string => typeof id === 'string')),
+      };
     }
   } catch {
     // ignore storage errors
   }
-  return { ids: new Set(), hasStoredPrefs: false };
+  return { kind: 'default' };
+}
+
+function saveMapRepartidorPrefs(
+  repartidores: User[],
+  selectedIds: Set<string>
+): void {
+  try {
+    if (repartidores.length === 0) return;
+    const allSelected = repartidores.every((r) => selectedIds.has(r.id));
+    if (allSelected) {
+      localStorage.setItem(MAP_REPS_STORAGE_KEY, 'all');
+      return;
+    }
+    if (selectedIds.size === 0) {
+      localStorage.setItem(MAP_REPS_STORAGE_KEY, 'none');
+      return;
+    }
+    localStorage.setItem(MAP_REPS_STORAGE_KEY, JSON.stringify([...selectedIds]));
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export default function AdminDashboard({
@@ -88,14 +118,18 @@ export default function AdminDashboard({
   const { confirm, alert: showAlert } = useModal();
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
-  const mapRepartidorPrefsLoaded = useRef(loadMapRepartidorIds().hasStoredPrefs);
+  const initialMapRepartidorPrefs = loadMapRepartidorPrefs();
+  const storedPrefsKind = useRef(initialMapRepartidorPrefs.kind);
+  const mapRepartidorPrefsReady = useRef(initialMapRepartidorPrefs.kind !== 'default');
+  const mapDefaultApplied = useRef(false);
 
   // Estados para Filtros (mapa)
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(
-    () => loadMapRepartidorIds().ids
-  );
+  const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
+    if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
+    return new Set();
+  });
   const [mapFilterOpen, setMapFilterOpen] = useState(false);
   const [showMapZones, setShowMapZones] = useState(loadShowMapZones);
   const mapFilterRef = useRef<HTMLDivElement>(null);
@@ -109,12 +143,9 @@ export default function AdminDashboard({
   }, [showMapZones]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(MAP_REPS_STORAGE_KEY, JSON.stringify([...mapRepartidorIds]));
-    } catch {
-      // ignore storage errors
-    }
-  }, [mapRepartidorIds]);
+    if (!mapRepartidorPrefsReady.current) return;
+    saveMapRepartidorPrefs(repartidores, mapRepartidorIds);
+  }, [mapRepartidorIds, repartidores]);
 
   useEffect(() => {
     if (activeOrderId) {
@@ -124,6 +155,25 @@ export default function AdminDashboard({
 
   useEffect(() => {
     setMapRepartidorIds((prev) => {
+      const kind = storedPrefsKind.current;
+
+      if (kind === 'default' && !mapDefaultApplied.current && repartidores.length > 0) {
+        mapDefaultApplied.current = true;
+        mapRepartidorPrefsReady.current = true;
+        return new Set(repartidores.map((r) => r.id));
+      }
+
+      if (kind === 'all' && repartidores.length > 0) {
+        const missingNew = repartidores.some((r) => !prev.has(r.id));
+        if (missingNew || prev.size === 0) {
+          return new Set(repartidores.map((r) => r.id));
+        }
+      }
+
+      if (kind === 'none') {
+        return prev.size === 0 ? prev : new Set();
+      }
+
       const next = new Set(prev);
       let changed = false;
 
@@ -132,11 +182,6 @@ export default function AdminDashboard({
           next.delete(id);
           changed = true;
         }
-      }
-
-      if (!mapRepartidorPrefsLoaded.current && repartidores.length > 0) {
-        mapRepartidorPrefsLoaded.current = true;
-        return new Set(repartidores.map((r) => r.id));
       }
 
       const allCurrentSelected =
