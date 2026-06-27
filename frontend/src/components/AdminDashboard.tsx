@@ -37,6 +37,38 @@ const DIRECTORY_PRESETS = [
   { name: 'Recoleta (Av. Las Heras 2100)', lat: -34.5877, lng: -58.3972 },
 ];
 
+const MAP_ZONES_STORAGE_KEY = 'lupo_map_show_zones';
+const MAP_REPS_STORAGE_KEY = 'lupo_map_repartidor_ids';
+
+function loadShowMapZones(): boolean {
+  try {
+    const value = localStorage.getItem(MAP_ZONES_STORAGE_KEY);
+    if (value === '0') return false;
+    if (value === '1') return true;
+  } catch {
+    // ignore storage errors
+  }
+  return true;
+}
+
+function loadMapRepartidorIds(): { ids: Set<string>; hasStoredPrefs: boolean } {
+  try {
+    const raw = localStorage.getItem(MAP_REPS_STORAGE_KEY);
+    if (raw !== null) {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        return {
+          ids: new Set(parsed.filter((id): id is string => typeof id === 'string')),
+          hasStoredPrefs: true,
+        };
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return { ids: new Set(), hasStoredPrefs: false };
+}
+
 export default function AdminDashboard({
   orders,
   repartidores,
@@ -56,14 +88,33 @@ export default function AdminDashboard({
   const { confirm, alert: showAlert } = useModal();
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  const mapRepartidorPrefsLoaded = useRef(loadMapRepartidorIds().hasStoredPrefs);
 
   // Estados para Filtros (mapa)
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(new Set());
+  const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(
+    () => loadMapRepartidorIds().ids
+  );
   const [mapFilterOpen, setMapFilterOpen] = useState(false);
-  const [showMapZones, setShowMapZones] = useState(true);
+  const [showMapZones, setShowMapZones] = useState(loadShowMapZones);
   const mapFilterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_ZONES_STORAGE_KEY, showMapZones ? '1' : '0');
+    } catch {
+      // ignore storage errors
+    }
+  }, [showMapZones]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_REPS_STORAGE_KEY, JSON.stringify([...mapRepartidorIds]));
+    } catch {
+      // ignore storage errors
+    }
+  }, [mapRepartidorIds]);
 
   useEffect(() => {
     if (activeOrderId) {
@@ -75,21 +126,30 @@ export default function AdminDashboard({
     setMapRepartidorIds((prev) => {
       const next = new Set(prev);
       let changed = false;
-      for (const rep of repartidores) {
-        if (!next.has(rep.id)) {
-          next.add(rep.id);
-          changed = true;
-        }
-      }
+
       for (const id of [...next]) {
         if (!repartidores.some((r) => r.id === id)) {
           next.delete(id);
           changed = true;
         }
       }
-      if (prev.size === 0 && repartidores.length > 0) {
+
+      if (!mapRepartidorPrefsLoaded.current && repartidores.length > 0) {
+        mapRepartidorPrefsLoaded.current = true;
         return new Set(repartidores.map((r) => r.id));
       }
+
+      const allCurrentSelected =
+        repartidores.length > 0 && repartidores.every((r) => prev.has(r.id));
+      if (allCurrentSelected) {
+        for (const rep of repartidores) {
+          if (!next.has(rep.id)) {
+            next.add(rep.id);
+            changed = true;
+          }
+        }
+      }
+
       return changed ? next : prev;
     });
   }, [repartidores]);
