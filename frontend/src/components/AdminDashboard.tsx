@@ -57,6 +57,14 @@ export default function AdminDashboard({
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
+  // Estados para Filtros (mapa)
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(new Set());
+  const [mapFilterOpen, setMapFilterOpen] = useState(false);
+  const [showMapZones, setShowMapZones] = useState(true);
+  const mapFilterRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (activeOrderId) {
       setAdminMobileTab('map');
@@ -96,14 +104,6 @@ export default function AdminDashboard({
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [mapFilterOpen]);
-
-  // Estados para Filtros
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(new Set());
-  const [mapFilterOpen, setMapFilterOpen] = useState(false);
-  const [showMapZones, setShowMapZones] = useState(true);
-  const mapFilterRef = useRef<HTMLDivElement>(null);
 
   // Estados del Formulario de Pedidos
   const [showCreateForm, setShowCreateForm] = useState(false);
