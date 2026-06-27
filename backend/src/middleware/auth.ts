@@ -6,7 +6,8 @@ import { getUserById } from '../services/users.service.js';
 import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 
 export function signToken(userId: string, role: UserRole): string {
-  return jwt.sign({ userId, role } satisfies JwtPayload, env.jwtSecret, { expiresIn: '24h' });
+  // Sin expiresIn: la sesión no vence por tiempo (solo al cerrar sesión o cambiar credenciales).
+  return jwt.sign({ userId, role } satisfies JwtPayload, env.jwtSecret);
 }
 
 export function verifyToken(token: string): JwtPayload | null {
