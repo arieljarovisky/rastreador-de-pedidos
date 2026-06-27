@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, Suspense, useCallback, useMemo, useRef } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
-import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users } from 'lucide-react';
+import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, Layers } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findZoneForPoint, zoneLabel } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
@@ -63,10 +63,47 @@ export default function AdminDashboard({
     }
   }, [activeOrderId]);
 
+  useEffect(() => {
+    setMapRepartidorIds((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const rep of repartidores) {
+        if (!next.has(rep.id)) {
+          next.add(rep.id);
+          changed = true;
+        }
+      }
+      for (const id of [...next]) {
+        if (!repartidores.some((r) => r.id === id)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      if (prev.size === 0 && repartidores.length > 0) {
+        return new Set(repartidores.map((r) => r.id));
+      }
+      return changed ? next : prev;
+    });
+  }, [repartidores]);
+
+  useEffect(() => {
+    if (!mapFilterOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (mapFilterRef.current && !mapFilterRef.current.contains(event.target as Node)) {
+        setMapFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [mapFilterOpen]);
+
   // Estados para Filtros
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [mapRepartidorFilter, setMapRepartidorFilter] = useState<'all' | string>('all');
+  const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(new Set());
+  const [mapFilterOpen, setMapFilterOpen] = useState(false);
+  const [showMapZones, setShowMapZones] = useState(true);
+  const mapFilterRef = useRef<HTMLDivElement>(null);
 
   // Estados del Formulario de Pedidos
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -175,24 +212,52 @@ export default function AdminDashboard({
     return matchesStatus && matchesSearch;
   });
 
+  const allRepartidoresOnMap = useMemo(
+    () =>
+      repartidores.length > 0 &&
+      repartidores.every((r) => mapRepartidorIds.has(r.id)),
+    [repartidores, mapRepartidorIds]
+  );
+
   const mapRepartidores = useMemo(() => {
-    if (mapRepartidorFilter === 'all') return repartidores;
-    const rep = repartidores.find((r) => r.id === mapRepartidorFilter);
-    return rep ? [rep] : [];
-  }, [repartidores, mapRepartidorFilter]);
+    if (mapRepartidorIds.size === 0) return [];
+    if (allRepartidoresOnMap) return repartidores;
+    return repartidores.filter((r) => mapRepartidorIds.has(r.id));
+  }, [repartidores, mapRepartidorIds, allRepartidoresOnMap]);
 
   const mapOrders = useMemo(() => {
-    if (mapRepartidorFilter === 'all') return orders;
-    return orders.filter((o) => o.repartidorId === mapRepartidorFilter);
-  }, [orders, mapRepartidorFilter]);
+    if (allRepartidoresOnMap) return orders;
+    if (mapRepartidorIds.size === 0) return [];
+    return orders.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
+  }, [orders, mapRepartidorIds, allRepartidoresOnMap]);
+
+  const mapFilterLabel = useMemo(() => {
+    if (repartidores.length === 0) return 'Sin repartidores';
+    if (allRepartidoresOnMap) return 'Todos los repartidores';
+    if (mapRepartidorIds.size === 0) return 'Ninguno seleccionado';
+    if (mapRepartidorIds.size === 1) {
+      const id = [...mapRepartidorIds][0];
+      return repartidores.find((r) => r.id === id)?.name ?? '1 repartidor';
+    }
+    return `${mapRepartidorIds.size} repartidores`;
+  }, [repartidores, mapRepartidorIds, allRepartidoresOnMap]);
+
+  const toggleMapRepartidor = (id: string) => {
+    setMapRepartidorIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
-    if (mapRepartidorFilter === 'all' || !activeOrderId) return;
+    if (allRepartidoresOnMap || !activeOrderId) return;
     const order = orders.find((o) => o.id === activeOrderId);
-    if (order && order.repartidorId !== mapRepartidorFilter) {
+    if (order?.repartidorId && !mapRepartidorIds.has(order.repartidorId)) {
       onSelectOrder(null);
     }
-  }, [mapRepartidorFilter, activeOrderId, orders, onSelectOrder]);
+  }, [mapRepartidorIds, allRepartidoresOnMap, activeOrderId, orders, onSelectOrder]);
 
   const selectedOrder = orders.find((o) => o.id === activeOrderId);
 
@@ -721,55 +786,91 @@ export default function AdminDashboard({
         
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-2xl border border-zinc-800 overflow-hidden relative">
-          <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5 max-w-[min(100%,14rem)]">
-            <div className="bg-zinc-950/95 backdrop-blur-sm border border-zinc-800 rounded-lg p-2 shadow-lg">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Users className="w-3 h-3 text-blue-400 shrink-0" />
-                <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-400">
-                  Repartidores en mapa
+          <div ref={mapFilterRef} className="absolute top-3 right-3 z-[1000] flex items-start gap-1.5 w-[min(100%,15.5rem)]">
+            <div className="relative flex-1 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMapFilterOpen((open) => !open)}
+                className="w-full flex items-center gap-1.5 bg-zinc-950/95 backdrop-blur-sm border border-zinc-800 hover:border-zinc-600 rounded-lg px-2 py-1.5 shadow-lg transition text-left"
+                aria-expanded={mapFilterOpen}
+                aria-haspopup="listbox"
+              >
+                <Users className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span className="flex-1 min-w-0 text-[10px] font-medium text-zinc-200 truncate">
+                  {mapFilterLabel}
                 </span>
-              </div>
-              <div className="flex flex-wrap gap-1 mb-1.5">
-                <button
-                  type="button"
-                  onClick={() => setMapRepartidorFilter('all')}
-                  className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide transition ${
-                    mapRepartidorFilter === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-zinc-900 text-zinc-400 border border-zinc-700 hover:border-zinc-500'
-                  }`}
-                >
-                  Todos
-                </button>
-                {repartidores.map((rep) => (
-                  <button
-                    key={rep.id}
-                    type="button"
-                    onClick={() => setMapRepartidorFilter(rep.id)}
-                    title={rep.currentLocation ? 'Con GPS activo' : 'Sin ubicación reportada'}
-                    className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide transition truncate max-w-full ${
-                      mapRepartidorFilter === rep.id
-                        ? 'bg-blue-600 text-white'
-                        : rep.currentLocation
-                          ? 'bg-zinc-900 text-zinc-300 border border-zinc-700 hover:border-zinc-500'
-                          : 'bg-zinc-900/60 text-zinc-500 border border-zinc-800 hover:border-zinc-600'
-                    }`}
-                  >
-                    {rep.name.split(' ')[0]}
-                    {rep.currentLocation ? ' ●' : ''}
-                  </button>
-                ))}
-              </div>
-              {repartidores.length === 0 && (
-                <p className="text-[9px] text-zinc-500">No hay repartidores cargados.</p>
-              )}
-              {mapRepartidorFilter !== 'all' && (
-                <p className="text-[8px] text-zinc-500 font-mono">
-                  Pedidos de{' '}
-                  {repartidores.find((r) => r.id === mapRepartidorFilter)?.name ?? 'repartidor'}
-                </p>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-zinc-500 shrink-0 transition-transform ${mapFilterOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {mapFilterOpen && (
+                <div className="absolute top-[calc(100%+0.35rem)] left-0 right-0 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-zinc-800 bg-zinc-900/80">
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-500">
+                      Repartidores
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setMapRepartidorIds(new Set(repartidores.map((r) => r.id)))}
+                        className="text-[8px] font-bold uppercase text-blue-400 hover:text-blue-300"
+                      >
+                        Todos
+                      </button>
+                      <span className="text-zinc-700">·</span>
+                      <button
+                        type="button"
+                        onClick={() => setMapRepartidorIds(new Set())}
+                        className="text-[8px] font-bold uppercase text-zinc-500 hover:text-zinc-300"
+                      >
+                        Ninguno
+                      </button>
+                    </div>
+                  </div>
+                  <ul className="max-h-40 overflow-y-auto py-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                    {repartidores.length === 0 ? (
+                      <li className="px-2 py-1.5 text-[10px] text-zinc-500">No hay repartidores.</li>
+                    ) : (
+                      repartidores.map((rep) => (
+                        <li key={rep.id}>
+                          <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-zinc-900 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={mapRepartidorIds.has(rep.id)}
+                              onChange={() => toggleMapRepartidor(rep.id)}
+                              className="rounded border-zinc-600 bg-zinc-900 text-blue-600 focus:ring-blue-500 focus:ring-offset-zinc-950"
+                            />
+                            <span className="flex-1 min-w-0 text-[10px] text-zinc-200 truncate">{rep.name}</span>
+                            {rep.currentLocation ? (
+                              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-400" title="GPS activo" />
+                            ) : (
+                              <span className="shrink-0 text-[8px] text-zinc-600" title="Sin GPS">
+                                —
+                              </span>
+                            )}
+                          </label>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowMapZones((visible) => !visible)}
+              title={showMapZones ? 'Ocultar áreas de entrega' : 'Mostrar áreas de entrega'}
+              className={`shrink-0 flex items-center gap-1 rounded-lg px-2 py-1.5 border shadow-lg backdrop-blur-sm transition text-[9px] font-bold uppercase tracking-wide ${
+                showMapZones
+                  ? 'bg-blue-600/90 border-blue-500 text-white hover:bg-blue-500'
+                  : 'bg-zinc-950/95 border-zinc-800 text-zinc-400 hover:border-zinc-600'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Áreas</span>
+            </button>
           </div>
           <Suspense
             fallback={
@@ -785,6 +886,7 @@ export default function AdminDashboard({
               pickupPoints={pickupPoints}
               activeOrderId={activeOrderId}
               onSelectOrder={onSelectOrder}
+              showDeliveryZones={showMapZones}
             />
           </Suspense>
           {/* Overlay Map Grid design like in the spec */}
