@@ -787,6 +787,20 @@ export default function AdminDashboard({
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-2xl border border-zinc-800 overflow-hidden relative">
           <div ref={mapFilterRef} className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5 w-44 sm:w-48">
+            <button
+              type="button"
+              onClick={() => setShowMapZones((visible) => !visible)}
+              title={showMapZones ? 'Ocultar áreas de entrega' : 'Mostrar áreas de entrega'}
+              className={`w-full flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-[10px] font-semibold ${
+                showMapZones
+                  ? 'bg-blue-600/90 border-blue-500 text-white hover:bg-blue-500'
+                  : 'bg-zinc-950/95 border-zinc-700/80 text-zinc-400 hover:border-zinc-500'
+              }`}
+            >
+              <Layers className="w-4 h-4 shrink-0" />
+              {showMapZones ? 'Ocultar áreas' : 'Ver áreas'}
+            </button>
+
             <div className="relative">
               <button
                 type="button"
@@ -859,20 +873,6 @@ export default function AdminDashboard({
                 </div>
               )}
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowMapZones((visible) => !visible)}
-              title={showMapZones ? 'Ocultar áreas de entrega' : 'Mostrar áreas de entrega'}
-              className={`w-full flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-[10px] font-semibold ${
-                showMapZones
-                  ? 'bg-blue-600/90 border-blue-500 text-white hover:bg-blue-500'
-                  : 'bg-zinc-950/95 border-zinc-700/80 text-zinc-400 hover:border-zinc-500'
-              }`}
-            >
-              <Layers className="w-4 h-4 shrink-0" />
-              {showMapZones ? 'Ocultar áreas' : 'Ver áreas'}
-            </button>
           </div>
           <Suspense
             fallback={
