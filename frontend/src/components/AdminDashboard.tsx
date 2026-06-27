@@ -233,13 +233,13 @@ export default function AdminDashboard({
 
   const mapFilterLabel = useMemo(() => {
     if (repartidores.length === 0) return 'Sin repartidores';
-    if (allRepartidoresOnMap) return 'Todos los repartidores';
-    if (mapRepartidorIds.size === 0) return 'Ninguno seleccionado';
+    if (allRepartidoresOnMap) return 'Todos';
+    if (mapRepartidorIds.size === 0) return 'Ninguno';
     if (mapRepartidorIds.size === 1) {
       const id = [...mapRepartidorIds][0];
       return repartidores.find((r) => r.id === id)?.name ?? '1 repartidor';
     }
-    return `${mapRepartidorIds.size} repartidores`;
+    return `${mapRepartidorIds.size} seleccionados`;
   }, [repartidores, mapRepartidorIds, allRepartidoresOnMap]);
 
   const toggleMapRepartidor = (id: string) => {
@@ -786,67 +786,69 @@ export default function AdminDashboard({
         
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-2xl border border-zinc-800 overflow-hidden relative">
-          <div ref={mapFilterRef} className="absolute top-3 right-3 z-[1000] flex items-start gap-1.5 w-[min(100%,15.5rem)]">
-            <div className="relative flex-1 min-w-0">
+          <div ref={mapFilterRef} className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5 w-44 sm:w-48">
+            <div className="relative">
               <button
                 type="button"
                 onClick={() => setMapFilterOpen((open) => !open)}
-                className="w-full flex items-center gap-1.5 bg-zinc-950/95 backdrop-blur-sm border border-zinc-800 hover:border-zinc-600 rounded-lg px-2 py-1.5 shadow-lg transition text-left"
+                className="w-full flex items-center gap-2 bg-zinc-950/95 backdrop-blur-md border border-zinc-700/80 hover:border-zinc-500 rounded-xl px-2.5 py-2 shadow-lg transition text-left"
                 aria-expanded={mapFilterOpen}
                 aria-haspopup="listbox"
               >
-                <Users className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span className="flex-1 min-w-0 text-[10px] font-medium text-zinc-200 truncate">
+                <Users className="w-4 h-4 text-blue-400 shrink-0" />
+                <span className="flex-1 min-w-0 text-[11px] font-medium text-zinc-100 truncate">
                   {mapFilterLabel}
                 </span>
                 <ChevronDown
-                  className={`w-3.5 h-3.5 text-zinc-500 shrink-0 transition-transform ${mapFilterOpen ? 'rotate-180' : ''}`}
+                  className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-200 ${mapFilterOpen ? 'rotate-180' : ''}`}
                 />
               </button>
 
               {mapFilterOpen && (
-                <div className="absolute top-[calc(100%+0.35rem)] left-0 right-0 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl overflow-hidden">
-                  <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b border-zinc-800 bg-zinc-900/80">
-                    <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-500">
-                      Repartidores
-                    </span>
-                    <div className="flex gap-1">
+                <div className="absolute top-[calc(100%+0.4rem)] left-0 w-full bg-zinc-950/98 backdrop-blur-md border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden">
+                  <div className="px-3 pt-3 pb-2.5 border-b border-zinc-800">
+                    <p className="text-[10px] font-semibold text-zinc-400 mb-2">Repartidores en mapa</p>
+                    <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
                         onClick={() => setMapRepartidorIds(new Set(repartidores.map((r) => r.id)))}
-                        className="text-[8px] font-bold uppercase text-blue-400 hover:text-blue-300"
+                        className="py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[10px] font-semibold text-zinc-200 transition"
                       >
                         Todos
                       </button>
-                      <span className="text-zinc-700">·</span>
                       <button
                         type="button"
                         onClick={() => setMapRepartidorIds(new Set())}
-                        className="text-[8px] font-bold uppercase text-zinc-500 hover:text-zinc-300"
+                        className="py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[10px] font-semibold text-zinc-400 transition"
                       >
                         Ninguno
                       </button>
                     </div>
                   </div>
-                  <ul className="max-h-40 overflow-y-auto py-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                  <ul className="py-1.5 max-h-36 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-700">
                     {repartidores.length === 0 ? (
-                      <li className="px-2 py-1.5 text-[10px] text-zinc-500">No hay repartidores.</li>
+                      <li className="px-3 py-2 text-[11px] text-zinc-500">No hay repartidores.</li>
                     ) : (
                       repartidores.map((rep) => (
                         <li key={rep.id}>
-                          <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-zinc-900 cursor-pointer">
+                          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-900/80 cursor-pointer transition">
                             <input
                               type="checkbox"
                               checked={mapRepartidorIds.has(rep.id)}
                               onChange={() => toggleMapRepartidor(rep.id)}
-                              className="rounded border-zinc-600 bg-zinc-900 text-blue-600 focus:ring-blue-500 focus:ring-offset-zinc-950"
+                              className="w-3.5 h-3.5 shrink-0 rounded border-zinc-600 bg-zinc-900 text-blue-500 accent-blue-500 focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-0"
                             />
-                            <span className="flex-1 min-w-0 text-[10px] text-zinc-200 truncate">{rep.name}</span>
+                            <span className="flex-1 min-w-0 text-[11px] text-zinc-100 truncate capitalize">
+                              {rep.name}
+                            </span>
                             {rep.currentLocation ? (
-                              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-400" title="GPS activo" />
+                              <span
+                                className="shrink-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/20"
+                                title="GPS activo"
+                              />
                             ) : (
-                              <span className="shrink-0 text-[8px] text-zinc-600" title="Sin GPS">
-                                —
+                              <span className="shrink-0 text-[9px] text-zinc-600" title="Sin GPS">
+                                off
                               </span>
                             )}
                           </label>
@@ -862,14 +864,14 @@ export default function AdminDashboard({
               type="button"
               onClick={() => setShowMapZones((visible) => !visible)}
               title={showMapZones ? 'Ocultar áreas de entrega' : 'Mostrar áreas de entrega'}
-              className={`shrink-0 flex items-center gap-1 rounded-lg px-2 py-1.5 border shadow-lg backdrop-blur-sm transition text-[9px] font-bold uppercase tracking-wide ${
+              className={`w-full flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-[10px] font-semibold ${
                 showMapZones
                   ? 'bg-blue-600/90 border-blue-500 text-white hover:bg-blue-500'
-                  : 'bg-zinc-950/95 border-zinc-800 text-zinc-400 hover:border-zinc-600'
+                  : 'bg-zinc-950/95 border-zinc-700/80 text-zinc-400 hover:border-zinc-500'
               }`}
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Áreas</span>
+              <Layers className="w-4 h-4 shrink-0" />
+              {showMapZones ? 'Ocultar áreas' : 'Ver áreas'}
             </button>
           </div>
           <Suspense
