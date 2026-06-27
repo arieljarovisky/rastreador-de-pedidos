@@ -735,12 +735,15 @@ export default function App() {
         body: JSON.stringify({ status, repartidorId, comment }),
       });
 
-      if (!res.ok) throw new Error('Error al actualizar pedido');
-      
-      // Sincronizar
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Error al actualizar pedido');
+      }
+
       fetchData();
     } catch (e) {
       console.error(e);
+      throw e;
     }
   };
 

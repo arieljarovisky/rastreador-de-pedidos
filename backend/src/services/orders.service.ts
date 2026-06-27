@@ -380,6 +380,22 @@ export async function updateOrderStatus(
     assignedRepartidorName = rep.name;
   }
 
+  if (
+    user.role === UserRole.REPARTIDOR &&
+    status === OrderStatus.DELIVERING &&
+    assignedRepartidorId
+  ) {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT id FROM orders
+       WHERE repartidor_id = ? AND status = ? AND id <> ?
+       LIMIT 1`,
+      [assignedRepartidorId, OrderStatus.DELIVERING, orderId]
+    );
+    if (rows.length > 0) {
+      throw new Error('ALREADY_DELIVERING');
+    }
+  }
+
   await pool.query(
     'UPDATE orders SET status = ?, repartidor_id = ?, updated_at = ? WHERE id = ?',
     [status, assignedRepartidorId, now, orderId]

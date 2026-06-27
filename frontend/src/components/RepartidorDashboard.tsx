@@ -66,7 +66,14 @@ export default function RepartidorDashboard({
 
   const availableOrders = orders.filter((o) => o.status === OrderStatus.PENDING);
 
-  const activeOrder = orders.find((o) => o.id === activeOrderId) || myAssignedOrders[0] || null;
+  const selectedOrder = activeOrderId
+    ? orders.find((o) => o.id === activeOrderId) ?? null
+    : null;
+
+  const deliveringOrder = myAssignedOrders.find((o) => o.status === OrderStatus.DELIVERING) ?? null;
+  const gpsOrder = deliveringOrder ?? selectedOrder;
+  const otherDelivering =
+    deliveringOrder && deliveringOrder.id !== selectedOrder?.id ? deliveringOrder : null;
 
   const repForMap = useMemo(
     () => [
@@ -85,8 +92,8 @@ export default function RepartidorDashboard({
     let watchId: number | null = null;
 
     const trackLocation =
-      activeOrder &&
-      (activeOrder.status === OrderStatus.DELIVERING || activeOrder.status === OrderStatus.ASSIGNED);
+      gpsOrder &&
+      (gpsOrder.status === OrderStatus.DELIVERING || gpsOrder.status === OrderStatus.ASSIGNED);
 
     if (trackLocation && 'geolocation' in navigator) {
       setGpsError(null);
@@ -95,8 +102,8 @@ export default function RepartidorDashboard({
           const { latitude, longitude } = position.coords;
           setCurrentCoords({ lat: latitude, lng: longitude });
           setGpsError(null);
-          if (activeOrder.status === OrderStatus.DELIVERING) {
-            reportGps(activeOrder.id, latitude, longitude);
+          if (gpsOrder.status === OrderStatus.DELIVERING) {
+            reportGps(gpsOrder.id, latitude, longitude);
           }
         },
         (error) => {
@@ -104,7 +111,7 @@ export default function RepartidorDashboard({
           let errMsg = 'Error al leer el GPS.';
           if (error.code === error.PERMISSION_DENIED) {
             errMsg =
-              activeOrder.status === OrderStatus.DELIVERING
+              gpsOrder.status === OrderStatus.DELIVERING
                 ? 'Permiso de GPS denegado. Activá la ubicación en el navegador para continuar el viaje.'
                 : 'Permiso de GPS denegado. Activá la ubicación para ver la ruta al destino.';
           } else if (error.code === error.POSITION_UNAVAILABLE) {
@@ -123,20 +130,20 @@ export default function RepartidorDashboard({
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     };
-  }, [activeOrder?.id, activeOrder?.status]);
+  }, [gpsOrder?.id, gpsOrder?.status]);
 
   const handleAutoPilotSimulation = async () => {
-    if (!activeOrder) return;
+    if (!selectedOrder) return;
 
-    if (activeOrder.status === OrderStatus.ASSIGNED) {
-      await onUpdateOrderStatus(activeOrder.id, OrderStatus.DELIVERING, undefined, 'Viaje iniciado (Simulación de ruta)');
+    if (selectedOrder.status === OrderStatus.ASSIGNED) {
+      await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERING, undefined, 'Viaje iniciado (Simulación de ruta)');
     }
 
     const startLat = currentCoords?.lat ?? departurePoint?.lat ?? -34.5885;
     const startLng = currentCoords?.lng ?? departurePoint?.lng ?? -58.4306;
 
-    const destLat = activeOrder.lat;
-    const destLng = activeOrder.lng;
+    const destLat = selectedOrder.lat;
+    const destLng = selectedOrder.lng;
 
     let count = 0;
     const interval = setInterval(async () => {
@@ -146,11 +153,11 @@ export default function RepartidorDashboard({
       const stepLng = startLng + (destLng - startLng) * ratio;
 
       setCurrentCoords({ lat: stepLat, lng: stepLng });
-      await onReportLocation(activeOrder.id, stepLat, stepLng);
+      await onReportLocation(selectedOrder.id, stepLat, stepLng);
 
       if (count >= 5) {
         clearInterval(interval);
-        await onUpdateOrderStatus(activeOrder.id, OrderStatus.DELIVERED, undefined, 'Pedido entregado en destino final (Simulación completa)');
+        await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERED, undefined, 'Pedido entregado en destino final (Simulación completa)');
         setCurrentCoords(null);
         void showAlert({
           title: 'Simulación completada',
@@ -180,10 +187,7 @@ export default function RepartidorDashboard({
 
       <div className="grid grid-cols-2 bg-zinc-950 p-0.5 border-b border-zinc-800 shrink-0">
         <button
-          onClick={() => {
-            setActiveTab('assigned');
-            if (myAssignedOrders.length > 0) onSelectOrder(myAssignedOrders[0].id);
-          }}
+          onClick={() => setActiveTab('assigned')}
           className={`py-2 text-center text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
             activeTab === 'assigned'
               ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
@@ -210,7 +214,7 @@ export default function RepartidorDashboard({
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row gap-4 p-4">
 
         <div className={`w-full md:w-1/3 flex flex-col h-full bg-zinc-900/30 border border-zinc-800 rounded-2xl p-3.5 overflow-hidden ${
-          activeOrder && activeTab === 'assigned' ? 'hidden md:flex' : 'flex'
+          selectedOrder && activeTab === 'assigned' ? 'hidden md:flex' : 'flex'
         }`}>
           <h3 className="font-bold text-[10px] text-zinc-500 mb-3 uppercase tracking-wider font-mono">
             {activeTab === 'assigned' ? 'Tareas en Proceso' : 'Pedidos en Almacén'}
@@ -228,7 +232,7 @@ export default function RepartidorDashboard({
                     key={order.id}
                     onClick={() => onSelectOrder(order.id)}
                     className={`p-3 rounded border text-left transition cursor-pointer ${
-                      activeOrder?.id === order.id
+                      selectedOrder?.id === order.id
                         ? 'bg-blue-500/5 border-l-2 border-blue-500 border-t-zinc-800 border-r-zinc-800 border-b-zinc-800'
                         : 'bg-zinc-950/40 border-zinc-800/80 hover:bg-zinc-800/50'
                     }`}
@@ -281,9 +285,9 @@ export default function RepartidorDashboard({
         </div>
 
         <div className={`flex-1 flex flex-col h-full gap-4 overflow-hidden ${
-          (!activeOrder || activeTab !== 'assigned') ? 'hidden md:flex' : 'flex'
+          (!selectedOrder || activeTab !== 'assigned') ? 'hidden md:flex' : 'flex'
         }`}>
-          {activeOrder && activeTab === 'assigned' ? (
+          {selectedOrder && activeTab === 'assigned' ? (
             <div className="flex-1 flex flex-col gap-4 overflow-hidden">
 
               <div className="flex-1 min-h-[180px] rounded-2xl border border-zinc-800 overflow-hidden relative">
@@ -295,11 +299,11 @@ export default function RepartidorDashboard({
                   }
                 >
                   <MapComponent
-                    orders={[activeOrder]}
+                    orders={[selectedOrder]}
                     repartidores={repForMap}
                     departurePoint={departurePoint}
                     pickupPoints={pickupPoints}
-                    activeOrderId={activeOrder.id}
+                    activeOrderId={selectedOrder.id}
                     liveRepartidorLocation={currentCoords}
                     showDepartureHub={false}
                     interactive={true}
@@ -317,19 +321,19 @@ export default function RepartidorDashboard({
                     ← Volver a la Lista
                   </button>
                   <span className="text-[10px] font-mono font-bold text-zinc-500">
-                    {activeOrder.id}
+                    {selectedOrder.id}
                   </span>
                 </div>
 
                 <div className="flex items-start justify-between">
                   <div>
                     <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-500">Destino de Entrega</span>
-                    <h3 className="font-bold text-xs text-zinc-200 uppercase font-mono tracking-wider">{activeOrder.clientName}</h3>
-                    <p className="text-xs text-blue-400 mt-0.5 font-sans">📍 {activeOrder.address}</p>
+                    <h3 className="font-bold text-xs text-zinc-200 uppercase font-mono tracking-wider">{selectedOrder.clientName}</h3>
+                    <p className="text-xs text-blue-400 mt-0.5 font-sans">📍 {selectedOrder.address}</p>
                   </div>
 
                   <a
-                    href={`https://www.google.com/maps/dir/?api=1&destination=${activeOrder.lat},${activeOrder.lng}`}
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedOrder.lat},${selectedOrder.lng}`}
                     target="_blank"
                     rel="noreferrer"
                     className="p-1.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white transition flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold"
@@ -338,40 +342,71 @@ export default function RepartidorDashboard({
                   </a>
                 </div>
 
-                {activeOrder.notes && (
+                {selectedOrder.notes && (
                   <div className="mt-2 bg-zinc-950 border border-zinc-800/60 rounded p-2 text-[10px] text-zinc-400 flex items-start gap-1.5">
                     <FileText className="w-3 h-3 text-zinc-500 shrink-0 mt-0.5" />
-                    <span>{activeOrder.notes}</span>
+                    <span>{selectedOrder.notes}</span>
                   </div>
                 )}
 
                 <div className="mt-3 flex flex-col gap-2">
                   <div className="flex gap-2">
-                    {activeOrder.status === OrderStatus.ASSIGNED && (
+                    {selectedOrder.status === OrderStatus.ASSIGNED && (
                       <button
+                        disabled={!!otherDelivering}
                         onClick={async () => {
-                          await onUpdateOrderStatus(activeOrder.id, OrderStatus.DELIVERING, undefined, 'Repartidor inició viaje al destino');
-                          if (currentCoords) {
-                            await onReportLocation(activeOrder.id, currentCoords.lat, currentCoords.lng);
+                          try {
+                            await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERING, undefined, 'Repartidor inició viaje al destino');
+                            if (currentCoords) {
+                              await onReportLocation(selectedOrder.id, currentCoords.lat, currentCoords.lng);
+                            }
+                          } catch (e) {
+                            void showAlert({
+                              title: 'No se pudo iniciar el viaje',
+                              message: e instanceof Error ? e.message : 'Intentá de nuevo.',
+                              variant: 'error',
+                            });
                           }
                         }}
-                        className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/10 uppercase tracking-wider"
+                        className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/10 uppercase tracking-wider"
                       >
                         <Play className="w-4 h-4" /> Iniciar Viaje de Entrega
                       </button>
                     )}
 
-                    {activeOrder.status === OrderStatus.DELIVERING && (
+                    {selectedOrder.status === OrderStatus.DELIVERING && (
                       <>
                         <button
-                          onClick={() => onUpdateOrderStatus(activeOrder.id, OrderStatus.DELIVERED, undefined, 'Entregado en mano por repartidor')}
+                          onClick={async () => {
+                            try {
+                              await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERED, undefined, 'Entregado en mano por repartidor');
+                              onSelectOrder(null);
+                            } catch (e) {
+                              void showAlert({
+                                title: 'Error',
+                                message: e instanceof Error ? e.message : 'No se pudo confirmar la entrega.',
+                                variant: 'error',
+                              });
+                            }
+                          }}
                           className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/10 uppercase tracking-wider"
                         >
                           <Check className="w-4 h-4" /> Confirmar Entrega
                         </button>
 
                         <button
-                          onClick={() => onUpdateOrderStatus(activeOrder.id, OrderStatus.CANCELLED, undefined, 'Reportado con incidencia / Cancelado')}
+                          onClick={async () => {
+                            try {
+                              await onUpdateOrderStatus(selectedOrder.id, OrderStatus.CANCELLED, undefined, 'Reportado con incidencia / Cancelado');
+                              onSelectOrder(null);
+                            } catch (e) {
+                              void showAlert({
+                                title: 'Error',
+                                message: e instanceof Error ? e.message : 'No se pudo reportar la incidencia.',
+                                variant: 'error',
+                              });
+                            }
+                          }}
                           className="px-3 py-2 border border-red-500/20 hover:border-red-500 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded transition font-bold text-xs uppercase tracking-wider"
                         >
                           <AlertTriangle className="w-4 h-4" /> Incidencia
@@ -380,13 +415,19 @@ export default function RepartidorDashboard({
                     )}
                   </div>
 
-                  {activeOrder.status === OrderStatus.ASSIGNED && currentCoords && (
+                  {otherDelivering && selectedOrder.status === OrderStatus.ASSIGNED && (
+                    <p className="text-[10px] text-amber-400 font-mono text-center">
+                      Tenés un viaje en curso ({otherDelivering.id}). Finalizalo antes de iniciar otro.
+                    </p>
+                  )}
+
+                  {selectedOrder.status === OrderStatus.ASSIGNED && currentCoords && (
                     <div className="bg-zinc-950 border border-zinc-800 rounded p-2 text-[10px] text-blue-400 font-mono">
                       📍 Ruta por calles hacia el destino (línea azul en el mapa)
                     </div>
                   )}
 
-                  {activeOrder.status === OrderStatus.DELIVERING && (
+                  {selectedOrder.status === OrderStatus.DELIVERING && (
                     <div className="bg-zinc-950 border border-zinc-800 rounded p-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-zinc-300">📡 GPS En Vivo</span>

@@ -144,6 +144,10 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Repartidor no encontrado.' });
       return;
     }
+    if (message === 'ALREADY_DELIVERING') {
+      res.status(400).json({ error: 'Ya tenés un viaje en curso. Finalizalo antes de iniciar otro.' });
+      return;
+    }
     throw err;
   }
 });
