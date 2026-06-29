@@ -21,7 +21,6 @@ import {
   Pencil,
   ChevronRight,
   Key,
-  X,
   Building2,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
@@ -412,12 +411,10 @@ export default function SettingsPage({
           </section>
         )}
 
-        {agency && onCreateSeller && (
-          <section
-            className={`${sectionClass} flex flex-col min-h-0 ${
-              showSellerForm || selectedSellerId ? 'lg:col-span-2' : ''
-            }`}
-          >
+        {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor) && (
+          <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start min-w-0">
+        {onCreateSeller && (
+          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
                 <UserPlus className="w-4 h-4 text-[var(--route)]" />
@@ -426,54 +423,65 @@ export default function SettingsPage({
                 <p className="text-xs font-display font-semibold text-[var(--color-text)]">Vendedores</p>
                 <p className="mono-label">{sellers.length} registrado{sellers.length !== 1 ? 's' : ''}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (showSellerForm) {
-                    setShowSellerForm(false);
-                  } else {
-                    closeSellerDetail();
-                    setShowSellerForm(true);
-                  }
-                }}
-                className={btnGhost}
-              >
-                {showSellerForm ? 'Cerrar' : '+ Nuevo'}
-              </button>
+              {!selectedSellerId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showSellerForm) {
+                      setShowSellerForm(false);
+                    } else {
+                      closeSellerDetail();
+                      setShowSellerForm(true);
+                    }
+                  }}
+                  className={btnGhost}
+                >
+                  {showSellerForm ? 'Cerrar' : '+ Nuevo'}
+                </button>
+              )}
             </div>
 
-            {sellers.length > 0 && !showSellerForm && (
-              <ul className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-                {sellers.map((s) => {
-                  const selected = selectedSellerId === s.id;
-                  return (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        onClick={() => void loadSellerDetail(s.id)}
-                        className={`w-full text-left text-[11px] rounded-[5px] px-2.5 py-2 border transition flex items-center justify-between gap-2 ${
-                          selected
-                            ? 'bg-[var(--route)]/10 border-[var(--route)]/40 text-[var(--color-text)]'
-                            : `${listItemClass} hover:border-[var(--route)]/30 hover:bg-[var(--route)]/5`
-                        }`}
-                      >
-                        <span className="min-w-0 truncate">
-                          <span className="font-medium text-[var(--ink-soft)]">{s.name}</span>
-                          <span className="text-[var(--color-text-muted)]"> @{s.username}</span>
-                        </span>
-                        <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${selected ? 'text-[var(--route)]' : 'text-[var(--color-text-faint)]'}`} />
-                      </button>
-                    </li>
-                  );
-                })}
+            {sellers.length > 0 && !showSellerForm && !selectedSellerId && (
+              <ul className="mt-2.5 space-y-1.5">
+                {sellers.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => void loadSellerDetail(s.id)}
+                      className={`w-full text-left text-[11px] rounded-[5px] px-2.5 py-2 border transition flex items-center justify-between gap-2 ${listItemClass} hover:border-[var(--route)]/30 hover:bg-[var(--route)]/5`}
+                    >
+                      <span className="min-w-0 truncate">
+                        <span className="font-medium text-[var(--ink-soft)]">{s.name}</span>
+                        <span className="text-[var(--color-text-muted)]"> @{s.username}</span>
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[var(--color-text-faint)]" />
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
 
             {selectedSellerId && !showSellerForm && (
-              <div className="mt-3 pt-3 border-t border-[var(--surface-border)]">
+              <div className="mt-2.5 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <p className="text-xs font-display font-semibold text-[var(--color-text)]">Detalle del vendedor</p>
-                  <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={closeSellerDetail}
+                    className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition min-w-0"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">
+                      {sellerDetail ? (
+                        <>
+                          <span className="font-medium text-[var(--ink-soft)]">{sellerDetail.user.name}</span>
+                          <span className="text-[var(--color-text-muted)]"> @{sellerDetail.user.username}</span>
+                        </>
+                      ) : (
+                        'Volver a vendedores'
+                      )}
+                    </span>
+                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
                     {onUpdateSeller && sellerDetail && !editingSeller && (
                       <button
                         type="button"
@@ -525,14 +533,6 @@ export default function SettingsPage({
                         <Trash2 className="w-4 h-4" />
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={closeSellerDetail}
-                      className="p-1 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)]/50"
-                      title="Cerrar detalle"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
 
@@ -543,7 +543,7 @@ export default function SettingsPage({
                   <p className="text-[11px] text-[var(--color-danger)]">{sellerDetailError}</p>
                 )}
                 {sellerDetail && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <div className="space-y-3 min-w-0">
                     <div className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg p-3 space-y-2">
                       {editingSeller && onUpdateSeller ? (
                         <form
@@ -859,12 +859,8 @@ export default function SettingsPage({
           </section>
         )}
 
-        {agency && (onCreateRepartidor || onDeleteRepartidor) && (
-          <section
-            className={`${sectionClass} flex flex-col min-h-0 ${
-              showRepartidorForm ? 'lg:col-span-2' : ''
-            }`}
-          >
+        {(onCreateRepartidor || onDeleteRepartidor) && (
+          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0 text-lg leading-none">
                 🏍️
@@ -884,7 +880,7 @@ export default function SettingsPage({
               )}
             </div>
             {repartidores.length > 0 && !showRepartidorForm && (
-              <ul className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <ul className="mt-2.5 space-y-1.5 max-h-[min(70vh,42rem)] overflow-y-auto pr-1 scrollbar-thin">
                 {repartidores.map((rep) => (
                   <li
                     key={rep.id}
@@ -1066,6 +1062,8 @@ export default function SettingsPage({
               </form>
             )}
           </section>
+        )}
+          </div>
         )}
 
         {agency && onTriggerSimulatorTick && (
