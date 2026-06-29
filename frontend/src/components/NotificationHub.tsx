@@ -57,7 +57,7 @@ export default function NotificationHub({
   onToggleCollapse,
   showCollapseButton = false,
 }: NotificationHubProps) {
-  const { alert: showAlert } = useModal();
+  const { alert: showAlert, confirm } = useModal();
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [activeBanner, setActiveBanner] = useState<AppNotification | null>(null);
 
@@ -228,14 +228,35 @@ export default function NotificationHub({
         <div className="border-t border-[var(--surface-border)]/80 pt-3 flex flex-col flex-1 overflow-hidden">
           <div className="flex items-center justify-between mb-2 shrink-0">
             <span className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider font-mono">Buzón de Alertas ({unreadCount})</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={onMarkAllRead}
-                className="text-[9px] text-[var(--color-accent)] hover:text-[var(--color-accent)] flex items-center gap-0.5 font-bold uppercase tracking-wider"
-              >
-                <Check className="w-3 h-3" /> Marcar Leídas
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={onMarkAllRead}
+                  className="text-[9px] text-[var(--color-accent)] hover:text-[var(--color-accent)] flex items-center gap-0.5 font-bold uppercase tracking-wider"
+                >
+                  <Check className="w-3 h-3" /> Marcar leídas
+                </button>
+              )}
+              {notifications.length > 0 && onClearNotifications && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Limpiar notificaciones',
+                      message: '¿Vaciar el buzón de alertas? Las notificaciones personales se eliminan y las generales dejan de mostrarse para tu cuenta.',
+                      variant: 'danger',
+                      confirmText: 'Limpiar',
+                      cancelText: 'Cancelar',
+                    });
+                    if (ok) onClearNotifications();
+                  }}
+                  className="text-[9px] text-[var(--color-danger)] hover:text-red-300 flex items-center gap-0.5 font-bold uppercase tracking-wider"
+                >
+                  <Trash2 className="w-3 h-3" /> Limpiar
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">

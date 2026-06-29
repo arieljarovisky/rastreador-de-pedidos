@@ -902,8 +902,21 @@ export default function App() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Marcar localmente de inmediato para mejorar feedback visual
       setNotifications(notifications.map(n => ({ ...n, read: true })));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClearNotifications = async () => {
+    if (!token) return;
+    try {
+      await fetch(apiUrl('/api/notifications'), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotifications([]);
+      localStorage.removeItem('cached_notifications');
     } catch (e) {
       console.error(e);
     }
@@ -1193,6 +1206,7 @@ export default function App() {
               <NotificationHub
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}
+                onClearNotifications={handleClearNotifications}
                 activeUserId={user.id}
                 onToggleCollapse={toggleNotifsSidebar}
                 showCollapseButton
@@ -1226,6 +1240,7 @@ export default function App() {
               <NotificationHub
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}
+                onClearNotifications={handleClearNotifications}
                 activeUserId={user.id}
                 onToggleCollapse={toggleNotifsSidebar}
                 showCollapseButton

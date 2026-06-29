@@ -117,3 +117,11 @@ CREATE TABLE IF NOT EXISTS notifications (
   INDEX idx_notifications_user (user_id),
   CONSTRAINT fk_notifications_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS notification_dismissals (
+  user_id VARCHAR(36) NOT NULL,
+  notification_id VARCHAR(64) NOT NULL,
+  dismissed_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (user_id, notification_id),
+  INDEX idx_dismissals_notification (notification_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

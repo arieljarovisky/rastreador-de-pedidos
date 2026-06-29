@@ -29,19 +29,44 @@ function rowToNotification(row: NotificationRow): AppNotification {
 
 export async function listNotificationsForUser(userId: string): Promise<AppNotification[]> {
   const [rows] = await pool.query<NotificationRow[]>(
-    `SELECT id, user_id, title, body, type, order_id, is_read, created_at
-     FROM notifications WHERE user_id = 'all' OR user_id = ?
-     ORDER BY created_at DESC`,
-    [userId]
+    `SELECT n.id, n.user_id, n.title, n.body, n.type, n.order_id, n.is_read, n.created_at
+     FROM notifications n
+     LEFT JOIN notification_dismissals d ON d.notification_id = n.id AND d.user_id = ?
+     WHERE (n.user_id = 'all' OR n.user_id = ?) AND d.notification_id IS NULL
+     ORDER BY n.created_at DESC`,
+    [userId, userId]
   );
   return rows.map(rowToNotification);
 }
 
 export async function markAllReadForUser(userId: string): Promise<void> {
   await pool.query(
-    `UPDATE notifications SET is_read = 1 WHERE user_id = 'all' OR user_id = ?`,
-    [userId]
+    `UPDATE notifications n
+     LEFT JOIN notification_dismissals d ON d.notification_id = n.id AND d.user_id = ?
+     SET n.is_read = 1
+     WHERE (n.user_id = 'all' OR n.user_id = ?) AND d.notification_id IS NULL`,
+    [userId, userId]
   );
+}
+
+export async function clearNotificationsForUser(userId: string): Promise<void> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT n.id FROM notifications n
+     LEFT JOIN notification_dismissals d ON d.notification_id = n.id AND d.user_id = ?
+     WHERE (n.user_id = 'all' OR n.user_id = ?) AND d.notification_id IS NULL`,
+    [userId, userId]
+  );
+
+  const now = new Date();
+  for (const row of rows) {
+    await pool.query(
+      `INSERT IGNORE INTO notification_dismissals (user_id, notification_id, dismissed_at)
+       VALUES (?, ?, ?)`,
+      [userId, row.id, now]
+    );
+  }
+
+  await pool.query(`DELETE FROM notifications WHERE user_id = ?`, [userId]);
 }
 
 export async function createNotification(data: {
