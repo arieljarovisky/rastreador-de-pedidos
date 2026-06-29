@@ -667,6 +667,7 @@ export default function App() {
     setNotifications([]);
     setActiveOrderId(null);
     setMobileTabState('dashboard');
+    window.location.href = '/';
   };
 
   // Crear nuevo pedido (Admin)

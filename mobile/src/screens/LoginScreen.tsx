@@ -63,7 +63,7 @@ export default function LoginScreen() {
           </MonoLabel>
 
           <Text style={[typography.body(12, paper.muted), styles.hintInForm]}>
-            Si sos vendedor o repartidor, usá las credenciales que te dio tu agencia de logística.
+            Agencia, vendedor o repartidor: usá las credenciales que te dio tu operador logístico.
           </Text>
 
           <MonoLabel color={paper.muted} style={styles.fieldLabel}>

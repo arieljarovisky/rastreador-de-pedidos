@@ -15,5 +15,13 @@ export type SellerStackParamList = {
   Notifications: undefined;
 };
 
-/** @deprecated Usar RepartidorStackParamList o SellerStackParamList */
+export type AgencyStackParamList = {
+  AgencyOrders: undefined;
+  AgencyOrderDetail: { orderId: string };
+  AgencyScan: undefined;
+  AgencySettings: undefined;
+  AgencyNotifications: undefined;
+};
+
+/** @deprecated Usar RepartidorStackParamList, SellerStackParamList o AgencyStackParamList */
 export type RootStackParamList = RepartidorStackParamList;

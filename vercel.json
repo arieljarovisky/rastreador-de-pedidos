@@ -2,7 +2,10 @@
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm install",
-  "rewrites": [{ "source": "/((?!assets/|manifest\\.json|sw\\.js|.*\\..*).*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/app", "destination": "/app.html" },
+    { "source": "/app/(.*)", "destination": "/app.html" }
+  ],
   "headers": [
     {
       "source": "/",

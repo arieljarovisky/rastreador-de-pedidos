@@ -166,7 +166,16 @@ export function isRepartidorRole(role: UserRole): boolean {
 }
 
 /** Roles admitidos en la app móvil Posta. */
-export const MOBILE_APP_ROLES: UserRole[] = [UserRole.REPARTIDOR, UserRole.STORE_ADMIN];
+export const MOBILE_APP_ROLES: UserRole[] = [
+  UserRole.REPARTIDOR,
+  UserRole.STORE_ADMIN,
+  UserRole.SUPER_ADMIN,
+  UserRole.LOGISTICS_ADMIN,
+];
+
+export function isAgencyAdminRole(role: UserRole): boolean {
+  return isAgencyAdmin(role);
+}
 
 /** Etiqueta legible para cada estado de pedido. */
 export const STATUS_LABEL: Record<OrderStatus, string> = {

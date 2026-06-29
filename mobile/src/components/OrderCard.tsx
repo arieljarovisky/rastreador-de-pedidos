@@ -9,9 +9,10 @@ interface Props {
   order: Order;
   onPress: () => void;
   showRepartidor?: boolean;
+  showSeller?: boolean;
 }
 
-export default function OrderCard({ order, onPress, showRepartidor }: Props) {
+export default function OrderCard({ order, onPress, showRepartidor, showSeller }: Props) {
   return (
     <Pressable
       onPress={onPress}
@@ -28,6 +29,12 @@ export default function OrderCard({ order, onPress, showRepartidor }: Props) {
       <Text style={styles.address} numberOfLines={2}>
         {order.address}
       </Text>
+
+      {showSeller && order.sellerName ? (
+        <Text style={styles.seller} numberOfLines={1}>
+          🏪 {order.sellerName}
+        </Text>
+      ) : null}
 
       {showRepartidor && order.repartidorName ? (
         <Text style={styles.repartidor} numberOfLines={1}>
@@ -74,6 +81,12 @@ const styles = StyleSheet.create({
   repartidor: {
     fontFamily: fonts.bodyMedium,
     color: colors.accent,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  seller: {
+    fontFamily: fonts.bodyMedium,
+    color: colors.blue,
     fontSize: 12,
     marginTop: 4,
   },

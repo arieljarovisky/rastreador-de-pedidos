@@ -150,7 +150,8 @@ export const api = {
     token: string,
     code: string,
     lat?: number,
-    lng?: number
+    lng?: number,
+    sellerId?: string
   ): Promise<MercadoLibreScanImportResult> {
     return request<MercadoLibreScanImportResult>('/api/integrations/mercadolibre/scan-import', {
       method: 'POST',
@@ -159,7 +160,20 @@ export const api = {
         code,
         lat,
         lng,
+        sellerId,
       },
+    });
+  },
+
+  getSellers(token: string): Promise<User[]> {
+    return request<User[]>('/api/accounts/sellers', { token });
+  },
+
+  assignOrderSeller(token: string, orderId: string, sellerId: string): Promise<Order> {
+    return request<Order>(`/api/orders/${orderId}/seller`, {
+      method: 'PUT',
+      token,
+      body: { sellerId },
     });
   },
 

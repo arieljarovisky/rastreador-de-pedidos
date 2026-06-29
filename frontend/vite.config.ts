@@ -1,11 +1,28 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, type Plugin} from 'vite';
+
+function appRoutePlugin(): Plugin {
+  return {
+    name: 'app-route',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        const raw = req.url ?? '';
+        const pathOnly = raw.split('?')[0];
+        if (pathOnly === '/app' || pathOnly.startsWith('/app/')) {
+          const query = raw.includes('?') ? raw.slice(raw.indexOf('?')) : '';
+          req.url = `/app.html${query}`;
+        }
+        next();
+      });
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), appRoutePlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -13,6 +30,10 @@ export default defineConfig(() => {
     },
     build: {
       rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+          app: path.resolve(__dirname, 'app.html'),
+        },
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) {

@@ -69,7 +69,7 @@ function redirectToFrontend(platform: IntegrationPlatform, status: 'connected' |
     status,
   });
   if (message) params.set('message', message);
-  return `${env.frontendUrl}?${params}`;
+  return `${env.frontendUrl}/app?${params}`;
 }
 
 router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {

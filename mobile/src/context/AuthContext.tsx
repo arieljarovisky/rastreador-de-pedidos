@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await api.login(username, password);
       if (!MOBILE_APP_ROLES.includes(data.user.role)) {
         throw new Error(
-          'Esta app es para vendedores y repartidores. Usá la web para cuentas de agencia.'
+          'Tu cuenta no tiene acceso a la app móvil. Contactá a soporte de Posta.'
         );
       }
       await AsyncStorage.multiSet([

@@ -335,7 +335,8 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     </nav>
     <div class="navcta">
       <a href="#descargar" class="navlinks" style="font-family:var(--mono);font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2)">Descargar app</a>
-      <a href="#demo" class="btn btn-stamp">Probar la demo</a>
+      <a href="/app" class="btn btn-ink">Iniciar sesión</a>
+      <a href="/app" class="btn btn-stamp">Probar la demo</a>
       <button class="burger" id="burger" aria-label="Abrir menú">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
@@ -347,7 +348,8 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     <a href="#recorrido">Recorrido</a>
     <a href="#descargar">Descargar app</a>
     <a href="#precios">Precios</a>
-    <a href="#demo" class="btn btn-stamp">Probar la demo</a>
+    <a href="/app" class="btn btn-ink">Iniciar sesión</a>
+    <a href="/app" class="btn btn-stamp">Probar la demo</a>
   </div>
 </header>
 
@@ -361,7 +363,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
       <h1>Sabés dónde está <u>cada envío</u>.<span class="stamp stampfly">En vivo</span></h1>
       <p class="lead">Posta sigue cada moto en tiempo real, te arma la ruta por GPS y mantiene a tu agencia, tus tiendas y tus repartidores en la misma página. Sin planillas. Sin “¿dónde está mi pedido?”.</p>
       <div class="hero-cta">
-        <a href="#demo" class="btn btn-stamp">Probar la demo <span class="arrow">→</span></a>
+        <a href="/app" class="btn btn-stamp">Iniciar sesión <span class="arrow">→</span></a>
         <a href="#descargar" class="btn btn-ink">Descargar app repartidor</a>
       </div>
       <p class="hero-note">// demo web para agencias y vendedores · app nativa para repartidores</p>
@@ -743,7 +745,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     <h2>¿Arrancamos?</h2>
     <p>Entrá con un usuario demo y seguí un envío de punta a punta en cinco minutos. Sin instalar nada, sin tarjeta.</p>
     <div class="final-cta">
-      <a href="#top" class="btn btn-paper">Probar la demo <span class="arrow">→</span></a>
+      <a href="/app" class="btn btn-paper">Iniciar sesión <span class="arrow">→</span></a>
       <a href="#descargar" class="btn btn-oncolor">Descargar app repartidor</a>
       <a href="#precios" class="btn btn-oncolor">Agendá una demo</a>
     </div>
@@ -809,7 +811,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     origin: 'https://envios-erp.up.railway.app',
     androidApk: '/downloads/posta-repartidor.apk',
     // PWA web para repartidores (iPhone instala desde Safari)
-    webApp: 'https://rastreador-de-pedidos-seven.vercel.app'
+    webAppPath: '/app'
   };
 
   function absUrl(path) {
@@ -825,7 +827,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   var panelIos = document.getElementById('panelIos');
   var dlWarn = document.getElementById('dlWarn');
   var apkUrl = absUrl(APP_DOWNLOAD.androidApk);
-  var webAppUrl = absUrl(APP_DOWNLOAD.webApp);
+  var webAppUrl = window.location.origin.replace(/\/$/, '') + (APP_DOWNLOAD.webAppPath || '/app');
 
   if (btnAndroid) btnAndroid.href = apkUrl;
   if (btnIos) btnIos.href = webAppUrl;

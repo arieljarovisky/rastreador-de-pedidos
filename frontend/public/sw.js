@@ -101,7 +101,7 @@ self.addEventListener('push', (event) => {
       icon: '/icon-192.svg',
       badge: '/icon-192.svg',
       vibrate: [100, 50, 100],
-      data: { url: '/' },
+      data: { url: '/app' },
     })
   );
 });
@@ -114,7 +114,7 @@ self.addEventListener('notificationclick', (event) => {
         const focused = clientList.find((c) => c.focused) ?? clientList[0];
         return focused.focus();
       }
-      return clients.openWindow('/');
+      return clients.openWindow('/app');
     })
   );
 });

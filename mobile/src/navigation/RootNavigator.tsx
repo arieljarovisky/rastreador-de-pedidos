@@ -6,7 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
 import RepartidorNavigator from './RepartidorNavigator';
 import SellerNavigator from './SellerNavigator';
-import { isRepartidorRole, isSellerRole } from '../types';
+import AgencyNavigator from './AgencyNavigator';
+import { isAgencyAdminRole, isRepartidorRole, isSellerRole } from '../types';
 import { colors } from '../theme';
 
 const AuthStack = createNativeStackNavigator();
@@ -47,6 +48,8 @@ export default function RootNavigator() {
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />
         </AuthStack.Navigator>
+      ) : isAgencyAdminRole(user.role) ? (
+        <AgencyNavigator />
       ) : isSellerRole(user.role) ? (
         <SellerNavigator />
       ) : isRepartidorRole(user.role) ? (
