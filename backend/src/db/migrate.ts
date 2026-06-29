@@ -1,5 +1,6 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
+import { syncMensajeriaGrAgency } from './sync-agency-bindings.js';
 
 async function columnExists(table: string, column: string): Promise<boolean> {
   const [rows] = await pool.query<Array<{ COLUMN_NAME: string } & import('mysql2').RowDataPacket>>(
@@ -163,4 +164,6 @@ export async function runMigrations(): Promise<void> {
      SET o.agency_id = s.agency_id
      WHERE o.agency_id IS NULL AND s.agency_id IS NOT NULL`
   );
+
+  await syncMensajeriaGrAgency();
 }

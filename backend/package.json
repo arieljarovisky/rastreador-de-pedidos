@@ -12,6 +12,7 @@
     "build": "node ./node_modules/typescript/lib/tsc.js && node -e \"require('fs').mkdirSync('dist/db',{recursive:true});require('fs').copyFileSync('src/db/schema.sql','dist/db/schema.sql')\"",
     "db:setup": "tsx src/db/setup.ts",
     "db:reset": "tsx src/db/reset.ts",
+    "db:sync-agency": "tsx src/db/sync-agency-bindings.ts",
     "db:reset:prod": "node dist/db/reset.js",
     "lint": "node ./node_modules/typescript/lib/tsc.js --noEmit"
   },
