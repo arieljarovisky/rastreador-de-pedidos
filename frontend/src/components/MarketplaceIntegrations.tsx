@@ -10,6 +10,7 @@ import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '.
 interface MarketplaceIntegrationsProps {
   status: MarketplaceIntegrationStatus | null;
   statusLoading: boolean;
+  statusError?: string | null;
   onRefreshStatus: () => Promise<void>;
   onConnect: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
   onDisconnect: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
@@ -55,6 +56,7 @@ function PlatformCard({
   icon,
   platform,
   configured,
+  showMissingCredentials = false,
   connected,
   accountName,
   webhookUrl,
@@ -77,6 +79,7 @@ function PlatformCard({
   icon: ReactNode;
   platform: 'mercadolibre' | 'tiendanube';
   configured: boolean;
+  showMissingCredentials?: boolean;
   connected: boolean;
   accountName: string | null;
   webhookUrl?: string;
@@ -108,7 +111,7 @@ function PlatformCard({
           {connected && accountName && (
             <p className="text-[10px] text-[var(--color-ok)] mt-0.5 truncate">Conectado: {accountName}</p>
           )}
-          {!configured && (
+          {!configured && showMissingCredentials && (
             <p className="text-[10px] text-[var(--color-warn)] mt-0.5">
               Falta configurar credenciales en el servidor.
             </p>
@@ -277,6 +280,7 @@ function PlatformCard({
 export default function MarketplaceIntegrations({
   status,
   statusLoading,
+  statusError = null,
   onRefreshStatus,
   onConnect,
   onDisconnect,
@@ -399,6 +403,10 @@ export default function MarketplaceIntegrations({
         </button>
       </div>
 
+      {statusError && (
+        <p className="text-[10px] mb-2 font-mono text-[var(--color-danger)]">{statusError}</p>
+      )}
+
       {message && (
         <p className={`text-[10px] mb-2 font-mono ${messageTone === 'error' ? 'text-[var(--color-danger)]' : 'text-[var(--color-ok)]'}`}>
           {message}
@@ -412,6 +420,9 @@ export default function MarketplaceIntegrations({
           icon={<ShoppingBag className="w-4 h-4 text-yellow-400" />}
           platform="mercadolibre"
           configured={status?.mercadolibre.configured ?? false}
+          showMissingCredentials={
+            !statusError && status !== null && !status.mercadolibre.configured
+          }
           connected={status?.mercadolibre.connected ?? false}
           accountName={status?.mercadolibre.account?.nickname ?? null}
           webhookUrl={status?.mercadolibre.webhookUrl}
@@ -431,6 +442,9 @@ export default function MarketplaceIntegrations({
           icon={<Store className="w-4 h-4 text-violet-400" />}
           platform="tiendanube"
           configured={status?.tiendanube.configured ?? false}
+          showMissingCredentials={
+            !statusError && status !== null && !status.tiendanube.configured
+          }
           connected={status?.tiendanube.connected ?? false}
           accountName={
             status?.tiendanube.account?.nickname ?? status?.tiendanube.account?.externalStoreId ?? null

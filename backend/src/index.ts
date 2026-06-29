@@ -19,6 +19,12 @@ async function start(): Promise<void> {
 
   server.listen(env.port, '0.0.0.0', () => {
     console.log(`Backend LupoEnvios corriendo en http://localhost:${env.port} (HTTP + WebSocket)`);
+    console.log(
+      `[startup] Integraciones ML=${env.mercadolibre.appId ? 'appId ok' : 'SIN appId'}, ` +
+        `secret=${env.mercadolibre.appSecret ? 'ok' : 'SIN secret'} | ` +
+        `TN=${env.tiendanube.appId ? 'appId ok' : 'SIN appId'}, ` +
+        `secret=${env.tiendanube.appSecret ? 'ok' : 'SIN secret'}`
+    );
   });
 }
 

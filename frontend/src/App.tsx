@@ -54,6 +54,7 @@ export default function App() {
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
+  const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
 
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
@@ -651,13 +652,23 @@ export default function App() {
   const fetchIntegrationStatus = useCallback(async () => {
     if (!token) return;
     setIntegrationStatusLoading(true);
+    setIntegrationStatusError(null);
     try {
       const res = await fetch(apiUrl('/api/integrations/status'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         setIntegrationStatus(await res.json());
+        return;
       }
+      const body = await res.json().catch(() => ({}));
+      setIntegrationStatusError(
+        body.error || `No se pudo consultar el estado de integraciones (${res.status}).`
+      );
+    } catch {
+      setIntegrationStatusError(
+        'No se pudo contactar al servidor. Revisá VITE_API_URL en Vercel y que el backend esté en línea.'
+      );
     } finally {
       setIntegrationStatusLoading(false);
     }
@@ -1094,6 +1105,7 @@ export default function App() {
                   onTriggerSimulatorTick={isAgencyAdmin(user.role) ? handleTriggerSimulatorTick : undefined}
                   integrationStatus={integrationStatus}
                   integrationStatusLoading={integrationStatusLoading}
+                  integrationStatusError={integrationStatusError}
                   onRefreshIntegrationStatus={fetchIntegrationStatus}
                   onConnectMarketplace={user.role === UserRole.STORE_ADMIN ? connectMarketplace : undefined}
                   onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}

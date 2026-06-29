@@ -71,6 +71,7 @@ interface SettingsPageProps {
   onTriggerSimulatorTick?: () => Promise<void>;
   integrationStatus?: MarketplaceIntegrationStatus | null;
   integrationStatusLoading?: boolean;
+  integrationStatusError?: string | null;
   onRefreshIntegrationStatus?: () => Promise<void>;
   onConnectMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
   onDisconnectMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
@@ -105,6 +106,7 @@ export default function SettingsPage({
   onTriggerSimulatorTick,
   integrationStatus = null,
   integrationStatusLoading = false,
+  integrationStatusError = null,
   onRefreshIntegrationStatus,
   onConnectMarketplace,
   onDisconnectMarketplace,
@@ -281,6 +283,7 @@ export default function SettingsPage({
             <MarketplaceIntegrations
               status={integrationStatus}
               statusLoading={integrationStatusLoading}
+              statusError={integrationStatusError}
               onRefreshStatus={onRefreshIntegrationStatus}
               onConnect={onConnectMarketplace}
               onDisconnect={onDisconnectMarketplace}
