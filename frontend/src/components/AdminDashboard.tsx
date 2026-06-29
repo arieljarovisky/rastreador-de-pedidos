@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
-import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, Layers } from 'lucide-react';
+import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findZoneForPoint, zoneLabel } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
@@ -48,6 +48,15 @@ const DIRECTORY_PRESETS = [
 
 const MAP_ZONES_STORAGE_KEY = 'lupo_map_show_zones';
 const MAP_REPS_STORAGE_KEY = 'lupo_map_repartidor_ids';
+const ORDERS_HEADER_COLLAPSED_KEY = 'posta_orders_header_collapsed';
+
+function loadOrdersHeaderCollapsed(): boolean {
+  try {
+    return localStorage.getItem(ORDERS_HEADER_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 type MapRepartidorPrefs =
   | { kind: 'default' }
@@ -126,6 +135,7 @@ export default function AdminDashboard({
   onScanMercadoLibreLabel,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
+  const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
   const { confirm, alert: showAlert } = useModal();
 
@@ -153,6 +163,18 @@ export default function AdminDashboard({
       // ignore storage errors
     }
   }, [showMapZones]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ORDERS_HEADER_COLLAPSED_KEY, ordersHeaderCollapsed ? '1' : '0');
+    } catch {
+      // ignore storage errors
+    }
+  }, [ordersHeaderCollapsed]);
+
+  const toggleOrdersHeader = useCallback(() => {
+    setOrdersHeaderCollapsed((collapsed) => !collapsed);
+  }, []);
 
   useEffect(() => {
     if (!mapRepartidorPrefsReady.current) return;
@@ -587,73 +609,75 @@ export default function AdminDashboard({
         </button>
       </div>
 
-      {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN (5 COLUMNAS - HIGH DENSITY) */}
-      <div className={`lg:col-span-5 2xl:col-span-4 flex flex-col flex-1 min-h-0 overflow-hidden posta-surface p-2.5 sm:p-3 lg:p-4 ${
+      {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN */}
+      <div className={`lg:col-span-6 2xl:col-span-5 flex flex-col flex-1 min-h-0 overflow-hidden posta-surface p-2 sm:p-2.5 lg:p-3 ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
-        {/* Cabecera, Búsqueda y Filtros */}
-        <div className="shrink-0 space-y-2 lg:space-y-3">
+        {/* Cabecera compacta, búsqueda y filtros */}
+        <div className="shrink-0 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <h2 className="text-sm lg:text-base font-display font-semibold text-[var(--color-text)] flex items-center gap-1.5 truncate">
-                {userRole === UserRole.STORE_ADMIN ? '🛒 Posta Ventas (Local)' : userRole === UserRole.SUPER_ADMIN ? '👑 Posta Agencia (Super Admin)' : '⚙️ Posta Logística'}
+            <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={toggleOrdersHeader}
+                title={ordersHeaderCollapsed ? 'Mostrar panel superior' : 'Ocultar panel superior'}
+                aria-expanded={!ordersHeaderCollapsed}
+                className="shrink-0 p-1 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 transition"
+              >
+                {ordersHeaderCollapsed ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                )}
+              </button>
+              <h2 className="text-sm font-display font-semibold text-[var(--color-text)] flex items-center gap-1.5 truncate">
+                {userRole === UserRole.STORE_ADMIN ? '🛒 Posta Ventas' : userRole === UserRole.SUPER_ADMIN ? '👑 Posta Agencia' : '⚙️ Posta Logística'}
               </h2>
-              <p className="mono-label hidden sm:block">
-                {userRole === UserRole.STORE_ADMIN ? 'Carga de envíos' : 'Asignación de viajes y flota'}
-              </p>
+              {ordersHeaderCollapsed && (
+                <span className="text-[10px] font-mono text-[var(--color-text-muted)] shrink-0">
+                  {filteredOrders.length} pedido{filteredOrders.length === 1 ? '' : 's'}
+                </span>
+              )}
+              {!ordersHeaderCollapsed && userRole === UserRole.STORE_ADMIN && (
+                <span className="text-[9px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold px-1.5 py-0.5 rounded border border-[var(--color-accent)]/20 uppercase shrink-0">
+                  Online
+                </span>
+              )}
             </div>
             
             {userRole === UserRole.STORE_ADMIN && (
               <button
                 onClick={() => setShowCreateForm(!showCreateForm)}
                 id="btn-toggle-create-form"
-                className="px-2.5 py-1.5 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[11px] uppercase tracking-wider transition flex items-center gap-1 shadow-md"
+                className="px-2 py-1 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shrink-0"
               >
-                <Plus className="w-3.5 h-3.5" /> Cargar envío
+                <Plus className="w-3 h-3" /> Cargar envío
               </button>
             )}
           </div>
 
-          {/* Tarjetas de Estadísticas Rápidas */}
-          <div className="grid grid-cols-4 gap-1.5 text-center">
-            <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 p-1.5 rounded">
-              <p className="text-[9px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Total</p>
-              <p className="text-sm lg:text-lg font-bold text-[var(--ink-soft)] mt-0.5 font-mono">{stats.total}</p>
+          {!ordersHeaderCollapsed && (
+          <>
+          {/* Estadísticas en barra compacta */}
+          <div className="flex items-stretch gap-1 text-center">
+            <div className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 px-1.5 py-1 rounded">
+              <p className="text-[8px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Total</p>
+              <p className="text-sm font-bold text-[var(--ink-soft)] font-mono leading-tight">{stats.total}</p>
             </div>
-            <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 p-1.5 rounded">
-              <p className="text-[9px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Pend.</p>
-              <p className="text-sm lg:text-lg font-bold text-[var(--ink-soft)] mt-0.5 font-mono">{stats.pending}</p>
+            <div className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 px-1.5 py-1 rounded">
+              <p className="text-[8px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Pend.</p>
+              <p className="text-sm font-bold text-[var(--ink-soft)] font-mono leading-tight">{stats.pending}</p>
             </div>
-            <div className="bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/20 p-1.5 rounded">
-              <p className="text-[9px] text-[var(--color-warn)] font-mono font-bold uppercase tracking-tight">Ruta</p>
-              <p className="text-sm lg:text-lg font-bold text-[var(--color-warn)] mt-0.5 font-mono">{stats.delivering}</p>
+            <div className="flex-1 bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/20 px-1.5 py-1 rounded">
+              <p className="text-[8px] text-[var(--color-warn)] font-mono font-bold uppercase tracking-tight">Ruta</p>
+              <p className="text-sm font-bold text-[var(--color-warn)] font-mono leading-tight">{stats.delivering}</p>
             </div>
-            <div className="bg-[var(--color-ok)]/5 border border-[var(--color-ok)]/20 p-1.5 rounded">
-              <p className="text-[9px] text-[var(--color-ok)] font-mono font-bold uppercase tracking-tight">Listos</p>
-              <p className="text-sm lg:text-lg font-bold text-[var(--color-ok)] mt-0.5 font-mono">{stats.delivered}</p>
+            <div className="flex-1 bg-[var(--color-ok)]/5 border border-[var(--color-ok)]/20 px-1.5 py-1 rounded">
+              <p className="text-[8px] text-[var(--color-ok)] font-mono font-bold uppercase tracking-tight">Listos</p>
+              <p className="text-sm font-bold text-[var(--color-ok)] font-mono leading-tight">{stats.delivered}</p>
             </div>
           </div>
-
-          {userRole === UserRole.STORE_ADMIN && (
-            <div className="posta-chip-accent border border-[var(--color-accent)]/25 rounded p-2 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-[var(--color-accent)] flex items-center gap-1">
-                  🛒 Canal de Ventas Activo
-                </p>
-                <p className="text-[9px] text-[var(--color-text-muted)] font-mono mt-0.5">Tus envíos se sincronizan con la agencia de logística</p>
-              </div>
-              <div className="text-[10px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold px-1.5 py-0.5 rounded border border-[var(--color-accent)]/20 uppercase">
-                Online
-              </div>
-            </div>
-          )}
-
-          {userRole === UserRole.STORE_ADMIN && (
-            <div className="bg-[var(--input-bg)]/80 border border-[var(--surface-border)] rounded p-2 text-[10px] text-[var(--color-text-muted)] font-mono">
-              Configurá tus puntos de colecta en la pestaña <span className="text-[var(--ink-soft)] font-bold">Configuración</span>.
-            </div>
-          )}
 
           {isAgencyAdmin(userRole) && onScanMercadoLibreLabel && (
             <SellerPickupPanel
@@ -666,15 +690,15 @@ export default function AdminDashboard({
           )}
 
           {isAgencyAdmin(userRole) && !onScanMercadoLibreLabel && (
-            <div className="bg-[var(--input-bg)]/80 border border-[var(--surface-border)] rounded p-2 text-[10px] text-[var(--color-text-muted)] font-mono">
-              Gestioná vendedores, repartidores y punto de salida desde la pestaña <span className="text-[var(--ink-soft)] font-bold">Configuración</span>.
-            </div>
+            <p className="text-[9px] text-[var(--color-text-faint)] font-mono truncate">
+              Gestioná vendedores y flota en <span className="text-[var(--ink-soft)]">Configuración</span>.
+            </p>
           )}
 
-          {/* Buscador e hilos de estado */}
-          <div className="space-y-1.5">
-            <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
+          {/* Buscador y filtros en fila en pantallas anchas */}
+          <div className="flex flex-col xl:flex-row xl:items-center gap-1.5">
+            <div className="relative flex-1 min-w-0">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
                 <Search className="w-3.5 h-3.5" />
               </span>
               <input
@@ -682,12 +706,11 @@ export default function AdminDashboard({
                 placeholder="Buscar repartidor, pedido o dirección..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full posta-input px-2.5 py-1.5 pl-8 text-xs font-sans"
+                className="w-full posta-input px-2 py-1 pl-7 text-xs font-sans"
               />
             </div>
 
-            {/* Selector de Tabs de Filtros */}
-            <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0">
+            <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0 xl:shrink-0 xl:w-auto">
               <button
                 onClick={() => setStatusFilter('all')}
                 className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
@@ -730,10 +753,71 @@ export default function AdminDashboard({
               </button>
             </div>
           </div>
+          </>
+          )}
+
+          {ordersHeaderCollapsed && (
+            <div className="flex flex-col gap-1.5">
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
+                  <Search className="w-3.5 h-3.5" />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Buscar pedido o dirección..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full posta-input px-2 py-1 pl-7 text-xs font-sans"
+                />
+              </div>
+              <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                    statusFilter === 'all' ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                  }`}
+                >
+                  Todos
+                </button>
+                <button
+                  onClick={() => setStatusFilter(OrderStatus.PENDING)}
+                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                    statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                  }`}
+                >
+                  Pend.
+                </button>
+                <button
+                  onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
+                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                    statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                  }`}
+                >
+                  Ruta
+                </button>
+                <button
+                  onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
+                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                    statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                  }`}
+                >
+                  Listos
+                </button>
+                <button
+                  onClick={() => setStatusFilter('archived')}
+                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                    statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                  }`}
+                >
+                  Arch.
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* LISTADO DE PEDIDOS / FORMULARIO CREACIÓN (CON SCROLL) */}
-        <div className="flex-1 min-h-0 overflow-y-auto mt-2 lg:mt-3 space-y-2 pr-1 scrollbar-thin">
+        <div className="flex-1 min-h-0 overflow-y-auto mt-1.5 space-y-1.5 pr-1 scrollbar-thin">
           
           {/* Formulario de creación desplegable (HIGH DENSITY MODERN STYLE) */}
           {showCreateForm && userRole === UserRole.STORE_ADMIN && (
@@ -898,21 +982,21 @@ export default function AdminDashboard({
                     e.stopPropagation();
                     setContextMenu({ order, x: e.clientX, y: e.clientY });
                   }}
-                  className={`p-3.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
+                  className={`p-2.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
                     isSelected
                       ? 'bg-[var(--color-accent)]/5 border-l-2 border-[var(--color-accent)] border-t-[var(--surface-border)] border-r-[var(--surface-border)] border-b-[var(--surface-border)]'
                       : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)]/50'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="mono-label">ID: {order.id}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="mono-label text-[9px]">ID: {order.id}</span>
                     <StatusBadge status={order.status} label={statusLabel} />
                   </div>
 
-                  <h4 className="font-bold text-xs lg:text-sm text-[var(--ink-soft)] mt-2 group-hover:text-white transition">
+                  <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-white transition truncate">
                     {order.clientName}
                   </h4>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate leading-normal">
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate leading-snug">
                     📍 {order.address}
                   </p>
                   {isAgencyAdmin(userRole) && (() => {
@@ -954,7 +1038,7 @@ export default function AdminDashboard({
                     </div>
                   ) : null}
 
-                  <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
+                  <div className="flex items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
                     <span className="flex items-center gap-1 shrink-0">
                       <Clock className="w-3.5 h-3.5 text-[var(--color-text-faint)]" />
                       {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1064,8 +1148,8 @@ export default function AdminDashboard({
         )}
       </div>
 
-      {/* SECCIÓN DERECHA: MAPA E HISTORIAL (7 COLUMNAS - HIGH DENSITY) */}
-      <div className={`lg:col-span-7 2xl:col-span-8 flex flex-col h-full gap-2 sm:gap-3 lg:gap-4 overflow-hidden ${
+      {/* SECCIÓN DERECHA: MAPA E HISTORIAL */}
+      <div className={`lg:col-span-6 2xl:col-span-7 flex flex-col h-full gap-2 sm:gap-3 overflow-hidden ${
         adminMobileTab !== 'map' ? 'hidden lg:flex' : 'flex'
       }`}>
         
@@ -1173,7 +1257,11 @@ export default function AdminDashboard({
         </div>
 
         {/* Panel Inferior: Detalles de pedido activo o visor de repartidores */}
-        <div className="h-[min(38dvh,220px)] sm:h-[min(42dvh,260px)] lg:h-[280px] xl:h-[320px] 2xl:h-[360px] shrink-0 posta-surface p-3 sm:p-4 lg:p-5 overflow-hidden flex flex-col">
+        <div className={`shrink-0 posta-surface overflow-hidden flex flex-col ${
+          selectedOrder
+            ? 'h-[min(38dvh,220px)] sm:h-[min(42dvh,260px)] lg:h-[260px] xl:h-[280px] 2xl:h-[300px] p-3 sm:p-4'
+            : 'h-[min(28dvh,160px)] sm:h-[min(32dvh,180px)] lg:h-[180px] xl:h-[200px] p-2.5 sm:p-3'
+        }`}>
           {selectedOrder ? (
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left scrollbar-thin">
               <div className="flex items-start justify-between border-b border-[var(--surface-border)] pb-2">
