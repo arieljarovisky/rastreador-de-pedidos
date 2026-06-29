@@ -7,6 +7,7 @@ import {
   createOrder,
   updateOrderStatus,
   reportOrderLocation,
+  reportOrderLocationsBatch,
   canViewOrder,
   getSellerIdForOrder,
   assignOrderToSeller,
@@ -307,14 +308,20 @@ router.put('/:id/archive', authenticate, async (req: Request, res: Response) => 
 });
 
 router.post('/:id/location', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  const { lat, lng } = req.body;
+  const { lat, lng, timestamp } = req.body;
   if (lat === undefined || lng === undefined) {
     res.status(400).json({ error: 'Latitud y longitud son requeridas.' });
     return;
   }
 
   try {
-    const result = await reportOrderLocation(req.user!, req.params.id, Number(lat), Number(lng));
+    const result = await reportOrderLocation(
+      req.user!,
+      req.params.id,
+      Number(lat),
+      Number(lng),
+      typeof timestamp === 'string' ? timestamp : undefined
+    );
 
     emitOrderLocation({
       orderId: result.orderId,
@@ -338,6 +345,73 @@ router.post('/:id/location', authenticate, requireRoles(UserRole.REPARTIDOR), as
     }
     if (message === 'FORBIDDEN') {
       res.status(403).json({ error: 'Este pedido no está asignado a ti.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.post('/:id/locations/batch', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
+  const { points } = req.body;
+  if (!Array.isArray(points) || points.length === 0) {
+    res.status(400).json({ error: 'Se requiere un arreglo de puntos.' });
+    return;
+  }
+
+  const normalized = points
+    .filter(
+      (p: unknown): p is { lat: number; lng: number; timestamp: string } =>
+        typeof p === 'object' &&
+        p !== null &&
+        'lat' in p &&
+        'lng' in p &&
+        'timestamp' in p &&
+        typeof (p as { timestamp: unknown }).timestamp === 'string'
+    )
+    .map((p) => ({
+      lat: Number(p.lat),
+      lng: Number(p.lng),
+      timestamp: p.timestamp,
+    }));
+
+  if (normalized.length === 0) {
+    res.status(400).json({ error: 'Ningún punto válido en el lote.' });
+    return;
+  }
+
+  try {
+    const result = await reportOrderLocationsBatch(req.user!, req.params.id, normalized);
+
+    emitOrderLocation({
+      orderId: result.orderId,
+      sellerId: result.sellerId,
+      repartidorId: req.user!.id,
+      repartidorName: req.user!.name,
+      point: result.point,
+    });
+
+    emitRepartidorLocation({
+      ...req.user!,
+      currentLocation: result.point,
+    });
+
+    res.json({
+      success: result.success,
+      orderStatus: result.orderStatus,
+      synced: result.points.length,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Pedido no encontrado.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'Este pedido no está asignado a ti.' });
+      return;
+    }
+    if (message === 'EMPTY') {
+      res.status(400).json({ error: 'El lote está vacío.' });
       return;
     }
     throw err;

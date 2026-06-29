@@ -536,7 +536,8 @@ export async function reportOrderLocation(
   user: User,
   orderId: string,
   lat: number,
-  lng: number
+  lng: number,
+  recordedAt?: string
 ): Promise<{
   success: boolean;
   orderStatus: OrderStatus;
@@ -548,18 +549,18 @@ export async function reportOrderLocation(
   if (!order) throw new Error('NOT_FOUND');
   if (order.repartidorId !== user.id) throw new Error('FORBIDDEN');
 
-  const now = new Date();
-  const timestamp = now.toISOString();
-  await updateUserLocation(user.id, lat, lng);
+  const when = recordedAt ? new Date(recordedAt) : new Date();
+  const timestamp = when.toISOString();
+  await updateUserLocation(user.id, lat, lng, when);
 
   const point: LocationHistoryPoint = { lat, lng, timestamp };
 
   if (order.status === OrderStatus.DELIVERING) {
     await pool.query(
       `INSERT INTO order_location_history (order_id, lat, lng, created_at) VALUES (?, ?, ?, ?)`,
-      [orderId, lat, lng, now]
+      [orderId, lat, lng, when]
     );
-    await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [now, orderId]);
+    await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [when, orderId]);
   }
 
   const sellerId = await getSellerIdForOrder(orderId);
@@ -570,6 +571,63 @@ export async function reportOrderLocation(
     orderId,
     sellerId,
     point,
+  };
+}
+
+export async function reportOrderLocationsBatch(
+  user: User,
+  orderId: string,
+  points: { lat: number; lng: number; timestamp: string }[]
+): Promise<{
+  success: boolean;
+  orderStatus: OrderStatus;
+  orderId: string;
+  sellerId: string | null;
+  point: LocationHistoryPoint;
+  points: LocationHistoryPoint[];
+}> {
+  if (points.length === 0) throw new Error('EMPTY');
+
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error('NOT_FOUND');
+  if (order.repartidorId !== user.id) throw new Error('FORBIDDEN');
+
+  const sorted = [...points].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  const last = sorted[sorted.length - 1];
+  const lastWhen = new Date(last.timestamp);
+
+  await updateUserLocation(user.id, last.lat, last.lng, lastWhen);
+
+  const historyPoints: LocationHistoryPoint[] = sorted.map((p) => ({
+    lat: p.lat,
+    lng: p.lng,
+    timestamp: new Date(p.timestamp).toISOString(),
+  }));
+
+  if (order.status === OrderStatus.DELIVERING) {
+    for (const p of sorted) {
+      await pool.query(
+        `INSERT INTO order_location_history (order_id, lat, lng, created_at) VALUES (?, ?, ?, ?)`,
+        [orderId, p.lat, p.lng, new Date(p.timestamp)]
+      );
+    }
+    await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [lastWhen, orderId]);
+  }
+
+  const sellerId = await getSellerIdForOrder(orderId);
+  const point: LocationHistoryPoint = {
+    lat: last.lat,
+    lng: last.lng,
+    timestamp: lastWhen.toISOString(),
+  };
+
+  return {
+    success: true,
+    orderStatus: order.status,
+    orderId,
+    sellerId,
+    point,
+    points: historyPoints,
   };
 }
 

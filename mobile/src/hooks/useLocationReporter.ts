@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
-import { api } from '../api';
-import { GPS_THROTTLE_MS } from '../config';
+import { setActiveOrderId } from '../location/locationQueue';
+import { flushLocationQueue, startLocationSyncListeners } from '../location/locationSync';
+import {
+  startBackgroundLocation,
+  stopBackgroundLocation,
+} from '../location/backgroundLocationTask';
 
 interface Coords {
   lat: number;
@@ -15,9 +20,9 @@ interface UseLocationReporterResult {
 }
 
 /**
- * Sigue la posición del dispositivo y, si hay un pedido en viaje
- * (activeOrderId), reporta el GPS al backend con el mismo throttle que la web.
- * Si no hay pedido en viaje pero sí token, reporta la ubicación general.
+ * Sigue la posición del dispositivo y reporta GPS al backend.
+ * Encola puntos sin conexión y los sincroniza al volver internet.
+ * Mantiene el seguimiento en segundo plano con expo-task-manager.
  */
 export function useLocationReporter(
   token: string | null,
@@ -27,13 +32,32 @@ export function useLocationReporter(
   const [coords, setCoords] = useState<Coords | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const lastSentAt = useRef(0);
   const subRef = useRef<Location.LocationSubscription | null>(null);
+
+  useEffect(() => {
+    void setActiveOrderId(activeOrderId);
+  }, [activeOrderId]);
+
+  useEffect(() => {
+    const unsubscribe = startLocationSyncListeners();
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const handleAppState = (state: AppStateStatus) => {
+      if (state === 'active') {
+        void flushLocationQueue();
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (!enabled || !token) {
       subRef.current?.remove();
       subRef.current = null;
+      void stopBackgroundLocation();
       return;
     }
 
@@ -48,32 +72,26 @@ export function useLocationReporter(
       }
       setPermissionDenied(false);
 
+      const bgStarted = await startBackgroundLocation();
+      if (!bgStarted && !cancelled) {
+        setError('No se pudo activar el seguimiento en segundo plano.');
+      }
+
+      void flushLocationQueue();
+
       try {
         const sub = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,
-            distanceInterval: 8, // metros
+            distanceInterval: 8,
             timeInterval: 3000,
           },
           (pos) => {
             if (cancelled) return;
-            const next = {
+            setCoords({
               lat: pos.coords.latitude,
               lng: pos.coords.longitude,
-            };
-            setCoords(next);
-
-            const now = Date.now();
-            if (now - lastSentAt.current < GPS_THROTTLE_MS) return;
-            lastSentAt.current = now;
-
-            if (activeOrderId) {
-              api
-                .reportOrderLocation(token, activeOrderId, next.lat, next.lng)
-                .catch(() => {});
-            } else {
-              api.reportUserLocation(token, next.lat, next.lng).catch(() => {});
-            }
+            });
           }
         );
         subRef.current = sub;

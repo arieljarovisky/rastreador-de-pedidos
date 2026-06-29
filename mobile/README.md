@@ -15,6 +15,9 @@ endpoints REST, el mismo login JWT (`Bearer`) y el mismo `socket.io` que tu PWA 
   (`assigned → delivering`), **Marcar entregado** (`delivering → delivered`).
 - **GPS en vivo**: mientras un envío está "en viaje", reporta tu ubicación a
   `POST /api/orders/:id/location` con el mismo throttle (2s) que la web.
+- **GPS en segundo plano**: sigue reportando con la pantalla apagada o la app minimizada
+  (`expo-task-manager` + `expo-location` background). Si no hay internet, encola los puntos
+  localmente y los sincroniza al recuperar conexión (incluye ruta del pedido con timestamps).
 - Botones **Llamar** al cliente y **Cómo llegar** (abre la app de mapas con navegación).
 
 ## Estructura
@@ -102,6 +105,6 @@ eas build --platform ios       # genera build para App Store (requiere cuenta Ap
 
 - Esta app reutiliza tus enums `UserRole` y `OrderStatus` y la interfaz `Order` tal cual están
   en `backend/src/types/index.ts`. Si cambiás esos tipos en el backend, actualizá `src/types.ts`.
-- El reporte de GPS funciona en **primer plano**. Para seguir reportando con la pantalla
-  apagada/segundo plano hay que sumar `expo-location` en modo background + `expo-task-manager`
-  (queda como mejora siguiente; ya está declarado `UIBackgroundModes: location` en iOS).
+- El reporte de GPS funciona en **primer plano y segundo plano** (requiere **development build**;
+  en Expo Go el background location no está soportado). En Android/iOS el sistema pedirá permiso
+  de ubicación "siempre" para seguir el envío con la pantalla apagada.

@@ -31,7 +31,10 @@
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ],
       "config": {
         "googleMaps": {
@@ -40,10 +43,14 @@
       }
     },
     "plugins": [
+      "expo-task-manager",
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Posta usa tu ubicación para reportar el seguimiento de tus envíos."
+          "locationWhenInUsePermission": "Posta usa tu ubicación para reportar el seguimiento de tus envíos.",
+          "locationAlwaysAndWhenInUsePermission": "Posta usa tu ubicación en segundo plano para seguir reportando la entrega mientras viajás.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": true
         }
       ]
     ],

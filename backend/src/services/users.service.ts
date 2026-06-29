@@ -92,8 +92,13 @@ export async function getRepartidores(agencyId?: string | null): Promise<User[]>
   return rows.map(rowToUser);
 }
 
-export async function updateUserLocation(userId: string, lat: number, lng: number): Promise<void> {
-  const now = new Date();
+export async function updateUserLocation(
+  userId: string,
+  lat: number,
+  lng: number,
+  recordedAt?: Date
+): Promise<void> {
+  const now = recordedAt ?? new Date();
   await pool.query(
     'UPDATE users SET current_lat = ?, current_lng = ?, location_updated_at = ? WHERE id = ?',
     [lat, lng, now, userId]

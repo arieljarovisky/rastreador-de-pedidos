@@ -8,6 +8,8 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../api';
+import { clearQueue } from '../location/locationQueue';
+import { stopBackgroundLocation } from '../location/backgroundLocationTask';
 import { User, UserRole } from '../types';
 
 const TOKEN_KEY = 'lupo_token';
@@ -84,6 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await stopBackgroundLocation();
+    await clearQueue();
     await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
     setToken(null);
     setUser(null);

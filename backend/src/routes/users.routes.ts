@@ -7,13 +7,14 @@ import { emitRepartidorLocation } from '../realtime/io.js';
 const router = Router();
 
 router.post('/location', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  const { lat, lng } = req.body;
+  const { lat, lng, timestamp } = req.body;
   if (lat === undefined || lng === undefined) {
     res.status(400).json({ error: 'Latitud y longitud son requeridas.' });
     return;
   }
 
-  await updateUserLocation(req.user!.id, Number(lat), Number(lng));
+  const recordedAt = typeof timestamp === 'string' ? new Date(timestamp) : undefined;
+  await updateUserLocation(req.user!.id, Number(lat), Number(lng), recordedAt);
   const updated = await getUserById(req.user!.id);
   if (updated) {
     emitRepartidorLocation(updated);

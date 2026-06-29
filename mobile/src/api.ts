@@ -85,21 +85,40 @@ export const api = {
     token: string,
     orderId: string,
     lat: number,
-    lng: number
+    lng: number,
+    timestamp?: string
   ): Promise<void> {
     return request<void>(`/api/orders/${orderId}/location`, {
       method: 'POST',
       token,
-      body: { lat, lng },
+      body: { lat, lng, timestamp },
+    });
+  },
+
+  /** Sincroniza varios puntos de ruta acumulados sin conexión. */
+  reportOrderLocationsBatch(
+    token: string,
+    orderId: string,
+    points: { lat: number; lng: number; timestamp: string }[]
+  ): Promise<void> {
+    return request<void>(`/api/orders/${orderId}/locations/batch`, {
+      method: 'POST',
+      token,
+      body: { points },
     });
   },
 
   /** Reporta ubicación general del repartidor (sin pedido activo). */
-  reportUserLocation(token: string, lat: number, lng: number): Promise<void> {
+  reportUserLocation(
+    token: string,
+    lat: number,
+    lng: number,
+    timestamp?: string
+  ): Promise<void> {
     return request<void>('/api/users/location', {
       method: 'POST',
       token,
-      body: { lat, lng },
+      body: { lat, lng, timestamp },
     });
   },
 
