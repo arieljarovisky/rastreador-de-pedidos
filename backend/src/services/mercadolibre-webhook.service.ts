@@ -6,15 +6,17 @@ import {
 } from './integrations.service.js';
 import {
   fetchMercadoLibreFlexShipment,
+  fetchMercadoLibreFlexShipmentByShipmentId,
   fetchMercadoLibreOrder,
   fetchMercadoLibreShipment,
+  findImportedMercadoLibreFlex,
+  findImportedMercadoLibreRefGlobal,
   getValidMercadoLibreIntegration,
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import { geocodeAddress } from './geocode.service.js';
 import {
   createOrder,
-  findOrderByExternal,
   findOrderByExternalGlobal,
   getSellerIdForOrder,
   updateOrderStatusFromMarketplace,
@@ -81,11 +83,7 @@ async function importFlexShipment(
   const seller = await getUserById(integration.userId);
   if (!seller) return null;
 
-  const existing = await findOrderByExternal(
-    integration.userId,
-    'mercadolibre',
-    shipment.externalId
-  );
+  const existing = await findImportedMercadoLibreFlex(integration.userId, shipment);
   if (existing) return existing.id;
 
   let lat = shipment.lat;
@@ -113,7 +111,7 @@ async function importFlexShipment(
     id: `n_ml_import_${Date.now()}_${order.id}`,
     userId: 'all',
     title: 'Nuevo envío Flex (Mercado Libre)',
-    body: `Se importó automáticamente la orden ML #${shipment.externalId} como ${order.id}.`,
+    body: `Se importó automáticamente el envío ML #${shipment.externalId} (orden #${shipment.mlOrderId}) como ${order.id}.`,
     type: 'info',
     orderId: order.id,
   });
@@ -158,7 +156,7 @@ async function handleOrderResource(
   const mlOrder = await fetchMercadoLibreOrder(validIntegration, mlOrderId);
 
   if (mlOrder.status === 'cancelled') {
-    const existing = await findOrderByExternalGlobal('mercadolibre', mlOrderId);
+    const existing = await findImportedMercadoLibreRefGlobal(mlOrderId, integration.userId);
     if (existing) {
       await syncOrderStatus(existing.id, OrderStatus.CANCELLED, 'orden cancelada');
     }
@@ -170,7 +168,7 @@ async function handleOrderResource(
   const flexShipment = await fetchMercadoLibreFlexShipment(validIntegration, mlOrderId);
   if (!flexShipment) return;
 
-  const existing = await findOrderByExternalGlobal('mercadolibre', mlOrderId);
+  const existing = await findImportedMercadoLibreFlex(integration.userId, flexShipment);
   if (!existing) {
     await importFlexShipment(validIntegration, flexShipment);
     return;
@@ -198,15 +196,26 @@ async function handleShipmentResource(
   if (shipment.logistic_type !== 'self_service') return;
 
   const mlOrderId = shipment.order_id ? String(shipment.order_id) : null;
-  if (!mlOrderId) return;
 
-  let existing = await findOrderByExternalGlobal('mercadolibre', mlOrderId);
+  let existing = await findOrderByExternalGlobal('mercadolibre', mlShipmentId);
+  if (!existing && mlOrderId) {
+    existing = await findImportedMercadoLibreRefGlobal(mlOrderId, integration.userId);
+  }
+  if (!existing) {
+    const flexByShipment = await fetchMercadoLibreFlexShipmentByShipmentId(
+      validIntegration,
+      mlShipmentId
+    );
+    if (flexByShipment) {
+      existing = await findImportedMercadoLibreFlex(integration.userId, flexByShipment);
+    }
+  }
 
-  if (!existing && shipment.status !== 'cancelled' && shipment.status !== 'delivered') {
+  if (!existing && mlOrderId && shipment.status !== 'cancelled' && shipment.status !== 'delivered') {
     const flexShipment = await fetchMercadoLibreFlexShipment(validIntegration, mlOrderId);
     if (flexShipment) {
       await importFlexShipment(validIntegration, flexShipment);
-      existing = await findOrderByExternalGlobal('mercadolibre', mlOrderId);
+      existing = await findImportedMercadoLibreFlex(integration.userId, flexShipment);
     }
   }
 

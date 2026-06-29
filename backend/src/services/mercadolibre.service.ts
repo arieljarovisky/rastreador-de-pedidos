@@ -1,5 +1,10 @@
 import { env } from '../config/env.js';
 import { sleep } from '../utils/sleep.js';
+import type { Order } from '../types/index.js';
+import {
+  findOrderByExternal,
+  findOrderByExternalGlobal,
+} from './orders.service.js';
 import {
   getIntegration,
   upsertIntegration,
@@ -28,6 +33,7 @@ interface MlOrderSearchResult {
 
 interface MlOrder {
   id: number;
+  pack_id?: number | null;
   status?: string;
   date_created: string;
   buyer: { nickname?: string; first_name?: string; last_name?: string; phone?: { number?: string } };
@@ -196,7 +202,11 @@ function buyerName(order: MlOrder, shipment: MlShipment): string {
 }
 
 export interface MercadoLibreFlexShipment {
+  /** ID del envío ML — clave de deduplicación (varias órdenes pueden compartirlo). */
   externalId: string;
+  /** Orden ML representativa del envío (etiquetas y referencia legible). */
+  mlOrderId: string;
+  mlPackId?: string;
   platform: IntegrationPlatform;
   shippingType: 'flex';
   clientName: string;
@@ -207,6 +217,69 @@ export interface MercadoLibreFlexShipment {
   notes: string;
   createdAt: string;
   mlShipmentStatus?: string;
+}
+
+function buildFlexNotes(order: MlOrder, shipment: MlShipment): string {
+  const pack = order.pack_id != null ? ` · Pack #${order.pack_id}` : '';
+  return `Mercado Libre Flex · Envío #${shipment.id}${pack} · Orden #${order.id}`;
+}
+
+export type MercadoLibreFlexRef = Pick<MercadoLibreFlexShipment, 'externalId' | 'mlOrderId'>;
+
+export async function findImportedMercadoLibreFlex(
+  sellerId: string,
+  flex: MercadoLibreFlexRef
+): Promise<Order | null> {
+  const byShipment = await findOrderByExternal(sellerId, 'mercadolibre', flex.externalId);
+  if (byShipment) return byShipment;
+  return findOrderByExternal(sellerId, 'mercadolibre', flex.mlOrderId);
+}
+
+export async function findImportedMercadoLibreFlexGlobal(
+  flex: MercadoLibreFlexRef
+): Promise<Order | null> {
+  const byShipment = await findOrderByExternalGlobal('mercadolibre', flex.externalId);
+  if (byShipment) return byShipment;
+  return findOrderByExternalGlobal('mercadolibre', flex.mlOrderId);
+}
+
+export async function findImportedMercadoLibreRef(
+  sellerId: string,
+  mlRefId: string
+): Promise<Order | null> {
+  const byRef = await findOrderByExternal(sellerId, 'mercadolibre', mlRefId);
+  if (byRef) return byRef;
+
+  try {
+    const integration = await getValidMercadoLibreIntegration(sellerId);
+    const flex = await fetchMercadoLibreFlexShipment(integration, mlRefId);
+    if (flex) return findImportedMercadoLibreFlex(sellerId, flex);
+  } catch {
+    try {
+      const integration = await getValidMercadoLibreIntegration(sellerId);
+      const flex = await fetchMercadoLibreFlexShipmentByShipmentId(integration, mlRefId);
+      if (flex) return findImportedMercadoLibreFlex(sellerId, flex);
+    } catch {
+      // ignorar referencia ML desconocida
+    }
+  }
+
+  return null;
+}
+
+export async function findImportedMercadoLibreRefGlobal(
+  mlRefId: string,
+  sellerId?: string
+): Promise<Order | null> {
+  const globalByRef = await findOrderByExternalGlobal('mercadolibre', mlRefId);
+  if (globalByRef) return globalByRef;
+
+  if (sellerId) {
+    const bySeller = await findImportedMercadoLibreRef(sellerId, mlRefId);
+    if (bySeller) return bySeller;
+  }
+
+  return null;
 }
 
 function buildFlexShipmentFromMl(
@@ -223,7 +296,9 @@ function buildFlexShipmentFromMl(
   const lng = shipment.receiver_address?.longitude;
 
   return {
-    externalId: String(order.id),
+    externalId: String(shipment.id),
+    mlOrderId: String(order.id),
+    mlPackId: order.pack_id != null ? String(order.pack_id) : undefined,
     platform: 'mercadolibre',
     shippingType: 'flex',
     clientName: buyerName(order, shipment),
@@ -234,7 +309,7 @@ function buildFlexShipmentFromMl(
     address,
     lat: lat != null && Number.isFinite(Number(lat)) ? Number(lat) : undefined,
     lng: lng != null && Number.isFinite(Number(lng)) ? Number(lng) : undefined,
-    notes: `Mercado Libre Flex · Orden #${order.id}`,
+    notes: buildFlexNotes(order, shipment),
     createdAt: order.date_created,
     mlShipmentStatus: shipment.status,
   };
@@ -331,7 +406,7 @@ export async function listMercadoLibreFlexShipments(userId: string): Promise<Mer
   if (!sellerId) throw new Error('ML_NOT_CONNECTED');
 
   const shipments: MercadoLibreFlexShipment[] = [];
-  const seenOrderIds = new Set<string>();
+  const seenShipmentIds = new Set<string>();
   const pageSize = 50;
   const maxPages = 4;
 
@@ -347,13 +422,13 @@ export async function listMercadoLibreFlexShipments(userId: string): Promise<Mer
 
     for (const item of results) {
       const orderId = String(item.id);
-      if (seenOrderIds.has(orderId)) continue;
-      seenOrderIds.add(orderId);
 
       try {
         await sleep(120);
         const flex = await fetchMercadoLibreFlexShipment(integration, orderId);
         if (!flex || flex.mlShipmentStatus === 'delivered') continue;
+        if (seenShipmentIds.has(flex.externalId)) continue;
+        seenShipmentIds.add(flex.externalId);
         shipments.push(flex);
       } catch {
         // omitir pedidos individuales con error temporal de la API
@@ -372,15 +447,25 @@ export function isMercadoLibreConfigured(): boolean {
 
 export async function getMercadoLibreShippingLabelPdf(
   sellerUserId: string,
-  mlOrderId: string
+  mlRefId: string
 ): Promise<Buffer> {
   const integration = await getValidMercadoLibreIntegration(sellerUserId);
-  const order = await fetchMercadoLibreOrder(integration, mlOrderId);
-  if (!order.shipping?.id) {
-    throw new Error('ML_NO_SHIPMENT');
+  let shipmentId: string | null = null;
+
+  try {
+    const order = await fetchMercadoLibreOrder(integration, mlRefId);
+    if (order.shipping?.id) {
+      shipmentId = String(order.shipping.id);
+    }
+  } catch {
+    // Puede ser un ID de envío guardado como referencia externa.
   }
 
-  const shipmentId = String(order.shipping.id);
+  if (!shipmentId) {
+    const shipment = await fetchMercadoLibreShipment(integration, mlRefId);
+    shipmentId = String(shipment.id);
+  }
+
   const labelUrl = `${ML_API}/shipment_labels?shipment_ids=${encodeURIComponent(shipmentId)}&response_type=pdf`;
 
   for (let attempt = 0; attempt < 4; attempt++) {

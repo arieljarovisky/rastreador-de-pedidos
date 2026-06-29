@@ -134,6 +134,7 @@ export interface MarketplaceIntegrationStatus {
 
 export interface MarketplaceShipmentPreview {
   externalId: string;
+  mlOrderId?: string;
   platform: 'mercadolibre' | 'tiendanube';
   shippingType: 'flex' | 'express';
   clientName: string;
