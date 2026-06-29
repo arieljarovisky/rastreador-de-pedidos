@@ -71,15 +71,15 @@ export default function LoginScreen({
   const isRegister = mode !== 'login';
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-[var(--surface-bg)]" data-theme="paper" id="login-container">
-      <div className="mb-6 text-center">
-        <PostaLogo variant="paper" size={48} className="justify-center mb-3" />
+    <div className="app-viewport safe-top safe-bottom min-h-[100dvh] flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 bg-[var(--surface-bg)]" data-theme="paper" id="login-container">
+      <div className="mb-4 sm:mb-6 text-center w-full max-w-md">
+        <PostaLogo variant="paper" size={44} className="justify-center mb-2 sm:mb-3 sm:[&_svg]:w-12 sm:[&_svg]:h-12" />
         <p className="mono-label text-[var(--color-text-muted)] mt-2">
           Hoja de ruta · CABA y GBA
         </p>
       </div>
 
-      <PaperCard className="w-full max-w-sm p-6 relative overflow-hidden">
+      <PaperCard className="w-full max-w-sm sm:max-w-md p-4 sm:p-6 relative overflow-hidden">
         <div className="flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)] mb-4 text-[10px]">
           <button
             type="button"

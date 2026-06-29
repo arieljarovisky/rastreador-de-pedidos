@@ -270,7 +270,7 @@ export default function SettingsPage({
 
   return (
     <div className="h-full flex flex-col min-h-0 bg-[var(--surface-bg)]">
-      <header className="shrink-0 flex items-center justify-between gap-3 pb-3 border-b border-[var(--surface-border)]">
+      <header className="shrink-0 flex items-center justify-between gap-2 sm:gap-3 pb-2 sm:pb-3 border-b border-[var(--surface-border)] px-0.5">
         <div className="min-w-0">
           <h2 className="text-sm font-display font-bold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2">
             <Settings className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
@@ -292,10 +292,10 @@ export default function SettingsPage({
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto mt-3 pr-1 scrollbar-thin">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pb-2 auto-rows-min">
+      <div className="flex-1 overflow-y-auto mt-2 sm:mt-3 pr-0.5 sm:pr-1 scrollbar-thin min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2 sm:gap-3 pb-2 auto-rows-min max-w-[1600px]">
         {userRole === UserRole.STORE_ADMIN && (
-          <section className={`${sectionClass} lg:col-span-2`}>
+          <section className={`${sectionClass} lg:col-span-2 2xl:col-span-3`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
                 <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
@@ -330,7 +330,7 @@ export default function SettingsPage({
             />
           )}
         {agency && onUpdateDeparture && (
-          <section className={`${sectionClass} lg:col-span-2 ${showDepartureForm ? 'xl:col-span-2' : ''}`}>
+          <section className={`${sectionClass} lg:col-span-2 2xl:col-span-3 ${showDepartureForm ? 'xl:col-span-2' : ''}`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
                 <Warehouse className="w-4 h-4 text-[var(--route)]" />
@@ -416,7 +416,7 @@ export default function SettingsPage({
         )}
 
         {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor) && (
-          <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start min-w-0">
+          <div className="lg:col-span-2 2xl:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start min-w-0">
         {onCreateSeller && (
           <section className={`${sectionClass} flex flex-col min-h-0 min-w-0`}>
             <div className="flex flex-wrap items-center gap-2">
@@ -1081,7 +1081,7 @@ export default function SettingsPage({
         )}
 
         {agency && onTriggerSimulatorTick && (
-          <section className={`${sectionClass} lg:col-span-2`}>
+          <section className={`${sectionClass} lg:col-span-2 2xl:col-span-3`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
                 <Sparkles className="w-4 h-4 text-[var(--color-warn)]" />
@@ -1125,7 +1125,7 @@ export default function SettingsPage({
 
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
           <section
-            className={`${sectionClass} lg:col-span-2 ${
+            className={`${sectionClass} lg:col-span-2 2xl:col-span-3 ${
               showPickupForm || editingPickupId ? 'xl:col-span-2' : ''
             }`}
           >

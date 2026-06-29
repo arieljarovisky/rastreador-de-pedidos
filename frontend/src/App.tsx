@@ -1013,10 +1013,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden h-screen">
+    <div className="app-viewport min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden">
       
       {/* CABECERA PRINCIPAL */}
-      <header className="min-h-[4.25rem] lg:min-h-[5.25rem] flex items-center justify-between gap-4 px-5 lg:px-8 py-3 lg:py-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40">
+      <header className="safe-top min-h-[3.5rem] sm:min-h-[4.25rem] lg:min-h-[5.25rem] flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-5 lg:px-8 py-2 sm:py-3 lg:py-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40">
         {/* Marca + sesión */}
         <div className="flex items-center gap-4 lg:gap-5 min-w-0 flex-1">
           <PostaLogo
@@ -1152,38 +1152,41 @@ export default function App() {
       </header>
       
       {/* Selector de pestañas para vista mobile/tablet */}
-      <div className="xl:hidden bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex shrink-0 h-11 z-40">
+      <div className="xl:hidden scroll-tabs bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex shrink-0 min-h-[2.75rem] z-40">
         <button
           onClick={() => setMobileTab('dashboard')}
-          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all ${
+          className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 px-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all ${
             mobileTab === 'dashboard'
               ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
           }`}
         >
-          <span>📊 Panel Principal</span>
+          <span className="hidden sm:inline">📊 </span>
+          <span>Panel</span>
         </button>
         {showSettings && (
           <button
             onClick={() => setMobileTab('settings')}
-            className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all ${
+            className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 px-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all ${
               mobileTab === 'settings'
                 ? 'text-[var(--color-text)] border-b-2 border-[var(--color-text-muted)] bg-[var(--surface-panel)]/50'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            <span>⚙️ Configuración</span>
+            <span className="hidden sm:inline">⚙️ </span>
+            <span>Config</span>
           </button>
         )}
         <button
           onClick={() => setMobileTab('notifications')}
-          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all relative ${
+          className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 px-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all relative ${
             mobileTab === 'notifications'
               ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
           }`}
         >
-          <span>🔔 Alertas PWA</span>
+          <span className="hidden sm:inline">🔔 </span>
+          <span>Alertas</span>
           {unreadNotifsCount > 0 && (
             <span className="absolute top-2.5 right-[30%] bg-[var(--color-cta)] text-[#F6F0E4] font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
               {unreadNotifsCount}
@@ -1193,7 +1196,8 @@ export default function App() {
       </div>
 
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
-      <main className="flex-1 overflow-hidden p-3 md:p-4 relative min-h-0">
+      <main className="flex-1 overflow-hidden p-2 sm:p-3 md:p-4 relative min-h-0">
+        <div className="app-shell h-full">
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col xl:flex-row h-full overflow-hidden ${
@@ -1312,25 +1316,29 @@ export default function App() {
             </NotifsSidebar>
           </div>
         )}
+        </div>
       </main>
 
       {/* FOOTER STATUS BAR (HIGH DENSITY DESIGN) */}
-      <footer className="h-8 bg-[var(--surface-panel-2)] border-t border-[var(--surface-border)] px-6 flex items-center justify-between shrink-0 select-none z-40">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-[var(--color-ok)] animate-pulse' : 'bg-[var(--color-danger)]'}`}></div>
-            <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-tighter font-mono">Sistema: {isOnline ? 'Operativo' : 'Local (Sin Conexión)'}</span>
+      <footer className="safe-bottom h-7 sm:h-8 bg-[var(--surface-panel-2)] border-t border-[var(--surface-border)] px-3 sm:px-6 flex items-center justify-between shrink-0 select-none z-40">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? 'bg-[var(--color-ok)] animate-pulse' : 'bg-[var(--color-danger)]'}`}></div>
+            <span className="text-[8px] sm:text-[9px] text-[var(--color-text-muted)] uppercase tracking-tighter font-mono truncate">
+              {isOnline ? 'Operativo' : 'Sin conexión'}
+            </span>
           </div>
-          <span className="text-[9px] text-[var(--surface-border)] uppercase tracking-tighter">|</span>
-          <div className="flex items-center gap-2 text-[9px] text-[var(--color-text-muted)] uppercase tracking-tighter font-mono">
-            WS Protocol:{' '}
+          <span className="hidden md:inline text-[9px] text-[var(--surface-border)] uppercase tracking-tighter">|</span>
+          <div className="hidden md:flex items-center gap-2 text-[9px] text-[var(--color-text-muted)] uppercase tracking-tighter font-mono">
+            WS:{' '}
             <span className={wsConnected ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}>
-              {wsConnected ? 'Tiempo real (WebSocket)' : 'Respaldo (Polling)'}
+              {wsConnected ? 'Tiempo real' : 'Polling'}
             </span>
           </div>
         </div>
-        <div className="text-[9px] text-[var(--color-text-muted)] font-mono uppercase tracking-tighter flex items-center gap-1">
-          <span>Sincronizado: {lastSyncAt.toLocaleTimeString()}</span>
+        <div className="text-[8px] sm:text-[9px] text-[var(--color-text-muted)] font-mono uppercase tracking-tighter shrink-0">
+          <span className="hidden sm:inline">Sincronizado: </span>
+          {lastSyncAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </footer>
     </div>

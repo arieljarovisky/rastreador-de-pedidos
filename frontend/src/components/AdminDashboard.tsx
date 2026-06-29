@@ -549,7 +549,7 @@ export default function AdminDashboard({
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 h-full min-h-0 overflow-hidden" id="admin-dashboard">
+    <div className="flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 h-full min-h-0 overflow-hidden" id="admin-dashboard">
       {contextMenu && (
         <OrderContextMenu
           x={contextMenu.x}
@@ -584,7 +584,7 @@ export default function AdminDashboard({
       </div>
 
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN (5 COLUMNAS - HIGH DENSITY) */}
-      <div className={`lg:col-span-5 flex flex-col flex-1 min-h-0 overflow-hidden posta-surface p-3 lg:p-4 ${
+      <div className={`lg:col-span-5 2xl:col-span-4 flex flex-col flex-1 min-h-0 overflow-hidden posta-surface p-2.5 sm:p-3 lg:p-4 ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
@@ -683,10 +683,10 @@ export default function AdminDashboard({
             </div>
 
             {/* Selector de Tabs de Filtros */}
-            <div className="flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px]">
+            <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0">
               <button
                 onClick={() => setStatusFilter('all')}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
                   statusFilter === 'all' ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
@@ -694,7 +694,7 @@ export default function AdminDashboard({
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.PENDING)}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
                   statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
@@ -702,7 +702,7 @@ export default function AdminDashboard({
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
                   statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
@@ -710,7 +710,7 @@ export default function AdminDashboard({
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
                   statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
@@ -718,7 +718,7 @@ export default function AdminDashboard({
               </button>
               <button
                 onClick={() => setStatusFilter('archived')}
-                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
                   statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
@@ -983,16 +983,91 @@ export default function AdminDashboard({
             })
           )}
         </div>
+
+        {/* Detalle rápido del pedido en móvil (pestaña Pedidos) */}
+        {selectedOrder && (
+          <div className="lg:hidden shrink-0 border-t border-[var(--surface-border)] bg-[var(--surface-panel)] flex flex-col max-h-[min(44dvh,340px)] safe-bottom">
+            <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--surface-border)] shrink-0">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-mono font-bold text-[var(--color-accent)] truncate">{selectedOrder.id}</p>
+                <p className="text-xs font-bold text-[var(--ink-soft)] truncate">{selectedOrder.clientName}</p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {(selectedOrder.status === OrderStatus.PENDING || assigningOrderId === selectedOrder.id) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAssigningOrderId(selectedOrder.id);
+                      setAdminMobileTab('map');
+                    }}
+                    className="px-2 py-1 bg-[var(--color-cta)] text-[#F6F0E4] font-mono font-bold text-[8px] uppercase rounded-[var(--radius-posta)]"
+                  >
+                    Gestionar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAdminMobileTab('map')}
+                  className="px-2 py-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] font-mono font-bold text-[8px] uppercase rounded-[var(--radius-posta)]"
+                >
+                  Mapa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectOrder(null)}
+                  className="px-2 py-1 text-[var(--color-text-muted)] font-mono text-[10px] uppercase"
+                  aria-label="Cerrar detalle"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 text-[11px] scrollbar-thin">
+              <p className="flex items-start gap-1.5 text-[var(--ink-soft)]">
+                <MapPin className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
+                <span>{selectedOrder.address}</span>
+              </p>
+              {selectedOrder.clientPhone && (
+                <p className="flex items-center gap-1.5 text-[var(--ink-soft)]">
+                  <Phone className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
+                  {selectedOrder.clientPhone}
+                </p>
+              )}
+              {isAgencyAdmin(userRole) && selectedOrder.sellerName && (
+                <p className="text-[10px] font-mono text-[var(--color-accent)]">🛒 {selectedOrder.sellerName}</p>
+              )}
+              {selectedOrder.repartidorName ? (
+                <p className="text-[10px] font-mono text-[var(--color-accent)]">🏍️ {selectedOrder.repartidorName}</p>
+              ) : selectedOrder.status === OrderStatus.PENDING ? (
+                <p className="text-[10px] font-mono text-[var(--color-warn)]">⚠️ Sin repartidor asignado</p>
+              ) : null}
+              <div className="pt-1">
+                <StatusBadge
+                  status={selectedOrder.status}
+                  label={
+                    selectedOrder.status === OrderStatus.DELIVERING
+                      ? '🚲 En Viaje'
+                      : selectedOrder.status === OrderStatus.ASSIGNED
+                        ? '✓ Asignado'
+                        : selectedOrder.status === OrderStatus.DELIVERED
+                          ? '✓ Entregado'
+                          : 'En Almacén'
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* SECCIÓN DERECHA: MAPA E HISTORIAL (7 COLUMNAS - HIGH DENSITY) */}
-      <div className={`lg:col-span-7 flex flex-col h-full gap-3 lg:gap-4 overflow-hidden ${
+      <div className={`lg:col-span-7 2xl:col-span-8 flex flex-col h-full gap-2 sm:gap-3 lg:gap-4 overflow-hidden ${
         adminMobileTab !== 'map' ? 'hidden lg:flex' : 'flex'
       }`}>
         
         {/* Mapa Interactivo */}
-        <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
-          <div ref={mapFilterRef} className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5 w-44 sm:w-48">
+        <div className="flex-1 min-h-[140px] sm:min-h-[180px] md:min-h-[220px] lg:min-h-[250px] xl:min-h-[320px] 2xl:min-h-[380px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
+          <div ref={mapFilterRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 z-[1000] flex flex-col gap-1.5 w-36 sm:w-44 md:w-48">
             <button
               type="button"
               onClick={() => setShowMapZones((visible) => !visible)}
@@ -1094,7 +1169,7 @@ export default function AdminDashboard({
         </div>
 
         {/* Panel Inferior: Detalles de pedido activo o visor de repartidores */}
-        <div className="h-[190px] lg:h-[280px] shrink-0 posta-surface p-4 lg:p-5 overflow-hidden flex flex-col">
+        <div className="h-[min(38dvh,220px)] sm:h-[min(42dvh,260px)] lg:h-[280px] xl:h-[320px] 2xl:h-[360px] shrink-0 posta-surface p-3 sm:p-4 lg:p-5 overflow-hidden flex flex-col">
           {selectedOrder ? (
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left scrollbar-thin">
               <div className="flex items-start justify-between border-b border-[var(--surface-border)] pb-2">

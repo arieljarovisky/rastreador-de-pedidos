@@ -186,36 +186,36 @@ export default function RepartidorDashboard({
   return (
     <div className="flex flex-col h-full overflow-hidden" id="repartidor-dashboard">
 
-      <div className="grid grid-cols-2 bg-[var(--surface-panel-2)] p-0.5 border-b border-[var(--surface-border)] shrink-0">
+      <div className="grid grid-cols-2 bg-[var(--surface-panel-2)] p-0.5 border-b border-[var(--surface-border)] shrink-0 scroll-tabs">
         <button
           onClick={() => setActiveTab('assigned')}
-          className={`py-2 text-center text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
+          className={`py-1.5 sm:py-2 min-w-0 px-1 text-center text-[10px] sm:text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1 sm:gap-1.5 ${
             activeTab === 'assigned'
               ? 'text-[var(--color-accent)] border-b-2 border-blue-400 bg-[var(--color-accent)]/5'
               : 'text-[var(--color-text-muted)]'
           }`}
         >
-          🏍️ Mis Envíos ({myAssignedOrders.length})
+          🏍️ <span className="truncate">Mis Envíos ({myAssignedOrders.length})</span>
         </button>
         <button
           onClick={() => {
             setActiveTab('available');
             onSelectOrder(null);
           }}
-          className={`py-2 text-center text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
+          className={`py-1.5 sm:py-2 min-w-0 px-1 text-center text-[10px] sm:text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1 sm:gap-1.5 ${
             activeTab === 'available'
               ? 'text-[var(--color-accent)] border-b-2 border-purple-400 bg-[var(--color-accent)]/5'
               : 'text-[var(--color-text-muted)]'
           }`}
         >
-          📦 Disponibles ({availableOrders.length})
+          📦 <span className="truncate">Disponibles ({availableOrders.length})</span>
         </button>
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col md:flex-row gap-4 p-4">
+      <div className="flex-1 overflow-hidden flex flex-col lg:flex-row gap-2 sm:gap-3 lg:gap-4 p-2 sm:p-3 lg:p-4 min-h-0">
 
-        <div className={`w-full md:w-1/3 flex flex-col h-full bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3.5 overflow-hidden ${
-          selectedOrder && activeTab === 'assigned' ? 'hidden md:flex' : 'flex'
+        <div className={`w-full lg:w-[min(100%,22rem)] xl:w-1/3 flex flex-col min-h-0 flex-1 lg:flex-none lg:h-full bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-2.5 sm:p-3.5 overflow-hidden ${
+          selectedOrder && activeTab === 'assigned' ? 'hidden lg:flex' : 'flex'
         }`}>
           <h3 className="font-bold text-[10px] text-[var(--color-text-muted)] mb-3 uppercase tracking-wider font-mono">
             {activeTab === 'assigned' ? 'Tareas en Proceso' : 'Pedidos en Almacén'}
@@ -285,13 +285,13 @@ export default function RepartidorDashboard({
           </div>
         </div>
 
-        <div className={`flex-1 flex flex-col h-full gap-4 overflow-hidden ${
-          (!selectedOrder || activeTab !== 'assigned') ? 'hidden md:flex' : 'flex'
+        <div className={`flex-1 flex flex-col min-h-0 gap-2 sm:gap-3 lg:gap-4 overflow-hidden ${
+          (!selectedOrder || activeTab !== 'assigned') ? 'hidden lg:flex' : 'flex'
         }`}>
           {selectedOrder && activeTab === 'assigned' ? (
-            <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+            <div className="flex-1 flex flex-col gap-2 sm:gap-3 lg:gap-4 overflow-hidden min-h-0">
 
-              <div className="flex-1 min-h-[180px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
+              <div className="flex-1 min-h-[140px] sm:min-h-[180px] md:min-h-[220px] lg:min-h-[240px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
                 <MapComponent
                   orders={[selectedOrder]}
                   repartidores={repForMap}
@@ -305,8 +305,8 @@ export default function RepartidorDashboard({
                 <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
               </div>
 
-              <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3.5 shrink-0 text-left">
-                <div className="md:hidden flex items-center justify-between pb-2 border-b border-[var(--surface-border)]/80 mb-2 shrink-0">
+              <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-2.5 sm:p-3.5 shrink-0 text-left max-h-[min(48dvh,420px)] overflow-y-auto scrollbar-thin safe-bottom">
+                <div className="lg:hidden flex items-center justify-between pb-2 border-b border-[var(--surface-border)]/80 mb-2 shrink-0">
                   <button
                     onClick={() => onSelectOrder(null)}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:text-white rounded text-[10px] font-bold uppercase tracking-wider transition"

@@ -472,3 +472,34 @@
   background-image: radial-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0.5px, transparent 0.5px);
   background-size: 20px 20px;
 }
+
+/* Safe area (notch / home indicator) */
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.app-viewport {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: 1920px;
+  margin-inline: auto;
+}
+
+/* Tabs / filtros que desbordan en pantallas angostas */
+.scroll-tabs {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.scroll-tabs::-webkit-scrollbar {
+  display: none;
+}
