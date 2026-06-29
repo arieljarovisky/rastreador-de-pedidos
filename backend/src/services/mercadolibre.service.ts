@@ -308,3 +308,39 @@ export async function listMercadoLibreFlexShipments(userId: string): Promise<Mer
 export function isMercadoLibreConfigured(): boolean {
   return Boolean(env.mercadolibre.appId && env.mercadolibre.appSecret && env.mercadolibre.redirectUri);
 }
+
+export async function getMercadoLibreShippingLabelPdf(
+  sellerUserId: string,
+  mlOrderId: string
+): Promise<Buffer> {
+  const integration = await getValidMercadoLibreIntegration(sellerUserId);
+  const order = await fetchMercadoLibreOrder(integration, mlOrderId);
+  if (!order.shipping?.id) {
+    throw new Error('ML_NO_SHIPMENT');
+  }
+
+  const shipmentId = String(order.shipping.id);
+  const labelUrl = `${ML_API}/shipment_labels?shipment_ids=${encodeURIComponent(shipmentId)}&response_type=pdf`;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch(labelUrl, {
+      headers: { Authorization: `Bearer ${integration.accessToken}` },
+    });
+    if (res.status === 429) {
+      await sleep(800 * (attempt + 1));
+      continue;
+    }
+    if (!res.ok) {
+      const body = await res.text();
+      if (body.includes('not_printable_status')) {
+        throw new Error('ML_LABEL_NOT_READY');
+      }
+      if (res.status === 404) {
+        throw new Error('ML_LABEL_NOT_FOUND');
+      }
+      throw new Error('ML_LABEL_UNAVAILABLE');
+    }
+    return Buffer.from(await res.arrayBuffer());
+  }
+  throw new Error('ML_LABEL_UNAVAILABLE');
+}

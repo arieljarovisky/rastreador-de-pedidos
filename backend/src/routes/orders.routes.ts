@@ -14,7 +14,23 @@ import {
   setOrderArchived,
 } from '../services/orders.service.js';
 import { createNotification } from '../services/notifications.service.js';
+import { getMercadoLibreShippingLabelPdf } from '../services/mercadolibre.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
+
+function mercadoLibreLabelErrorMessage(code: string): string {
+  switch (code) {
+    case 'ML_NOT_CONNECTED':
+      return 'El vendedor no tiene Mercado Libre conectado.';
+    case 'ML_NO_SHIPMENT':
+      return 'No se encontró un envío asociado a esta orden de Mercado Libre.';
+    case 'ML_LABEL_NOT_READY':
+      return 'La etiqueta aún no está lista para imprimir. Verificá el estado del envío en Mercado Libre.';
+    case 'ML_LABEL_NOT_FOUND':
+      return 'No se encontró la etiqueta de envío.';
+    default:
+      return 'No se pudo descargar la etiqueta de Mercado Libre.';
+  }
+}
 
 const router = Router();
 
@@ -89,6 +105,44 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
   }
 
   res.json(order);
+});
+
+router.get('/:id/mercadolibre-label', authenticate, async (req: Request, res: Response) => {
+  const order = await getOrderById(req.params.id);
+  if (!order) {
+    res.status(404).json({ error: 'Pedido no encontrado.' });
+    return;
+  }
+
+  const sellerId = await getSellerIdForOrder(order.id);
+  if (!canViewOrder(req.user!, order, sellerId ?? undefined)) {
+    res.status(403).json({ error: 'No tienes permiso para ver este pedido.' });
+    return;
+  }
+
+  if (order.externalSource !== 'mercadolibre' || !order.externalOrderId) {
+    res.status(400).json({ error: 'Este pedido no proviene de Mercado Libre.' });
+    return;
+  }
+
+  if (!sellerId) {
+    res.status(400).json({ error: 'El pedido no tiene un vendedor asociado con integración de Mercado Libre.' });
+    return;
+  }
+
+  try {
+    const pdf = await getMercadoLibreShippingLabelPdf(sellerId, order.externalOrderId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="etiqueta-ml-${order.externalOrderId}.pdf"`
+    );
+    res.send(pdf);
+  } catch (err) {
+    const code = err instanceof Error ? err.message : 'ML_LABEL_UNAVAILABLE';
+    const status = code === 'ML_NOT_CONNECTED' ? 400 : 502;
+    res.status(status).json({ error: mercadoLibreLabelErrorMessage(code) });
+  }
 });
 
 router.put('/:id/status', authenticate, async (req: Request, res: Response) => {

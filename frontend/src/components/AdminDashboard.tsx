@@ -27,6 +27,7 @@ interface AdminDashboardProps {
   onDeleteOrder?: (orderId: string) => Promise<void>;
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
   userRole?: UserRole;
+  onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -114,6 +115,7 @@ export default function AdminDashboard({
   onDeleteOrder,
   onArchiveOrder,
   userRole = UserRole.STORE_ADMIN,
+  onOpenMercadoLibreLabel,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
@@ -1086,12 +1088,27 @@ export default function AdminDashboard({
                       <span className="font-semibold text-[var(--color-text-muted)]">Teléfono:</span> {selectedOrder.clientPhone}
                     </p>
                   )}
-                  {selectedOrder.notes && (
+                  {selectedOrder.externalSource === 'mercadolibre' && selectedOrder.externalOrderId ? (
+                    <button
+                      type="button"
+                      onClick={() => void onOpenMercadoLibreLabel?.(selectedOrder.id)}
+                      className="flex items-start gap-1.5 text-[var(--color-text-muted)] bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 hover:border-[var(--color-accent)]/50 p-2 rounded mt-1 text-[10px] font-sans text-left w-full transition-colors cursor-pointer"
+                      title="Ver etiqueta de envío de Mercado Libre"
+                    >
+                      <FileText className="w-3 h-3 text-[var(--color-accent)] shrink-0 mt-0.5" />
+                      <span>
+                        {selectedOrder.notes || `Mercado Libre · Orden #${selectedOrder.externalOrderId}`}
+                        <span className="block text-[var(--color-accent)] mt-0.5 font-semibold">
+                          Ver etiqueta de envío →
+                        </span>
+                      </span>
+                    </button>
+                  ) : selectedOrder.notes ? (
                     <p className="flex items-start gap-1.5 text-[var(--color-text-muted)] bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 p-2 rounded mt-1 text-[10px] font-sans">
                       <FileText className="w-3 h-3 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
                       <span>{selectedOrder.notes}</span>
                     </p>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Info Repartidor / Asignador */}

@@ -696,6 +696,34 @@ export default function App() {
     }
   };
 
+  const handleOpenMercadoLibreLabel = useCallback(
+    async (orderId: string) => {
+      if (!token) return;
+      try {
+        const res = await fetch(apiUrl(`/api/orders/${orderId}/mercadolibre-label`), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(
+            (body as { error?: string }).error ?? 'No se pudo obtener la etiqueta de Mercado Libre.'
+          );
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener,noreferrer');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch (e) {
+        void showAlert({
+          title: 'Etiqueta no disponible',
+          message: e instanceof Error ? e.message : 'Intentá de nuevo más tarde.',
+          variant: 'error',
+        });
+      }
+    },
+    [token, showAlert]
+  );
+
   const fetchIntegrationStatus = useCallback(async () => {
     if (!token) return;
     setIntegrationStatusLoading(true);
@@ -1164,6 +1192,7 @@ export default function App() {
                   onDeleteOrder={handleDeleteOrder}
                   onArchiveOrder={handleArchiveOrder}
                   userRole={user.role}
+                  onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
                 />
               </div>
             )}
@@ -1233,6 +1262,7 @@ export default function App() {
                 onSelectOrder={setActiveOrderId}
                 onUpdateOrderStatus={handleUpdateOrderStatus}
                 onReportLocation={handleReportLocation}
+                onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
               />
             </div>
 
