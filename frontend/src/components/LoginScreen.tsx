@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Shield, Key, Eye, EyeOff, Lock, User as UserIcon, Building2 } from 'lucide-react';
+import { Shield, Key, Eye, EyeOff, Lock, User as UserIcon, Building2, ArrowLeft } from 'lucide-react';
 import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
 import PaperCard from './ui/PaperCard.tsx';
@@ -191,6 +191,14 @@ export default function LoginScreen({
           </PostaButton>
         </form>
       </PaperCard>
+
+      <a
+        href="/"
+        className="mt-5 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        Volver al inicio
+      </a>
     </div>
   );
 }
