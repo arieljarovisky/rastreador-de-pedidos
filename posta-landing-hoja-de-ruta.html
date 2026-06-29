@@ -215,14 +215,8 @@ header{position:sticky;top:0;z-index:40;background:rgba(239,231,216,.9);backdrop
 
 /* APP DOWNLOAD */
 .dl-section{background:var(--paper2);border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)}
-.dl-intro{text-align:center;max-width:54ch;margin:0 auto 42px}
-.dl-intro h2{margin-bottom:12px}
-.dl-columns{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:stretch}
-.dl-col{display:flex;flex-direction:column;gap:18px;border:1.5px solid var(--ink);border-radius:6px;padding:24px 22px;background:var(--paper);box-shadow:4px 5px 0 rgba(28,24,20,.1)}
-.dl-col-head{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--stamp2);font-weight:700}
-.dl-col h3{font-size:1.2rem;margin:0}
-.dl-col > p{font-size:.92rem;margin:0}
-.store-btn{display:flex;align-items:center;gap:14px;padding:14px 18px;border:1.5px solid var(--ink);border-radius:6px;background:var(--paper2);box-shadow:4px 5px 0 rgba(28,24,20,.12);transition:transform .12s ease,box-shadow .12s ease,background .15s}
+.dl-actions{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px}
+.store-btn{display:flex;align-items:center;gap:14px;padding:16px 18px;border:1.5px solid var(--ink);border-radius:6px;background:var(--paper);box-shadow:4px 5px 0 rgba(28,24,20,.12);transition:transform .12s ease,box-shadow .12s ease,background .15s;height:100%}
 .store-btn:hover{transform:translateY(-2px);box-shadow:6px 7px 0 rgba(28,24,20,.14);background:#fff}
 .store-btn:active{transform:translateY(0);box-shadow:3px 4px 0 rgba(28,24,20,.1)}
 .store-btn .ico{width:36px;height:36px;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
@@ -234,25 +228,24 @@ header{position:sticky;top:0;z-index:40;background:rgba(239,231,216,.9);backdrop
 .store-btn.is-primary{border-color:var(--stamp);box-shadow:5px 6px 0 var(--stampwash);background:#fff}
 .store-btn.is-primary::after{content:"Tu dispositivo";margin-left:auto;font-family:var(--mono);font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;color:var(--stamp);background:var(--stampwash);border:1px solid rgba(216,64,30,.25);border-radius:20px;padding:4px 9px}
 .store-btn.is-disabled{opacity:.55;pointer-events:none;box-shadow:none}
-.dl-steps{border:1.5px dashed var(--edge2);border-radius:6px;padding:16px 18px;background:var(--paper2);margin-top:auto}
-.dl-steps h4{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px}
-.dl-steps ol{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:8px}
-.dl-steps li{font-size:.88rem;color:var(--ink2);line-height:1.45}
-.dl-steps li strong{color:var(--ink)}
-.dl-warn{margin-top:20px;padding:12px 14px;border:1.5px dashed var(--stamp);border-radius:5px;background:var(--stampwash);font-family:var(--mono);font-size:.72rem;color:var(--ink2);line-height:1.5;text-align:center}
-.dl-phone{display:flex;justify-content:center;margin:-4px 0 4px}
-.phone-shell{width:min(220px,100%);background:#0B0F18;border:6px solid #14110C;border-radius:24px;padding:12px 10px 14px;box-shadow:5px 7px 0 rgba(28,24,20,.18);transform:rotate(-2deg)}
-.phone-notch{width:72px;height:6px;background:#14110C;border-radius:0 0 7px 7px;margin:0 auto 10px}
-.phone-screen{background:#141A28;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px 12px;min-height:240px;display:flex;flex-direction:column;gap:10px}
-.phone-screen .appbar{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:700;color:#E9EDF4;font-size:.92rem}
-.phone-screen .appbar .dot{width:8px;height:8px;border-radius:50%;background:#3FAE63;animation:blink 1.4s ease-in-out infinite}
-.phone-screen .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px}
-.phone-screen .card .t{font-family:var(--mono);font-size:.54rem;letter-spacing:.08em;text-transform:uppercase;color:#5C6577}
-.phone-screen .card .v{font-family:var(--disp);font-size:1rem;color:#E9EDF4;margin-top:3px}
-.phone-screen .route{flex:1;min-height:88px;border-radius:10px;border:1px solid rgba(255,255,255,.07);background:linear-gradient(160deg,#0B0F18,#141A28);position:relative;overflow:hidden}
-.phone-screen .route svg{position:absolute;inset:0;width:100%;height:100%}
-.dl-foot{margin-top:24px;text-align:center}
+.dl-guide{border:1.5px solid var(--ink);border-radius:6px;background:var(--paper);box-shadow:5px 6px 0 rgba(28,24,20,.1);overflow:hidden}
+.dl-tabs{display:flex;border-bottom:1.5px solid var(--ink)}
+.dl-tab{flex:1;padding:14px 16px;font-family:var(--mono);font-size:.76rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);background:var(--paper2);border:none;cursor:pointer;transition:background .15s,color .15s}
+.dl-tab:not(:last-child){border-right:1.5px solid var(--ink)}
+.dl-tab:hover{color:var(--ink)}
+.dl-tab.is-active{background:var(--paper);color:var(--stamp);box-shadow:inset 0 -3px 0 var(--stamp)}
+.dl-pane{display:none;padding:26px 28px}
+.dl-pane.is-active{display:block}
+.dl-pane h3{font-size:1.35rem;margin-bottom:10px}
+.dl-pane > p{font-size:.95rem;margin-bottom:22px;max-width:58ch}
+.dl-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.dl-step{border:1.5px solid var(--edge);border-radius:5px;padding:16px 14px;background:var(--paper2)}
+.dl-step .num{font-family:var(--mono);font-size:.66rem;font-weight:700;letter-spacing:.08em;color:var(--stamp);margin-bottom:10px}
+.dl-step p{font-size:.86rem;color:var(--ink2);line-height:1.45;margin:0}
+.dl-step p strong{color:var(--ink)}
+.dl-foot{margin-top:20px}
 .dl-note{font-family:var(--mono);font-size:.72rem;color:var(--ink3);letter-spacing:.03em}
+.dl-warn{margin-top:14px;padding:12px 14px;border:1.5px dashed var(--stamp);border-radius:5px;background:var(--stampwash);font-family:var(--mono);font-size:.72rem;color:var(--ink2);line-height:1.5}
 
 /* FOOTER */
 footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:48px 0 34px}
@@ -281,7 +274,8 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 
 @media (max-width:900px){
   .hero-grid{grid-template-columns:1fr;gap:46px}
-  .dl-columns{grid-template-columns:1fr;gap:22px}
+  .dl-actions{grid-template-columns:1fr}
+  .dl-steps{grid-template-columns:repeat(2,1fr)}
   .roles,.integ,.plans{grid-template-columns:1fr}
   .feats{grid-template-columns:1fr}
   .mrow{grid-template-columns:64px 1fr;gap:8px 20px}
@@ -296,6 +290,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   .stop{text-align:left;display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start}
   .stop .seal{margin:0}
   .kpis{grid-template-columns:repeat(2,1fr)}
+  .dl-steps{grid-template-columns:1fr}
   .foot{grid-template-columns:1fr}
   .foot-bot{text-align:left;margin-top:8px}
   .hero .stampfly{position:static;display:inline-flex;margin-top:14px;transform:rotate(-4deg)}
@@ -503,75 +498,58 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 <!-- DESCARGAR APP -->
 <section class="section dl-section" id="descargar">
   <div class="wrap">
-    <div class="shead dl-intro">
+    <div class="shead">
       <span class="eyebrow">App para repartidores</span>
-      <h2>Instalá Posta desde el navegador.</h2>
-      <p>Sin tiendas de apps: en <strong>Android</strong> descargás el APK directo. En <strong>iPhone</strong> la instalás como app web (PWA) desde Safari.</p>
+      <h2>Instalá Posta en tu celular.</h2>
+      <p>Android con APK directo. iPhone como app web desde Safari. Sin App Store ni Play Store.</p>
     </div>
 
-    <div class="dl-columns">
-      <div class="dl-col dl-col-android">
-        <span class="dl-col-head">Android</span>
-        <h3>Descargá e instalá el APK</h3>
-        <p>App nativa con GPS en segundo plano — ideal para repartir con el celular bloqueado.</p>
-        <a href="#" class="store-btn android" id="btnAndroid" download="posta-repartidor.apk" aria-label="Descargar Posta para Android">
-          <span class="ico" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.39.22.87.22 1.26 0l12.66-7.32-2.7-2.7-11.22 9.02zm-1.05-20.3a1.5 1.5 0 0 0-.23.8v19.48c0 .3.08.58.23.8l.1.1 10.9-10.9v-.26L2.13 3.36l.1.1zM20.07 10.37 17.2 8.9l-2.96 2.96 2.96 2.96 2.88-1.48c.81-.44.81-1.53 0-1.97zM4.44 2.44 14.34 12.34l2.7-2.7L5.7 1.18a1.12 1.12 0 0 0-1.26 0z"/></svg>
-          </span>
-          <span class="meta">
-            <small>Android · descarga directa</small>
-            <strong>Descargar APK</strong>
-          </span>
-        </a>
+    <div class="dl-actions">
+      <a href="#" class="store-btn android" id="btnAndroid" download="posta-repartidor.apk" aria-label="Descargar Posta para Android">
+        <span class="ico" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.39.22.87.22 1.26 0l12.66-7.32-2.7-2.7-11.22 9.02zm-1.05-20.3a1.5 1.5 0 0 0-.23.8v19.48c0 .3.08.58.23.8l.1.1 10.9-10.9v-.26L2.13 3.36l.1.1zM20.07 10.37 17.2 8.9l-2.96 2.96 2.96 2.96 2.88-1.48c.81-.44.81-1.53 0-1.97zM4.44 2.44 14.34 12.34l2.7-2.7L5.7 1.18a1.12 1.12 0 0 0-1.26 0z"/></svg>
+        </span>
+        <span class="meta">
+          <small>Android</small>
+          <strong>Descargar APK</strong>
+        </span>
+      </a>
+      <a href="#" class="store-btn ios" id="btnIos" aria-label="Instalar Posta en iPhone">
+        <span class="ico" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.63 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.64 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        </span>
+        <span class="meta">
+          <small>iPhone</small>
+          <strong>Instalar en Safari</strong>
+        </span>
+      </a>
+    </div>
+
+    <div class="dl-guide">
+      <div class="dl-tabs" role="tablist">
+        <button type="button" class="dl-tab is-active" role="tab" aria-selected="true" data-dl-tab="android" id="tabAndroid">Android</button>
+        <button type="button" class="dl-tab" role="tab" aria-selected="false" data-dl-tab="ios" id="tabIos">iPhone</button>
+      </div>
+
+      <div class="dl-pane is-active" id="paneAndroid" role="tabpanel" aria-labelledby="tabAndroid">
+        <h3>APK nativo con GPS en segundo plano</h3>
+        <p>Ideal para repartir con el celular bloqueado. Cuatro pasos y listo.</p>
         <div class="dl-steps">
-          <h4>Pasos</h4>
-          <ol>
-            <li>Tocá <strong>Descargar APK</strong>.</li>
-            <li>Abrí el archivo desde las notificaciones.</li>
-            <li>Si hace falta, activá <strong>Instalar apps desconocidas</strong> para Chrome.</li>
-            <li>Iniciá sesión como repartidor y permití ubicación <strong>siempre</strong>.</li>
-          </ol>
+          <div class="dl-step"><div class="num">01</div><p>Tocá <strong>Descargar APK</strong> y esperá que termine.</p></div>
+          <div class="dl-step"><div class="num">02</div><p>Abrí el archivo desde las <strong>notificaciones</strong>.</p></div>
+          <div class="dl-step"><div class="num">03</div><p>Activá <strong>Instalar apps desconocidas</strong> si Android lo pide.</p></div>
+          <div class="dl-step"><div class="num">04</div><p>Iniciá sesión y permití ubicación <strong>siempre</strong>.</p></div>
         </div>
       </div>
 
-      <div class="dl-col dl-col-ios">
-        <span class="dl-col-head">iPhone</span>
-        <div class="dl-phone" aria-hidden="true">
-          <div class="phone-shell">
-            <div class="phone-notch"></div>
-            <div class="phone-screen">
-              <div class="appbar"><span class="dot"></span> Posta Repartidor</div>
-              <div class="card"><div class="t">Pedido activo</div><div class="v">LP-2847 · En viaje</div></div>
-              <div class="card"><div class="t">Último reporte GPS</div><div class="v" id="phoneGps">—</div></div>
-              <div class="route">
-                <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
-                  <path class="rt" d="M20,95 C55,88 70,42 105,48 C135,53 150,78 185,28" fill="none" stroke="#5C87EB" stroke-width="2.5" stroke-linecap="round"/>
-                  <circle cx="20" cy="95" r="5" fill="none" stroke="#5C87EB" stroke-width="2"/>
-                  <path d="M185 18c-4 0-7 3-7 7s7 12 7 12 7-5 7-12-3-7-7-7z" fill="#E8431F"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-        <h3>Agregá Posta a la pantalla de inicio</h3>
-        <p>Versión web instalable (PWA). Funciona como app; el GPS en segundo plano es más limitado que en Android.</p>
-        <a href="#" class="store-btn ios" id="btnIos" aria-label="Instalar Posta en iPhone">
-          <span class="ico" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.63 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.64 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-          </span>
-          <span class="meta">
-            <small>iPhone · sin App Store</small>
-            <strong>Instalar en Safari</strong>
-          </span>
-        </a>
+      <div class="dl-pane" id="paneIos" role="tabpanel" aria-labelledby="tabIos" hidden>
+        <h3>App web en la pantalla de inicio</h3>
+        <p>Funciona como app instalada. El GPS en segundo plano es más limitado que en Android.</p>
         <div class="dl-steps">
-          <h4>Pasos en Safari</h4>
-          <ol>
-            <li>Tocá <strong>Instalar en Safari</strong> y entrá con tu usuario.</li>
-            <li>Tocá <strong>Compartir</strong> (cuadrado con flecha).</li>
-            <li>Elegí <strong>Agregar a pantalla de inicio</strong> → <strong>Agregar</strong>.</li>
-            <li>Abrí Posta desde el ícono y permití la ubicación.</li>
-          </ol>
+          <div class="dl-step"><div class="num">01</div><p>Tocá <strong>Instalar en Safari</strong> y entrá con tu usuario.</p></div>
+          <div class="dl-step"><div class="num">02</div><p>Tocá <strong>Compartir</strong> (cuadrado con flecha).</p></div>
+          <div class="dl-step"><div class="num">03</div><p>Elegí <strong>Agregar a pantalla de inicio</strong>.</p></div>
+          <div class="dl-step"><div class="num">04</div><p>Abrí Posta desde el ícono y permití la ubicación.</p></div>
         </div>
       </div>
     </div>
@@ -835,17 +813,39 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 
   if (isAndroid) {
     if (btnAndroid) btnAndroid.classList.add('is-primary');
+    showDlTab('android');
   } else if (isIOS) {
     if (btnIos) btnIos.classList.add('is-primary');
+    showDlTab('ios');
   }
+
+  function showDlTab(name) {
+    var tabs = document.querySelectorAll('.dl-tab');
+    var panes = document.querySelectorAll('.dl-pane');
+    tabs.forEach(function (t) {
+      var active = t.getAttribute('data-dl-tab') === name;
+      t.classList.toggle('is-active', active);
+      t.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    panes.forEach(function (p) {
+      var active = (name === 'android' && p.id === 'paneAndroid') || (name === 'ios' && p.id === 'paneIos');
+      p.classList.toggle('is-active', active);
+      if (active) p.removeAttribute('hidden');
+      else p.setAttribute('hidden', '');
+    });
+  }
+
+  document.querySelectorAll('.dl-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      showDlTab(tab.getAttribute('data-dl-tab'));
+    });
+  });
 
   var b=document.getElementById('burger'),m=document.getElementById('mobileMenu');
   if(b){b.addEventListener('click',function(){m.style.display=m.style.display==='flex'?'none':'flex';});
     m.querySelectorAll('a').forEach(function(a){a.addEventListener('click',function(){m.style.display='none';});});}
   var clock=document.getElementById('clock');
   if(clock){setInterval(function(){clock.textContent=new Date().toLocaleTimeString('es-AR',{hour12:false});},1000);}
-  var phoneGps=document.getElementById('phoneGps');
-  if(phoneGps){setInterval(function(){phoneGps.textContent=new Date().toLocaleTimeString('es-AR',{hour12:false});},1000);}
 })();
 </script>
 </body>
