@@ -70,6 +70,7 @@ export interface Order {
   lat: number;
   lng: number;
   status: OrderStatus;
+  archived?: boolean;
   repartidorId: string | null;
   repartidorName: string | null;
   createdAt: string;
@@ -125,6 +126,7 @@ export interface DbOrderRow {
   lat: number;
   lng: number;
   status: OrderStatus;
+  archived: number;
   repartidor_id: string | null;
   repartidor_name: string | null;
   notes: string | null;

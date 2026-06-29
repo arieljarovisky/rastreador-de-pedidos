@@ -95,6 +95,7 @@ function rowToOrder(
     lat: Number(row.lat),
     lng: Number(row.lng),
     status: row.status,
+    archived: Boolean(row.archived),
     repartidorId: row.repartidor_id,
     repartidorName: row.repartidor_name,
     createdAt: new Date(row.created_at).toISOString(),
@@ -111,7 +112,7 @@ function rowToOrder(
 const ORDER_SELECT = `
   SELECT o.id, o.seller_id, o.external_source, o.external_order_id, o.shipping_type,
          o.client_name, o.client_phone, o.address, o.lat, o.lng,
-         o.status, o.repartidor_id, o.notes, o.created_at, o.updated_at,
+         o.status, o.archived, o.repartidor_id, o.notes, o.created_at, o.updated_at,
          r.name AS repartidor_name,
          s.name AS seller_name
   FROM orders o
@@ -155,7 +156,7 @@ export async function listOrdersForUser(user: User): Promise<Order[]> {
     );
   } else {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE o.repartidor_id = ? OR o.status = ? ORDER BY o.created_at DESC`,
+      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR o.status = ?) AND o.archived = 0 ORDER BY o.created_at DESC`,
       [user.id, OrderStatus.PENDING]
     );
   }
@@ -560,4 +561,38 @@ export async function deleteOrder(user: User, orderId: string): Promise<{ seller
 
   await pool.query('DELETE FROM orders WHERE id = ?', [orderId]);
   return { sellerId: order.sellerId };
+}
+
+export async function setOrderArchived(
+  user: User,
+  orderId: string,
+  archived: boolean
+): Promise<Order> {
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error('NOT_FOUND');
+
+  if (isAgencyAdmin(user.role)) {
+    // La agencia puede archivar cualquier pedido
+  } else if (user.role === UserRole.STORE_ADMIN) {
+    if (order.sellerId !== user.id) throw new Error('FORBIDDEN');
+  } else {
+    throw new Error('FORBIDDEN');
+  }
+
+  if (archived) {
+    if (order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED) {
+      throw new Error('ORDER_NOT_ARCHIVABLE');
+    }
+  }
+
+  const now = new Date();
+  await pool.query('UPDATE orders SET archived = ?, updated_at = ? WHERE id = ?', [
+    archived ? 1 : 0,
+    now,
+    orderId,
+  ]);
+
+  const updated = await getOrderById(orderId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
 }

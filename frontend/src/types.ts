@@ -92,6 +92,7 @@ export interface Order {
   lat: number; // Latitud de entrega
   lng: number; // Longitud de entrega
   status: OrderStatus;
+  archived?: boolean;
   repartidorId: string | null;
   repartidorName: string | null;
   createdAt: string;

@@ -26,6 +26,7 @@ interface AdminDashboardProps {
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
   onDeleteOrder?: (orderId: string) => Promise<void>;
+  onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
   userRole?: UserRole;
 }
 
@@ -112,6 +113,7 @@ export default function AdminDashboard({
   onUpdateOrderStatus,
   onAssignOrderSeller,
   onDeleteOrder,
+  onArchiveOrder,
   userRole = UserRole.STORE_ADMIN,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
@@ -307,8 +309,17 @@ export default function AdminDashboard({
   };
 
   // Filtrar pedidos
+  const activeOrders = orders.filter((o) => !o.archived);
+
   const filteredOrders = orders.filter((order) => {
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    const isArchivedView = statusFilter === 'archived';
+    if (isArchivedView) {
+      if (!order.archived) return false;
+    } else if (order.archived) {
+      return false;
+    }
+
+    const matchesStatus = statusFilter === 'all' || statusFilter === 'archived' || order.status === statusFilter;
     const matchesSearch =
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -332,9 +343,10 @@ export default function AdminDashboard({
   }, [repartidores, mapRepartidorIds, allRepartidoresOnMap]);
 
   const mapOrders = useMemo(() => {
-    if (allRepartidoresOnMap) return orders;
+    const visible = orders.filter((o) => !o.archived);
+    if (allRepartidoresOnMap) return visible;
     if (mapRepartidorIds.size === 0) return [];
-    return orders.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
+    return visible.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
   }, [orders, mapRepartidorIds, allRepartidoresOnMap]);
 
   const mapFilterLabel = useMemo(() => {
@@ -460,15 +472,51 @@ export default function AdminDashboard({
       });
     }
 
+    const canArchive =
+      onArchiveOrder &&
+      (agency || isSeller) &&
+      !order.archived &&
+      (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED);
+
+    if (canArchive) {
+      items.push({
+        id: 'archive',
+        label: '📦 Archivar pedido',
+        onClick: () => {
+          void confirm({
+            title: 'Archivar pedido',
+            message: `¿Archivar ${order.id}?\n\nDejará de aparecer en la lista principal pero podrás verlo en Archivados.`,
+            variant: 'warning',
+            confirmText: 'Archivar',
+            cancelText: 'Cancelar',
+          }).then((ok) => {
+            if (!ok) return;
+            void onArchiveOrder(order.id, true);
+          });
+        },
+      });
+    }
+
+    if (onArchiveOrder && order.archived && (agency || isSeller)) {
+      items.push({
+        id: 'unarchive',
+        label: '↩️ Restaurar pedido',
+        onClick: () => {
+          void onArchiveOrder(order.id, false);
+        },
+      });
+    }
+
     return items;
   };
 
   // Contadores para resúmenes estadísticos rápidos
   const stats = {
-    total: orders.length,
-    pending: orders.filter((o) => o.status === OrderStatus.PENDING).length,
-    delivering: orders.filter((o) => o.status === OrderStatus.DELIVERING).length,
-    delivered: orders.filter((o) => o.status === OrderStatus.DELIVERED).length,
+    total: activeOrders.length,
+    pending: activeOrders.filter((o) => o.status === OrderStatus.PENDING).length,
+    delivering: activeOrders.filter((o) => o.status === OrderStatus.DELIVERING).length,
+    delivered: activeOrders.filter((o) => o.status === OrderStatus.DELIVERED).length,
+    archived: orders.filter((o) => o.archived).length,
   };
 
   return (
@@ -629,6 +677,14 @@ export default function AdminDashboard({
               >
                 Listos
               </button>
+              <button
+                onClick={() => setStatusFilter('archived')}
+                className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
+                  statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                }`}
+              >
+                Arch.{stats.archived > 0 ? ` (${stats.archived})` : ''}
+              </button>
             </div>
           </div>
         </div>
@@ -767,7 +823,11 @@ export default function AdminDashboard({
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
               <span className="mono-label block mb-2">Sin resultados</span>
-              <p>Ningún pedido coincide con los filtros aplicados.</p>
+              <p>
+                {statusFilter === 'archived'
+                  ? 'No hay pedidos archivados.'
+                  : 'Ningún pedido coincide con los filtros aplicados.'}
+              </p>
             </div>
           ) : (
             filteredOrders.map((order) => {

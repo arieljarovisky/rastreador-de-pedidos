@@ -790,6 +790,30 @@ export default function App() {
     }
   };
 
+  const handleArchiveOrder = async (orderId: string, archived: boolean) => {
+    if (!token) return;
+    try {
+      const res = await fetch(apiUrl(`/api/orders/${orderId}/archive`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ archived }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'No se pudo archivar el pedido');
+      }
+      const updated = await res.json();
+      mergeOrder(updated);
+      if (archived && activeOrderId === orderId) setActiveOrderId(null);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'No se pudo archivar el pedido';
+      void showAlert({ title: 'Error', message, variant: 'error' });
+    }
+  };
+
   // Enviar ubicación de repartidor (Repartidor)
   const handleReportLocation = async (orderId: string, lat: number, lng: number) => {
     if (!token) return;
@@ -1078,6 +1102,7 @@ export default function App() {
                   onUpdateOrderStatus={handleUpdateOrderStatus}
                   onAssignOrderSeller={handleAssignOrderSeller}
                   onDeleteOrder={handleDeleteOrder}
+                  onArchiveOrder={handleArchiveOrder}
                   userRole={user.role}
                 />
               </div>

@@ -11,6 +11,7 @@ import {
   getSellerIdForOrder,
   assignOrderToSeller,
   deleteOrder,
+  setOrderArchived,
 } from '../services/orders.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
@@ -199,6 +200,38 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
     if (message === 'ORDER_NOT_DELETABLE') {
       res.status(409).json({
         error: 'Solo se pueden eliminar pedidos pendientes. Cancelalos primero si ya están en curso.',
+      });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/:id/archive', authenticate, async (req: Request, res: Response) => {
+  const { archived } = req.body;
+  if (typeof archived !== 'boolean') {
+    res.status(400).json({ error: 'El campo archived (boolean) es requerido.' });
+    return;
+  }
+
+  try {
+    const order = await setOrderArchived(req.user!, req.params.id, archived);
+    const sellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, sellerId);
+    res.json(order);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Pedido no encontrado.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tienes permiso para archivar este pedido.' });
+      return;
+    }
+    if (message === 'ORDER_NOT_ARCHIVABLE') {
+      res.status(409).json({
+        error: 'Solo se pueden archivar pedidos entregados o cancelados.',
       });
       return;
     }
