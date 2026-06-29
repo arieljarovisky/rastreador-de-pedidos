@@ -428,6 +428,30 @@ export default function AdminDashboard({
       });
     }
 
+    if (agency && order.status === OrderStatus.ASSIGNED && order.repartidorId) {
+      items.push({
+        id: 'unassign-repartidor',
+        label: '🏍️ Desasignar repartidor',
+        onClick: () => {
+          void confirm({
+            title: 'Desasignar repartidor',
+            message: `¿Quitar a ${order.repartidorName ?? 'el repartidor'} del pedido ${order.id}?\n\nEl envío volverá a pendiente y podrás asignarlo a otro repartidor.`,
+            variant: 'warning',
+            confirmText: 'Desasignar',
+            cancelText: 'Cancelar',
+          }).then((ok) => {
+            if (!ok) return;
+            void onUpdateOrderStatus(
+              order.id,
+              OrderStatus.PENDING,
+              undefined,
+              'Repartidor desasignado por administración'
+            );
+          });
+        },
+      });
+    }
+
     if (agency && (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)) {
       items.push({
         id: 'mark-delivered',
@@ -1152,6 +1176,67 @@ export default function AdminDashboard({
                       <span className="text-[var(--color-warn)] font-bold font-mono text-[10px] uppercase tracking-wider bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/10 px-1.5 py-0.5 rounded">SIN ASIGNAR</span>
                     )}
                   </div>
+
+                  {isAgencyAdmin(userRole) &&
+                    selectedOrder.status === OrderStatus.ASSIGNED &&
+                    selectedOrder.repartidorId && (
+                      <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] p-2 rounded space-y-2">
+                        <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)]">
+                          Gestionar repartidor
+                        </p>
+                        <div className="flex gap-1.5">
+                          <select
+                            defaultValue={selectedOrder.repartidorId}
+                            onChange={async (e) => {
+                              if (!e.target.value || e.target.value === selectedOrder.repartidorId) return;
+                              try {
+                                await onUpdateOrderStatus(
+                                  selectedOrder.id,
+                                  OrderStatus.ASSIGNED,
+                                  e.target.value,
+                                  'Repartidor reasignado desde panel de control'
+                                );
+                              } catch (err: unknown) {
+                                const message =
+                                  err instanceof Error ? err.message : 'No se pudo reasignar el repartidor';
+                                void showAlert({ title: 'Error', message, variant: 'error' });
+                              }
+                            }}
+                            className="flex-1 min-w-0 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-1 text-[11px] text-[var(--ink-soft)] focus:outline-none"
+                          >
+                            {repartidores.map((rep) => (
+                              <option key={rep.id} value={rep.id}>
+                                {rep.name}
+                                {rep.deliveryZone ? ` (${zoneLabel(rep.deliveryZone)})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void confirm({
+                                title: 'Desasignar repartidor',
+                                message: `¿Quitar a ${selectedOrder.repartidorName ?? 'el repartidor'} del pedido ${selectedOrder.id}?\n\nEl envío volverá a pendiente.`,
+                                variant: 'warning',
+                                confirmText: 'Desasignar',
+                                cancelText: 'Cancelar',
+                              }).then((ok) => {
+                                if (!ok) return;
+                                void onUpdateOrderStatus(
+                                  selectedOrder.id,
+                                  OrderStatus.PENDING,
+                                  undefined,
+                                  'Repartidor desasignado por administración'
+                                );
+                              });
+                            }}
+                            className="shrink-0 px-2 py-1 rounded border border-[var(--color-warn)]/30 bg-[var(--color-warn)]/5 text-[var(--color-warn)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-warn)]/10 transition"
+                          >
+                            Desasignar
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                    {/* Asignar vendedor (logística) */}
                   {isAgencyAdmin(userRole) &&

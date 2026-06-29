@@ -210,6 +210,12 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Ya tenés un viaje en curso. Finalizalo antes de iniciar otro.' });
       return;
     }
+    if (message === 'CANNOT_UNASSIGN') {
+      res.status(400).json({
+        error: 'Solo se puede desasignar repartidor en pedidos asignados que aún no salieron a ruta.',
+      });
+      return;
+    }
     throw err;
   }
 });

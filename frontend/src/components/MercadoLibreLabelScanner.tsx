@@ -88,7 +88,7 @@ export default function MercadoLibreLabelScanner({
         setStatusMessage(
           result.alreadyImported
             ? `El envío ML #${result.externalOrderId} ya estaba importado (${result.order.id}).`
-            : `Importado: ${result.order.id} · ${result.clientName} (${result.sellerName})`
+            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})`
         );
         cooldownUntilRef.current = Date.now() + 3500;
         onImported?.(result);

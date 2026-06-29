@@ -401,6 +401,12 @@ export async function updateOrderStatus(
     } else if (order.repartidorId !== user.id) {
       throw new Error('FORBIDDEN');
     }
+  } else if (status === OrderStatus.PENDING && isAgencyAdmin(user.role)) {
+    if (order.status !== OrderStatus.ASSIGNED) {
+      throw new Error('CANNOT_UNASSIGN');
+    }
+    assignedRepartidorId = null;
+    assignedRepartidorName = null;
   } else if (status === OrderStatus.ASSIGNED) {
     if (!repartidorId) throw new Error('REPARTIDOR_REQUIRED');
     const rep = await getRepartidorById(repartidorId);
