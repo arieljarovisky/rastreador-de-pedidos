@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../api';
 import { clearQueue } from '../location/locationQueue';
 import { stopBackgroundLocation } from '../location/backgroundLocationTask';
-import { User, UserRole } from '../types';
+import { User, MOBILE_APP_ROLES } from '../types';
 
 const TOKEN_KEY = 'lupo_token';
 const USER_KEY = 'lupo_user';
@@ -47,6 +47,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           api
             .me(savedToken)
             .then((fresh) => {
+              if (!MOBILE_APP_ROLES.includes(fresh.role)) {
+                setToken(null);
+                setUser(null);
+                AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+                return;
+              }
               setUser(fresh);
               AsyncStorage.setItem(USER_KEY, JSON.stringify(fresh));
             })
@@ -68,8 +74,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const data = await api.login(username, password);
-      if (data.user.role !== UserRole.REPARTIDOR) {
-        throw new Error('Esta app es solo para repartidores.');
+      if (!MOBILE_APP_ROLES.includes(data.user.role)) {
+        throw new Error(
+          'Esta app es para vendedores y repartidores. Usá la web para cuentas de agencia.'
+        );
       }
       await AsyncStorage.multiSet([
         [TOKEN_KEY, data.token],

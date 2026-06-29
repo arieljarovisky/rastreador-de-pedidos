@@ -3,14 +3,13 @@ import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
-import { OrdersProvider } from '../context/OrdersContext';
 import LoginScreen from '../screens/LoginScreen';
-import OrdersScreen from '../screens/OrdersScreen';
-import OrderDetailScreen from '../screens/OrderDetailScreen';
-import { RootStackParamList } from './types';
+import RepartidorNavigator from './RepartidorNavigator';
+import SellerNavigator from './SellerNavigator';
+import { isRepartidorRole, isSellerRole } from '../types';
 import { colors } from '../theme';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const AuthStack = createNativeStackNavigator();
 
 const navTheme = {
   ...DefaultTheme,
@@ -25,11 +24,18 @@ const navTheme = {
 };
 
 export default function RootNavigator() {
-  const { token, loading } = useAuth();
+  const { user, token, loading } = useAuth();
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.bg,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <ActivityIndicator color={colors.blue} />
       </View>
     );
@@ -37,33 +43,15 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer theme={navTheme}>
-      {token ? (
-        <OrdersProvider>
-          <Stack.Navigator
-            screenOptions={{
-              headerStyle: { backgroundColor: colors.surface },
-              headerTintColor: colors.text,
-              headerTitleStyle: { fontWeight: '700' },
-              contentStyle: { backgroundColor: colors.bg },
-            }}
-          >
-            <Stack.Screen
-              name="Orders"
-              component={OrdersScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="OrderDetail"
-              component={OrderDetailScreen}
-              options={{ title: 'Detalle del envío' }}
-            />
-          </Stack.Navigator>
-        </OrdersProvider>
-      ) : (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Orders" component={LoginScreen} />
-        </Stack.Navigator>
-      )}
+      {!token || !user ? (
+        <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+          <AuthStack.Screen name="Login" component={LoginScreen} />
+        </AuthStack.Navigator>
+      ) : isSellerRole(user.role) ? (
+        <SellerNavigator />
+      ) : isRepartidorRole(user.role) ? (
+        <RepartidorNavigator />
+      ) : null}
     </NavigationContainer>
   );
 }

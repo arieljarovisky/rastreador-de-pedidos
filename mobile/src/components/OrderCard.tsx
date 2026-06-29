@@ -1,22 +1,24 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Order } from '../types';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import StatusBadge from './StatusBadge';
+import MonoLabel from './ui/MonoLabel';
 
 interface Props {
   order: Order;
   onPress: () => void;
+  showRepartidor?: boolean;
 }
 
-export default function OrderCard({ order, onPress }: Props) {
+export default function OrderCard({ order, onPress, showRepartidor }: Props) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <View style={styles.headerRow}>
-        <Text style={styles.id}>{order.id}</Text>
+        <MonoLabel color={colors.textFaint}>ID: {order.id}</MonoLabel>
         <StatusBadge status={order.status} />
       </View>
 
@@ -27,9 +29,15 @@ export default function OrderCard({ order, onPress }: Props) {
         {order.address}
       </Text>
 
+      {showRepartidor && order.repartidorName ? (
+        <Text style={styles.repartidor} numberOfLines={1}>
+          🏍️ {order.repartidorName}
+        </Text>
+      ) : null}
+
       <View style={styles.footerRow}>
         {order.externalSource ? (
-          <Text style={styles.tag}>{order.externalSource}</Text>
+          <MonoLabel color={colors.textFaint}>{order.externalSource}</MonoLabel>
         ) : (
           <View />
         )}
@@ -44,33 +52,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: radius.lg,
+    borderRadius: radius.posta,
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
-  pressed: { opacity: 0.85 },
+  pressed: { opacity: 0.88 },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  id: {
-    color: colors.textFaint,
-    fontSize: 12,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
   client: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 2,
+    ...typography.displaySection(16, colors.text),
   },
   address: {
-    color: colors.textMuted,
-    fontSize: 13,
+    ...typography.body(13, colors.textMuted),
     lineHeight: 18,
+    marginTop: 2,
+  },
+  repartidor: {
+    fontFamily: fonts.bodyMedium,
+    color: colors.accent,
+    fontSize: 12,
+    marginTop: 4,
   },
   footerRow: {
     flexDirection: 'row',
@@ -78,15 +83,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.md,
   },
-  tag: {
-    color: colors.textFaint,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   chevron: {
-    color: colors.blue,
+    fontFamily: fonts.bodySemiBold,
+    color: colors.accent,
     fontSize: 13,
-    fontWeight: '600',
   },
 });

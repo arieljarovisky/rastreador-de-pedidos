@@ -1,16 +1,21 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
-import { colors } from '../theme';
+import { colors, fonts, paper, typography } from '../theme';
 
 interface PostaLogoProps {
   size?: number;
   showWordmark?: boolean;
+  /** dark = dashboards; paper = login */
+  variant?: 'dark' | 'paper';
 }
 
-/** Logo de ruta Posta (puntos + flecha), igual que la web */
-export default function PostaLogo({ size = 48, showWordmark = true }: PostaLogoProps) {
-  const ink = '#E9EDF4';
-  const stamp = colors.accent;
+export default function PostaLogo({
+  size = 48,
+  showWordmark = true,
+  variant = 'dark',
+}: PostaLogoProps) {
+  const ink = variant === 'paper' ? paper.ink : colors.text;
+  const stamp = variant === 'paper' ? paper.stamp : colors.stamp;
 
   return (
     <View style={styles.row}>
@@ -21,7 +26,16 @@ export default function PostaLogo({ size = 48, showWordmark = true }: PostaLogoP
         <Line x1="39" y1="32" x2="46" y2="32" stroke={stamp} strokeWidth="3.4" strokeLinecap="round" />
         <Path d="M45 26 L55 32 L45 38 Z" fill={stamp} />
       </Svg>
-      {showWordmark && <Text style={[styles.wordmark, { fontSize: size * 0.46 }]}>Posta</Text>}
+      {showWordmark && (
+        <Text
+          style={[
+            typography.displayTitle(Math.max(14, size * 0.5), ink),
+            styles.wordmark,
+          ]}
+        >
+          Posta
+        </Text>
+      )}
     </View>
   );
 }
@@ -33,8 +47,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   wordmark: {
-    color: colors.text,
-    fontWeight: '700',
-    letterSpacing: -0.5,
+    fontFamily: fonts.display,
   },
 });

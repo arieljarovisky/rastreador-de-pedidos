@@ -89,6 +89,57 @@ export interface Order {
   externalSource?: string | null;
   externalOrderId?: string | null;
   shippingType?: string | null;
+  archived?: boolean;
+}
+
+export interface GeocodeResult {
+  lat: number;
+  lng: number;
+  displayName: string;
+}
+
+export type MarketplacePlatform = 'mercadolibre' | 'tiendanube';
+
+export interface MarketplaceShipmentPreview {
+  externalId: string;
+  mlOrderId?: string;
+  mlPackId?: string;
+  platform: MarketplacePlatform;
+  shippingType: 'flex' | 'express';
+  clientName: string;
+  clientPhone: string;
+  address: string;
+  lat?: number;
+  lng?: number;
+  notes: string;
+  createdAt: string;
+  alreadyImported: boolean;
+}
+
+export interface IntegrationAccountStatus {
+  nickname?: string;
+  email?: string;
+  storeName?: string;
+}
+
+export interface IntegrationsStatus {
+  mercadolibre: {
+    configured: boolean;
+    connected: boolean;
+    account: IntegrationAccountStatus | null;
+  };
+  tiendanube: {
+    configured: boolean;
+    connected: boolean;
+    account: IntegrationAccountStatus | null;
+  };
+}
+
+export interface MarketplaceImportResult {
+  imported: number;
+  skipped: number;
+  orders: string[];
+  errors: string[];
 }
 
 export interface AppNotification {
@@ -106,9 +157,20 @@ export function isAgencyAdmin(role: UserRole): boolean {
   return role === UserRole.SUPER_ADMIN || role === UserRole.LOGISTICS_ADMIN;
 }
 
+export function isSellerRole(role: UserRole): boolean {
+  return role === UserRole.STORE_ADMIN;
+}
+
+export function isRepartidorRole(role: UserRole): boolean {
+  return role === UserRole.REPARTIDOR;
+}
+
+/** Roles admitidos en la app móvil Posta. */
+export const MOBILE_APP_ROLES: UserRole[] = [UserRole.REPARTIDOR, UserRole.STORE_ADMIN];
+
 /** Etiqueta legible para cada estado de pedido. */
 export const STATUS_LABEL: Record<OrderStatus, string> = {
-  [OrderStatus.PENDING]: 'Pendiente',
+  [OrderStatus.PENDING]: 'En almacén',
   [OrderStatus.ASSIGNED]: 'Asignado',
   [OrderStatus.DELIVERING]: 'En viaje',
   [OrderStatus.DELIVERED]: 'Entregado',

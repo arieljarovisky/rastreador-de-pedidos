@@ -1,12 +1,20 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { OrderStatus } from '../types';
-import { radius, statusStyle } from '../theme';
+import { fonts, radius, statusStyle } from '../theme';
 
 export default function StatusBadge({ status }: { status: OrderStatus }) {
   const s = statusStyle(status);
   return (
-    <View style={[styles.badge, { backgroundColor: s.bg }]}>
+    <View
+      style={[
+        styles.badge,
+        {
+          borderColor: s.fg,
+          backgroundColor: s.bg,
+        },
+      ]}
+    >
       <Text style={[styles.text, { color: s.fg }]}>{s.label}</Text>
     </View>
   );
@@ -14,14 +22,18 @@ export default function StatusBadge({ status }: { status: OrderStatus }) {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    borderWidth: 2,
     alignSelf: 'flex-start',
   },
   text: {
-    fontSize: 11,
+    fontFamily: fonts.mono,
+    fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.54,
+    textTransform: 'uppercase',
+    lineHeight: 12,
   },
 });

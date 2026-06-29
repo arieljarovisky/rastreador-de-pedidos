@@ -6,16 +6,20 @@ import {
   Text,
   ViewStyle,
 } from 'react-native';
-import { colors, radius } from '../theme';
+import { colors, paper, radius, typography } from '../theme';
 
-type Variant = 'primary' | 'success' | 'danger' | 'ghost' | 'amber';
+type Variant = 'primary' | 'secondary' | 'success' | 'danger' | 'ghost' | 'amber';
 
-const VARIANTS: Record<Variant, { bg: string; fg: string; border?: string }> = {
-  primary: { bg: colors.stamp, fg: '#F6F0E4' },
+const VARIANTS: Record<
+  Variant,
+  { bg: string; fg: string; border?: string; borderWidth?: number }
+> = {
+  primary: { bg: colors.stamp, fg: '#FFFFFF' },
+  secondary: { bg: 'transparent', fg: colors.text, border: colors.text, borderWidth: 1.5 },
   success: { bg: colors.green, fg: '#04140d' },
   amber: { bg: colors.amber, fg: '#1a1203' },
-  danger: { bg: colors.redBg, fg: colors.red, border: colors.red },
-  ghost: { bg: 'transparent', fg: colors.textMuted, border: colors.border },
+  danger: { bg: colors.redBg, fg: colors.red, border: colors.red, borderWidth: 1 },
+  ghost: { bg: 'transparent', fg: colors.textMuted, border: colors.border, borderWidth: 1 },
 };
 
 interface Props {
@@ -25,6 +29,8 @@ interface Props {
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
+  /** Tema papel para login */
+  paperTheme?: boolean;
 }
 
 export default function Button({
@@ -34,9 +40,24 @@ export default function Button({
   loading = false,
   disabled = false,
   style,
+  paperTheme = false,
 }: Props) {
   const v = VARIANTS[variant];
   const isDisabled = disabled || loading;
+
+  let bg = v.bg;
+  let fg = v.fg;
+  let border = v.border ?? 'transparent';
+  if (paperTheme) {
+    if (variant === 'primary') {
+      bg = paper.stamp;
+      fg = '#FFFFFF';
+    } else if (variant === 'secondary' || variant === 'ghost') {
+      border = paper.ink;
+      fg = paper.ink;
+    }
+  }
+
   return (
     <Pressable
       onPress={onPress}
@@ -44,18 +65,18 @@ export default function Button({
       style={({ pressed }) => [
         styles.btn,
         {
-          backgroundColor: v.bg,
-          borderColor: v.border ?? 'transparent',
-          borderWidth: v.border ? 1 : 0,
-          opacity: isDisabled ? 0.5 : pressed ? 0.85 : 1,
+          backgroundColor: bg,
+          borderColor: border,
+          borderWidth: v.borderWidth ?? (v.border ? 1.5 : 0),
+          opacity: isDisabled ? 0.5 : pressed ? 0.88 : 1,
         },
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={v.fg} />
+        <ActivityIndicator color={fg} />
       ) : (
-        <Text style={[styles.label, { color: v.fg }]}>{label}</Text>
+        <Text style={typography.buttonLabel(fg)}>{label}</Text>
       )}
     </Pressable>
   );
@@ -63,15 +84,11 @@ export default function Button({
 
 const styles = StyleSheet.create({
   btn: {
-    height: 50,
-    borderRadius: radius.md,
+    minHeight: 44,
+    borderRadius: radius.posta,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  label: {
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
 });

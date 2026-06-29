@@ -2,7 +2,8 @@ import React, { createContext, useContext, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { useLocationReporter } from '../hooks/useLocationReporter';
-import { api } from '../api';
+import { api, MercadoLibreScanImportResult } from '../api';
+import { getScanGeolocation } from '../utils/scanLocation';
 import { Order, OrderStatus } from '../types';
 
 interface OrdersState {
@@ -11,10 +12,8 @@ interface OrdersState {
   refreshing: boolean;
   connected: boolean;
   error: string | null;
-  /** Coordenadas actuales del dispositivo (si hay permiso). */
   coords: { lat: number; lng: number } | null;
   permissionDenied: boolean;
-  /** Pedido que estoy entregando ahora mismo (status DELIVERING). */
   deliveringOrder: Order | null;
   refresh: () => Promise<void>;
   updateStatus: (
@@ -23,6 +22,7 @@ interface OrdersState {
     opts?: { repartidorId?: string; comment?: string }
   ) => Promise<Order>;
   getOrder: (orderId: string) => Order | undefined;
+  scanMercadoLibreLabel: (code: string) => Promise<MercadoLibreScanImportResult>;
 }
 
 const OrdersContext = createContext<OrdersState | undefined>(undefined);
@@ -67,6 +67,22 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
     [orders]
   );
 
+  const scanMercadoLibreLabel = useMemo(
+    () => async (code: string): Promise<MercadoLibreScanImportResult> => {
+      if (!token) throw new Error('Sin sesión');
+      const loc = await getScanGeolocation();
+      const result = await api.scanMercadoLibreLabel(
+        token,
+        code,
+        loc?.lat,
+        loc?.lng
+      );
+      await refresh();
+      return result;
+    },
+    [token, refresh]
+  );
+
   const value = useMemo<OrdersState>(
     () => ({
       orders,
@@ -80,6 +96,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
       refresh,
       updateStatus,
       getOrder,
+      scanMercadoLibreLabel,
     }),
     [
       orders,
@@ -93,6 +110,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
       refresh,
       updateStatus,
       getOrder,
+      scanMercadoLibreLabel,
     ]
   );
 

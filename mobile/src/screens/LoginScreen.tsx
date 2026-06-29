@@ -5,14 +5,17 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import { colors, radius, spacing } from '../theme';
+import { paper, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaLogo from '../components/PostaLogo';
+import PaperCard from '../components/ui/PaperCard';
+import MonoLabel from '../components/ui/MonoLabel';
+import PostaInput from '../components/ui/PostaInput';
 
 export default function LoginScreen() {
   const { login, error, loading } = useAuth();
@@ -38,38 +41,52 @@ export default function LoginScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <StatusBar style="dark" />
       <ScrollView
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 24 },
+          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 },
         ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.brand}>
-          <PostaLogo size={52} />
-          <Text style={styles.subtitle}>App de Repartidores</Text>
+          <PostaLogo size={44} variant="paper" />
+          <MonoLabel color={paper.muted} style={styles.tagline}>
+            Hoja de ruta · CABA y GBA
+          </MonoLabel>
         </View>
 
-        <View style={styles.form}>
-          <Text style={styles.label}>Usuario</Text>
-          <TextInput
+        <PaperCard style={styles.form}>
+          <Text style={typography.displaySection(14, paper.ink)}>Iniciar sesión</Text>
+          <MonoLabel color={paper.muted} style={styles.accessLabel}>
+            Acceso operadores
+          </MonoLabel>
+
+          <Text style={[typography.body(12, paper.muted), styles.hintInForm]}>
+            Si sos vendedor o repartidor, usá las credenciales que te dio tu agencia de logística.
+          </Text>
+
+          <MonoLabel color={paper.muted} style={styles.fieldLabel}>
+            Usuario
+          </MonoLabel>
+          <PostaInput
+            variant="paper"
             value={username}
             onChangeText={setUsername}
             placeholder="Ej: carlos"
-            placeholderTextColor={colors.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
-            style={styles.input}
           />
 
-          <Text style={[styles.label, { marginTop: spacing.lg }]}>Contraseña</Text>
-          <TextInput
+          <MonoLabel color={paper.muted} style={[styles.fieldLabel, { marginTop: spacing.lg }]}>
+            Contraseña
+          </MonoLabel>
+          <PostaInput
+            variant="paper"
             value={password}
             onChangeText={setPassword}
             placeholder="••••••••"
-            placeholderTextColor={colors.textFaint}
             secureTextEntry
-            style={styles.input}
             onSubmitEditing={handleSubmit}
           />
 
@@ -80,12 +97,13 @@ export default function LoginScreen() {
             onPress={handleSubmit}
             loading={submitting || loading}
             disabled={!username.trim() || !password}
+            paperTheme
             style={{ marginTop: spacing.xl }}
           />
-        </View>
+        </PaperCard>
 
-        <Text style={styles.hint}>
-          Iniciá sesión con la cuenta de repartidor que te dio tu agencia.
+        <Text style={[typography.body(12, paper.faint), styles.footerHint]}>
+          App móvil Posta para vendedores y repartidores.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -93,52 +111,26 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1, backgroundColor: paper.bg },
   container: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
   },
-  brand: { alignItems: 'center', marginBottom: 48, gap: 6 },
-  subtitle: {
-    color: colors.blue,
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 4,
-    letterSpacing: 0.5,
-  },
+  brand: { alignItems: 'center', marginBottom: 28, gap: 8 },
+  tagline: { marginTop: 4 },
   form: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.xl,
     padding: spacing.xl,
   },
-  label: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-  },
-  input: {
-    backgroundColor: colors.bg,
-    borderColor: colors.borderSoft,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    height: 50,
-    color: colors.text,
-    fontSize: 16,
-  },
+  accessLabel: { marginTop: 4, marginBottom: spacing.md },
+  hintInForm: { lineHeight: 18, marginBottom: spacing.lg },
+  fieldLabel: { marginBottom: spacing.sm },
   error: {
-    color: colors.red,
+    color: paper.danger,
     fontSize: 13,
     marginTop: spacing.lg,
+    lineHeight: 18,
   },
-  hint: {
-    color: colors.textFaint,
-    fontSize: 12,
+  footerHint: {
     textAlign: 'center',
     marginTop: spacing.xl,
     lineHeight: 18,

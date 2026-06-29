@@ -1,5 +1,16 @@
 import { apiUrl } from './config';
-import { AppNotification, Order, OrderStatus, User } from './types';
+import {
+  AppNotification,
+  GeocodeResult,
+  IntegrationsStatus,
+  MarketplaceImportResult,
+  MarketplacePlatform,
+  MarketplaceShipmentPreview,
+  Order,
+  OrderStatus,
+  PickupPoint,
+  User,
+} from './types';
 
 export interface LoginResponse {
   user: User;
@@ -60,6 +71,10 @@ export const api = {
   /** Repartidor: ve sus pedidos asignados/en curso + pendientes libres. */
   getOrders(token: string): Promise<Order[]> {
     return request<Order[]>('/api/orders', { token });
+  },
+
+  getRepartidores(token: string): Promise<User[]> {
+    return request<User[]>('/api/repartidores', { token });
   },
 
   getOrder(token: string, orderId: string): Promise<Order> {
@@ -129,6 +144,122 @@ export const api = {
   markNotificationsRead(token: string): Promise<void> {
     return request<void>('/api/notifications/read', { method: 'POST', token });
   },
+
+  /** Escaneo de etiqueta Mercado Libre Flex (colecta / re-escaneo). */
+  scanMercadoLibreLabel(
+    token: string,
+    code: string,
+    lat?: number,
+    lng?: number
+  ): Promise<MercadoLibreScanImportResult> {
+    return request<MercadoLibreScanImportResult>('/api/integrations/mercadolibre/scan-import', {
+      method: 'POST',
+      token,
+      body: {
+        code,
+        lat,
+        lng,
+      },
+    });
+  },
+
+  /** Vendedor: geocodificar dirección de entrega. */
+  geocodeAddress(token: string, address: string): Promise<GeocodeResult> {
+    return request<GeocodeResult>(
+      `/api/geocode?address=${encodeURIComponent(address.trim())}`,
+      { token }
+    );
+  },
+
+  /** Vendedor: crear envío manual. */
+  createOrder(
+    token: string,
+    data: {
+      clientName: string;
+      clientPhone?: string;
+      address: string;
+      lat: number;
+      lng: number;
+      notes?: string;
+    }
+  ): Promise<Order> {
+    return request<Order>('/api/orders', {
+      method: 'POST',
+      token,
+      body: data,
+    });
+  },
+
+  /** Vendedor: cancelar (pending) u otros cambios permitidos. */
+  cancelOrder(token: string, orderId: string, comment?: string): Promise<Order> {
+    return request<Order>(`/api/orders/${orderId}/status`, {
+      method: 'PUT',
+      token,
+      body: { status: OrderStatus.CANCELLED, comment: comment ?? 'Cancelado por el vendedor' },
+    });
+  },
+
+  deleteOrder(token: string, orderId: string): Promise<void> {
+    return request<void>(`/api/orders/${orderId}`, { method: 'DELETE', token });
+  },
+
+  archiveOrder(token: string, orderId: string, archived: boolean): Promise<Order> {
+    return request<Order>(`/api/orders/${orderId}/archive`, {
+      method: 'PUT',
+      token,
+      body: { archived },
+    });
+  },
+
+  getIntegrationsStatus(token: string): Promise<IntegrationsStatus> {
+    return request<IntegrationsStatus>('/api/integrations/status', { token });
+  },
+
+  getIntegrationConnectUrl(token: string, platform: MarketplacePlatform): Promise<{ url: string }> {
+    return request<{ url: string }>(`/api/integrations/${platform}/connect`, { token });
+  },
+
+  disconnectIntegration(token: string, platform: MarketplacePlatform): Promise<void> {
+    return request<void>(`/api/integrations/${platform}`, { method: 'DELETE', token });
+  },
+
+  listMarketplaceShipments(
+    token: string,
+    platform: MarketplacePlatform
+  ): Promise<MarketplaceShipmentPreview[]> {
+    return request<MarketplaceShipmentPreview[]>(`/api/integrations/${platform}/shipments`, {
+      token,
+    });
+  },
+
+  importMarketplaceShipments(
+    token: string,
+    platform: MarketplacePlatform,
+    externalIds: string[]
+  ): Promise<MarketplaceImportResult> {
+    return request<MarketplaceImportResult>(`/api/integrations/${platform}/import`, {
+      method: 'POST',
+      token,
+      body: { externalIds },
+    });
+  },
+
+  getPickupPoints(token: string): Promise<PickupPoint[]> {
+    return request<PickupPoint[]>('/api/accounts/pickup-points', { token });
+  },
+
+  /** URL autenticada para abrir etiqueta ML (requiere token en header al descargar). */
+  mercadoLibreLabelUrl(orderId: string): string {
+    return apiUrl(`/api/orders/${orderId}/mercadolibre-label`);
+  },
 };
+
+export interface MercadoLibreScanImportResult {
+  order: Order;
+  alreadyImported: boolean;
+  sellerId: string;
+  sellerName: string;
+  externalOrderId: string;
+}
 
 export { ApiError };

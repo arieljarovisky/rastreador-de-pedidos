@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { api } from '../api';
 import { socketUrl, POLL_INTERVAL_MS } from '../config';
-import { Order } from '../types';
+import { Order, User } from '../types';
 
 interface OrderLocationPayload {
   orderId: string;
@@ -10,8 +10,20 @@ interface OrderLocationPayload {
   point: { lat: number; lng: number; timestamp: string };
 }
 
+interface RepartidorLocationPayload {
+  repartidorId: string;
+  name: string;
+  location: { lat: number; lng: number; timestamp: string };
+}
+
+interface UseOrdersOptions {
+  /** Vendedor: cargar repartidores y escuchar GPS en vivo */
+  trackRepartidores?: boolean;
+}
+
 interface UseOrdersResult {
   orders: Order[];
+  repartidores: User[];
   loading: boolean;
   refreshing: boolean;
   connected: boolean;
@@ -19,13 +31,13 @@ interface UseOrdersResult {
   refresh: () => Promise<void>;
 }
 
-/**
- * Carga los pedidos del repartidor y los mantiene actualizados con:
- *  - socket.io (eventos order:updated / order:deleted / order:location), igual que la web
- *  - polling de respaldo cada POLL_INTERVAL_MS por si el socket se cae
- */
-export function useOrders(token: string | null): UseOrdersResult {
+export function useOrders(
+  token: string | null,
+  options: UseOrdersOptions = {}
+): UseOrdersResult {
+  const { trackRepartidores = false } = options;
   const [orders, setOrders] = useState<Order[]>([]);
+  const [repartidores, setRepartidores] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -61,16 +73,39 @@ export function useOrders(token: string | null): UseOrdersResult {
     );
   }, []);
 
+  const applyRepartidorLocation = useCallback((payload: RepartidorLocationPayload) => {
+    setRepartidores((prev) =>
+      prev.map((rep) =>
+        rep.id === payload.repartidorId
+          ? {
+              ...rep,
+              name: payload.name || rep.name,
+              currentLocation: {
+                lat: payload.location.lat,
+                lng: payload.location.lng,
+                timestamp: payload.location.timestamp,
+              },
+            }
+          : rep
+      )
+    );
+  }, []);
+
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await api.getOrders(token);
-      setOrders(data);
+      const requests: [Promise<Order[]>, Promise<User[] | null>] = [
+        api.getOrders(token),
+        trackRepartidores ? api.getRepartidores(token) : Promise.resolve(null),
+      ];
+      const [ordersData, repsData] = await Promise.all(requests);
+      setOrders(ordersData);
+      if (repsData) setRepartidores(repsData);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los pedidos.');
     }
-  }, [token]);
+  }, [token, trackRepartidores]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -78,14 +113,12 @@ export function useOrders(token: string | null): UseOrdersResult {
     setRefreshing(false);
   }, [load]);
 
-  // Carga inicial
   useEffect(() => {
     if (!token) return;
     setLoading(true);
     load().finally(() => setLoading(false));
   }, [token, load]);
 
-  // Socket de tiempo real
   useEffect(() => {
     if (!token) return;
     const socket = io(socketUrl(), {
@@ -101,15 +134,26 @@ export function useOrders(token: string | null): UseOrdersResult {
     socket.on('order:updated', (order: Order) => mergeOrder(order));
     socket.on('order:deleted', (p: { orderId: string }) => removeOrder(p.orderId));
     socket.on('order:location', (p: OrderLocationPayload) => applyLocation(p));
+    if (trackRepartidores) {
+      socket.on('repartidor:location', (p: RepartidorLocationPayload) =>
+        applyRepartidorLocation(p)
+      );
+    }
 
     return () => {
       socket.disconnect();
       socketRef.current = null;
       setConnected(false);
     };
-  }, [token, mergeOrder, removeOrder, applyLocation]);
+  }, [
+    token,
+    trackRepartidores,
+    mergeOrder,
+    removeOrder,
+    applyLocation,
+    applyRepartidorLocation,
+  ]);
 
-  // Polling de respaldo (más frecuente si el socket está caído)
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(() => {
@@ -118,5 +162,13 @@ export function useOrders(token: string | null): UseOrdersResult {
     return () => clearInterval(interval);
   }, [token, connected, load]);
 
-  return { orders, loading, refreshing, connected, error, refresh };
+  return {
+    orders,
+    repartidores,
+    loading,
+    refreshing,
+    connected,
+    error,
+    refresh,
+  };
 }

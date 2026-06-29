@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
+import { GPS_THROTTLE_MS } from '../config';
 import { setActiveOrderId } from '../location/locationQueue';
-import { flushLocationQueue, startLocationSyncListeners } from '../location/locationSync';
+import {
+  flushLocationQueue,
+  reportOrEnqueue,
+  startLocationSyncListeners,
+} from '../location/locationSync';
 import {
   startBackgroundLocation,
   stopBackgroundLocation,
@@ -33,6 +38,7 @@ export function useLocationReporter(
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const subRef = useRef<Location.LocationSubscription | null>(null);
+  const lastGpsSentAt = useRef(0);
 
   useEffect(() => {
     void setActiveOrderId(activeOrderId);
@@ -88,9 +94,19 @@ export function useLocationReporter(
           },
           (pos) => {
             if (cancelled) return;
-            setCoords({
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            setCoords({ lat, lng });
+
+            const now = Date.now();
+            if (now - lastGpsSentAt.current < GPS_THROTTLE_MS) return;
+            lastGpsSentAt.current = now;
+
+            void reportOrEnqueue(token, {
+              lat,
+              lng,
+              timestamp: new Date(pos.timestamp).toISOString(),
+              orderId: activeOrderId ?? undefined,
             });
           }
         );

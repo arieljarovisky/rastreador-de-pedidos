@@ -3,23 +3,25 @@ import {
   Alert,
   Linking,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
 import { OrderStatus, STATUS_LABEL } from '../types';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import StatusBadge from '../components/StatusBadge';
-import { RootStackParamList } from '../navigation/types';
+import MonoLabel from '../components/ui/MonoLabel';
+import OrderTrackingMap from '../components/OrderTrackingMap';
+import { RepartidorStackParamList } from '../navigation/types';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
+type Props = NativeStackScreenProps<RepartidorStackParamList, 'OrderDetail'>;
 
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { orderId } = route.params;
@@ -115,31 +117,24 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     if (url) Linking.openURL(url);
   };
 
+  const driverPoint = driver
+    ? { lat: driver.latitude, lng: driver.longitude, label: isMine ? 'Vos' : 'Repartidor' }
+    : null;
+
   return (
     <View style={styles.container}>
-      <MapView
-        provider={PROVIDER_DEFAULT}
-        style={styles.map}
-        initialRegion={{
-          latitude: order.lat,
-          longitude: order.lng,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        }}
-      >
-        <Marker
-          coordinate={{ latitude: order.lat, longitude: order.lng }}
-          title={order.clientName}
-          description={order.address}
-          pinColor="#ef4444"
+      <View style={styles.mapPane}>
+        <OrderTrackingMap
+          style={styles.mapFill}
+          destination={{
+            lat: order.lat,
+            lng: order.lng,
+            label: order.clientName,
+          }}
+          trail={order.locationHistory.map((p) => ({ lat: p.lat, lng: p.lng }))}
+          driver={driverPoint}
         />
-        {driver && (
-          <Marker coordinate={driver} title="Vos" pinColor="#3b82f6" />
-        )}
-        {trail.length > 1 && (
-          <Polyline coordinates={trail} strokeColor={colors.amber} strokeWidth={4} />
-        )}
-      </MapView>
+      </View>
 
       <ScrollView
         style={styles.sheet}
@@ -149,16 +144,16 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <View style={styles.grabber} />
 
         <View style={styles.headerRow}>
-          <Text style={styles.orderId}>{order.id}</Text>
+          <MonoLabel color={colors.textFaint}>ID: {order.id}</MonoLabel>
           <StatusBadge status={order.status} />
         </View>
 
-        <Text style={styles.client}>{order.clientName}</Text>
-        <Text style={styles.address}>{order.address}</Text>
+        <Text style={typography.displayTitle(22)}>{order.clientName}</Text>
+        <Text style={typography.body(14, colors.textMuted)}>{order.address}</Text>
 
         {order.notes ? (
           <View style={styles.notesBox}>
-            <Text style={styles.notesLabel}>Notas</Text>
+            <MonoLabel color={colors.textFaint}>Notas</MonoLabel>
             <Text style={styles.notesText}>{order.notes}</Text>
           </View>
         ) : null}
@@ -170,6 +165,46 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             value={order.externalSource ?? 'Manual'}
           />
         </View>
+
+        {order.sellerName ? (
+          <View style={styles.sellerRow}>
+            <MonoLabel color={colors.textFaint}>Vendedor</MonoLabel>
+            <Text style={styles.sellerName}>🛒 {order.sellerName}</Text>
+          </View>
+        ) : null}
+
+        {order.history.length > 0 && (
+          <View style={styles.historyBox}>
+            <MonoLabel color={colors.textFaint}>Bitácora del pedido</MonoLabel>
+            {[...order.history].reverse().map((event, index) => (
+              <View key={`${event.timestamp}-${index}`} style={styles.historyItem}>
+                <View style={styles.historyHeader}>
+                  <Text style={styles.historyStatus}>
+                    {STATUS_LABEL[event.status] ?? event.status}
+                  </Text>
+                  <Text style={styles.historyTime}>
+                    {new Date(event.timestamp).toLocaleString()}
+                  </Text>
+                </View>
+                <Text style={styles.historyComment}>
+                  {event.comment?.trim() || 'Cambio de estado'}
+                </Text>
+                <Text style={styles.historyBy}>Por: {event.updatedBy}</Text>
+                {event.lat != null && event.lng != null && (
+                  <Pressable
+                    onPress={() =>
+                      Linking.openURL(
+                        `https://www.google.com/maps?q=${event.lat},${event.lng}`
+                      )
+                    }
+                  >
+                    <Text style={styles.historyMapLink}>📍 Ver ubicación del escaneo</Text>
+                  </Pressable>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
 
         {order.status === OrderStatus.DELIVERING && isMine && (
           <View style={styles.gpsBanner}>
@@ -245,15 +280,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   muted: { color: colors.textMuted, fontSize: 15 },
-  map: { flex: 1 },
+  mapPane: {
+    height: 260,
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+  },
+  mapFill: { flex: 1 },
   sheet: {
+    flex: 1,
     backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    marginTop: -24,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
-    maxHeight: '58%',
   },
   grabber: {
     width: 40,
@@ -312,6 +349,78 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   metaValue: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  sellerRow: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.bg,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  sellerLabel: {
+    color: colors.textFaint,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  sellerName: { color: colors.accent, fontSize: 14, fontWeight: '600' },
+  historyBox: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.bg,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  historyTitle: {
+    color: colors.textFaint,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.md,
+  },
+  historyItem: {
+    paddingVertical: spacing.sm,
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 4,
+  },
+  historyStatus: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  historyTime: {
+    color: colors.textFaint,
+    fontSize: 10,
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  historyComment: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  historyBy: {
+    color: colors.textFaint,
+    fontSize: 10,
+    marginTop: 4,
+  },
+  historyMapLink: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
+  },
   gpsBanner: {
     flexDirection: 'row',
     alignItems: 'center',

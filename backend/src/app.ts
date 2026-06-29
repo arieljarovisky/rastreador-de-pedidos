@@ -1,4 +1,6 @@
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors, { CorsOptions } from 'cors';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -78,6 +80,21 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/simulator', simulatorRoutes);
 app.use('/api/geocode', geocodeRoutes);
 app.use('/api/integrations', integrationsRoutes);
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const downloadsDir = path.join(__dirname, '..', 'downloads');
+
+app.use(
+  '/downloads',
+  express.static(downloadsDir, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.apk')) {
+        res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        res.setHeader('Content-Disposition', 'attachment; filename="posta-repartidor.apk"');
+      }
+    },
+  })
+);
 
 app.use(errorHandler);
 

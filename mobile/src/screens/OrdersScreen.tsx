@@ -13,11 +13,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
 import { Order, OrderStatus } from '../types';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import OrderCard from '../components/OrderCard';
-import { RootStackParamList } from '../navigation/types';
+import ConnectionBadge from '../components/ui/ConnectionBadge';
+import MonoLabel from '../components/ui/MonoLabel';
+import { RepartidorStackParamList } from '../navigation/types';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Orders'>;
+type Props = NativeStackScreenProps<RepartidorStackParamList, 'Orders'>;
 type Tab = 'assigned' | 'available';
 
 export default function OrdersScreen({ navigation }: Props) {
@@ -54,27 +56,29 @@ export default function OrdersScreen({ navigation }: Props) {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hola,</Text>
-          <Text style={styles.name}>{user?.name ?? 'Repartidor'}</Text>
+        <View style={styles.headerLeft}>
+          <MonoLabel color={colors.textFaint}>Repartidor</MonoLabel>
+          <Text style={typography.displayTitle(22)}>{user?.name ?? 'Repartidor'}</Text>
         </View>
         <View style={styles.headerRight}>
-          <View style={styles.connRow}>
-            <View
-              style={[
-                styles.dot,
-                { backgroundColor: connected ? colors.green : colors.red },
-              ]}
-            />
-            <Text style={styles.connText}>
-              {connected ? 'En vivo' : 'Sin conexión'}
-            </Text>
-          </View>
+          <ConnectionBadge connected={connected} />
           <Pressable onPress={logout} hitSlop={8}>
             <Text style={styles.logout}>Salir</Text>
           </Pressable>
         </View>
       </View>
+
+      <Pressable
+        style={styles.scanBar}
+        onPress={() => navigation.navigate('ScanLabel')}
+      >
+        <Text style={styles.scanBarIcon}>📷</Text>
+        <View style={styles.scanBarTextWrap}>
+          <Text style={typography.displaySection(14, colors.text)}>Escanear etiqueta ML</Text>
+          <Text style={typography.body(11, colors.textMuted)}>Colecta o re-escaneo · queda en bitácora</Text>
+        </View>
+        <Text style={styles.scanChevron}>›</Text>
+      </Pressable>
 
       <View style={styles.tabs}>
         <TabButton
@@ -93,7 +97,7 @@ export default function OrdersScreen({ navigation }: Props) {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={colors.blue} />
+          <ActivityIndicator color={colors.accent} />
         </View>
       ) : (
         <FlatList
@@ -108,7 +112,7 @@ export default function OrdersScreen({ navigation }: Props) {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={refresh}
-              tintColor={colors.blue}
+              tintColor={colors.accent}
             />
           }
           ListEmptyComponent={
@@ -145,7 +149,7 @@ function TabButton({
         active && { borderBottomColor: color, borderBottomWidth: 2 },
       ]}
     >
-      <Text style={[styles.tabLabel, { color: active ? color : colors.textFaint }]}>
+      <Text style={[styles.tabLabel, { color: active ? color : colors.textFaint, fontFamily: active ? fonts.mono : fonts.bodyMedium }]}>
         {label}
       </Text>
     </Pressable>
@@ -160,15 +164,40 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.sm,
   },
-  greeting: { color: colors.textFaint, fontSize: 13 },
-  name: { color: colors.text, fontSize: 22, fontWeight: '800' },
-  headerRight: { alignItems: 'flex-end', gap: 6 },
-  connRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  connText: { color: colors.textMuted, fontSize: 11 },
-  logout: { color: colors.red, fontSize: 13, fontWeight: '600' },
+  headerLeft: { flex: 1, minWidth: 0 },
+  scanBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.stampBg,
+    borderColor: colors.stamp,
+    borderWidth: 1,
+    borderRadius: radius.posta,
+    gap: spacing.md,
+  },
+  scanBarIcon: { fontSize: 22 },
+  scanBarTextWrap: { flex: 1, minWidth: 0 },
+  scanBarTitle: {},
+  scanChevron: {
+    color: colors.stamp,
+    fontSize: 22,
+    fontWeight: '300',
+  },
+  greeting: {},
+  name: {},
+  headerRight: { alignItems: 'flex-end', gap: 8 },
+  connRow: {},
+  dot: {},
+  connText: {},
+  logout: {
+    fontFamily: fonts.bodySemiBold,
+    color: colors.red,
+    fontSize: 13,
+  },
   tabs: {
     flexDirection: 'row',
     borderBottomColor: colors.border,
