@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { sleep } from '../utils/sleep.js';
 import {
   getIntegration,
   upsertIntegration,
@@ -156,11 +157,18 @@ export async function getValidMercadoLibreIntegration(userId: string): Promise<S
 }
 
 async function mlFetch<T>(integration: StoreIntegration, path: string): Promise<T> {
-  const res = await fetch(`${ML_API}${path}`, {
-    headers: { Authorization: `Bearer ${integration.accessToken}` },
-  });
-  if (!res.ok) throw new Error('ML_API_ERROR');
-  return res.json() as Promise<T>;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch(`${ML_API}${path}`, {
+      headers: { Authorization: `Bearer ${integration.accessToken}` },
+    });
+    if (res.status === 429) {
+      await sleep(800 * (attempt + 1));
+      continue;
+    }
+    if (!res.ok) throw new Error('ML_API_ERROR');
+    return res.json() as Promise<T>;
+  }
+  throw new Error('ML_API_ERROR');
 }
 
 function formatMlAddress(shipment: MlShipment): string {
@@ -261,21 +269,37 @@ export async function listMercadoLibreFlexShipments(userId: string): Promise<Mer
   const sellerId = integration.externalUserId;
   if (!sellerId) throw new Error('ML_NOT_CONNECTED');
 
-  const search = await mlFetch<MlOrderSearchResult>(
-    integration,
-    `/orders/search?seller=${sellerId}&order.status=paid&sort=date_desc&limit=50`
-  );
-
   const shipments: MercadoLibreFlexShipment[] = [];
+  const seenOrderIds = new Set<string>();
+  const pageSize = 50;
+  const maxPages = 4;
 
-  for (const item of search.results ?? []) {
-    try {
-      const flex = await fetchMercadoLibreFlexShipment(integration, String(item.id));
-      if (!flex || flex.mlShipmentStatus === 'delivered') continue;
-      shipments.push(flex);
-    } catch {
-      // skip individual order errors
+  for (let page = 0; page < maxPages; page++) {
+    const offset = page * pageSize;
+    const search = await mlFetch<MlOrderSearchResult>(
+      integration,
+      `/orders/search?seller=${sellerId}&order.status=paid&sort=date_desc&limit=${pageSize}&offset=${offset}`
+    );
+
+    const results = search.results ?? [];
+    if (results.length === 0) break;
+
+    for (const item of results) {
+      const orderId = String(item.id);
+      if (seenOrderIds.has(orderId)) continue;
+      seenOrderIds.add(orderId);
+
+      try {
+        await sleep(120);
+        const flex = await fetchMercadoLibreFlexShipment(integration, orderId);
+        if (!flex || flex.mlShipmentStatus === 'delivered') continue;
+        shipments.push(flex);
+      } catch {
+        // omitir pedidos individuales con error temporal de la API
+      }
     }
+
+    if (results.length < pageSize) break;
   }
 
   return shipments;

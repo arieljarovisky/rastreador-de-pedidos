@@ -190,6 +190,18 @@ export async function getSellerIdForOrder(orderId: string): Promise<string | nul
   return rows[0]?.seller_id ?? null;
 }
 
+async function generateNextOrderId(): Promise<string> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT CAST(SUBSTRING(id, 5) AS UNSIGNED) AS n
+     FROM orders
+     WHERE id REGEXP '^PED-[0-9]+$'
+     ORDER BY n DESC
+     LIMIT 1`
+  );
+  const lastNum = Number(rows[0]?.n ?? 2000);
+  return `PED-${lastNum + 1}`;
+}
+
 export async function createOrder(
   user: User,
   data: {
@@ -205,9 +217,7 @@ export async function createOrder(
     shippingType?: string;
   }
 ): Promise<Order> {
-  const [countRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) AS cnt FROM orders');
-  const count = Number(countRows[0]?.cnt ?? 0);
-  const newId = `PED-${2000 + count + 1}`;
+  const newId = await generateNextOrderId();
   const now = new Date();
 
   let sellerId: string | null = null;

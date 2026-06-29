@@ -14,6 +14,22 @@ import type { IntegrationPlatform } from './integrations.service.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
 
+function formatImportError(externalId: string, reason: string): string {
+  if (reason === 'GEOCODE_UNAVAILABLE') {
+    return `#${externalId}: el mapa está saturado. Esperá unos segundos e importá de nuevo.`;
+  }
+  if (reason === 'SELLER_NO_AGENCY') {
+    return 'Tu cuenta no está asociada a una agencia. Pedile a tu agencia de logística que verifique tu usuario.';
+  }
+  if (reason === 'EXTERNAL_ORDER_EXISTS') {
+    return `#${externalId}: ya fue importado antes.`;
+  }
+  if (reason.includes('Duplicate entry') && reason.includes('PRIMARY')) {
+    return `#${externalId}: conflicto de ID interno. Reintentá la importación.`;
+  }
+  return `#${externalId}: ${reason}`;
+}
+
 export interface MarketplaceShipmentPreview {
   externalId: string;
   platform: IntegrationPlatform;
@@ -152,13 +168,12 @@ export async function importMarketplaceShipments(
     } catch (err) {
       skipped++;
       const reason = err instanceof Error ? err.message : 'error desconocido';
+      const formatted = formatImportError(shipment.externalId, reason);
       if (reason === 'SELLER_NO_AGENCY') {
-        errors.push(
-          'Tu cuenta no está asociada a una agencia. Pedile a tu agencia de logística que verifique tu usuario.'
-        );
+        errors.push(formatted);
         break;
       }
-      errors.push(`#${shipment.externalId}: ${reason}`);
+      errors.push(formatted);
     }
   }
 

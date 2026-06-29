@@ -220,6 +220,15 @@ function PlatformCard({
               Tocá &quot;Buscar envíos&quot; para ver pedidos{' '}
               {platform === 'mercadolibre' ? 'Flex' : 'Express'} pendientes de importar
               {platform === 'tiendanube' ? ' en el período seleccionado' : ''}.
+              {platform === 'mercadolibre' &&
+                ' Solo aparecen envíos Flex no entregados. La búsqueda puede tardar unos segundos.'}
+            </p>
+          )}
+
+          {!shipmentsLoading && shipments.length > 0 && pending.length === 0 && (
+            <p className="text-[10px] text-[var(--color-ok)]">
+              Todos los envíos Flex visibles ya fueron importados. Si tenés pedidos nuevos en ML, tocá
+              &quot;Buscar envíos&quot; de nuevo.
             </p>
           )}
 
@@ -369,7 +378,7 @@ export default function MarketplaceIntegrations({
         );
       } else if (result.errors?.length) {
         setMessageTone('error');
-        setMessage(result.errors.slice(0, 3).join(' '));
+        setMessage(result.errors.slice(0, 6).join(' '));
       } else {
         setMessageTone('error');
         setMessage('No se importó ningún envío.');

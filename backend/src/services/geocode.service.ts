@@ -1,3 +1,5 @@
+import { sleep } from '../utils/sleep.js';
+
 interface NominatimResult {
   lat: string;
   lon: string;
@@ -11,6 +13,25 @@ export interface GeocodeResult {
 }
 
 const GBA_VIEWBOX = '-58.65,-34.75,-58.30,-34.45';
+/** Nominatim exige ~1 solicitud por segundo. */
+const NOMINATIM_MIN_INTERVAL_MS = 1100;
+
+let nominatimQueue: Promise<void> = Promise.resolve();
+let lastNominatimAt = 0;
+
+function scheduleNominatimRequest<T>(fn: () => Promise<T>): Promise<T> {
+  const run = nominatimQueue.then(async () => {
+    const wait = NOMINATIM_MIN_INTERVAL_MS - (Date.now() - lastNominatimAt);
+    if (wait > 0) await sleep(wait);
+    lastNominatimAt = Date.now();
+    return fn();
+  });
+  nominatimQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
 
 export async function geocodeAddress(address: string): Promise<GeocodeResult | null> {
   const trimmed = address.trim();
@@ -40,39 +61,50 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult | n
 }
 
 async function nominatimSearch(query: string, bounded: boolean): Promise<GeocodeResult | null> {
-  const params = new URLSearchParams({
-    format: 'json',
-    q: query,
-    limit: '1',
-    countrycodes: 'ar',
-  });
-  if (bounded) {
-    params.set('viewbox', GBA_VIEWBOX);
-    params.set('bounded', '1');
-  }
+  return scheduleNominatimRequest(async () => {
+    const params = new URLSearchParams({
+      format: 'json',
+      q: query,
+      limit: '1',
+      countrycodes: 'ar',
+    });
+    if (bounded) {
+      params.set('viewbox', GBA_VIEWBOX);
+      params.set('bounded', '1');
+    }
 
-  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-    headers: {
-      'User-Agent': 'LupoEnvios/1.0 (rastreador-de-pedidos)',
-      'Accept-Language': 'es',
-    },
-  });
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: {
+          'User-Agent': 'LupoEnvios/1.0 (rastreador-de-pedidos)',
+          'Accept-Language': 'es',
+        },
+      });
 
-  if (!response.ok) {
+      if (response.status === 429 || response.status === 503) {
+        await sleep(1500 * (attempt + 1));
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error('GEOCODE_UNAVAILABLE');
+      }
+
+      const results = (await response.json()) as NominatimResult[];
+      const hit = results[0];
+      if (!hit) return null;
+
+      const lat = Number(hit.lat);
+      const lng = Number(hit.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+      return {
+        lat,
+        lng,
+        displayName: hit.display_name,
+      };
+    }
+
     throw new Error('GEOCODE_UNAVAILABLE');
-  }
-
-  const results = (await response.json()) as NominatimResult[];
-  const hit = results[0];
-  if (!hit) return null;
-
-  const lat = Number(hit.lat);
-  const lng = Number(hit.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-
-  return {
-    lat,
-    lng,
-    displayName: hit.display_name,
-  };
+  });
 }
