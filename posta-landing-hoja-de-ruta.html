@@ -81,10 +81,10 @@ header{position:sticky;top:0;z-index:40;background:rgba(239,231,216,.9);backdrop
 .hero{position:relative;overflow:hidden}
 .hero-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:48px;align-items:center;padding:clamp(46px,6vw,84px) 0 clamp(40px,5vw,70px)}
 .hero-head{position:relative}
-.hero h1{font-size:clamp(2.7rem,6.4vw,5rem);font-weight:800;margin:18px 0 0;letter-spacing:-.035em}
+.hero h1{font-size:clamp(2.7rem,6.4vw,5rem);font-weight:800;margin:18px 0 0;letter-spacing:-.035em;line-height:1.05}
 .hero h1 u{text-decoration:none;color:var(--stamp);position:relative;white-space:nowrap}
 .hero h1 u::after{content:"";position:absolute;left:0;right:0;bottom:.06em;height:.09em;background:var(--stamp);opacity:.55}
-.hero .stampfly{position:absolute;top:-18px;right:0;transform:rotate(-9deg);font-size:.86rem}
+.hero .stampfly{display:inline-flex;vertical-align:top;margin:-0.1em 0 0 0.4em;transform:rotate(-9deg);font-size:0.44em;position:relative;top:0.08em;white-space:nowrap}
 .hero .lead{font-family:var(--body);font-size:clamp(1.05rem,1.5vw,1.2rem);max-width:40ch;margin:24px 0 0;color:var(--ink2)}
 .hero-cta{display:flex;gap:13px;margin:30px 0 0;flex-wrap:wrap}
 .hero-note{font-family:var(--mono);font-size:.74rem;color:var(--ink3);margin:18px 0 0;letter-spacing:.03em}
@@ -293,7 +293,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   .dl-steps{grid-template-columns:1fr}
   .foot{grid-template-columns:1fr}
   .foot-bot{text-align:left;margin-top:8px}
-  .hero .stampfly{position:static;display:inline-flex;margin-top:14px;transform:rotate(-4deg)}
+  .hero .stampfly{margin:0.2em 0 0 0.15em;transform:rotate(-4deg);font-size:0.48em;top:0}
 }
 </style>
 </head>
