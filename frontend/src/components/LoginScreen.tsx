@@ -8,7 +8,6 @@ import { Shield, Key, Eye, EyeOff, Lock, User as UserIcon, Building2 } from 'luc
 import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
 import PaperCard from './ui/PaperCard.tsx';
-import TicketDivider from './ui/TicketDivider.tsx';
 
 type AuthMode = 'login' | 'register-agency';
 
@@ -59,13 +58,6 @@ export default function LoginScreen({
 
     if (!name.trim()) return;
     onRegisterAgency({ username, password, name: name.trim() });
-  };
-
-  const handleQuickLogin = (user: string, pass: string) => {
-    switchMode('login');
-    setUsername(user);
-    setPassword(pass);
-    onLogin(user, pass);
   };
 
   const isRegister = mode !== 'login';
@@ -198,29 +190,6 @@ export default function LoginScreen({
                 : 'Crear cuenta de agencia'}
           </PostaButton>
         </form>
-
-        {mode === 'login' && (
-          <>
-            <TicketDivider className="my-5" />
-            <p className="mono-label text-center mb-2.5">Acceso rápido demo</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('admin', 'admin123')}
-                className="p-2 rounded bg-[var(--paper)] border border-[var(--surface-border)] text-left transition text-[10px] hover:bg-[var(--surface-panel-2)]"
-              >
-                <span className="font-semibold text-[var(--color-text)]">Vendedor demo</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('logistica', 'logistica123')}
-                className="p-2 rounded bg-[var(--paper)] border border-[var(--surface-border)] text-left transition text-[10px] hover:bg-[var(--surface-panel-2)]"
-              >
-                <span className="font-semibold text-[var(--color-text)]">Agencia demo</span>
-              </button>
-            </div>
-          </>
-        )}
       </PaperCard>
     </div>
   );

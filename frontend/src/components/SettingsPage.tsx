@@ -1092,7 +1092,7 @@ export default function SettingsPage({
               </div>
               <div className="flex-1 min-w-[10rem]">
                 <p className="text-xs font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
-                <p className="mono-label">Demo — mueve la flota en el mapa</p>
+                <p className="mono-label">Mueve la flota en el mapa</p>
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <button
