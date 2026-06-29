@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AppNotification } from '../types.js';
 import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -131,39 +132,52 @@ export default function NotificationHub({
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const toastBanner =
+    typeof document !== 'undefined'
+      ? createPortal(
+          <AnimatePresence>
+            {activeBanner && (
+              <motion.div
+                initial={{ opacity: 0, y: -16, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -12, scale: 0.96 }}
+                id="notification-banner-alert"
+                role="alert"
+                className="fixed z-[10050] top-[7.25rem] lg:top-20 right-4 left-4 sm:left-auto sm:w-full sm:max-w-sm pointer-events-auto bg-[var(--surface-panel)] border border-[var(--color-warn)]/40 text-[var(--color-text)] rounded-[var(--radius-posta)] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md flex items-start gap-3"
+              >
+                <div className="w-10 h-10 rounded-full bg-[var(--color-warn)]/15 flex items-center justify-center text-[var(--color-warn)] shrink-0 border border-[var(--color-warn)]/25">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono tracking-wider text-[var(--color-warn)] font-bold uppercase">
+                      Nueva alerta
+                    </span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] ml-auto font-mono">Ahora</span>
+                  </div>
+                  <h4 className="font-bold text-sm text-[var(--ink-soft)] mt-0.5">{activeBanner.title}</h4>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1 leading-relaxed line-clamp-3">
+                    {activeBanner.body}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveBanner(null)}
+                  className="text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] p-1 rounded-[var(--radius-posta)] hover:bg-[var(--surface-panel-2)] transition shrink-0"
+                  aria-label="Cerrar alerta"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )
+      : null;
+
   return (
     <div className="h-full w-full flex flex-col min-h-0">
-      {/* Banner de Notificación Push Flotante Realtime */}
-      <AnimatePresence>
-        {activeBanner && (
-          <motion.div
-            initial={{ opacity: 0, y: -50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            id="notification-banner-alert"
-            className="fixed top-4 right-4 z-[9999] max-w-sm w-full bg-slate-900/95 border-2 border-amber-500 text-white rounded-[var(--radius-posta)] p-4 shadow-2xl backdrop-blur-md flex items-start gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0 border border-amber-500/20">
-              <Bell className="w-5 h-5 animate-bounce" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono tracking-wider text-[var(--color-warn)] font-bold uppercase">Notificación Push</span>
-                <span className="text-[9px] text-slate-400 ml-auto font-mono">Ahora</span>
-              </div>
-              <h4 className="font-bold text-sm text-slate-100 mt-0.5 truncate">{activeBanner.title}</h4>
-              <p className="text-xs text-slate-300 mt-1 leading-relaxed">{activeBanner.body}</p>
-            </div>
-            <button 
-              onClick={() => setActiveBanner(null)}
-              className="text-slate-400 hover:text-white p-1 rounded-[var(--radius-posta)] hover:bg-slate-800 transition"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+      {toastBanner}
       {/* Widget lateral de Configuración de Notificaciones PWA (HIGH DENSITY) */}
       <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
         {showCollapseButton && onToggleCollapse && (
