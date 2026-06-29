@@ -370,6 +370,19 @@
   color: var(--accent) !important;
 }
 
+/* Escáner ML — video a pantalla completa dentro del contenedor */
+.ml-scanner-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+.ml-scanner-reader > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-4px); }

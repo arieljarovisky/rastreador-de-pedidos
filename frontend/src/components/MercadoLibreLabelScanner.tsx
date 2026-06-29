@@ -118,7 +118,14 @@ export default function MercadoLibreLabelScanner({
     scanner
       .start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 280, height: 140 }, aspectRatio: 1.5 },
+        {
+          fps: 10,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const width = Math.min(viewfinderWidth * 0.92, 320);
+            const height = Math.min(viewfinderHeight * 0.45, 160);
+            return { width: Math.max(width, 200), height: Math.max(height, 100) };
+          },
+        },
         (decoded) => {
           void runImport(decoded);
         },
@@ -138,6 +145,15 @@ export default function MercadoLibreLabelScanner({
   }, [open, mode, readerId, runImport, stopScanner]);
 
   useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (!open) {
       setMode('camera');
       setManualCode('');
@@ -152,9 +168,9 @@ export default function MercadoLibreLabelScanner({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-[2px]">
-      <div className="w-full max-w-lg bg-[var(--surface-panel)] border border-[var(--surface-border)] rounded-xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--surface-border)]">
+    <div className="fixed inset-0 z-[10001] flex flex-col bg-[var(--surface-bg)] sm:bg-black/80 sm:backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
+      <div className="flex flex-col flex-1 min-h-0 w-full sm:flex-none sm:max-w-lg sm:max-h-[92dvh] bg-[var(--surface-panel)] sm:border sm:border-[var(--surface-border)] sm:rounded-xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--surface-border)] shrink-0 safe-area-top">
           <div className="min-w-0">
             <h3 className="text-sm font-display font-bold text-[var(--color-text)] flex items-center gap-2">
               <Barcode className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
@@ -172,7 +188,7 @@ export default function MercadoLibreLabelScanner({
           </button>
         </div>
 
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-3 flex-1 min-h-0 overflow-y-auto">
           {lockedSellerId ? (
             <div className="rounded-lg border border-[var(--color-accent)]/25 bg-[var(--color-accent)]/5 px-3 py-2">
               <p className="mono-label">Vendedor</p>
@@ -228,10 +244,10 @@ export default function MercadoLibreLabelScanner({
           </div>
 
           {mode === 'camera' ? (
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1 flex flex-col min-h-0">
               <div
                 id={readerId}
-                className="w-full overflow-hidden rounded-lg border border-[var(--surface-border)] bg-black min-h-[220px]"
+                className="ml-scanner-reader w-full flex-1 min-h-[min(52vh,22rem)] sm:min-h-[220px] overflow-hidden rounded-lg border border-[var(--surface-border)] bg-black"
               />
               {cameraError && (
                 <p className="text-[10px] text-[var(--color-warn)]">{cameraError}</p>
