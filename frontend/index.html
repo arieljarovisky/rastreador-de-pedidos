@@ -94,13 +94,14 @@ header{position:sticky;top:0;z-index:40;background:rgba(239,231,216,.9);backdrop
 .tape{position:absolute;top:-15px;left:50%;width:118px;height:30px;background:rgba(216,64,30,.16);border:1px solid rgba(216,64,30,.3);transform:translateX(-50%) rotate(-2.5deg);z-index:3}
 .capcap{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);text-align:center;margin-top:13px}
 .console{background:#0B0F18;border:7px solid #14110C;border-radius:6px;overflow:hidden;box-shadow:7px 9px 0 rgba(28,24,20,.18)}
-.console-bar{display:flex;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid rgba(255,255,255,.07)}
-.tl{display:flex;gap:6px}.tl span{width:10px;height:10px;border-radius:50%}
+.console-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid rgba(255,255,255,.07)}
+.console-bar-left{display:flex;align-items:center;gap:8px;min-width:0}
+.tl{display:flex;gap:6px;flex-shrink:0}.tl span{width:10px;height:10px;border-radius:50%}
 .tl .r{background:#E8431F}.tl .y{background:#E0A92E}.tl .g{background:#3FAE63}
-.console-title{font-family:var(--mono);font-size:.7rem;color:#7C8597}
-.live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:#86E6AC}
+.console-title{font-family:var(--mono);font-size:.7rem;color:#7C8597;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:#86E6AC;justify-self:center}
 .live i{width:6px;height:6px;border-radius:50%;background:#3FAE63;animation:blink 1.4s ease-in-out infinite}
-.clock{font-family:var(--mono);font-size:.66rem;color:#5C6577;margin-left:9px}
+.clock{font-family:var(--mono);font-size:.66rem;color:#5C6577;justify-self:end}
 .console-body{padding:13px}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:11px}
 .kpi{background:#141A28;border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:9px 10px}
@@ -365,8 +366,10 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
         <span class="tape"></span>
         <div class="console">
           <div class="console-bar">
-            <span class="tl"><span class="r"></span><span class="y"></span><span class="g"></span></span>
-            <span class="console-title">posta · panel agencia</span>
+            <div class="console-bar-left">
+              <span class="tl"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+              <span class="console-title">posta · panel agencia</span>
+            </div>
             <span class="live"><i></i>EN VIVO</span>
             <span class="clock" id="clock">14:32:08</span>
           </div>
