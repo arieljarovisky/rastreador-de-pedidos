@@ -50,6 +50,13 @@ export async function runMigrations(): Promise<void> {
     await pool.query('CREATE INDEX idx_orders_archived ON orders (archived)');
   }
 
+  if (!(await columnExists('order_history', 'lat'))) {
+    await pool.query('ALTER TABLE order_history ADD COLUMN lat DECIMAL(10, 7) NULL AFTER comment');
+  }
+  if (!(await columnExists('order_history', 'lng'))) {
+    await pool.query('ALTER TABLE order_history ADD COLUMN lng DECIMAL(10, 7) NULL AFTER lat');
+  }
+
   if (!(await tableExists('store_integrations'))) {
     await pool.query(`
       CREATE TABLE store_integrations (

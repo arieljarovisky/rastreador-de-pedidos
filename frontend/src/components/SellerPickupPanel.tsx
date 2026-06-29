@@ -13,7 +13,11 @@ import MercadoLibreLabelScanner, {
 interface SellerPickupPanelProps {
   sellers: User[];
   pickupPoints?: PickupPoint[];
-  onScanImport: (code: string, sellerId: string) => Promise<MercadoLibreScanImportResult>;
+  onScanImport: (
+    code: string,
+    sellerId: string,
+    scanLocation?: { lat: number; lng: number } | null
+  ) => Promise<MercadoLibreScanImportResult>;
   onImported?: (result: MercadoLibreScanImportResult) => void;
   initialSellerId?: string;
   compact?: boolean;

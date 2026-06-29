@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Barcode, Camera, Keyboard, Loader2, X } from 'lucide-react';
 import { User } from '../types.js';
+import { getScanGeolocation } from '../utils/scanLocation.js';
 
 export interface MercadoLibreScanImportResult {
   order: { id: string; clientName: string; address: string };
@@ -15,6 +16,11 @@ export interface MercadoLibreScanImportResult {
   sellerId: string;
   sellerName: string;
   externalOrderId: string;
+}
+
+export interface ScanLocation {
+  lat: number;
+  lng: number;
 }
 
 interface MercadoLibreLabelScannerProps {
@@ -25,7 +31,11 @@ interface MercadoLibreLabelScannerProps {
   lockedSellerName?: string;
   title?: string;
   subtitle?: string;
-  onImport: (code: string, sellerId?: string) => Promise<MercadoLibreScanImportResult>;
+  onImport: (
+    code: string,
+    sellerId?: string,
+    scanLocation?: ScanLocation | null
+  ) => Promise<MercadoLibreScanImportResult>;
   onImported?: (result: MercadoLibreScanImportResult) => void;
 }
 
@@ -83,12 +93,14 @@ export default function MercadoLibreLabelScanner({
       setImporting(true);
       setStatusMessage(null);
       try {
-        const result = await onImport(trimmed, effectiveSellerId || undefined);
+        const scanLocation = await getScanGeolocation();
+        const result = await onImport(trimmed, effectiveSellerId || undefined, scanLocation);
         setStatusOk(true);
+        const locationNote = scanLocation ? ' · ubicación registrada' : '';
         setStatusMessage(
           result.alreadyImported
-            ? `El envío ML #${result.externalOrderId} ya estaba importado (${result.order.id}).`
-            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})`
+            ? `Re-escaneado: ${result.order.id} · ${result.order.clientName} — bitácora${locationNote}`
+            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})${locationNote}`
         );
         cooldownUntilRef.current = Date.now() + 3500;
         onImported?.(result);

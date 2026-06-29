@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS order_history (
   status ENUM('pending', 'assigned', 'delivering', 'delivered', 'cancelled') NOT NULL,
   updated_by VARCHAR(255) NOT NULL,
   comment TEXT NULL,
+  lat DECIMAL(10, 7) NULL,
+  lng DECIMAL(10, 7) NULL,
   created_at DATETIME(3) NOT NULL,
   INDEX idx_order_history_order (order_id),
   CONSTRAINT fk_order_history_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE

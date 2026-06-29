@@ -59,6 +59,8 @@ export interface OrderHistoryEvent {
   timestamp: string;
   updatedBy: string;
   comment?: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface LocationHistoryPoint {

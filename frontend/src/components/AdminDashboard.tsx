@@ -30,7 +30,11 @@ interface AdminDashboardProps {
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
   userRole?: UserRole;
   onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
-  onScanMercadoLibreLabel?: (code: string, sellerId: string) => Promise<MercadoLibreScanImportResult>;
+  onScanMercadoLibreLabel?: (
+    code: string,
+    sellerId?: string,
+    scanLocation?: { lat: number; lng: number } | null
+  ) => Promise<MercadoLibreScanImportResult>;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -1441,6 +1445,20 @@ export default function AdminDashboard({
                         <span className="font-bold text-[var(--ink-soft)]">[{event.status.toUpperCase()}]</span> - {event.comment || 'Cambio de estado'}
                         <span className="text-[var(--color-text-muted)] text-[9px] block">
                           Por: {event.updatedBy} | {new Date(event.timestamp).toLocaleString()}
+                          {event.lat != null && event.lng != null && (
+                            <>
+                              {' · '}
+                              <a
+                                href={`https://www.google.com/maps?q=${event.lat},${event.lng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[var(--color-accent)] hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                📍 Ubicación del escaneo
+                              </a>
+                            </>
+                          )}
                         </span>
                       </div>
                     </div>

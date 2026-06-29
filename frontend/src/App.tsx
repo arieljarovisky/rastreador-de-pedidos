@@ -725,16 +725,23 @@ export default function App() {
   );
 
   const handleScanMercadoLibreLabel = useCallback(
-    async (code: string, sellerId: string) => {
+    async (code: string, sellerId?: string, scanLocation?: { lat: number; lng: number } | null) => {
       if (!token) throw new Error('Sin sesión');
-      if (!sellerId) throw new Error('Seleccioná el vendedor donde estás colectando.');
+      if (user && isAgencyAdmin(user.role) && !sellerId) {
+        throw new Error('Seleccioná el vendedor donde estás colectando.');
+      }
       const res = await fetch(apiUrl('/api/integrations/mercadolibre/scan-import'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ code, sellerId }),
+        body: JSON.stringify({
+          code,
+          sellerId: sellerId || undefined,
+          lat: scanLocation?.lat,
+          lng: scanLocation?.lng,
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -749,7 +756,7 @@ export default function App() {
         externalOrderId: string;
       };
     },
-    [token, fetchData]
+    [token, fetchData, user]
   );
 
   const fetchIntegrationStatus = useCallback(async () => {
@@ -1225,9 +1232,7 @@ export default function App() {
                   onArchiveOrder={handleArchiveOrder}
                   userRole={user.role}
                   onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
-                  onScanMercadoLibreLabel={
-                    isAgencyAdmin(user.role) ? handleScanMercadoLibreLabel : undefined
-                  }
+                  onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
                 />
               </div>
             )}
@@ -1262,9 +1267,7 @@ export default function App() {
                   onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}
                   onFetchMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? fetchMarketplaceShipments : undefined}
                   onImportMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? importMarketplaceShipments : undefined}
-                  onScanMercadoLibreLabel={
-                    isAgencyAdmin(user.role) ? handleScanMercadoLibreLabel : undefined
-                  }
+                  onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
                 />
               </div>
             )}
@@ -1301,6 +1304,7 @@ export default function App() {
                 onUpdateOrderStatus={handleUpdateOrderStatus}
                 onReportLocation={handleReportLocation}
                 onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
+                onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
               />
             </div>
 

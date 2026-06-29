@@ -76,6 +76,8 @@ export interface OrderHistoryEvent {
   timestamp: string;
   updatedBy: string; // Nombre del usuario que lo actualizó
   comment?: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface LocationHistoryPoint {

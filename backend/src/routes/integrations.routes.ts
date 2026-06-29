@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { authenticate, requireRoles, requireAgencyAdmin } from '../middleware/auth.js';
 import { UserRole } from '../types/index.js';
+import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 import { env } from '../config/env.js';
 import {
   deleteIntegration,
@@ -24,6 +25,7 @@ import {
   importMarketplaceShipments,
   importMercadoLibreByScanForAgency,
   listImportableShipments,
+  parseScanLocation,
 } from '../services/marketplace-import.service.js';
 import { parseTiendaNubeDateRange } from '../services/tiendanube.service.js';
 import {
@@ -176,15 +178,26 @@ router.post('/tiendanube/webhooks/customers-data-request', (req: Request, res: R
   });
 });
 
-router.post('/mercadolibre/scan-import', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
-  const { code, sellerId } = req.body as { code?: string; sellerId?: string };
+router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR), async (req: Request, res: Response) => {
+  const { code, sellerId, lat, lng } = req.body as {
+    code?: string;
+    sellerId?: string;
+    lat?: number;
+    lng?: number;
+  };
   if (!code?.trim()) {
     res.status(400).json({ error: 'Escaneá o ingresá el código de la etiqueta.' });
     return;
   }
 
   try {
-    const result = await importMercadoLibreByScanForAgency(req.user!, code.trim(), sellerId);
+    const scanLocation = parseScanLocation(lat, lng);
+    const result = await importMercadoLibreByScanForAgency(
+      req.user!,
+      code.trim(),
+      sellerId,
+      scanLocation
+    );
     res.status(result.alreadyImported ? 200 : 201).json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
@@ -219,6 +232,10 @@ router.post('/mercadolibre/scan-import', authenticate, requireAgencyAdmin(), asy
     }
     if (message === 'SELLER_NOT_FOUND') {
       res.status(400).json({ error: 'Vendedor no encontrado en tu agencia.' });
+      return;
+    }
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Pedido no encontrado en tu agencia.' });
       return;
     }
     if (message === 'FORBIDDEN') {

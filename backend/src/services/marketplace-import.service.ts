@@ -1,10 +1,12 @@
-import { User, Order } from '../types/index.js';
+import { User, Order, UserRole } from '../types/index.js';
 import { geocodeAddress } from './geocode.service.js';
 import {
   createOrder,
   findOrderByExternal,
   findOrderByExternalGlobal,
   getSellerIdForOrder,
+  recordMercadoLibreLabelScan,
+  assertOrderAccessibleForLabelScan,
 } from './orders.service.js';
 import {
   listMercadoLibreFlexShipments,
@@ -216,12 +218,34 @@ export interface MercadoLibreScanImportResult {
   externalOrderId: string;
 }
 
+export interface ScanLocation {
+  lat: number;
+  lng: number;
+}
+
+export function parseScanLocation(lat?: unknown, lng?: unknown): ScanLocation | undefined {
+  if (lat === undefined || lat === null || lng === undefined || lng === null) {
+    return undefined;
+  }
+  const parsedLat = Number(lat);
+  const parsedLng = Number(lng);
+  if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+    return undefined;
+  }
+  if (parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) {
+    return undefined;
+  }
+  return { lat: parsedLat, lng: parsedLng };
+}
+
 export async function importMercadoLibreByScanForAgency(
   user: User,
   code: string,
-  sellerId?: string
+  sellerId?: string,
+  scanLocation?: ScanLocation
 ): Promise<MercadoLibreScanImportResult> {
-  if (!isAgencyAdmin(user.role) || !user.agencyId) {
+  const canScan = isAgencyAdmin(user.role) || user.role === UserRole.REPARTIDOR;
+  if (!canScan || !user.agencyId) {
     throw new Error('FORBIDDEN');
   }
 
@@ -230,19 +254,41 @@ export async function importMercadoLibreByScanForAgency(
     throw new Error('ML_SCAN_INVALID');
   }
 
+  async function returnRescan(
+    existing: Order,
+    externalOrderId: string,
+    sellerName: string,
+    sellerIdForResult: string
+  ): Promise<MercadoLibreScanImportResult> {
+    assertOrderAccessibleForLabelScan(user, existing);
+    const updated = await recordMercadoLibreLabelScan(user, existing.id, externalOrderId, {
+      isFirstImport: false,
+      lat: scanLocation?.lat,
+      lng: scanLocation?.lng,
+    });
+    const assignedSellerId = await getSellerIdForOrder(updated.id);
+    emitOrderUpdated(updated, assignedSellerId);
+    return {
+      order: updated,
+      alreadyImported: true,
+      sellerId: sellerIdForResult,
+      sellerName,
+      externalOrderId,
+    };
+  }
+
   for (const candidate of candidates) {
     if (candidate.type !== 'order') continue;
     const existing = await findOrderByExternalGlobal('mercadolibre', candidate.id);
     if (existing) {
       const existingSellerId = await getSellerIdForOrder(existing.id);
       const seller = existingSellerId ? await getUserById(existingSellerId) : null;
-      return {
-        order: existing,
-        alreadyImported: true,
-        sellerId: existingSellerId ?? '',
-        sellerName: seller?.name ?? 'Vendedor',
-        externalOrderId: candidate.id,
-      };
+      return returnRescan(
+        existing,
+        candidate.id,
+        seller?.name ?? 'Vendedor',
+        existingSellerId ?? ''
+      );
     }
   }
 
@@ -276,13 +322,12 @@ export async function importMercadoLibreByScanForAgency(
     );
     if (existing) {
       const seller = await getUserById(validIntegration.userId);
-      return {
-        order: existing,
-        alreadyImported: true,
-        sellerId: validIntegration.userId,
-        sellerName: seller?.name ?? 'Vendedor',
-        externalOrderId: flex.externalId,
-      };
+      return returnRescan(
+        existing,
+        flex.externalId,
+        seller?.name ?? 'Vendedor',
+        validIntegration.userId
+      );
     }
 
     let lat = flex.lat;
@@ -294,6 +339,7 @@ export async function importMercadoLibreByScanForAgency(
       lng = geocoded.lng;
     }
 
+    const seller = await getUserById(validIntegration.userId);
     const order = await createOrder(user, {
       clientName: flex.clientName,
       clientPhone: flex.clientPhone,
@@ -305,12 +351,14 @@ export async function importMercadoLibreByScanForAgency(
       externalSource: flex.platform,
       externalOrderId: flex.externalId,
       shippingType: flex.shippingType,
+      historyComment: `Etiqueta ML #${flex.externalId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,
+      historyLat: scanLocation?.lat,
+      historyLng: scanLocation?.lng,
     });
 
     const assignedSellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, assignedSellerId);
 
-    const seller = await getUserById(validIntegration.userId);
     await createNotification({
       id: `n_scan_${Date.now()}_${user.id}`,
       userId: user.id,

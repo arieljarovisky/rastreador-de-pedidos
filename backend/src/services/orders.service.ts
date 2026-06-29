@@ -18,6 +18,8 @@ interface HistoryRow extends RowDataPacket {
   status: OrderStatus;
   updated_by: string;
   comment: string | null;
+  lat: number | null;
+  lng: number | null;
   created_at: Date;
 }
 
@@ -39,19 +41,24 @@ async function loadHistoryForOrders(orderIds: string[]): Promise<Map<string, Ord
 
   const placeholders = orderIds.map(() => '?').join(',');
   const [rows] = await pool.query<HistoryRow[]>(
-    `SELECT order_id, status, updated_by, comment, created_at
+    `SELECT order_id, status, updated_by, comment, lat, lng, created_at
      FROM order_history WHERE order_id IN (${placeholders}) ORDER BY created_at ASC`,
     orderIds
   );
 
   for (const row of rows) {
     const list = map.get(row.order_id) ?? [];
-    list.push({
+    const event: OrderHistoryEvent = {
       status: row.status,
       timestamp: new Date(row.created_at).toISOString(),
       updatedBy: row.updated_by,
       comment: row.comment ?? undefined,
-    });
+    };
+    if (row.lat != null && row.lng != null) {
+      event.lat = Number(row.lat);
+      event.lng = Number(row.lng);
+    }
+    list.push(event);
     map.set(row.order_id, list);
   }
   return map;
@@ -215,6 +222,9 @@ export async function createOrder(
     externalSource?: string;
     externalOrderId?: string;
     shippingType?: string;
+    historyComment?: string;
+    historyLat?: number;
+    historyLng?: number;
   }
 ): Promise<Order> {
   const newId = await generateNextOrderId();
@@ -232,6 +242,15 @@ export async function createOrder(
   } else if (isAgencyAdmin(user.role)) {
     agencyId = user.agencyId ?? null;
     if (!agencyId) {
+      throw new Error('FORBIDDEN');
+    }
+    if (data.sellerId) {
+      const seller = await assertSellerInAgency(data.sellerId, agencyId);
+      sellerId = seller.id;
+    }
+  } else if (user.role === UserRole.REPARTIDOR) {
+    agencyId = user.agencyId ?? null;
+    if (!agencyId || !data.externalSource || !data.externalOrderId) {
       throw new Error('FORBIDDEN');
     }
     if (data.sellerId) {
@@ -271,12 +290,14 @@ export async function createOrder(
   );
 
   await pool.query(
-    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO order_history (order_id, status, updated_by, comment, lat, lng, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       newId,
       OrderStatus.PENDING,
       user.name,
-      sellerId ? '' : 'Envío registrado sin vendedor asignado',
+      data.historyComment ?? (sellerId ? '' : 'Envío registrado sin vendedor asignado'),
+      data.historyLat ?? null,
+      data.historyLng ?? null,
       now,
     ]
   );
@@ -311,6 +332,49 @@ export async function findOrderByExternalGlobal(
   if (!rows[0]) return null;
   const orders = await enrichOrders([rows[0]]);
   return orders[0] ?? null;
+}
+
+export function assertOrderAccessibleForLabelScan(user: User, order: Order): void {
+  if (isAgencyAdmin(user.role) || user.role === UserRole.REPARTIDOR) {
+    if (!belongsToUserAgency(user, order.agencyId)) {
+      throw new Error('NOT_FOUND');
+    }
+    return;
+  }
+  throw new Error('FORBIDDEN');
+}
+
+/** Registra un escaneo de etiqueta ML en la bitácora del pedido (primer alta o re-escaneo). */
+export async function recordMercadoLibreLabelScan(
+  user: User,
+  orderId: string,
+  externalOrderId: string,
+  options?: { isFirstImport?: boolean; sellerName?: string; lat?: number; lng?: number }
+): Promise<Order> {
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error('NOT_FOUND');
+
+  assertOrderAccessibleForLabelScan(user, order);
+
+  const now = new Date();
+  const comment = options?.isFirstImport
+    ? options.sellerName
+      ? `Etiqueta ML #${externalOrderId} escaneada en colecta (${options.sellerName})`
+      : `Etiqueta ML #${externalOrderId} escaneada — pedido registrado`
+    : `Etiqueta ML #${externalOrderId} re-escaneada`;
+
+  const lat = options?.lat ?? null;
+  const lng = options?.lng ?? null;
+
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, lat, lng, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [orderId, order.status, user.name, comment, lat, lng, now]
+  );
+  await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [now, orderId]);
+
+  const refreshed = await getOrderById(orderId);
+  if (!refreshed) throw new Error('NOT_FOUND');
+  return refreshed;
 }
 
 export async function updateOrderStatusFromMarketplace(

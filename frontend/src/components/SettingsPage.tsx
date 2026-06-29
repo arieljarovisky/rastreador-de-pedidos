@@ -88,7 +88,11 @@ interface SettingsPageProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
-  onScanMercadoLibreLabel?: (code: string, sellerId: string) => Promise<MercadoLibreScanImportResult>;
+  onScanMercadoLibreLabel?: (
+    code: string,
+    sellerId?: string,
+    scanLocation?: { lat: number; lng: number } | null
+  ) => Promise<MercadoLibreScanImportResult>;
 }
 
 export default function SettingsPage({
