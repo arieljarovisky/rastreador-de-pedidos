@@ -864,25 +864,39 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden h-screen">
       
-      {/* NAVEGACIÓN Y CABECERA PRINCIPAL (HIGH DENSITY STYLE) */}
-      <header className="h-16 lg:h-[4.5rem] flex items-center justify-between px-6 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40">
-        <div className="flex items-center gap-4">
-          <PostaLogo size={36} variant={theme === 'paper' ? 'paper' : 'dark'} className="lg:[&_svg]:w-10 lg:[&_svg]:h-10" />
-          <div>
-            <h1 className="text-sm lg:text-lg font-display font-bold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2 flex-wrap">
-              Posta
-              <span className="text-[var(--color-text-muted)] font-sans font-normal text-xs lg:text-sm">v2.4.0</span>
-              <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} />
-              <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            </h1>
-            <p className="text-[10px] text-[var(--color-text-muted)] font-mono uppercase">
-              Operador: <span className="text-[var(--color-text)] font-bold">{user.name}</span>
+      {/* CABECERA PRINCIPAL */}
+      <header className="min-h-[4.25rem] lg:min-h-[5.25rem] flex items-center justify-between gap-4 px-5 lg:px-8 py-3 lg:py-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40">
+        {/* Marca + sesión */}
+        <div className="flex items-center gap-4 lg:gap-5 min-w-0 flex-1">
+          <PostaLogo
+            size={40}
+            showWordmark={false}
+            variant={theme === 'paper' ? 'paper' : 'dark'}
+            className="shrink-0 lg:[&_svg]:w-11 lg:[&_svg]:h-11"
+          />
+
+          <div className="flex flex-col justify-center gap-1 min-w-0">
+            <div className="flex items-baseline gap-2.5 flex-wrap">
+              <h1 className="text-lg lg:text-xl font-display font-bold tracking-[-0.02em] text-[var(--color-text)] leading-none">
+                Posta
+              </h1>
+              <span className="text-xs lg:text-sm text-[var(--color-text-muted)] font-sans font-normal leading-none">
+                v2.4.0
+              </span>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)] truncate md:hidden">
+              <span className="font-medium text-[var(--color-text)]">{user.name}</span>
             </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 sm:pl-2 lg:pl-3 sm:border-l sm:border-[var(--surface-border)] sm:ml-1">
+            <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} />
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
         </div>
 
-        {/* METRICS & QUICK CONTROLS (HIGH DENSITY) */}
-        <div className="flex gap-4 md:gap-8 items-center">
+        {/* Métricas y controles */}
+        <div className="flex gap-3 md:gap-6 lg:gap-8 items-center shrink-0">
           <div className="hidden sm:flex flex-col items-end">
             <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Pedidos Activos</span>
             <span className="text-base lg:text-xl font-mono text-[var(--color-ok)] font-semibold leading-none mt-0.5">
@@ -1028,7 +1042,7 @@ export default function App() {
       </div>
 
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
-      <main className="flex-1 overflow-hidden p-3 md:p-4 relative h-[calc(100vh-140px)] xl:h-[calc(100vh-96px)]">
+      <main className="flex-1 overflow-hidden p-3 md:p-4 relative min-h-0">
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col xl:flex-row h-full overflow-hidden ${

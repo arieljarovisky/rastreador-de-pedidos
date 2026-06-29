@@ -10,7 +10,7 @@ export default function ConnectionIndicator({ isOnline, wsConnected, className =
   if (!isOnline) {
     return (
       <span className={`connection-indicator connection-indicator--offline ${className}`.trim()}>
-        <WifiOff className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
+        <WifiOff className="w-3 h-3 shrink-0" aria-hidden="true" />
         OFFLINE
       </span>
     );
@@ -20,7 +20,7 @@ export default function ConnectionIndicator({ isOnline, wsConnected, className =
     return (
       <span className={`connection-indicator connection-indicator--live ${className}`.trim()}>
         <span className="connection-indicator__dot" aria-hidden="true" />
-        <Wifi className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
+        <Wifi className="w-3 h-3 shrink-0" aria-hidden="true" />
         LIVE
       </span>
     );
@@ -29,7 +29,7 @@ export default function ConnectionIndicator({ isOnline, wsConnected, className =
   return (
     <span className={`connection-indicator connection-indicator--online ${className}`.trim()}>
       <span className="connection-indicator__dot" aria-hidden="true" />
-      <Wifi className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
+      <Wifi className="w-3 h-3 shrink-0" aria-hidden="true" />
       ONLINE
     </span>
   );

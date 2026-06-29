@@ -16,7 +16,7 @@ export default function ThemeToggle({ theme, onToggle, className = '' }: ThemeTo
       onClick={onToggle}
       title={isLight ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
       aria-label={isLight ? 'Modo oscuro' : 'Modo claro'}
-      className={`inline-flex items-center gap-1 px-2 py-1 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-mono text-[9px] font-bold uppercase tracking-wider transition ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] font-mono text-[10px] font-bold uppercase tracking-wide transition ${className}`}
     >
       {isLight ? (
         <>
