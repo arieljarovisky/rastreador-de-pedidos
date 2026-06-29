@@ -151,15 +151,6 @@ export async function importMarketplaceShipments(
         shippingType: shipment.shippingType,
       });
 
-      await createNotification({
-        id: `n_import_${Date.now()}_${order.id}`,
-        userId: user.id,
-        title: 'Envío importado',
-        body: `Se importó el pedido ${shipment.platform === 'mercadolibre' ? 'Flex' : 'Express'} #${shipment.externalId} como ${order.id}.`,
-        type: 'info',
-        orderId: order.id,
-      });
-
       const sellerId = await getSellerIdForOrder(order.id);
       emitOrderUpdated(order, sellerId);
 
@@ -179,6 +170,25 @@ export async function importMarketplaceShipments(
 
   if (imported === 0 && toImport.length > 0 && errors.length === 0) {
     errors.push('No se pudo importar ningún envío.');
+  }
+
+  if (imported > 0) {
+    const platformLabel =
+      platform === 'mercadolibre' ? 'Mercado Libre Flex' : 'Tienda Nube Express';
+    const title = imported === 1 ? 'Envío importado' : 'Envíos importados';
+    const body =
+      imported === 1
+        ? `Se importó 1 pedido de ${platformLabel} como ${orderIds[0]}.`
+        : `Se importaron ${imported} pedidos de ${platformLabel}.`;
+
+    await createNotification({
+      id: `n_import_${Date.now()}_${user.id}`,
+      userId: user.id,
+      title,
+      body,
+      type: 'info',
+      orderId: orderIds[0],
+    });
   }
 
   return { imported, skipped, orders: orderIds, errors };
