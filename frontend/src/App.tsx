@@ -724,6 +724,34 @@ export default function App() {
     [token, showAlert]
   );
 
+  const handleScanMercadoLibreLabel = useCallback(
+    async (code: string, sellerId: string) => {
+      if (!token) throw new Error('Sin sesión');
+      if (!sellerId) throw new Error('Seleccioná el vendedor donde estás colectando.');
+      const res = await fetch(apiUrl('/api/integrations/mercadolibre/scan-import'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ code, sellerId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((body as { error?: string }).error ?? 'No se pudo importar el envío.');
+      }
+      fetchData();
+      return body as {
+        order: { id: string; clientName: string; address: string };
+        alreadyImported: boolean;
+        sellerId: string;
+        sellerName: string;
+        externalOrderId: string;
+      };
+    },
+    [token, fetchData]
+  );
+
   const fetchIntegrationStatus = useCallback(async () => {
     if (!token) return;
     setIntegrationStatusLoading(true);
@@ -1193,6 +1221,9 @@ export default function App() {
                   onArchiveOrder={handleArchiveOrder}
                   userRole={user.role}
                   onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
+                  onScanMercadoLibreLabel={
+                    isAgencyAdmin(user.role) ? handleScanMercadoLibreLabel : undefined
+                  }
                 />
               </div>
             )}
@@ -1227,6 +1258,9 @@ export default function App() {
                   onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}
                   onFetchMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? fetchMarketplaceShipments : undefined}
                   onImportMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? importMarketplaceShipments : undefined}
+                  onScanMercadoLibreLabel={
+                    isAgencyAdmin(user.role) ? handleScanMercadoLibreLabel : undefined
+                  }
                 />
               </div>
             )}

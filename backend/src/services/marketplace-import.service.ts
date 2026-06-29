@@ -1,8 +1,16 @@
-import { User } from '../types/index.js';
+import { User, Order } from '../types/index.js';
 import { geocodeAddress } from './geocode.service.js';
-import { createOrder, findOrderByExternal, getSellerIdForOrder } from './orders.service.js';
+import {
+  createOrder,
+  findOrderByExternal,
+  findOrderByExternalGlobal,
+  getSellerIdForOrder,
+} from './orders.service.js';
 import {
   listMercadoLibreFlexShipments,
+  getValidMercadoLibreIntegration,
+  parseMercadoLibreScanCode,
+  resolveMercadoLibreFlexFromScan,
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import {
@@ -10,7 +18,13 @@ import {
   type TiendaNubeDateRange,
   type TiendaNubeExpressShipment,
 } from './tiendanube.service.js';
-import type { IntegrationPlatform } from './integrations.service.js';
+import {
+  getIntegration,
+  listMercadoLibreIntegrationsForAgency,
+  type IntegrationPlatform,
+} from './integrations.service.js';
+import { assertSellerInAgency, getUserById } from './users.service.js';
+import { isAgencyAdmin } from '../utils/roles.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
 
@@ -192,4 +206,128 @@ export async function importMarketplaceShipments(
   }
 
   return { imported, skipped, orders: orderIds, errors };
+}
+
+export interface MercadoLibreScanImportResult {
+  order: Order;
+  alreadyImported: boolean;
+  sellerId: string;
+  sellerName: string;
+  externalOrderId: string;
+}
+
+export async function importMercadoLibreByScanForAgency(
+  user: User,
+  code: string,
+  sellerId?: string
+): Promise<MercadoLibreScanImportResult> {
+  if (!isAgencyAdmin(user.role) || !user.agencyId) {
+    throw new Error('FORBIDDEN');
+  }
+
+  const candidates = parseMercadoLibreScanCode(code);
+  if (candidates.length === 0) {
+    throw new Error('ML_SCAN_INVALID');
+  }
+
+  for (const candidate of candidates) {
+    if (candidate.type !== 'order') continue;
+    const existing = await findOrderByExternalGlobal('mercadolibre', candidate.id);
+    if (existing) {
+      const existingSellerId = await getSellerIdForOrder(existing.id);
+      const seller = existingSellerId ? await getUserById(existingSellerId) : null;
+      return {
+        order: existing,
+        alreadyImported: true,
+        sellerId: existingSellerId ?? '',
+        sellerName: seller?.name ?? 'Vendedor',
+        externalOrderId: candidate.id,
+      };
+    }
+  }
+
+  let integrations = await listMercadoLibreIntegrationsForAgency(user.agencyId);
+  if (sellerId) {
+    await assertSellerInAgency(sellerId, user.agencyId);
+    const selected = await getIntegration(sellerId, 'mercadolibre');
+    if (!selected) throw new Error('ML_SELLER_NOT_CONNECTED');
+    integrations = [selected];
+  }
+
+  if (integrations.length === 0) {
+    throw new Error('ML_NO_SELLERS_CONNECTED');
+  }
+
+  for (const integration of integrations) {
+    let validIntegration = integration;
+    try {
+      validIntegration = await getValidMercadoLibreIntegration(integration.userId);
+    } catch {
+      continue;
+    }
+
+    const flex = await resolveMercadoLibreFlexFromScan(validIntegration, candidates);
+    if (!flex) continue;
+
+    const existing = await findOrderByExternal(
+      validIntegration.userId,
+      'mercadolibre',
+      flex.externalId
+    );
+    if (existing) {
+      const seller = await getUserById(validIntegration.userId);
+      return {
+        order: existing,
+        alreadyImported: true,
+        sellerId: validIntegration.userId,
+        sellerName: seller?.name ?? 'Vendedor',
+        externalOrderId: flex.externalId,
+      };
+    }
+
+    let lat = flex.lat;
+    let lng = flex.lng;
+    if (lat === undefined || lng === undefined) {
+      const geocoded = await geocodeAddress(flex.address);
+      if (!geocoded) throw new Error('GEOCODE_UNAVAILABLE');
+      lat = geocoded.lat;
+      lng = geocoded.lng;
+    }
+
+    const order = await createOrder(user, {
+      clientName: flex.clientName,
+      clientPhone: flex.clientPhone,
+      address: flex.address,
+      lat,
+      lng,
+      notes: flex.notes,
+      sellerId: validIntegration.userId,
+      externalSource: flex.platform,
+      externalOrderId: flex.externalId,
+      shippingType: flex.shippingType,
+    });
+
+    const assignedSellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, assignedSellerId);
+
+    const seller = await getUserById(validIntegration.userId);
+    await createNotification({
+      id: `n_scan_${Date.now()}_${user.id}`,
+      userId: user.id,
+      title: 'Colecta en vendedor',
+      body: `Orden ML #${flex.externalId} de ${seller?.name ?? 'vendedor'} → ${order.id}.`,
+      type: 'info',
+      orderId: order.id,
+    });
+
+    return {
+      order,
+      alreadyImported: false,
+      sellerId: validIntegration.userId,
+      sellerName: seller?.name ?? 'Vendedor',
+      externalOrderId: flex.externalId,
+    };
+  }
+
+  throw new Error('ML_SCAN_NOT_FOUND');
 }

@@ -264,6 +264,67 @@ export async function fetchMercadoLibreFlexShipment(
   return buildFlexShipmentFromMl(order, shipment);
 }
 
+export async function fetchMercadoLibreFlexShipmentByShipmentId(
+  integration: StoreIntegration,
+  mlShipmentId: string
+): Promise<MercadoLibreFlexShipment | null> {
+  const shipment = await fetchMercadoLibreShipment(integration, mlShipmentId);
+  if (!shipment.order_id) return null;
+  const order = await fetchMercadoLibreOrder(integration, String(shipment.order_id));
+  return buildFlexShipmentFromMl(order, shipment);
+}
+
+export type MercadoLibreScanCandidate = { type: 'order' | 'shipment'; id: string };
+
+export function parseMercadoLibreScanCode(raw: string): MercadoLibreScanCandidate[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  const candidates: MercadoLibreScanCandidate[] = [];
+  const seen = new Set<string>();
+
+  const add = (type: MercadoLibreScanCandidate['type'], id: string) => {
+    const key = `${type}:${id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push({ type, id });
+  };
+
+  const urlOrder = trimmed.match(/\/orders\/(\d{8,})/i);
+  const urlShipment = trimmed.match(/\/shipments\/(\d{8,})/i);
+  if (urlOrder) add('order', urlOrder[1]);
+  if (urlShipment) add('shipment', urlShipment[1]);
+
+  const digitSequences = trimmed.match(/\d{8,}/g) ?? [];
+  for (const seq of digitSequences) {
+    if (/^2000\d{8,}$/.test(seq)) {
+      add('order', seq);
+    } else {
+      add('shipment', seq);
+    }
+  }
+
+  return candidates;
+}
+
+export async function resolveMercadoLibreFlexFromScan(
+  integration: StoreIntegration,
+  candidates: MercadoLibreScanCandidate[]
+): Promise<MercadoLibreFlexShipment | null> {
+  for (const candidate of candidates) {
+    try {
+      const flex =
+        candidate.type === 'order'
+          ? await fetchMercadoLibreFlexShipment(integration, candidate.id)
+          : await fetchMercadoLibreFlexShipmentByShipmentId(integration, candidate.id);
+      if (flex) return flex;
+    } catch {
+      // probar siguiente candidato o vendedor
+    }
+  }
+  return null;
+}
+
 export async function listMercadoLibreFlexShipments(userId: string): Promise<MercadoLibreFlexShipment[]> {
   const integration = await getValidMercadoLibreIntegration(userId);
   const sellerId = integration.externalUserId;

@@ -63,6 +63,19 @@ export async function listIntegrationsForUser(userId: string): Promise<StoreInte
   return rows.map(rowToIntegration);
 }
 
+export async function listMercadoLibreIntegrationsForAgency(
+  agencyId: string
+): Promise<StoreIntegration[]> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT si.* FROM store_integrations si
+     INNER JOIN users u ON u.id = si.user_id
+     WHERE si.platform = 'mercadolibre' AND u.agency_id = ? AND u.role = 'store_admin'
+     ORDER BY u.name`,
+    [agencyId]
+  );
+  return rows.map(rowToIntegration);
+}
+
 export async function getIntegration(
   userId: string,
   platform: IntegrationPlatform

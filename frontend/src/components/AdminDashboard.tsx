@@ -12,6 +12,8 @@ import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge from './ui/StatusBadge.tsx';
 import MapComponent from './MapComponent.tsx';
+import SellerPickupPanel from './SellerPickupPanel.tsx';
+import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -28,6 +30,7 @@ interface AdminDashboardProps {
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
   userRole?: UserRole;
   onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
+  onScanMercadoLibreLabel?: (code: string, sellerId: string) => Promise<MercadoLibreScanImportResult>;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -116,6 +119,7 @@ export default function AdminDashboard({
   onArchiveOrder,
   userRole = UserRole.STORE_ADMIN,
   onOpenMercadoLibreLabel,
+  onScanMercadoLibreLabel,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
@@ -623,7 +627,16 @@ export default function AdminDashboard({
             </div>
           )}
 
-          {isAgencyAdmin(userRole) && (
+          {isAgencyAdmin(userRole) && onScanMercadoLibreLabel && (
+            <SellerPickupPanel
+              sellers={sellers}
+              pickupPoints={pickupPoints}
+              onScanImport={onScanMercadoLibreLabel}
+              onImported={(result) => onSelectOrder(result.order.id)}
+            />
+          )}
+
+          {isAgencyAdmin(userRole) && !onScanMercadoLibreLabel && (
             <div className="bg-[var(--input-bg)]/80 border border-[var(--surface-border)] rounded p-2 text-[10px] text-[var(--color-text-muted)] font-mono">
               Gestioná vendedores, repartidores y punto de salida desde la pestaña <span className="text-[var(--ink-soft)] font-bold">Configuración</span>.
             </div>

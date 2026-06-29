@@ -24,6 +24,8 @@ import {
   Building2,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
+import SellerPickupPanel from './SellerPickupPanel.tsx';
+import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 import { DELIVERY_ZONES, zoneLabel, getDeliveryZone } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
@@ -86,6 +88,7 @@ interface SettingsPageProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
+  onScanMercadoLibreLabel?: (code: string, sellerId: string) => Promise<MercadoLibreScanImportResult>;
 }
 
 export default function SettingsPage({
@@ -116,6 +119,7 @@ export default function SettingsPage({
   onDisconnectMarketplace,
   onFetchMarketplaceShipments,
   onImportMarketplaceShipments,
+  onScanMercadoLibreLabel,
 }: SettingsPageProps) {
   const userRole = user.role;
   const agency = isAgencyAdmin(userRole);
@@ -544,6 +548,16 @@ export default function SettingsPage({
                 )}
                 {sellerDetail && (
                   <div className="space-y-3 min-w-0">
+                    {onScanMercadoLibreLabel && selectedSellerId && (
+                      <SellerPickupPanel
+                        compact
+                        lockSellerSelection
+                        sellers={sellers}
+                        pickupPoints={pickupPoints}
+                        initialSellerId={selectedSellerId}
+                        onScanImport={onScanMercadoLibreLabel}
+                      />
+                    )}
                     <div className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg p-3 space-y-2">
                       {editingSeller && onUpdateSeller ? (
                         <form
