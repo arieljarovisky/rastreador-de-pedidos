@@ -7,10 +7,11 @@ import {
   getSellerDetail,
   updateSellerPassword,
   updateAgencyDeparture,
-  getAgencyDeparture,
+  getAgencyDepartureForUser,
   getUserById,
   deleteRepartidor,
   updateRepartidorZone,
+  assertSellerInAgency,
 } from '../services/users.service.js';
 import {
   listPickupPointsForUser,
@@ -46,13 +47,17 @@ function handleCreateUserError(res: Response, err: unknown): boolean {
   return false;
 }
 
-router.get('/sellers', authenticate, requireAgencyAdmin(), async (_req: Request, res: Response) => {
-  const sellers = await listSellers();
+router.get('/sellers', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+  const sellers = await listSellers(req.user.agencyId);
   res.json(sellers);
 });
 
 router.get('/sellers/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
-  const detail = await getSellerDetail(req.params.id);
+  const detail = await getSellerDetail(req.params.id, req.user?.agencyId);
   if (!detail) {
     res.status(404).json({ error: 'Vendedor no encontrado.' });
     return;
@@ -68,7 +73,7 @@ router.put('/sellers/:id/password', authenticate, requireAgencyAdmin(), async (r
   }
 
   try {
-    await updateSellerPassword(req.params.id, password);
+    await updateSellerPassword(req.params.id, password, req.user?.agencyId);
     res.json({ ok: true });
   } catch (err) {
     if (handleCreateUserError(res, err)) return;
@@ -88,12 +93,18 @@ router.post('/sellers', authenticate, requireAgencyAdmin(), async (req: Request,
     return;
   }
 
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+
   try {
     const user = await createUser({
       username,
       password,
       name,
       role: UserRole.STORE_ADMIN,
+      agencyId: req.user.agencyId,
     });
 
     if (pickupAddress && pickupLat !== undefined && pickupLng !== undefined) {
@@ -120,12 +131,18 @@ router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Req
     return;
   }
 
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+
   try {
     const user = await createUser({
       username,
       password,
       name,
       role: UserRole.REPARTIDOR,
+      agencyId: req.user.agencyId,
       deliveryZone: deliveryZone || null,
     });
     res.status(201).json(user);
@@ -172,8 +189,8 @@ router.delete('/repartidores/:id', authenticate, requireAgencyAdmin(), async (re
   }
 });
 
-router.get('/agency/departure', authenticate, async (_req: Request, res: Response) => {
-  const departure = await getAgencyDeparture();
+router.get('/agency/departure', authenticate, async (req: Request, res: Response) => {
+  const departure = await getAgencyDepartureForUser(req.user!);
   res.json(departure);
 });
 
@@ -205,13 +222,17 @@ router.get('/pickup-points', authenticate, async (req: Request, res: Response) =
   const user = req.user!;
 
   if (isAgencyAdmin(user.role)) {
+    if (!user.agencyId) {
+      res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+      return;
+    }
     const sellerId = req.query.sellerId as string | undefined;
     if (sellerId) {
       const points = await listPickupPointsForUser(sellerId);
       res.json(points);
       return;
     }
-    const points = await listPickupPointsForLogistics();
+    const points = await listPickupPointsForLogistics(user.agencyId);
     res.json(points);
     return;
   }
@@ -223,7 +244,11 @@ router.get('/pickup-points', authenticate, async (req: Request, res: Response) =
   }
 
   if (user.role === UserRole.REPARTIDOR) {
-    const points = await listPickupPointsForLogistics();
+    if (!user.agencyId) {
+      res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+      return;
+    }
+    const points = await listPickupPointsForLogistics(user.agencyId);
     res.json(points);
     return;
   }
@@ -244,11 +269,7 @@ router.post('/pickup-points', authenticate, requireRoles(UserRole.STORE_ADMIN, U
       res.status(400).json({ error: 'Debe indicar el sellerId del vendedor.' });
       return;
     }
-    const seller = await getUserById(sellerId);
-    if (!seller || seller.role !== UserRole.STORE_ADMIN) {
-      res.status(400).json({ error: 'Vendedor no encontrado.' });
-      return;
-    }
+    const seller = await assertSellerInAgency(sellerId, req.user!.agencyId!);
     ownerId = sellerId;
   }
 

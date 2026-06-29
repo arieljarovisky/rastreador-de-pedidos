@@ -10,7 +10,7 @@ import {
   User,
   UserRole,
 } from '../types/index.js';
-import { getRepartidorById, getUserById, updateUserLocation } from './users.service.js';
+import { getRepartidorById, getUserById, updateUserLocation, assertSellerInAgency } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 
 interface HistoryRow extends RowDataPacket {
@@ -87,6 +87,7 @@ function rowToOrder(
 ): Order {
   return {
     id: row.id,
+    agencyId: row.agency_id ?? null,
     sellerId: row.seller_id ?? null,
     sellerName: row.seller_name ?? null,
     clientName: row.client_name,
@@ -110,7 +111,7 @@ function rowToOrder(
 }
 
 const ORDER_SELECT = `
-  SELECT o.id, o.seller_id, o.external_source, o.external_order_id, o.shipping_type,
+  SELECT o.id, o.agency_id, o.seller_id, o.external_source, o.external_order_id, o.shipping_type,
          o.client_name, o.client_phone, o.address, o.lat, o.lng,
          o.status, o.archived, o.repartidor_id, o.notes, o.created_at, o.updated_at,
          r.name AS repartidor_name,
@@ -129,6 +130,10 @@ async function enrichOrders(rows: OrderWithRepartidorRow[]): Promise<Order[]> {
   return rows.map((row) =>
     rowToOrder(row, historyMap.get(row.id) ?? [], locationMap.get(row.id) ?? [])
   );
+}
+
+function belongsToUserAgency(user: User, agencyId: string | null | undefined): boolean {
+  return !!user.agencyId && user.agencyId === agencyId;
 }
 
 export async function getOrderById(id: string): Promise<Order | null> {
@@ -151,13 +156,17 @@ export async function listOrdersForUser(user: User): Promise<Order[]> {
       [user.id]
     );
   } else if (isAgencyAdmin(user.role)) {
+    if (!user.agencyId) {
+      return [];
+    }
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} ORDER BY o.created_at DESC`
+      `${ORDER_SELECT} WHERE o.agency_id = ? ORDER BY o.created_at DESC`,
+      [user.agencyId]
     );
   } else {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR o.status = ?) AND o.archived = 0 ORDER BY o.created_at DESC`,
-      [user.id, OrderStatus.PENDING]
+      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id = ?)) AND o.archived = 0 ORDER BY o.created_at DESC`,
+      [user.id, OrderStatus.PENDING, user.agencyId]
     );
   }
 
@@ -165,7 +174,7 @@ export async function listOrdersForUser(user: User): Promise<Order[]> {
 }
 
 export function canViewOrder(user: User, order: Order, sellerId?: string | null): boolean {
-  if (isAgencyAdmin(user.role)) return true;
+  if (isAgencyAdmin(user.role)) return belongsToUserAgency(user, order.agencyId);
   if (user.role === UserRole.STORE_ADMIN) return sellerId === user.id;
   if (user.role === UserRole.REPARTIDOR) {
     return order.repartidorId === user.id || order.status === OrderStatus.PENDING;
@@ -202,14 +211,15 @@ export async function createOrder(
   const now = new Date();
 
   let sellerId: string | null = null;
+  let agencyId: string | null = user.agencyId ?? null;
   if (user.role === UserRole.STORE_ADMIN) {
     sellerId = user.id;
   } else if (isAgencyAdmin(user.role)) {
+    if (!agencyId) {
+      throw new Error('FORBIDDEN');
+    }
     if (data.sellerId) {
-      const seller = await getUserById(data.sellerId);
-      if (!seller || seller.role !== UserRole.STORE_ADMIN) {
-        throw new Error('SELLER_NOT_FOUND');
-      }
+      const seller = await assertSellerInAgency(data.sellerId, agencyId);
       sellerId = seller.id;
     }
   } else {
@@ -222,11 +232,12 @@ export async function createOrder(
   }
 
   await pool.query(
-    `INSERT INTO orders (id, seller_id, external_source, external_order_id, shipping_type,
+    `INSERT INTO orders (id, agency_id, seller_id, external_source, external_order_id, shipping_type,
        client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
     [
       newId,
+      agencyId,
       sellerId,
       data.externalSource ?? null,
       data.externalOrderId ?? null,
@@ -319,24 +330,25 @@ export async function assignOrderToSeller(
   orderId: string,
   sellerId: string
 ): Promise<Order> {
-  if (!isAgencyAdmin(user.role)) {
+  if (!isAgencyAdmin(user.role) || !user.agencyId) {
     throw new Error('FORBIDDEN');
   }
 
   const order = await getOrderById(orderId);
   if (!order) throw new Error('NOT_FOUND');
+  if (!belongsToUserAgency(user, order.agencyId)) {
+    throw new Error('NOT_FOUND');
+  }
   if (order.status !== OrderStatus.PENDING) {
     throw new Error('ORDER_NOT_PENDING');
   }
 
-  const seller = await getUserById(sellerId);
-  if (!seller || seller.role !== UserRole.STORE_ADMIN) {
-    throw new Error('SELLER_NOT_FOUND');
-  }
+  const seller = await assertSellerInAgency(sellerId, user.agencyId);
 
   const now = new Date();
-  await pool.query('UPDATE orders SET seller_id = ?, updated_at = ? WHERE id = ?', [
+  await pool.query('UPDATE orders SET seller_id = ?, agency_id = ?, updated_at = ? WHERE id = ?', [
     sellerId,
+    seller.agencyId,
     now,
     orderId,
   ]);
@@ -377,6 +389,9 @@ export async function updateOrderStatus(
     if (!repartidorId) throw new Error('REPARTIDOR_REQUIRED');
     const rep = await getRepartidorById(repartidorId);
     if (!rep) throw new Error('REPARTIDOR_NOT_FOUND');
+    if (isAgencyAdmin(user.role) && user.agencyId && rep.agencyId !== user.agencyId) {
+      throw new Error('REPARTIDOR_NOT_FOUND');
+    }
     assignedRepartidorId = rep.id;
     assignedRepartidorName = rep.name;
   }
@@ -551,7 +566,7 @@ export async function deleteOrder(user: User, orderId: string): Promise<{ seller
   if (!order) throw new Error('NOT_FOUND');
 
   if (isAgencyAdmin(user.role)) {
-    // La agencia puede eliminar cualquier pedido
+    if (!belongsToUserAgency(user, order.agencyId)) throw new Error('FORBIDDEN');
   } else if (user.role === UserRole.STORE_ADMIN) {
     if (order.sellerId !== user.id) throw new Error('FORBIDDEN');
     if (order.status !== OrderStatus.PENDING) throw new Error('ORDER_NOT_DELETABLE');
@@ -572,7 +587,7 @@ export async function setOrderArchived(
   if (!order) throw new Error('NOT_FOUND');
 
   if (isAgencyAdmin(user.role)) {
-    // La agencia puede archivar cualquier pedido
+    if (!belongsToUserAgency(user, order.agencyId)) throw new Error('FORBIDDEN');
   } else if (user.role === UserRole.STORE_ADMIN) {
     if (order.sellerId !== user.id) throw new Error('FORBIDDEN');
   } else {

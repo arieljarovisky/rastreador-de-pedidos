@@ -51,6 +51,8 @@ export interface User {
   username: string;
   name: string;
   role: UserRole;
+  agencyId?: string | null;
+  agencyName?: string | null;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];

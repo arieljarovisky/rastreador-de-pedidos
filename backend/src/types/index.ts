@@ -41,6 +41,8 @@ export interface User {
   username: string;
   name: string;
   role: UserRole;
+  agencyId?: string | null;
+  agencyName?: string | null;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];
@@ -62,6 +64,7 @@ export interface LocationHistoryPoint {
 
 export interface Order {
   id: string;
+  agencyId?: string | null;
   sellerId: string | null;
   sellerName: string | null;
   clientName: string;
@@ -104,6 +107,7 @@ export interface DbUserRow {
   username: string;
   name: string;
   role: UserRole;
+  agency_id: string | null;
   password_hash: string;
   current_lat: number | null;
   current_lng: number | null;
@@ -116,6 +120,7 @@ export interface DbUserRow {
 
 export interface DbOrderRow {
   id: string;
+  agency_id: string | null;
   seller_id: string | null;
   external_source: string | null;
   external_order_id: string | null;

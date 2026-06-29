@@ -1,3 +1,4 @@
+import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 
 async function columnExists(table: string, column: string): Promise<boolean> {
@@ -67,5 +68,92 @@ export async function runMigrations(): Promise<void> {
         CONSTRAINT fk_integrations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+  }
+
+  if (!(await tableExists('agencies'))) {
+    await pool.query(`
+      CREATE TABLE agencies (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        departure_address VARCHAR(500) NULL,
+        departure_lat DECIMAL(10, 7) NULL,
+        departure_lng DECIMAL(10, 7) NULL,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await columnExists('users', 'agency_id'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN agency_id VARCHAR(36) NULL AFTER role');
+    await pool.query('CREATE INDEX idx_users_agency ON users (agency_id)');
+    await pool.query(
+      'ALTER TABLE users ADD CONSTRAINT fk_users_agency FOREIGN KEY (agency_id) REFERENCES agencies(id)'
+    );
+  }
+
+  if (!(await columnExists('orders', 'agency_id'))) {
+    await pool.query('ALTER TABLE orders ADD COLUMN agency_id VARCHAR(36) NULL AFTER id');
+    await pool.query('CREATE INDEX idx_orders_agency ON orders (agency_id)');
+    await pool.query(
+      'ALTER TABLE orders ADD CONSTRAINT fk_orders_agency FOREIGN KEY (agency_id) REFERENCES agencies(id)'
+    );
+  }
+
+  const [agencyCount] = await pool.query<Array<{ cnt: number } & import('mysql2').RowDataPacket>>(
+    'SELECT COUNT(*) AS cnt FROM agencies'
+  );
+  if (Number(agencyCount[0]?.cnt ?? 0) === 0) {
+    const [adminRows] = await pool.query<
+      (RowDataPacket & {
+        id: string;
+        name: string;
+        departure_address: string | null;
+        departure_lat: number | null;
+        departure_lng: number | null;
+      })[]
+    >(
+      `SELECT id, name, departure_address, departure_lat, departure_lng
+       FROM users
+       WHERE role IN ('super_admin', 'logistics_admin')
+       ORDER BY FIELD(role, 'super_admin', 'logistics_admin')
+       LIMIT 1`
+    );
+    const admin = adminRows[0];
+    const agencyId = 'ag_default';
+    const agencyName = admin?.name ?? 'Agencia principal';
+    await pool.query(
+      `INSERT INTO agencies (id, name, departure_address, departure_lat, departure_lng, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        agencyId,
+        agencyName,
+        admin?.departure_address ?? null,
+        admin?.departure_lat ?? null,
+        admin?.departure_lng ?? null,
+        new Date(),
+      ]
+    );
+    await pool.query('UPDATE users SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
+    await pool.query('UPDATE orders SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
+  } else {
+    const [orphanUsers] = await pool.query<Array<{ cnt: number } & import('mysql2').RowDataPacket>>(
+      'SELECT COUNT(*) AS cnt FROM users WHERE agency_id IS NULL'
+    );
+    if (Number(orphanUsers[0]?.cnt ?? 0) > 0) {
+      const [firstAgency] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
+        'SELECT id FROM agencies ORDER BY created_at ASC LIMIT 1'
+      );
+      const agencyId = firstAgency[0]?.id;
+      if (agencyId) {
+        await pool.query('UPDATE users SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
+        await pool.query(
+          `UPDATE orders o
+           LEFT JOIN users s ON s.id = o.seller_id
+           SET o.agency_id = COALESCE(s.agency_id, ?)
+           WHERE o.agency_id IS NULL`,
+          [agencyId]
+        );
+      }
+    }
   }
 }

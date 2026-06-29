@@ -1,9 +1,19 @@
+CREATE TABLE IF NOT EXISTS agencies (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  departure_address VARCHAR(500) NULL,
+  departure_lat DECIMAL(10, 7) NULL,
+  departure_lng DECIMAL(10, 7) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(36) PRIMARY KEY,
   username VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
   role ENUM('super_admin', 'store_admin', 'logistics_admin', 'repartidor') NOT NULL,
+  agency_id VARCHAR(36) NULL,
   current_lat DECIMAL(10, 7) NULL,
   current_lng DECIMAL(10, 7) NULL,
   location_updated_at DATETIME(3) NULL,
@@ -11,7 +21,9 @@ CREATE TABLE IF NOT EXISTS users (
   departure_lat DECIMAL(10, 7) NULL,
   departure_lng DECIMAL(10, 7) NULL,
   delivery_zone VARCHAR(64) NULL,
-  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_users_agency (agency_id),
+  CONSTRAINT fk_users_agency FOREIGN KEY (agency_id) REFERENCES agencies(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pickup_points (
@@ -28,6 +40,7 @@ CREATE TABLE IF NOT EXISTS pickup_points (
 
 CREATE TABLE IF NOT EXISTS orders (
   id VARCHAR(36) PRIMARY KEY,
+  agency_id VARCHAR(36) NULL,
   seller_id VARCHAR(36) NULL,
   external_source VARCHAR(32) NULL,
   external_order_id VARCHAR(100) NULL,
@@ -45,9 +58,11 @@ CREATE TABLE IF NOT EXISTS orders (
   updated_at DATETIME(3) NOT NULL,
   INDEX idx_orders_status (status),
   INDEX idx_orders_archived (archived),
+  INDEX idx_orders_agency (agency_id),
   INDEX idx_orders_seller (seller_id),
   INDEX idx_orders_external (seller_id, external_source, external_order_id),
   INDEX idx_orders_repartidor (repartidor_id),
+  CONSTRAINT fk_orders_agency FOREIGN KEY (agency_id) REFERENCES agencies(id),
   CONSTRAINT fk_orders_seller FOREIGN KEY (seller_id) REFERENCES users(id),
   CONSTRAINT fk_orders_repartidor FOREIGN KEY (repartidor_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

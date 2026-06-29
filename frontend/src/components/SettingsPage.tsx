@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Key,
   X,
+  Building2,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import { DELIVERY_ZONES, zoneLabel, getDeliveryZone } from '../config/deliveryZones.js';
@@ -274,6 +275,24 @@ export default function SettingsPage({
 
       <div className="flex-1 overflow-y-auto mt-3 pr-1 scrollbar-thin">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pb-2 auto-rows-min">
+        {userRole === UserRole.STORE_ADMIN && (
+          <section className={`${sectionClass} lg:col-span-2`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
+                <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
+              </div>
+              <div className="flex-1 min-w-[12rem]">
+                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Agencia de logística</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                  {user.agencyName ?? (user.agencyId ? 'Agencia asociada' : 'Sin agencia asociada')}
+                </p>
+              </div>
+            </div>
+            <p className="text-[10px] text-[var(--color-text-faint)] font-mono mt-2 leading-relaxed">
+              Tus envíos y puntos de colecta se sincronizan con esta agencia.
+            </p>
+          </section>
+        )}
         {userRole === UserRole.STORE_ADMIN &&
           onRefreshIntegrationStatus &&
           onConnectMarketplace &&

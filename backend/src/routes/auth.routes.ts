@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { authenticate, signToken } from '../middleware/auth.js';
 import { findUserByUsername, createUser, getUserById } from '../services/users.service.js';
+import { createAgency } from '../services/agencies.service.js';
 import { UserRole } from '../types/index.js';
 
 const router = Router();
@@ -69,11 +70,13 @@ router.post('/register/agency', async (req: Request, res: Response) => {
   }
 
   try {
+    const agency = await createAgency({ name: name.trim() });
     const user = await createUser({
       username,
       password,
       name,
       role: UserRole.SUPER_ADMIN,
+      agencyId: agency.id,
     });
     const fullUser = await getUserById(user.id);
     const token = signToken(user.id, user.role);

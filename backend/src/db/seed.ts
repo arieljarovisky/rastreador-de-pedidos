@@ -9,6 +9,22 @@ async function hash(password: string): Promise<string> {
 }
 
 export async function seedDatabase(): Promise<void> {
+  const agencyId = 'ag_demo';
+  await pool.query(
+    `INSERT INTO agencies (id, name, departure_address, departure_lat, departure_lng, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE name = VALUES(name), departure_address = VALUES(departure_address),
+       departure_lat = VALUES(departure_lat), departure_lng = VALUES(departure_lng)`,
+    [
+      agencyId,
+      'Lupo Logística (Envíos)',
+      'Av. Santa Fe 3200, Palermo, CABA',
+      -34.5885,
+      -58.4306,
+      new Date(now),
+    ]
+  );
+
   const users = [
     { id: 'u1', username: 'admin', name: 'Lupo Ventas (Local)', role: UserRole.STORE_ADMIN, password: 'admin123', lat: null, lng: null, zone: null },
     { id: 'u5', username: 'logistica', name: 'Lupo Logística (Envíos)', role: UserRole.SUPER_ADMIN, password: 'logistica123', lat: null, lng: null, zone: null },
@@ -29,18 +45,19 @@ export async function seedDatabase(): Promise<void> {
           }
         : null;
     await pool.query(
-      `INSERT INTO users (id, username, password_hash, name, role, current_lat, current_lng, location_updated_at,
+      `INSERT INTO users (id, username, password_hash, name, role, agency_id, current_lat, current_lng, location_updated_at,
         departure_address, departure_lat, departure_lng, delivery_zone)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name), role = VALUES(role),
-         departure_address = VALUES(departure_address), departure_lat = VALUES(departure_lat), departure_lng = VALUES(departure_lng),
-         delivery_zone = VALUES(delivery_zone)`,
+         agency_id = VALUES(agency_id), departure_address = VALUES(departure_address), departure_lat = VALUES(departure_lat),
+         departure_lng = VALUES(departure_lng), delivery_zone = VALUES(delivery_zone)`,
       [
         u.id,
         u.username,
         passwordHash,
         u.name,
         u.role,
+        agencyId,
         u.lat,
         u.lng,
         locTime,
@@ -165,10 +182,10 @@ export async function seedDatabase(): Promise<void> {
 
   for (const o of orders) {
     await pool.query(
-      `INSERT INTO orders (id, seller_id, client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at)
-       VALUES (?, 'u1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE client_name = VALUES(client_name), status = VALUES(status), repartidor_id = VALUES(repartidor_id)`,
-      [o.id, o.clientName, o.clientPhone, o.address, o.lat, o.lng, o.status, o.repartidorId, o.notes, o.createdAt, o.updatedAt]
+      `INSERT INTO orders (id, agency_id, seller_id, client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at)
+       VALUES (?, ?, 'u1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE client_name = VALUES(client_name), status = VALUES(status), repartidor_id = VALUES(repartidor_id), agency_id = VALUES(agency_id)`,
+      [o.id, agencyId, o.clientName, o.clientPhone, o.address, o.lat, o.lng, o.status, o.repartidorId, o.notes, o.createdAt, o.updatedAt]
     );
 
     await pool.query('DELETE FROM order_history WHERE order_id = ?', [o.id]);

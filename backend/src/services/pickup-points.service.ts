@@ -36,14 +36,14 @@ export async function listPickupPointsForUser(userId: string): Promise<PickupPoi
   return rows.map(rowToPickupPoint);
 }
 
-export async function listPickupPointsForLogistics(): Promise<PickupPoint[]> {
+export async function listPickupPointsForLogistics(agencyId: string): Promise<PickupPoint[]> {
   const [rows] = await pool.query<PickupRow[]>(
     `SELECT p.id, p.user_id, p.label, p.address, p.lat, p.lng, p.created_at, u.name AS seller_name
      FROM pickup_points p
      INNER JOIN users u ON u.id = p.user_id
-     WHERE u.role = ?
+     WHERE u.role = ? AND u.agency_id = ?
      ORDER BY u.name ASC, p.created_at ASC`,
-    [UserRole.STORE_ADMIN]
+    [UserRole.STORE_ADMIN, agencyId]
   );
   return rows.map(rowToPickupPoint);
 }

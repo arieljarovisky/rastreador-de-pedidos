@@ -142,6 +142,14 @@ export default function App() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
+      let currentUser = user;
+      const meRes = await fetch(apiUrl('/api/auth/me'), { headers });
+      if (meRes.ok) {
+        currentUser = await meRes.json();
+        setUser(currentUser);
+        localStorage.setItem('lupo_user', JSON.stringify(currentUser));
+      }
+
       const ordersRes = await fetch(apiUrl('/api/orders'), { headers });
       if (ordersRes.ok) {
         const data = await ordersRes.json();
@@ -154,7 +162,7 @@ export default function App() {
         setNotifications(data);
       }
 
-      if (user?.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role) || user?.role === UserRole.REPARTIDOR) {
+      if (currentUser?.role === UserRole.STORE_ADMIN || isAgencyAdmin(currentUser?.role) || currentUser?.role === UserRole.REPARTIDOR) {
         const depRes = await fetch(apiUrl('/api/accounts/agency/departure'), { headers });
         if (depRes.ok) {
           const data = await depRes.json();
@@ -168,7 +176,7 @@ export default function App() {
         }
       }
 
-      if (user?.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) {
+      if (currentUser?.role === UserRole.STORE_ADMIN || isAgencyAdmin(currentUser?.role)) {
         const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
         if (repsRes.ok) {
           const data = await repsRes.json();
@@ -176,7 +184,7 @@ export default function App() {
         }
       }
 
-      if (isAgencyAdmin(user.role)) {
+      if (isAgencyAdmin(currentUser?.role)) {
         const sellersRes = await fetch(apiUrl('/api/accounts/sellers'), { headers });
         if (sellersRes.ok) {
           const data = await sellersRes.json();
