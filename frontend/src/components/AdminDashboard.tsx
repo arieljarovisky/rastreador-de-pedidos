@@ -10,6 +10,7 @@ import { geocodeAddress } from '../utils/geocode.js';
 import { findZoneForPoint, zoneLabel } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
+import StatusBadge from './ui/StatusBadge.tsx';
 
 const MapComponent = React.lazy(() => import('./MapComponent.tsx'));
 
@@ -482,23 +483,23 @@ export default function AdminDashboard({
       )}
 
       {/* Selector de sub-pestañas para panel de control admin (visible solo en móvil/tablet < lg) */}
-      <div className="lg:hidden flex bg-zinc-950 p-1 border border-zinc-800 rounded shrink-0 gap-1">
+      <div className="lg:hidden flex bg-[var(--surface-panel-2)] p-1 border border-[var(--surface-border)] rounded shrink-0 gap-1">
         <button
           onClick={() => setAdminMobileTab('orders')}
-          className={`flex-1 py-1.5 text-center text-[10px] font-bold uppercase tracking-wider transition rounded ${
+          className={`flex-1 py-1.5 text-center text-[10px] font-mono font-bold uppercase tracking-wider transition rounded-[var(--radius-posta)] ${
             adminMobileTab === 'orders'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+              ? 'posta-tab-active shadow-md'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel)]'
           }`}
         >
           📋 Pedidos ({filteredOrders.length})
         </button>
         <button
           onClick={() => setAdminMobileTab('map')}
-          className={`flex-1 py-1.5 text-center text-[10px] font-bold uppercase tracking-wider transition rounded ${
+          className={`flex-1 py-1.5 text-center text-[10px] font-mono font-bold uppercase tracking-wider transition rounded-[var(--radius-posta)] ${
             adminMobileTab === 'map'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+              ? 'posta-tab-active shadow-md'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel)]'
           }`}
         >
           🗺️ Monitoreo GPS
@@ -506,7 +507,7 @@ export default function AdminDashboard({
       </div>
 
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN (5 COLUMNAS - HIGH DENSITY) */}
-      <div className={`lg:col-span-5 flex flex-col h-full overflow-hidden bg-zinc-900/30 border border-zinc-800 rounded-2xl p-4 shadow-xl ${
+      <div className={`lg:col-span-5 flex flex-col h-full overflow-hidden posta-surface p-4 ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
@@ -514,10 +515,10 @@ export default function AdminDashboard({
         <div className="shrink-0 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm lg:text-base font-bold text-zinc-100 flex items-center gap-1.5">
-                {userRole === UserRole.STORE_ADMIN ? '🛒 Lupo Ventas (Local)' : userRole === UserRole.SUPER_ADMIN ? '👑 Lupo Agencia (Super Admin)' : '⚙️ Lupo Logística'}
+              <h2 className="text-sm lg:text-base font-display font-semibold text-[var(--color-text)] flex items-center gap-1.5">
+                {userRole === UserRole.STORE_ADMIN ? '🛒 Posta Ventas (Local)' : userRole === UserRole.SUPER_ADMIN ? '👑 Posta Agencia (Super Admin)' : '⚙️ Posta Logística'}
               </h2>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono">
+              <p className="mono-label">
                 {userRole === UserRole.STORE_ADMIN ? 'Carga de envíos' : 'Asignación de viajes y flota'}
               </p>
             </div>
@@ -526,7 +527,7 @@ export default function AdminDashboard({
               <button
                 onClick={() => setShowCreateForm(!showCreateForm)}
                 id="btn-toggle-create-form"
-                className="px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shadow-blue-600/10"
+                className="px-2.5 py-1.5 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[11px] uppercase tracking-wider transition flex items-center gap-1 shadow-md"
               >
                 <Plus className="w-3.5 h-3.5" /> Cargar envío
               </button>
@@ -535,54 +536,54 @@ export default function AdminDashboard({
 
           {/* Tarjetas de Estadísticas Rápidas */}
           <div className="grid grid-cols-4 gap-1.5 text-center">
-            <div className="bg-zinc-950 border border-zinc-800/80 p-1.5 rounded">
-              <p className="text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-tight">Total</p>
-              <p className="text-sm lg:text-lg font-bold text-zinc-200 mt-0.5 font-mono">{stats.total}</p>
+            <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 p-1.5 rounded">
+              <p className="text-[9px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Total</p>
+              <p className="text-sm lg:text-lg font-bold text-[var(--ink-soft)] mt-0.5 font-mono">{stats.total}</p>
             </div>
-            <div className="bg-zinc-950 border border-zinc-800/80 p-1.5 rounded">
-              <p className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-tight">Pend.</p>
-              <p className="text-sm lg:text-lg font-bold text-zinc-300 mt-0.5 font-mono">{stats.pending}</p>
+            <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 p-1.5 rounded">
+              <p className="text-[9px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Pend.</p>
+              <p className="text-sm lg:text-lg font-bold text-[var(--ink-soft)] mt-0.5 font-mono">{stats.pending}</p>
             </div>
-            <div className="bg-amber-500/5 border border-amber-500/20 p-1.5 rounded">
-              <p className="text-[9px] text-amber-500 font-mono font-bold uppercase tracking-tight">Ruta</p>
-              <p className="text-sm lg:text-lg font-bold text-amber-400 mt-0.5 font-mono">{stats.delivering}</p>
+            <div className="bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/20 p-1.5 rounded">
+              <p className="text-[9px] text-[var(--color-warn)] font-mono font-bold uppercase tracking-tight">Ruta</p>
+              <p className="text-sm lg:text-lg font-bold text-[var(--color-warn)] mt-0.5 font-mono">{stats.delivering}</p>
             </div>
-            <div className="bg-emerald-500/5 border border-emerald-500/20 p-1.5 rounded">
-              <p className="text-[9px] text-emerald-500 font-mono font-bold uppercase tracking-tight">Listos</p>
-              <p className="text-sm lg:text-lg font-bold text-emerald-400 mt-0.5 font-mono">{stats.delivered}</p>
+            <div className="bg-[var(--color-ok)]/5 border border-[var(--color-ok)]/20 p-1.5 rounded">
+              <p className="text-[9px] text-[var(--color-ok)] font-mono font-bold uppercase tracking-tight">Listos</p>
+              <p className="text-sm lg:text-lg font-bold text-[var(--color-ok)] mt-0.5 font-mono">{stats.delivered}</p>
             </div>
           </div>
 
           {userRole === UserRole.STORE_ADMIN && (
-            <div className="bg-blue-950/20 border border-blue-900/30 rounded p-2 flex items-center justify-between">
+            <div className="posta-chip-accent border border-[var(--color-accent)]/25 rounded p-2 flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold text-blue-400 flex items-center gap-1">
+                <p className="text-[11px] font-bold text-[var(--color-accent)] flex items-center gap-1">
                   🛒 Canal de Ventas Activo
                 </p>
-                <p className="text-[9px] text-zinc-400 font-mono mt-0.5">Tus envíos se sincronizan con la agencia de logística</p>
+                <p className="text-[9px] text-[var(--color-text-muted)] font-mono mt-0.5">Tus envíos se sincronizan con la agencia de logística</p>
               </div>
-              <div className="text-[10px] bg-blue-500/10 text-blue-400 font-mono font-bold px-1.5 py-0.5 rounded border border-blue-500/20 uppercase">
+              <div className="text-[10px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold px-1.5 py-0.5 rounded border border-[var(--color-accent)]/20 uppercase">
                 Online
               </div>
             </div>
           )}
 
           {userRole === UserRole.STORE_ADMIN && (
-            <div className="bg-zinc-950/60 border border-zinc-800 rounded p-2 text-[10px] text-zinc-500 font-mono">
-              Configurá tus puntos de colecta en la pestaña <span className="text-zinc-300 font-bold">Configuración</span>.
+            <div className="bg-[var(--input-bg)]/80 border border-[var(--surface-border)] rounded p-2 text-[10px] text-[var(--color-text-muted)] font-mono">
+              Configurá tus puntos de colecta en la pestaña <span className="text-[var(--ink-soft)] font-bold">Configuración</span>.
             </div>
           )}
 
           {isAgencyAdmin(userRole) && (
-            <div className="bg-zinc-950/60 border border-zinc-800 rounded p-2 text-[10px] text-zinc-500 font-mono">
-              Gestioná vendedores, repartidores y punto de salida desde la pestaña <span className="text-zinc-300 font-bold">Configuración</span>.
+            <div className="bg-[var(--input-bg)]/80 border border-[var(--surface-border)] rounded p-2 text-[10px] text-[var(--color-text-muted)] font-mono">
+              Gestioná vendedores, repartidores y punto de salida desde la pestaña <span className="text-[var(--ink-soft)] font-bold">Configuración</span>.
             </div>
           )}
 
           {/* Buscador e hilos de estado */}
           <div className="space-y-1.5">
             <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
                 <Search className="w-3.5 h-3.5" />
               </span>
               <input
@@ -590,16 +591,16 @@ export default function AdminDashboard({
                 placeholder="Buscar repartidor, pedido o dirección..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 pl-8 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 placeholder:text-zinc-600 font-sans"
+                className="w-full posta-input px-2.5 py-1.5 pl-8 text-xs font-sans"
               />
             </div>
 
             {/* Selector de Tabs de Filtros */}
-            <div className="flex bg-zinc-950 p-0.5 rounded border border-zinc-800/80 text-[10px]">
+            <div className="flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px]">
               <button
                 onClick={() => setStatusFilter('all')}
                 className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === 'all' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+                  statusFilter === 'all' ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Todos
@@ -607,7 +608,7 @@ export default function AdminDashboard({
               <button
                 onClick={() => setStatusFilter(OrderStatus.PENDING)}
                 className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.PENDING ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+                  statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Pend.
@@ -615,7 +616,7 @@ export default function AdminDashboard({
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
                 className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.DELIVERING ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                  statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Ruta
@@ -623,7 +624,7 @@ export default function AdminDashboard({
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
                 className={`flex-1 py-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.DELIVERED ? 'bg-emerald-600 text-zinc-950' : 'text-zinc-500 hover:text-zinc-300'
+                  statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Listos
@@ -633,17 +634,17 @@ export default function AdminDashboard({
         </div>
 
         {/* LISTADO DE PEDIDOS / FORMULARIO CREACIÓN (CON SCROLL) */}
-        <div className="flex-1 overflow-y-auto mt-3 space-y-2 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+        <div className="flex-1 overflow-y-auto mt-3 space-y-2 pr-1 scrollbar-thin">
           
           {/* Formulario de creación desplegable (HIGH DENSITY MODERN STYLE) */}
           {showCreateForm && userRole === UserRole.STORE_ADMIN && (
-            <form onSubmit={handleSubmitOrder} className="bg-zinc-950 border border-zinc-800 rounded p-3.5 space-y-3 animate-slide-down shadow-xl">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-2 mb-2">
-                <h3 className="font-bold text-xs text-blue-400 flex items-center gap-1">📝 Cargar nuevo envío</h3>
+            <form onSubmit={handleSubmitOrder} className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-3.5 space-y-3 animate-slide-down shadow-xl">
+              <div className="flex items-center justify-between border-b border-[var(--surface-border)] pb-2 mb-2">
+                <h3 className="font-bold text-xs text-[var(--color-accent)] flex items-center gap-1">📝 Cargar nuevo envío</h3>
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
-                  className="text-zinc-500 hover:text-zinc-300 text-[10px] uppercase font-mono tracking-wider font-bold"
+                  className="text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] text-[10px] uppercase font-mono tracking-wider font-bold"
                 >
                   [Cancelar]
                 </button>
@@ -651,38 +652,38 @@ export default function AdminDashboard({
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Nombre Cliente *</label>
+                  <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Nombre Cliente *</label>
                   <input
                     type="text"
                     required
                     placeholder="Ej: Marcelo"
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                    className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Celular / Teléfono</label>
+                  <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Celular / Teléfono</label>
                   <input
                     type="text"
                     placeholder="Ej: +5411531234"
                     value={clientPhone}
                     onChange={(e) => setClientPhone(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                    className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
                   />
                 </div>
               </div>
 
               {/* Presets Rápidos de Direcciones */}
               <div>
-                <span className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Sugerencias Rápidas de Destinos (Buenos Aires)</span>
+                <span className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Sugerencias Rápidas de Destinos (Buenos Aires)</span>
                 <div className="flex flex-wrap gap-1">
                   {DIRECTORY_PRESETS.map((preset, index) => (
                     <button
                       key={index}
                       type="button"
                       onClick={() => applyPreset(preset)}
-                      className="text-[9px] bg-zinc-900 border border-zinc-800 hover:border-blue-500 hover:text-white text-zinc-400 rounded px-1.5 py-0.5 transition font-mono"
+                      className="text-[9px] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] hover:border-[var(--color-accent)] hover:text-white text-[var(--color-text-muted)] rounded px-1.5 py-0.5 transition font-mono"
                     >
                       📍 {preset.name.split(' (')[0]}
                     </button>
@@ -691,7 +692,7 @@ export default function AdminDashboard({
               </div>
 
               <div>
-                <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Dirección de Entrega *</label>
+                <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Dirección de Entrega *</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -708,13 +709,13 @@ export default function AdminDashboard({
                         void handleLocateAddress();
                       }
                     }}
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                    className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
                   />
                   <button
                     type="button"
                     onClick={() => void handleLocateAddress()}
                     disabled={geocodeLoading || !address.trim()}
-                    className="shrink-0 px-2.5 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-bold uppercase text-zinc-300 hover:border-blue-500 hover:text-blue-300 disabled:opacity-50"
+                    className="shrink-0 px-2.5 py-1.5 rounded bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[10px] font-bold uppercase text-[var(--ink-soft)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
                   >
                     {geocodeLoading ? '...' : 'Ubicar'}
                   </button>
@@ -722,7 +723,7 @@ export default function AdminDashboard({
                 {geocodeMessage && (
                   <p
                     className={`mt-1 text-[10px] font-mono ${
-                      coordsConfirmed ? 'text-emerald-400' : 'text-amber-400'
+                      coordsConfirmed ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'
                     }`}
                   >
                     {coordsConfirmed ? '✓ ' : '⚠ '}
@@ -730,7 +731,7 @@ export default function AdminDashboard({
                   </p>
                 )}
                 {coordsConfirmed && (
-                  <p className="mt-0.5 text-[9px] text-zinc-600 font-mono">
+                  <p className="mt-0.5 text-[9px] text-[var(--color-text-faint)] font-mono">
                     Coordenadas: {lat.toFixed(4)}, {lng.toFixed(4)}
                   </p>
                 )}
@@ -742,20 +743,20 @@ export default function AdminDashboard({
               </div>
 
               <div>
-                <label className="block text-[9px] font-mono tracking-wider text-zinc-500 uppercase mb-1">Indicaciones / Notas</label>
+                <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Indicaciones / Notas</label>
                 <textarea
                   placeholder="Indicaciones para el timbre, ascensor, conserje..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-700"
+                  className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={formLoading}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-[11px] uppercase tracking-wider transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/10"
+                className="w-full bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold py-2 rounded-[var(--radius-posta)] text-[11px] uppercase tracking-wider transition disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {formLoading ? 'Registrando...' : 'Confirmar y Guardar Pedido'}
               </button>
@@ -764,19 +765,22 @@ export default function AdminDashboard({
 
           {/* Listado de pedidos filtrados (HIGH DENSITY STYLE) */}
           {filteredOrders.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 font-mono text-xs">
-              Ningún pedido coincide con los filtros aplicados.
+            <div className="posta-empty">
+              <span className="mono-label block mb-2">Sin resultados</span>
+              <p>Ningún pedido coincide con los filtros aplicados.</p>
             </div>
           ) : (
             filteredOrders.map((order) => {
               const isSelected = order.id === activeOrderId;
-              
-              // Estilos de badges (High Density)
-              let badgeColor = 'bg-zinc-950 text-zinc-500 border-zinc-800';
-              if (order.status === OrderStatus.ASSIGNED) badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-              else if (order.status === OrderStatus.DELIVERING) badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-500/25';
-              else if (order.status === OrderStatus.DELIVERED) badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-              else if (order.status === OrderStatus.CANCELLED) badgeColor = 'bg-red-500/10 text-red-400 border-red-500/20';
+
+              const statusLabel =
+                order.status === 'delivering'
+                  ? '🚲 En Viaje'
+                  : order.status === 'assigned'
+                    ? '✓ Asignado'
+                    : order.status === 'delivered'
+                      ? '✓ Entregado'
+                      : 'En Almacén';
 
               // Deterministic fake stats for telemetry based on order ID
               const batteryValue = Math.floor(45 + (parseInt(order.id.replace(/\D/g, '')) || 42) % 50);
@@ -793,21 +797,19 @@ export default function AdminDashboard({
                   }}
                   className={`p-3.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
                     isSelected
-                      ? 'bg-blue-500/5 border-l-2 border-blue-500 border-t-zinc-800 border-r-zinc-800 border-b-zinc-800'
-                      : 'bg-zinc-950/40 border-zinc-800/80 hover:bg-zinc-800/50'
+                      ? 'bg-[var(--color-accent)]/5 border-l-2 border-[var(--color-accent)] border-t-[var(--surface-border)] border-r-[var(--surface-border)] border-b-[var(--surface-border)]'
+                      : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)]/50'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold text-zinc-500">ID: {order.id}</span>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${badgeColor}`}>
-                      {order.status === 'delivering' ? '🚲 En Viaje' : order.status === 'assigned' ? '✓ Asignado' : order.status === 'delivered' ? '✓ Entregado' : 'En Almacén'}
-                    </span>
+                    <span className="mono-label">ID: {order.id}</span>
+                    <StatusBadge status={order.status} label={statusLabel} />
                   </div>
 
-                  <h4 className="font-bold text-xs lg:text-sm text-zinc-200 mt-2 group-hover:text-white transition">
+                  <h4 className="font-bold text-xs lg:text-sm text-[var(--ink-soft)] mt-2 group-hover:text-white transition">
                     {order.clientName}
                   </h4>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 truncate leading-normal">
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate leading-normal">
                     📍 {order.address}
                   </p>
                   {isAgencyAdmin(userRole) && (() => {
@@ -822,44 +824,44 @@ export default function AdminDashboard({
                   {isAgencyAdmin(userRole) && (
                     <p className="text-[10px] mt-1 font-mono">
                       {order.sellerName ? (
-                        <span className="text-purple-300">🛒 {order.sellerName}</span>
+                        <span className="text-[var(--route-2,var(--color-accent))]">🛒 {order.sellerName}</span>
                       ) : (
-                        <span className="text-amber-500 font-bold">⚠️ Sin vendedor asignado</span>
+                        <span className="text-[var(--color-warn)] font-bold">⚠️ Sin vendedor asignado</span>
                       )}
                     </p>
                   )}
 
                   {/* Telemetry info just like the design! */}
                   {order.status === OrderStatus.DELIVERING ? (
-                    <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-zinc-800/30 text-[9px] text-zinc-500 font-mono">
+                    <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
                       <div className="flex items-center gap-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <span className="text-zinc-400">Activo</span>
+                        <span className="text-[var(--color-text-muted)]">Activo</span>
                       </div>
                       <span>BATERÍA: {batteryValue}%</span>
                       <span>VEL: {speedValue}km/h</span>
                     </div>
                   ) : order.status === OrderStatus.ASSIGNED ? (
-                    <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-zinc-800/30 text-[9px] text-zinc-500 font-mono">
+                    <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
                       <div className="flex items-center gap-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
-                        <span className="text-zinc-400">Preparando</span>
+                        <span className="text-[var(--color-text-muted)]">Preparando</span>
                       </div>
                       <span>Carga asignada</span>
                     </div>
                   ) : null}
 
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-800/30 text-[9px] text-zinc-500 font-mono">
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
                     <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-zinc-600" />
+                      <Clock className="w-3.5 h-3.5 text-[var(--color-text-faint)]" />
                       {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                     {order.repartidorName ? (
-                      <span className="text-blue-400 font-semibold uppercase tracking-wider text-[8px] bg-blue-500/5 border border-blue-500/10 px-1 py-0.2 rounded">
+                      <span className="text-[var(--color-accent)] font-semibold uppercase tracking-wider text-[8px] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 px-1 py-0.2 rounded">
                         🏍️ {order.repartidorName.split(' ')[0]}
                       </span>
                     ) : (
-                      <span className="text-amber-500/90 font-semibold text-[8px]">⚠️ SIN ASIGNAR</span>
+                      <span className="text-[var(--color-warn)] font-semibold text-[8px]">⚠️ SIN ASIGNAR</span>
                     )}
                   </div>
 
@@ -871,7 +873,7 @@ export default function AdminDashboard({
                           e.stopPropagation();
                           setAssigningOrderId(order.id);
                         }}
-                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-[9px] px-2 py-0.5 rounded transition uppercase tracking-wider"
+                        className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[9px] px-2 py-0.5 rounded-[var(--radius-posta)] transition uppercase tracking-wider"
                       >
                         Gestionar
                       </button>
@@ -890,16 +892,16 @@ export default function AdminDashboard({
       }`}>
         
         {/* Mapa Interactivo */}
-        <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-2xl border border-zinc-800 overflow-hidden relative">
+        <div className="flex-1 min-h-[160px] lg:min-h-[250px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
           <div ref={mapFilterRef} className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5 w-44 sm:w-48">
             <button
               type="button"
               onClick={() => setShowMapZones((visible) => !visible)}
               title={showMapZones ? 'Ocultar áreas de entrega' : 'Mostrar áreas de entrega'}
-              className={`w-full flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-[10px] font-semibold ${
+              className={`w-full flex items-center justify-center gap-1.5 rounded-[var(--radius-posta)] px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-[10px] font-semibold ${
                 showMapZones
-                  ? 'bg-blue-600/90 border-blue-500 text-white hover:bg-blue-500'
-                  : 'bg-zinc-950/95 border-zinc-700/80 text-zinc-400 hover:border-zinc-500'
+                  ? 'bg-[var(--color-accent)]/90 border-[var(--color-accent)] text-white hover:brightness-110'
+                  : 'bg-[var(--surface-panel)]/95 border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:border-[var(--color-accent)]'
               }`}
             >
               <Layers className="w-4 h-4 shrink-0" />
@@ -910,63 +912,63 @@ export default function AdminDashboard({
               <button
                 type="button"
                 onClick={() => setMapFilterOpen((open) => !open)}
-                className="w-full flex items-center gap-2 bg-zinc-950/95 backdrop-blur-md border border-zinc-700/80 hover:border-zinc-500 rounded-xl px-2.5 py-2 shadow-lg transition text-left"
+                className="w-full flex items-center gap-2 bg-[var(--surface-panel)]/95 backdrop-blur-md border border-[var(--surface-border)]/80 hover:border-[var(--color-accent)] rounded-[var(--radius-posta)] px-2.5 py-2 shadow-lg transition text-left"
                 aria-expanded={mapFilterOpen}
                 aria-haspopup="listbox"
               >
-                <Users className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="flex-1 min-w-0 text-[11px] font-medium text-zinc-100 truncate">
+                <Users className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
+                <span className="flex-1 min-w-0 text-[11px] font-medium text-[var(--color-text)] truncate">
                   {mapFilterLabel}
                 </span>
                 <ChevronDown
-                  className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-200 ${mapFilterOpen ? 'rotate-180' : ''}`}
+                  className={`w-4 h-4 text-[var(--color-text-muted)] shrink-0 transition-transform duration-200 ${mapFilterOpen ? 'rotate-180' : ''}`}
                 />
               </button>
 
               {mapFilterOpen && (
-                <div className="absolute top-[calc(100%+0.4rem)] left-0 w-full bg-zinc-950/98 backdrop-blur-md border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden">
-                  <div className="px-3 pt-3 pb-2.5 border-b border-zinc-800">
-                    <p className="text-[10px] font-semibold text-zinc-400 mb-2">Repartidores en mapa</p>
+                <div className="absolute top-[calc(100%+0.4rem)] left-0 w-full bg-[var(--surface-panel)]/98 backdrop-blur-md border border-[var(--surface-border)]/80 rounded-[var(--radius-posta)] shadow-2xl overflow-hidden">
+                  <div className="px-3 pt-3 pb-2.5 border-b border-[var(--surface-border)]">
+                    <p className="text-[10px] font-semibold text-[var(--color-text-muted)] mb-2">Repartidores en mapa</p>
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
                         onClick={() => setMapRepartidorIds(new Set(repartidores.map((r) => r.id)))}
-                        className="py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[10px] font-semibold text-zinc-200 transition"
+                        className="py-1.5 rounded-[var(--radius-posta)] bg-[var(--surface-panel-2)] hover:bg-[var(--surface-panel)] text-[10px] font-semibold text-[var(--ink-soft)] transition"
                       >
                         Todos
                       </button>
                       <button
                         type="button"
                         onClick={() => setMapRepartidorIds(new Set())}
-                        className="py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[10px] font-semibold text-zinc-400 transition"
+                        className="py-1.5 rounded-[var(--radius-posta)] bg-[var(--surface-panel-2)] hover:bg-[var(--surface-panel)] text-[10px] font-semibold text-[var(--color-text-muted)] transition"
                       >
                         Ninguno
                       </button>
                     </div>
                   </div>
-                  <ul className="py-1.5 max-h-36 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-700">
+                  <ul className="py-1.5 max-h-36 overflow-y-auto scrollbar-thin">
                     {repartidores.length === 0 ? (
-                      <li className="px-3 py-2 text-[11px] text-zinc-500">No hay repartidores.</li>
+                      <li className="px-3 py-2 text-[11px] text-[var(--color-text-muted)]">No hay repartidores.</li>
                     ) : (
                       repartidores.map((rep) => (
                         <li key={rep.id}>
-                          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-900/80 cursor-pointer transition">
+                          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--surface-panel)]/80 cursor-pointer transition">
                             <input
                               type="checkbox"
                               checked={mapRepartidorIds.has(rep.id)}
                               onChange={() => toggleMapRepartidor(rep.id)}
-                              className="w-3.5 h-3.5 shrink-0 rounded border-zinc-600 bg-zinc-900 text-blue-500 accent-blue-500 focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-0"
+                              className="w-3.5 h-3.5 shrink-0 rounded border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-accent)] accent-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/40 focus:ring-offset-0"
                             />
-                            <span className="flex-1 min-w-0 text-[11px] text-zinc-100 truncate capitalize">
+                            <span className="flex-1 min-w-0 text-[11px] text-[var(--color-text)] truncate capitalize">
                               {rep.name}
                             </span>
                             {rep.currentLocation ? (
                               <span
-                                className="shrink-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/20"
+                                className="shrink-0 w-2 h-2 rounded-full bg-[var(--color-ok)] ring-2 ring-[var(--color-ok)]/20"
                                 title="GPS activo"
                               />
                             ) : (
-                              <span className="shrink-0 text-[9px] text-zinc-600" title="Sin GPS">
+                              <span className="shrink-0 text-[9px] text-[var(--color-text-faint)]" title="Sin GPS">
                                 off
                               </span>
                             )}
@@ -981,7 +983,7 @@ export default function AdminDashboard({
           </div>
           <Suspense
             fallback={
-              <div className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-500 text-xs font-mono">
+              <div className="w-full h-full flex items-center justify-center bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] text-xs font-mono">
                 Cargando mapa…
               </div>
             }
@@ -1001,19 +1003,19 @@ export default function AdminDashboard({
         </div>
 
         {/* Panel Inferior: Detalles de pedido activo o visor de repartidores */}
-        <div className="h-[190px] lg:h-[280px] shrink-0 bg-zinc-900/30 border border-zinc-800 rounded-2xl p-4 lg:p-5 overflow-hidden flex flex-col">
+        <div className="h-[190px] lg:h-[280px] shrink-0 posta-surface p-4 lg:p-5 overflow-hidden flex flex-col">
           {selectedOrder ? (
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left scrollbar-thin scrollbar-thumb-zinc-800">
-              <div className="flex items-start justify-between border-b border-zinc-800 pb-2">
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left scrollbar-thin">
+              <div className="flex items-start justify-between border-b border-[var(--surface-border)] pb-2">
                 <div>
-                  <h3 className="font-bold text-xs lg:text-sm text-zinc-100 flex items-center gap-1.5 uppercase font-mono tracking-wider">
+                  <h3 className="font-bold text-xs lg:text-sm text-[var(--color-text)] flex items-center gap-1.5 uppercase font-mono tracking-wider">
                     📦 Envío {selectedOrder.id}
                   </h3>
-                  <p className="text-[10px] text-zinc-400 font-sans mt-0.5">Destinatario: {selectedOrder.clientName}</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] font-sans mt-0.5">Destinatario: {selectedOrder.clientName}</p>
                 </div>
                 <button
                   onClick={() => onSelectOrder(null)}
-                  className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 hover:text-zinc-300"
+                  className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
                 >
                   [Cerrar]
                 </button>
@@ -1023,19 +1025,19 @@ export default function AdminDashboard({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs lg:text-sm">
                 {/* Info Cliente */}
                 <div className="space-y-1">
-                  <p className="flex items-center gap-1.5 text-zinc-300 text-[11px]">
-                    <MapPin className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                    <span className="font-semibold text-zinc-400">Dirección:</span> {selectedOrder.address}
+                  <p className="flex items-center gap-1.5 text-[var(--ink-soft)] text-[11px]">
+                    <MapPin className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
+                    <span className="font-semibold text-[var(--color-text-muted)]">Dirección:</span> {selectedOrder.address}
                   </p>
                   {selectedOrder.clientPhone && (
-                    <p className="flex items-center gap-1.5 text-zinc-300 text-[11px]">
-                      <Phone className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                      <span className="font-semibold text-zinc-400">Teléfono:</span> {selectedOrder.clientPhone}
+                    <p className="flex items-center gap-1.5 text-[var(--ink-soft)] text-[11px]">
+                      <Phone className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
+                      <span className="font-semibold text-[var(--color-text-muted)]">Teléfono:</span> {selectedOrder.clientPhone}
                     </p>
                   )}
                   {selectedOrder.notes && (
-                    <p className="flex items-start gap-1.5 text-zinc-400 bg-zinc-950 border border-zinc-800/80 p-2 rounded mt-1 text-[10px] font-sans">
-                      <FileText className="w-3 h-3 text-zinc-500 shrink-0 mt-0.5" />
+                    <p className="flex items-start gap-1.5 text-[var(--color-text-muted)] bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 p-2 rounded mt-1 text-[10px] font-sans">
+                      <FileText className="w-3 h-3 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
                       <span>{selectedOrder.notes}</span>
                     </p>
                   )}
@@ -1045,13 +1047,13 @@ export default function AdminDashboard({
                 <div className="space-y-2">
                   {isAgencyAdmin(userRole) && (
                     <div className="flex items-center gap-2 text-[11px]">
-                      <span className="font-semibold text-zinc-400">Vendedor / tienda:</span>
+                      <span className="font-semibold text-[var(--color-text-muted)]">Vendedor / tienda:</span>
                       {selectedOrder.sellerName ? (
-                        <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
+                        <span className="bg-[var(--color-accent)]/10 text-[var(--route-2,var(--color-accent))] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
                           🛒 {selectedOrder.sellerName}
                         </span>
                       ) : (
-                        <span className="text-amber-500 font-bold font-mono text-[10px] uppercase tracking-wider bg-amber-500/5 border border-amber-500/10 px-1.5 py-0.5 rounded">
+                        <span className="text-[var(--color-warn)] font-bold font-mono text-[10px] uppercase tracking-wider bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/10 px-1.5 py-0.5 rounded">
                           SIN VENDEDOR
                         </span>
                       )}
@@ -1059,13 +1061,13 @@ export default function AdminDashboard({
                   )}
 
                   <div className="flex items-center gap-2 text-[11px]">
-                    <span className="font-semibold text-zinc-400">Repartidor asignado:</span>
+                    <span className="font-semibold text-[var(--color-text-muted)]">Repartidor asignado:</span>
                     {selectedOrder.repartidorName ? (
-                      <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
+                      <span className="bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
                         🏍️ {selectedOrder.repartidorName}
                       </span>
                     ) : (
-                      <span className="text-amber-500 font-bold font-mono text-[10px] uppercase tracking-wider bg-amber-500/5 border border-amber-500/10 px-1.5 py-0.5 rounded">SIN ASIGNAR</span>
+                      <span className="text-[var(--color-warn)] font-bold font-mono text-[10px] uppercase tracking-wider bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/10 px-1.5 py-0.5 rounded">SIN ASIGNAR</span>
                     )}
                   </div>
 
@@ -1074,12 +1076,12 @@ export default function AdminDashboard({
                     onAssignOrderSeller &&
                     selectedOrder.status === OrderStatus.PENDING &&
                     (assigningOrderId === selectedOrder.id || !selectedOrder.sellerId) && (
-                      <div className="bg-purple-950/20 border border-purple-900/30 p-2 rounded space-y-1">
-                        <p className="text-[9px] font-mono font-bold uppercase text-purple-300">
+                      <div className="bg-[var(--color-accent)]/8 border border-[var(--color-accent)]/20 p-2 rounded space-y-1">
+                        <p className="text-[9px] font-mono font-bold uppercase text-[var(--route-2,var(--color-accent))]">
                           Asignar envío a vendedor:
                         </p>
                         {sellers.length === 0 ? (
-                          <p className="text-[9px] text-zinc-500">
+                          <p className="text-[9px] text-[var(--color-text-muted)]">
                             Creá primero un vendedor en el panel superior.
                           </p>
                         ) : (
@@ -1095,7 +1097,7 @@ export default function AdminDashboard({
                                 void showAlert({ title: 'Error al asignar', message, variant: 'error' });
                               }
                             }}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded p-1 text-[11px] text-zinc-300 focus:outline-none"
+                            className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-1 text-[11px] text-[var(--ink-soft)] focus:outline-none"
                           >
                             <option value="" disabled>
                               Seleccionar vendedor...
@@ -1113,17 +1115,17 @@ export default function AdminDashboard({
                    {/* Selector de Asignación de repartidor */}
                   {(selectedOrder.status === OrderStatus.PENDING || assigningOrderId === selectedOrder.id) && (
                     userRole === UserRole.STORE_ADMIN ? (
-                      <div className="bg-blue-950/20 border border-blue-900/30 p-2.5 rounded space-y-1">
-                        <p className="text-[10px] font-bold text-blue-400 flex items-center gap-1 uppercase font-mono">
+                      <div className="posta-chip-accent border border-[var(--color-accent)]/25 p-2.5 rounded space-y-1">
+                        <p className="text-[10px] font-bold text-[var(--color-accent)] flex items-center gap-1 uppercase font-mono">
                           ⚙️ Coordinado por Logística
                         </p>
-                        <p className="text-[9px] text-zinc-400 leading-normal font-sans">
+                        <p className="text-[9px] text-[var(--color-text-muted)] leading-normal font-sans">
                           La asignación de repartidores y el ruteo están a cargo de la administración de logística de envíos.
                         </p>
                       </div>
                     ) : (
-                      <div className="bg-zinc-950 border border-zinc-800 p-2 rounded space-y-1">
-                        <p className="text-[9px] font-mono font-bold uppercase text-zinc-500">Asignar repartidor al viaje:</p>
+                      <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] p-2 rounded space-y-1">
+                        <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)]">Asignar repartidor al viaje:</p>
                         {(() => {
                           const orderZone = findZoneForPoint(selectedOrder.lat, selectedOrder.lng);
                           const suggestedRep = orderZone
@@ -1132,13 +1134,13 @@ export default function AdminDashboard({
                           return (
                             <>
                               {orderZone && (
-                                <p className="text-[9px] font-mono text-zinc-400">
+                                <p className="text-[9px] font-mono text-[var(--color-text-muted)]">
                                   Zona del pedido:{' '}
                                   <span style={{ color: orderZone.color }} className="font-bold">
                                     {orderZone.name}
                                   </span>
                                   {suggestedRep && (
-                                    <span className="text-blue-400"> · Sugerido: {suggestedRep.name}</span>
+                                    <span className="text-[var(--color-accent)]"> · Sugerido: {suggestedRep.name}</span>
                                   )}
                                 </p>
                               )}
@@ -1151,7 +1153,7 @@ export default function AdminDashboard({
                                     await onUpdateOrderStatus(selectedOrder.id, OrderStatus.ASSIGNED, e.target.value, 'Pedido asignado desde panel de control');
                                     setAssigningOrderId(null);
                                   }}
-                                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded p-1 text-[11px] text-zinc-300 focus:outline-none"
+                                  className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-1 text-[11px] text-[var(--ink-soft)] focus:outline-none"
                                 >
                                   <option value="" disabled>
                                     Seleccionar...
@@ -1177,7 +1179,7 @@ export default function AdminDashboard({
                     <div className="flex gap-2">
                       <button
                         onClick={() => onUpdateOrderStatus(selectedOrder.id, OrderStatus.CANCELLED, undefined, 'Cancelado manualmente por el administrador')}
-                        className="flex-1 text-center py-1 border border-red-500/20 hover:border-red-500 bg-red-500/5 text-red-400 font-bold text-[10px] uppercase tracking-wider rounded transition"
+                        className="flex-1 text-center py-1 border border-[var(--color-danger)]/20 hover:border-[var(--color-danger)] bg-[var(--color-danger)]/5 text-[var(--color-danger)] font-bold text-[10px] uppercase tracking-wider rounded transition"
                       >
                         Cancelar Envío
                       </button>
@@ -1187,15 +1189,15 @@ export default function AdminDashboard({
               </div>
 
               {/* Historial de Eventos del Pedido */}
-              <div className="border-t border-zinc-800 pt-2.5">
-                <p className="text-[9px] font-mono font-bold uppercase text-zinc-500 mb-1.5">Bitácora de Eventos y Estados</p>
+              <div className="border-t border-[var(--surface-border)] pt-2.5">
+                <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)] mb-1.5">Bitácora de Eventos y Estados</p>
                 <div className="space-y-1">
                   {selectedOrder.history.map((event, index) => (
-                    <div key={index} className="flex items-start gap-2 text-[10px] text-zinc-400 font-mono">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
+                    <div key={index} className="flex items-start gap-2 text-[10px] text-[var(--color-text-muted)] font-mono">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-accent)] mt-0.5 shrink-0" />
                       <div>
-                        <span className="font-bold text-zinc-300">[{event.status.toUpperCase()}]</span> - {event.comment || 'Cambio de estado'}
-                        <span className="text-zinc-500 text-[9px] block">
+                        <span className="font-bold text-[var(--ink-soft)]">[{event.status.toUpperCase()}]</span> - {event.comment || 'Cambio de estado'}
+                        <span className="text-[var(--color-text-muted)] text-[9px] block">
                           Por: {event.updatedBy} | {new Date(event.timestamp).toLocaleString()}
                         </span>
                       </div>
@@ -1205,10 +1207,10 @@ export default function AdminDashboard({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-500 font-mono p-4">
-              <Navigation className="w-6 h-6 text-zinc-700 mb-1.5 animate-pulse" />
-              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Visor de Envíos Lupo</p>
-              <p className="text-[10px] text-zinc-600 mt-0.5 max-w-sm">
+            <div className="posta-empty flex-1 flex flex-col items-center justify-center p-4">
+              <Navigation className="w-6 h-6 text-[var(--color-text-faint)] mb-1.5 animate-pulse" />
+              <p className="text-[11px] font-display font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Visor de Envíos Posta</p>
+              <p className="text-[10px] text-[var(--color-text-faint)] mt-0.5 max-w-sm">
                 Haz clic en cualquier pedido en la lista o en el mapa para auditar su trayectoria GPS y bitácora en tiempo real.
               </p>
             </div>

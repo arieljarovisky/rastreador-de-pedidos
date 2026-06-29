@@ -7,6 +7,8 @@ import { useEffect, useRef } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { getDeliveryZone } from '../config/deliveryZones.js';
 import { fetchDrivingRoute } from '../utils/route.js';
+import { getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
+import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 import * as L from 'leaflet';
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
@@ -85,19 +87,15 @@ const createSvgIcon = (color: string, iconText: string, glow: boolean = false) =
   });
 };
 
-const createRepartidorIcon = (name: string) => {
-  const initial = name.charAt(0).toUpperCase();
+const createRepartidorIcon = (name: string, mapColors: ReturnType<typeof getPostaMapColors>) => {
   return L.divIcon({
     html: `
-      <div class="relative w-9 h-9 flex items-center justify-center filter drop-shadow-[0_2px_5px_rgba(0,0,0,0.5)]">
-        <!-- Outer Glowing Ring -->
-        <div class="absolute w-full h-full rounded-full bg-sky-500 opacity-25 animate-ping"></div>
-        <!-- Inner Ring -->
-        <div class="w-8 h-8 rounded-full bg-slate-800 border-2 border-sky-400 flex items-center justify-center text-sky-400 font-bold text-xs font-mono">
+      <div class="relative w-9 h-9 flex items-center justify-center filter drop-shadow-[0_2px_5px_rgba(0,0,0,0.25)]">
+        <div class="absolute w-full h-full rounded-full opacity-25 animate-ping" style="background:${mapColors.departure}"></div>
+        <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-xs font-mono" style="background:var(--panel);border-color:${mapColors.departure};color:${mapColors.departure}">
           🏍️
         </div>
-        <!-- Tooltip Label -->
-        <div class="absolute -bottom-6 bg-slate-900 border border-slate-700 text-white font-mono font-medium text-[9px] px-1 rounded shadow-md whitespace-nowrap">
+        <div class="absolute -bottom-6 border font-mono font-medium text-[9px] px-1 rounded shadow-md whitespace-nowrap" style="background:var(--panel);border-color:var(--line);color:var(--text)">
           ${name.split(' ')[0]}
         </div>
       </div>
@@ -121,8 +119,13 @@ export default function MapComponent({
   showDepartureHub = true,
   showDeliveryZones = true,
 }: MapComponentProps) {
+  const theme = usePostaTheme();
+  const mapColors = getPostaMapColors(theme);
+  const statusColors = getPostaStatusColors(theme);
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markersRef = useRef<{ [key: string]: L.Marker }>({});
   const polylinesRef = useRef<{ [key: string]: L.Polyline }>({});
   const zoneLayersRef = useRef<L.Rectangle[]>([]);
@@ -173,8 +176,8 @@ export default function MapComponent({
         userInteractedRef.current = true;
       });
 
-      // Capa de mapa (CartoDB Dark Matter o OpenStreetMap de noche)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // Capa base — oscura o clara según tema Posta
+      tileLayerRef.current = L.tileLayer(MAP_TILE_URLS[readPostaTheme()], {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 19,
@@ -196,6 +199,11 @@ export default function MapComponent({
     };
   }, [interactive]);
 
+  // Cambiar tiles al alternar modo claro / oscuro
+  useEffect(() => {
+    tileLayerRef.current?.setUrl(MAP_TILE_URLS[theme]);
+  }, [theme]);
+
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -216,11 +224,11 @@ export default function MapComponent({
     const hubIcon = L.divIcon({
       html: `
         <div class="relative w-10 h-10 flex items-center justify-center filter drop-shadow-md">
-          <div class="absolute w-8 h-8 rounded-full bg-indigo-500 opacity-20 animate-pulse"></div>
-          <div class="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center text-white text-sm shadow">
+          <div class="absolute w-8 h-8 rounded-full animate-pulse" style="background:${mapColors.departureRing}"></div>
+          <div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-white text-sm shadow" style="background:${mapColors.departure}">
             🏬
           </div>
-          <div class="absolute -bottom-6 bg-indigo-900 border border-indigo-700 text-white font-mono font-bold text-[9px] px-1 rounded shadow-md whitespace-nowrap">
+          <div class="absolute -bottom-6 font-mono font-bold text-[9px] px-1 rounded shadow-md whitespace-nowrap" style="background:var(--panel);border:1px solid var(--line);color:var(--text)">
             SALIDA
           </div>
         </div>
@@ -233,12 +241,12 @@ export default function MapComponent({
     hubMarkerRef.current = L.marker([departurePoint.lat, departurePoint.lng], { icon: hubIcon })
       .addTo(map)
       .bindPopup(`
-        <div class="text-zinc-100 font-sans p-1 text-[11px]">
-          <h4 class="font-bold text-xs text-indigo-400">Punto de salida</h4>
-          <p class="text-[10px] text-zinc-400 mt-0.5">📍 ${departurePoint.address}</p>
+        <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
+          <h4 class="font-bold text-xs" style="color:var(--accent)">Punto de salida</h4>
+          <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">📍 ${departurePoint.address}</p>
         </div>
       `);
-  }, [departurePoint, showDepartureHub]);
+  }, [departurePoint, showDepartureHub, mapColors]);
 
   // Zonas de entrega asignadas a repartidores
   useEffect(() => {
@@ -347,56 +355,57 @@ export default function MapComponent({
       const isSelected = order.id === activeOrderId;
 
       // Color según estado del pedido
-      let color = '#94a3b8'; // Slate (Pending)
+      let color: string = statusColors.pending;
       let label = 'P';
       let glow = false;
 
       if (order.status === OrderStatus.ASSIGNED) {
-        color = '#a855f7'; // Purple (Assigned)
+        color = statusColors.assigned;
         label = 'A';
       } else if (order.status === OrderStatus.DELIVERING) {
-        color = '#f59e0b'; // Amber (Delivering)
+        color = statusColors.delivering;
         label = 'E';
         glow = true;
       } else if (order.status === OrderStatus.DELIVERED) {
-        color = '#10b981'; // Emerald (Delivered)
+        color = statusColors.delivered;
         label = '✓';
       } else if (order.status === OrderStatus.CANCELLED) {
-        color = '#ef4444'; // Red (Cancelled)
+        color = statusColors.cancelled;
         label = '✕';
       }
 
-      // Si es el activo, podemos hacerlo brillar o destacar
       if (isSelected) {
+        color = mapColors.destination;
         glow = true;
       }
 
       const icon = createSvgIcon(color, label, glow);
+      const popupHtml = `
+            <div class="font-sans p-1 text-[11px] max-w-[200px]" style="color:var(--text)">
+              <div class="flex items-center gap-1 font-bold border-b pb-1 mb-1" style="color:var(--text-muted);border-color:var(--line)">
+                <span>📦 ${order.id}</span>
+                <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] text-white font-bold uppercase tracking-wider font-mono" style="background-color:${color}">
+                  ${order.status.toUpperCase()}
+                </span>
+              </div>
+              <p class="font-bold mt-1" style="color:var(--text)">${order.clientName}</p>
+              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">📍 ${order.address}</p>
+              ${order.repartidorName ? `<p class="mt-1.5 font-bold text-[10px] font-mono" style="color:var(--accent)">🏍️ REPARTIDOR: ${order.repartidorName.toUpperCase()}</p>` : ''}
+              <button id="btn-map-select-${order.id}" class="mt-2 w-full text-center py-1 text-white rounded text-[9px] font-bold uppercase tracking-wider transition cursor-pointer font-mono" style="background:${mapColors.destination}">
+                Ver Detalles
+              </button>
+            </div>
+          `;
 
       if (markersRef.current[order.id]) {
-        // Actualizar existente
         markersRef.current[order.id].setLatLng([order.lat, order.lng]);
         markersRef.current[order.id].setIcon(icon);
+        markersRef.current[order.id].setPopupContent(popupHtml);
       } else {
         // Crear nuevo
         const marker = L.marker([order.lat, order.lng], { icon })
           .addTo(map)
-          .bindPopup(`
-            <div class="text-zinc-100 font-sans p-1 text-[11px] max-w-[200px]">
-              <div class="flex items-center gap-1 font-bold text-zinc-300 border-b border-zinc-800 pb-1 mb-1">
-                <span>📦 ${order.id}</span>
-                <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] text-white font-bold uppercase tracking-wider" style="background-color: ${color}">
-                  ${order.status.toUpperCase()}
-                </span>
-              </div>
-              <p class="font-bold text-zinc-200 mt-1">${order.clientName}</p>
-              <p class="text-zinc-400 text-[10px] mt-0.5">📍 ${order.address}</p>
-              ${order.repartidorName ? `<p class="mt-1.5 font-bold text-blue-400 text-[10px] font-mono">🏍️ REPARTIDOR: ${order.repartidorName.toUpperCase()}</p>` : ''}
-              <button id="btn-map-select-${order.id}" class="mt-2 w-full text-center py-1 bg-blue-600 text-white rounded text-[9px] font-bold uppercase tracking-wider hover:bg-blue-500 transition cursor-pointer">
-                Ver Detalles
-              </button>
-            </div>
-          `);
+          .bindPopup(popupHtml);
 
         // Vincular popup event para click
         marker.on('popupopen', () => {
@@ -426,18 +435,19 @@ export default function MapComponent({
 
     pickupPoints.forEach((point) => {
       const markerId = `pickup_${point.id}`;
-      const icon = createSvgIcon('#10b981', 'C', false);
+      const icon = createSvgIcon(mapColors.pickup, 'C', false);
 
       if (markersRef.current[markerId]) {
         markersRef.current[markerId].setLatLng([point.lat, point.lng]);
+        markersRef.current[markerId].setIcon(icon);
       } else {
         const marker = L.marker([point.lat, point.lng], { icon })
           .addTo(map)
           .bindPopup(`
-            <div class="text-zinc-100 font-sans p-1 text-[11px]">
-              <h4 class="font-bold text-emerald-400">🛒 ${point.label}</h4>
-              ${point.sellerName ? `<p class="text-[10px] text-purple-300">${point.sellerName}</p>` : ''}
-              <p class="text-zinc-400 text-[10px] mt-0.5">📍 ${point.address}</p>
+            <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
+              <h4 class="font-bold" style="color:var(--ok)">🛒 ${point.label}</h4>
+              ${point.sellerName ? `<p class="text-[10px]" style="color:var(--accent)">${point.sellerName}</p>` : ''}
+              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">📍 ${point.address}</p>
             </div>
           `);
         markersRef.current[markerId] = marker;
@@ -458,25 +468,26 @@ export default function MapComponent({
     repartidores.forEach((rep) => {
       if (!rep.currentLocation) return;
       const markerId = `rep_${rep.id}`;
-      const icon = createRepartidorIcon(rep.name);
+      const icon = createRepartidorIcon(rep.name, mapColors);
+      const repPopup = `
+            <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
+              <h4 class="font-bold uppercase tracking-wider font-mono" style="color:var(--accent)">🏍️ ${rep.name}</h4>
+              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">Último reporte: ${new Date(rep.currentLocation.timestamp).toLocaleTimeString()}</p>
+            </div>
+          `;
 
       if (markersRef.current[markerId]) {
-        // Actualizar posición del repartidor con animación suave de Leaflet
         markersRef.current[markerId].setLatLng([rep.currentLocation.lat, rep.currentLocation.lng]);
+        markersRef.current[markerId].setIcon(icon);
+        markersRef.current[markerId].setPopupContent(repPopup);
       } else {
-        // Crear nuevo marcador de repartidor
         const marker = L.marker([rep.currentLocation.lat, rep.currentLocation.lng], { icon })
           .addTo(map)
-          .bindPopup(`
-            <div class="text-zinc-100 font-sans p-1 text-[11px]">
-              <h4 class="font-bold text-blue-400 uppercase tracking-wider font-mono">🏍️ ${rep.name}</h4>
-              <p class="text-zinc-400 text-[10px] mt-0.5">Último reporte: ${new Date(rep.currentLocation.timestamp).toLocaleTimeString()}</p>
-            </div>
-          `);
+          .bindPopup(repPopup);
         markersRef.current[markerId] = marker;
       }
     });
-  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation]);
+  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation, theme, mapColors, statusColors]);
 
   // Ruta por calles hacia el próximo destino (OSRM)
   useEffect(() => {
@@ -513,7 +524,7 @@ export default function MapComponent({
     void fetchDrivingRoute(repPos, dest).then((pathCoords) => {
       if (cancelled || !mapInstanceRef.current) return;
       upsertPolyline(mapInstanceRef.current, polylinesRef.current, `${order.id}__route`, pathCoords, {
-        color: '#3b82f6',
+        color: mapColors.route,
         weight: 4,
         opacity: 0.88,
       });
@@ -522,7 +533,7 @@ export default function MapComponent({
     return () => {
       cancelled = true;
     };
-  }, [activeOrderId, orders, repartidores, liveRepartidorLocation]);
+  }, [activeOrderId, orders, repartidores, liveRepartidorLocation, theme, mapColors.route]);
 
   // Centrar solo al elegir un pedido
   useEffect(() => {
@@ -581,13 +592,12 @@ export default function MapComponent({
   }, [orders.length, activeOrderId]);
 
   return (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
-      {/* Indicador de mapa oscuro */}
-      <div className="absolute top-3 left-12 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1 rounded text-[9px] font-mono border border-zinc-800 text-zinc-400 uppercase tracking-wider font-bold">
-        🛰️ MAPA REALTIME LUPO
+    <div className="relative w-full h-full rounded-lg overflow-hidden border border-[var(--surface-border)] shadow-2xl">
+      <div className="absolute top-3 left-12 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1 rounded-[5px] text-[9px] font-mono border border-[var(--surface-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-bold">
+        🛰️ MAPA REALTIME POSTA
       </div>
-      <div className="absolute bottom-3 left-3 z-[1000] bg-zinc-950/90 backdrop-blur-sm px-2 py-1.5 rounded text-[8px] font-mono border border-zinc-800 text-zinc-500">
-        <div><span className="inline-block w-3 h-0.5 bg-blue-500 mr-1 align-middle" /> Ruta al próximo destino</div>
+      <div className="absolute bottom-3 left-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1.5 rounded-[5px] text-[8px] font-mono border border-[var(--surface-border)] text-[var(--color-text-faint)]">
+        <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta al próximo destino</div>
       </div>
       <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
     </div>

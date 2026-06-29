@@ -1,24 +1,24 @@
 {
-  "short_name": "Lupo",
-  "name": "Lupo | Rastreo de Pedidos",
+  "short_name": "Posta",
+  "name": "Posta | Rastreo de Pedidos",
   "description": "PWA para visualización y seguimiento de envíos en tiempo real",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
-      "type": "image/png",
+      "src": "/icon-posta.svg",
+      "type": "image/svg+xml",
       "sizes": "512x512",
       "purpose": "any maskable"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063822.png",
-      "type": "image/png",
+      "src": "/icon-posta.svg",
+      "type": "image/svg+xml",
       "sizes": "192x192",
       "purpose": "any maskable"
     }
   ],
   "start_url": "/",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#0B0F18",
+  "theme_color": "#0B0F18",
   "display": "standalone",
   "orientation": "portrait",
   "scope": "/"

@@ -11,7 +11,11 @@ import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
-import { LogOut, Wifi, WifiOff, Bell, Settings, LayoutDashboard } from 'lucide-react';
+import { LogOut, Bell, Settings, LayoutDashboard } from 'lucide-react';
+import PostaLogo from './components/ui/PostaLogo.tsx';
+import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
+import { applyPostaTheme, readPostaTheme, type PostaTheme } from './theme/usePostaTheme.ts';
+import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
@@ -84,6 +88,15 @@ export default function App() {
   }, [showAlert]);
 
   const [notifsSidebarOpen, setNotifsSidebarOpen] = useState(readNotifsSidebarOpen);
+  const [theme, setThemeState] = useState<PostaTheme>(() => readPostaTheme());
+
+  const toggleTheme = useCallback(() => {
+    setThemeState((prev) => {
+      const next: PostaTheme = prev === 'dark' ? 'paper' : 'dark';
+      applyPostaTheme(next);
+      return next;
+    });
+  }, []);
 
   const toggleNotifsSidebar = useCallback(() => {
     setNotifsSidebarOpen((prev) => {
@@ -827,12 +840,12 @@ export default function App() {
 
   if (loading && !user) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-4">
-        <svg className="animate-spin h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24">
+      <div className="min-h-screen bg-[var(--surface-bg)] flex flex-col items-center justify-center p-4" data-theme="dark">
+        <svg className="animate-spin h-6 w-6 text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
-        <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-wider font-bold mt-3">Sincronizando Sistema...</span>
+        <span className="text-[var(--color-text-muted)] font-mono text-[10px] uppercase tracking-wider font-bold mt-3">Sincronizando Sistema...</span>
       </div>
     );
   }
@@ -849,34 +862,21 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans select-none overflow-hidden h-screen">
+    <div className="min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden h-screen">
       
       {/* NAVEGACIÓN Y CABECERA PRINCIPAL (HIGH DENSITY STYLE) */}
-      <header className="h-16 lg:h-[4.5rem] flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-900/50 shrink-0 relative z-40">
+      <header className="h-16 lg:h-[4.5rem] flex items-center justify-between px-6 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40">
         <div className="flex items-center gap-4">
-          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white shadow-md shadow-blue-600/20 text-sm lg:text-base">
-            LP
-          </div>
+          <PostaLogo size={36} variant={theme === 'paper' ? 'paper' : 'dark'} className="lg:[&_svg]:w-10 lg:[&_svg]:h-10" />
           <div>
-            <h1 className="text-sm lg:text-lg font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
-              LupoEnvios
-              <span className="text-zinc-500 font-normal text-xs lg:text-sm">v2.4.0</span>
-              {isOnline ? (
-                <span className={`flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded font-bold border ${
-                  wsConnected
-                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                    : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-                }`}>
-                  <Wifi className="w-2.5 h-2.5 shrink-0" /> {wsConnected ? 'LIVE' : 'ONLINE'}
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-[9px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded font-bold">
-                  <WifiOff className="w-2.5 h-2.5 text-red-400 shrink-0" /> OFFLINE
-                </span>
-              )}
+            <h1 className="text-sm lg:text-lg font-display font-bold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2 flex-wrap">
+              Posta
+              <span className="text-[var(--color-text-muted)] font-sans font-normal text-xs lg:text-sm">v2.4.0</span>
+              <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} />
+              <ThemeToggle theme={theme} onToggle={toggleTheme} />
             </h1>
-            <p className="text-[10px] text-zinc-500 font-mono">
-              Operador: <span className="text-zinc-300 font-bold">{user.name}</span>
+            <p className="text-[10px] text-[var(--color-text-muted)] font-mono uppercase">
+              Operador: <span className="text-[var(--color-text)] font-bold">{user.name}</span>
             </p>
           </div>
         </div>
@@ -884,20 +884,20 @@ export default function App() {
         {/* METRICS & QUICK CONTROLS (HIGH DENSITY) */}
         <div className="flex gap-4 md:gap-8 items-center">
           <div className="hidden sm:flex flex-col items-end">
-            <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-mono">Pedidos Activos</span>
-            <span className="text-base lg:text-xl font-mono text-emerald-400 font-semibold leading-none mt-0.5">
+            <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Pedidos Activos</span>
+            <span className="text-base lg:text-xl font-mono text-[var(--color-ok)] font-semibold leading-none mt-0.5">
               {orders.filter(o => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED).length}
             </span>
           </div>
           
           <div className="hidden sm:flex flex-col items-end">
-            <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-mono">Repartidores</span>
-            <span className="text-base lg:text-xl font-mono text-blue-400 font-semibold leading-none mt-0.5">
+            <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Repartidores</span>
+            <span className="text-base lg:text-xl font-mono text-[var(--color-accent)] font-semibold leading-none mt-0.5">
               {String(repartidores.length).padStart(2, '0')}
             </span>
           </div>
 
-          <div className="hidden sm:block h-8 w-[1px] bg-zinc-800 mx-1"></div>
+          <div className="hidden sm:block h-8 w-[1px] bg-[var(--surface-border)] mx-1"></div>
 
           <div className="flex items-center gap-3">
             <div className="hidden xl:flex items-center gap-1">
@@ -907,10 +907,10 @@ export default function App() {
                     type="button"
                     onClick={() => setMobileTab('dashboard')}
                     title="Panel principal y mapa"
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                       mobileTab !== 'settings'
-                        ? 'bg-blue-950/40 border-blue-800 text-blue-300'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                        ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
+                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
                     <LayoutDashboard className="w-3.5 h-3.5" /> Panel
@@ -919,10 +919,10 @@ export default function App() {
                     type="button"
                     onClick={() => setMobileTab('settings')}
                     title="Configuración"
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                       mobileTab === 'settings'
-                        ? 'bg-zinc-800 border-zinc-600 text-zinc-100'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                        ? 'bg-[var(--surface-panel-2)] border-[var(--color-text-muted)] text-[var(--color-text)]'
+                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
                     <Settings className="w-3.5 h-3.5" /> Config
@@ -933,15 +933,15 @@ export default function App() {
                 type="button"
                 onClick={toggleNotifsSidebar}
                 title={notifsSidebarOpen ? 'Ocultar panel de alertas' : 'Mostrar panel de alertas'}
-                className={`relative flex items-center gap-1 px-2.5 py-1.5 rounded border font-bold text-[11px] transition ${
+                className={`relative flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                   notifsSidebarOpen
-                    ? 'bg-purple-950/40 border-purple-800 text-purple-300'
-                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
+                    : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
                 <Bell className="w-3.5 h-3.5" /> Alertas
                 {!notifsSidebarOpen && unreadNotifsCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-blue-500 text-zinc-950 font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center border border-[#09090b]">
+                  <span className="absolute -top-1.5 -right-1.5 bg-[var(--color-cta)] text-[#F6F0E4] font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center border border-[var(--surface-bg)]">
                     {unreadNotifsCount}
                   </span>
                 )}
@@ -949,28 +949,28 @@ export default function App() {
             </div>
 
             <div
-              className="relative cursor-pointer p-1.5 hover:bg-zinc-800/50 rounded-2xl transition xl:hidden"
+              className="relative cursor-pointer p-1.5 hover:bg-[var(--surface-panel-2)] rounded-2xl transition xl:hidden"
               title="Ver notificaciones"
               onClick={() => setMobileTab('notifications')}
               onKeyDown={(e) => e.key === 'Enter' && setMobileTab('notifications')}
               role="button"
               tabIndex={0}
             >
-              <Bell className={`w-4 h-4 text-zinc-400 hover:text-white transition ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
+              <Bell className={`w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
               {unreadNotifsCount > 0 && (
-                <span className="absolute top-0 right-0 bg-blue-500 text-zinc-950 font-extrabold text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-[#09090b]">
+                <span className="absolute top-0 right-0 bg-[var(--color-cta)] text-[#F6F0E4] font-extrabold text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-[var(--surface-bg)]">
                   {unreadNotifsCount}
                 </span>
               )}
             </div>
 
             <div className="hidden md:block text-right">
-              <p className="text-xs lg:text-sm font-medium text-zinc-200">{user.name}</p>
-              <p className="text-[9px] text-zinc-500 uppercase font-mono">{user.role}</p>
+              <p className="text-xs lg:text-sm font-medium text-[var(--color-text)]">{user.name}</p>
+              <p className="text-[9px] text-[var(--color-text-muted)] uppercase font-mono">{user.role}</p>
             </div>
 
             {/* Avatar circle */}
-            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs lg:text-sm font-bold text-zinc-300 uppercase shrink-0">
+            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] flex items-center justify-center text-xs lg:text-sm font-bold text-[var(--color-text-muted)] uppercase shrink-0">
               {user.name.slice(0, 2)}
             </div>
 
@@ -978,7 +978,7 @@ export default function App() {
               onClick={handleLogout}
               id="btn-logout"
               title="Cerrar sesión"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-zinc-950 hover:bg-red-950/20 border border-zinc-800 hover:border-red-900 text-zinc-400 hover:text-red-400 font-bold text-[11px] transition"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] bg-[var(--surface-panel-2)] hover:bg-[var(--color-danger)]/10 border border-[var(--surface-border)] hover:border-[var(--color-danger)]/40 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] font-bold text-[11px] transition"
             >
               <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Salir</span>
             </button>
@@ -987,13 +987,13 @@ export default function App() {
       </header>
       
       {/* Selector de pestañas para vista mobile/tablet */}
-      <div className="xl:hidden bg-zinc-950 border-b border-zinc-800 flex shrink-0 h-11 z-40">
+      <div className="xl:hidden bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex shrink-0 h-11 z-40">
         <button
           onClick={() => setMobileTab('dashboard')}
-          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all ${
             mobileTab === 'dashboard'
-              ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
-              : 'text-zinc-500 hover:text-zinc-300'
+              ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
           }`}
         >
           <span>📊 Panel Principal</span>
@@ -1001,10 +1001,10 @@ export default function App() {
         {showSettings && (
           <button
             onClick={() => setMobileTab('settings')}
-            className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all ${
               mobileTab === 'settings'
-                ? 'text-zinc-200 border-b-2 border-zinc-400 bg-zinc-800/50'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'text-[var(--color-text)] border-b-2 border-[var(--color-text-muted)] bg-[var(--surface-panel)]/50'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
             <span>⚙️ Configuración</span>
@@ -1012,15 +1012,15 @@ export default function App() {
         )}
         <button
           onClick={() => setMobileTab('notifications')}
-          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all relative ${
+          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider transition-all relative ${
             mobileTab === 'notifications'
-              ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/5'
-              : 'text-zinc-500 hover:text-zinc-300'
+              ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
           }`}
         >
           <span>🔔 Alertas PWA</span>
           {unreadNotifsCount > 0 && (
-            <span className="absolute top-2.5 right-[30%] bg-blue-500 text-zinc-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
+            <span className="absolute top-2.5 right-[30%] bg-[var(--color-cta)] text-[#F6F0E4] font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
               {unreadNotifsCount}
             </span>
           )}
@@ -1136,21 +1136,21 @@ export default function App() {
       </main>
 
       {/* FOOTER STATUS BAR (HIGH DENSITY DESIGN) */}
-      <footer className="h-8 bg-zinc-950 border-t border-zinc-800 px-6 flex items-center justify-between shrink-0 select-none z-40">
+      <footer className="h-8 bg-[var(--surface-panel-2)] border-t border-[var(--surface-border)] px-6 flex items-center justify-between shrink-0 select-none z-40">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
-            <span className="text-[9px] text-zinc-500 uppercase tracking-tighter">Sistema: {isOnline ? 'Operativo' : 'Local (Sin Conexión)'}</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-[var(--color-ok)] animate-pulse' : 'bg-[var(--color-danger)]'}`}></div>
+            <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-tighter font-mono">Sistema: {isOnline ? 'Operativo' : 'Local (Sin Conexión)'}</span>
           </div>
-          <span className="text-[9px] text-zinc-800 uppercase tracking-tighter">|</span>
-          <div className="flex items-center gap-2 text-[9px] text-zinc-500 uppercase tracking-tighter">
+          <span className="text-[9px] text-[var(--surface-border)] uppercase tracking-tighter">|</span>
+          <div className="flex items-center gap-2 text-[9px] text-[var(--color-text-muted)] uppercase tracking-tighter font-mono">
             WS Protocol:{' '}
-            <span className={`font-mono ${wsConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <span className={wsConnected ? 'text-[var(--color-ok)]' : 'text-[var(--color-accent)]'}>
               {wsConnected ? 'Tiempo real (WebSocket)' : 'Respaldo (Polling)'}
             </span>
           </div>
         </div>
-        <div className="text-[9px] text-zinc-500 font-mono uppercase tracking-tighter flex items-center gap-1">
+        <div className="text-[9px] text-[var(--color-text-muted)] font-mono uppercase tracking-tighter flex items-center gap-1">
           <span>Sincronizado: {lastSyncAt.toLocaleTimeString()}</span>
         </div>
       </footer>

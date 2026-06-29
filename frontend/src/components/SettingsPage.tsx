@@ -237,28 +237,24 @@ export default function SettingsPage({
   };
 
   const inputClass =
-    'w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-blue-500/50';
-  const btnPrimary = (color: 'indigo' | 'purple' | 'sky' | 'emerald') => {
-    const map = {
-      indigo: 'bg-indigo-600 hover:bg-indigo-500',
-      purple: 'bg-purple-600 hover:bg-purple-500',
-      sky: 'bg-sky-600 hover:bg-sky-500',
-      emerald: 'bg-emerald-600 hover:bg-emerald-500',
-    };
-    return `py-2 px-3 rounded-lg text-white text-[10px] font-bold uppercase disabled:opacity-50 ${map[color]}`;
-  };
-  const btnGhost =
-    'px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase shrink-0 transition';
+    'w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-3 py-2 text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)]';
+  const btnPrimary = 'btn-primary py-2 px-3 disabled:opacity-50 w-full sm:w-auto';
+  const btnGhost = 'btn-secondary px-2.5 py-1 shrink-0';
+  const sectionClass = 'paper-card p-3';
+  const listItemClass =
+    'bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-2.5 py-2 text-[11px] text-[var(--ink-soft)]';
+  const msgClass = (ok: boolean) =>
+    `text-[10px] font-mono ${ok ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'}`;
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <header className="shrink-0 flex items-center justify-between gap-3 pb-3 border-b border-zinc-800">
+    <div className="h-full flex flex-col min-h-0 bg-[var(--surface-bg)]">
+      <header className="shrink-0 flex items-center justify-between gap-3 pb-3 border-b border-[var(--surface-border)]">
         <div className="min-w-0">
-          <h2 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
-            <Settings className="w-4 h-4 text-zinc-400 shrink-0" />
+          <h2 className="text-sm font-display font-bold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2">
+            <Settings className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
             Configuración
           </h2>
-          <p className="text-[10px] text-zinc-500 mt-0.5 truncate">
+          <p className="mono-label mt-0.5 truncate">
             {user.name} · {userRole === UserRole.SUPER_ADMIN ? 'Super Admin' : userRole}
           </p>
         </div>
@@ -266,7 +262,7 @@ export default function SettingsPage({
           <button
             type="button"
             onClick={onBack}
-            className={`${btnGhost} flex items-center gap-1.5 border-zinc-700 bg-zinc-950 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500`}
+            className={`${btnGhost} flex items-center gap-1.5`}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Volver
@@ -274,7 +270,7 @@ export default function SettingsPage({
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto mt-3 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+      <div className="flex-1 overflow-y-auto mt-3 pr-1 scrollbar-thin">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pb-2 auto-rows-min">
         {userRole === UserRole.STORE_ADMIN &&
           onRefreshIntegrationStatus &&
@@ -293,21 +289,21 @@ export default function SettingsPage({
             />
           )}
         {agency && onUpdateDeparture && (
-          <section className={`bg-indigo-950/20 border border-indigo-900/30 rounded-xl p-3 lg:col-span-2 ${showDepartureForm ? 'xl:col-span-2' : ''}`}>
+          <section className={`${sectionClass} lg:col-span-2 ${showDepartureForm ? 'xl:col-span-2' : ''}`}>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center shrink-0">
-                <Warehouse className="w-4 h-4 text-indigo-300" />
+              <div className="w-8 h-8 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
+                <Warehouse className="w-4 h-4 text-[var(--route)]" />
               </div>
               <div className="flex-1 min-w-[12rem]">
-                <p className="text-xs font-bold text-indigo-200">Punto de salida</p>
-                <p className="text-[10px] text-zinc-400 mt-0.5 truncate">
+                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Punto de salida</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate">
                   {departurePoint ? departurePoint.address : 'Sin definir — configurá el depósito de la agencia'}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowDepartureForm(!showDepartureForm)}
-                className={`${btnGhost} border-indigo-500/30 bg-indigo-600/15 text-indigo-200 hover:bg-indigo-600/25`}
+                className={btnGhost}
               >
                 {showDepartureForm ? 'Cerrar' : 'Editar'}
               </button>
@@ -351,7 +347,7 @@ export default function SettingsPage({
                       key={preset.name}
                       type="button"
                       onClick={() => applyDeparturePreset(preset)}
-                      className="text-[9px] px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      className="text-[9px] px-2 py-1 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                     >
                       {preset.name.split('(')[0].trim()}
                     </button>
@@ -360,14 +356,14 @@ export default function SettingsPage({
                 <button
                   type="submit"
                   disabled={departureLoading}
-                  className={`w-full sm:w-auto ${btnPrimary('indigo')}`}
+                  className={`w-full sm:w-auto ${btnPrimary}`}
                 >
                   {departureLoading ? 'Guardando...' : 'Guardar punto de salida'}
                 </button>
                 {departureMessage && (
                   <p
                     className={`text-[10px] font-mono ${
-                      departureMessage.includes('actualizado') ? 'text-emerald-400' : 'text-red-400'
+                      departureMessage.includes('actualizado') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
                     }`}
                   >
                     {departureMessage}
@@ -380,17 +376,17 @@ export default function SettingsPage({
 
         {agency && onCreateSeller && (
           <section
-            className={`bg-purple-950/20 border border-purple-900/30 rounded-xl p-3 flex flex-col min-h-0 ${
+            className={`${sectionClass} flex flex-col min-h-0 ${
               showSellerForm || selectedSellerId ? 'lg:col-span-2' : ''
             }`}
           >
             <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center shrink-0">
-                <UserPlus className="w-4 h-4 text-purple-300" />
+              <div className="w-8 h-8 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
+                <UserPlus className="w-4 h-4 text-[var(--route)]" />
               </div>
               <div className="flex-1 min-w-[10rem]">
-                <p className="text-xs font-bold text-purple-200">Vendedores</p>
-                <p className="text-[10px] text-zinc-500">{sellers.length} registrado{sellers.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Vendedores</p>
+                <p className="mono-label">{sellers.length} registrado{sellers.length !== 1 ? 's' : ''}</p>
               </div>
               <button
                 type="button"
@@ -402,7 +398,7 @@ export default function SettingsPage({
                     setShowSellerForm(true);
                   }
                 }}
-                className={`${btnGhost} border-purple-500/30 bg-purple-600/15 text-purple-200 hover:bg-purple-600/25`}
+                className={btnGhost}
               >
                 {showSellerForm ? 'Cerrar' : '+ Nuevo'}
               </button>
@@ -417,17 +413,17 @@ export default function SettingsPage({
                       <button
                         type="button"
                         onClick={() => void loadSellerDetail(s.id)}
-                        className={`w-full text-left text-[11px] rounded-lg px-2.5 py-2 border transition flex items-center justify-between gap-2 ${
+                        className={`w-full text-left text-[11px] rounded-[5px] px-2.5 py-2 border transition flex items-center justify-between gap-2 ${
                           selected
-                            ? 'bg-purple-500/15 border-purple-500/40 text-purple-100'
-                            : 'bg-zinc-950/60 border-zinc-800 text-zinc-300 hover:border-purple-500/30 hover:bg-purple-500/5'
+                            ? 'bg-[var(--route)]/10 border-[var(--route)]/40 text-[var(--color-text)]'
+                            : `${listItemClass} hover:border-[var(--route)]/30 hover:bg-[var(--route)]/5`
                         }`}
                       >
                         <span className="min-w-0 truncate">
-                          <span className="font-medium text-zinc-200">{s.name}</span>
-                          <span className="text-zinc-500"> @{s.username}</span>
+                          <span className="font-medium text-[var(--ink-soft)]">{s.name}</span>
+                          <span className="text-[var(--color-text-muted)]"> @{s.username}</span>
                         </span>
-                        <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${selected ? 'text-purple-300' : 'text-zinc-600'}`} />
+                        <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${selected ? 'text-[var(--route)]' : 'text-[var(--color-text-faint)]'}`} />
                       </button>
                     </li>
                   );
@@ -436,13 +432,13 @@ export default function SettingsPage({
             )}
 
             {selectedSellerId && !showSellerForm && (
-              <div className="mt-3 pt-3 border-t border-purple-900/30">
+              <div className="mt-3 pt-3 border-t border-[var(--surface-border)]">
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <p className="text-xs font-bold text-purple-200">Detalle del vendedor</p>
+                  <p className="text-xs font-display font-semibold text-[var(--color-text)]">Detalle del vendedor</p>
                   <button
                     type="button"
                     onClick={closeSellerDetail}
-                    className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50"
+                    className="p-1 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)]/50"
                     title="Cerrar detalle"
                   >
                     <X className="w-4 h-4" />
@@ -450,57 +446,57 @@ export default function SettingsPage({
                 </div>
 
                 {sellerDetailLoading && (
-                  <p className="text-[11px] text-zinc-500">Cargando datos…</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">Cargando datos…</p>
                 )}
                 {sellerDetailError && (
-                  <p className="text-[11px] text-red-400">{sellerDetailError}</p>
+                  <p className="text-[11px] text-[var(--color-danger)]">{sellerDetailError}</p>
                 )}
                 {sellerDetail && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-3 space-y-2">
+                    <div className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg p-3 space-y-2">
                       <div>
-                        <p className="text-[9px] uppercase tracking-wide text-zinc-500">Nombre / tienda</p>
-                        <p className="text-sm font-semibold text-zinc-100">{sellerDetail.user.name}</p>
+                        <p className="mono-label">Nombre / tienda</p>
+                        <p className="text-sm font-semibold text-[var(--color-text)]">{sellerDetail.user.name}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[11px]">
                         <div>
-                          <p className="text-[9px] uppercase tracking-wide text-zinc-500">Usuario</p>
-                          <p className="text-zinc-300">@{sellerDetail.user.username}</p>
+                          <p className="mono-label">Usuario</p>
+                          <p className="text-[var(--ink-soft)]">@{sellerDetail.user.username}</p>
                         </div>
                         <div>
-                          <p className="text-[9px] uppercase tracking-wide text-zinc-500">ID</p>
-                          <p className="text-zinc-400 font-mono truncate">{sellerDetail.user.id}</p>
+                          <p className="mono-label">ID</p>
+                          <p className="text-[var(--color-text-muted)] font-mono truncate">{sellerDetail.user.id}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-4 gap-1.5 pt-1">
-                        <div className="text-center rounded-lg bg-zinc-900/80 border border-zinc-800 py-1.5">
-                          <p className="text-sm font-bold text-zinc-200">{sellerDetail.stats.totalOrders}</p>
-                          <p className="text-[8px] text-zinc-500 uppercase">Total</p>
+                        <div className="text-center rounded-lg bg-[var(--paper-3)] border border-[var(--surface-border)] py-1.5">
+                          <p className="text-sm font-bold text-[var(--ink-soft)]">{sellerDetail.stats.totalOrders}</p>
+                          <p className="text-[8px] text-[var(--color-text-muted)] uppercase">Total</p>
                         </div>
-                        <div className="text-center rounded-lg bg-zinc-900/80 border border-zinc-800 py-1.5">
-                          <p className="text-sm font-bold text-amber-400">{sellerDetail.stats.pendingOrders}</p>
-                          <p className="text-[8px] text-zinc-500 uppercase">Pend.</p>
+                        <div className="text-center rounded-lg bg-[var(--paper-3)] border border-[var(--surface-border)] py-1.5">
+                          <p className="text-sm font-bold text-[var(--color-warn)]">{sellerDetail.stats.pendingOrders}</p>
+                          <p className="text-[8px] text-[var(--color-text-muted)] uppercase">Pend.</p>
                         </div>
-                        <div className="text-center rounded-lg bg-zinc-900/80 border border-zinc-800 py-1.5">
-                          <p className="text-sm font-bold text-blue-400">{sellerDetail.stats.activeOrders}</p>
-                          <p className="text-[8px] text-zinc-500 uppercase">Activos</p>
+                        <div className="text-center rounded-lg bg-[var(--paper-3)] border border-[var(--surface-border)] py-1.5">
+                          <p className="text-sm font-bold text-[var(--color-accent)]">{sellerDetail.stats.activeOrders}</p>
+                          <p className="text-[8px] text-[var(--color-text-muted)] uppercase">Activos</p>
                         </div>
-                        <div className="text-center rounded-lg bg-zinc-900/80 border border-zinc-800 py-1.5">
-                          <p className="text-sm font-bold text-emerald-400">{sellerDetail.stats.deliveredOrders}</p>
-                          <p className="text-[8px] text-zinc-500 uppercase">Listos</p>
+                        <div className="text-center rounded-lg bg-[var(--paper-3)] border border-[var(--surface-border)] py-1.5">
+                          <p className="text-sm font-bold text-[var(--color-ok)]">{sellerDetail.stats.deliveredOrders}</p>
+                          <p className="text-[8px] text-[var(--color-text-muted)] uppercase">Listos</p>
                         </div>
                       </div>
                       {sellerDetail.user.pickupPoints && sellerDetail.user.pickupPoints.length > 0 && (
                         <div className="pt-1">
-                          <p className="text-[9px] uppercase tracking-wide text-zinc-500 mb-1">Puntos de colecta</p>
+                          <p className="mono-label mb-1">Puntos de colecta</p>
                           <ul className="space-y-1">
                             {sellerDetail.user.pickupPoints.map((point) => (
                               <li
                                 key={point.id}
-                                className="text-[10px] bg-zinc-900/60 border border-zinc-800 rounded-lg px-2 py-1.5"
+                                className="text-[10px] bg-[var(--paper-3)] border border-[var(--surface-border)] rounded-lg px-2 py-1.5"
                               >
-                                <span className="font-medium text-emerald-300">{point.label}</span>
-                                <p className="text-zinc-500 truncate">{point.address}</p>
+                                <span className="font-medium text-[var(--color-ok)]">{point.label}</span>
+                                <p className="text-[var(--color-text-muted)] truncate">{point.address}</p>
                               </li>
                             ))}
                           </ul>
@@ -510,7 +506,7 @@ export default function SettingsPage({
 
                     {onUpdateSellerPassword && (
                       <form
-                        className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-3 space-y-2"
+                        className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg p-3 space-y-2"
                         onSubmit={async (e) => {
                           e.preventDefault();
                           if (!selectedSellerId) return;
@@ -538,11 +534,11 @@ export default function SettingsPage({
                           }
                         }}
                       >
-                        <p className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
-                          <Key className="w-3.5 h-3.5 text-purple-400" />
+                        <p className="text-xs font-bold text-[var(--ink-soft)] flex items-center gap-1.5">
+                          <Key className="w-3.5 h-3.5 text-[var(--route)]" />
                           Cambiar contraseña
                         </p>
-                        <p className="text-[10px] text-zinc-500">
+                        <p className="text-[10px] text-[var(--color-text-muted)]">
                           La nueva contraseña reemplaza la actual del vendedor.
                         </p>
                         <input
@@ -564,7 +560,7 @@ export default function SettingsPage({
                         <button
                           type="submit"
                           disabled={passwordUpdateLoading || !newSellerPassword || !confirmSellerPassword}
-                          className={btnPrimary('purple')}
+                          className={btnPrimary}
                         >
                           {passwordUpdateLoading ? 'Guardando…' : 'Actualizar contraseña'}
                         </button>
@@ -572,8 +568,8 @@ export default function SettingsPage({
                           <p
                             className={`text-[10px] ${
                               passwordUpdateMessage.includes('correctamente')
-                                ? 'text-emerald-400'
-                                : 'text-red-400'
+                                ? 'text-[var(--color-ok)]'
+                                : 'text-[var(--color-danger)]'
                             }`}
                           >
                             {passwordUpdateMessage}
@@ -657,7 +653,7 @@ export default function SettingsPage({
                   className={inputClass}
                 />
                 </div>
-                <p className="text-[9px] text-zinc-500 uppercase tracking-wide pt-1">Punto de colecta (opcional)</p>
+                <p className="mono-label pt-1">Punto de colecta (opcional)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   value={sellerPickupLabel}
@@ -675,14 +671,14 @@ export default function SettingsPage({
                 <button
                   type="submit"
                   disabled={sellerFormLoading}
-                  className={btnPrimary('purple')}
+                  className={btnPrimary}
                 >
                   {sellerFormLoading ? 'Creando...' : 'Crear vendedor'}
                 </button>
                 {sellerFormMessage && (
                   <p
                     className={`text-[10px] font-mono ${
-                      sellerFormMessage.includes('correctamente') ? 'text-emerald-400' : 'text-red-400'
+                      sellerFormMessage.includes('correctamente') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
                     }`}
                   >
                     {sellerFormMessage}
@@ -695,23 +691,23 @@ export default function SettingsPage({
 
         {agency && (onCreateRepartidor || onDeleteRepartidor) && (
           <section
-            className={`bg-sky-950/20 border border-sky-900/30 rounded-xl p-3 flex flex-col min-h-0 ${
+            className={`${sectionClass} flex flex-col min-h-0 ${
               showRepartidorForm ? 'lg:col-span-2' : ''
             }`}
           >
             <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-sky-500/15 flex items-center justify-center shrink-0 text-lg leading-none">
+              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0 text-lg leading-none">
                 🏍️
               </div>
               <div className="flex-1 min-w-[10rem]">
-                <p className="text-xs font-bold text-sky-200">Repartidores</p>
-                <p className="text-[10px] text-zinc-500">{repartidores.length} activo{repartidores.length !== 1 ? 's' : ''} · asigná una zona por repartidor</p>
+                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Repartidores</p>
+                <p className="mono-label">{repartidores.length} activo{repartidores.length !== 1 ? 's' : ''} · asigná una zona por repartidor</p>
               </div>
               {onCreateRepartidor && (
                 <button
                   type="button"
                   onClick={() => setShowRepartidorForm(!showRepartidorForm)}
-                  className={`${btnGhost} border-sky-500/30 bg-sky-600/15 text-sky-200 hover:bg-sky-600/25`}
+                  className={btnGhost}
                 >
                   {showRepartidorForm ? 'Cerrar' : '+ Nuevo'}
                 </button>
@@ -722,12 +718,12 @@ export default function SettingsPage({
                 {repartidores.map((rep) => (
                   <li
                     key={rep.id}
-                    className="flex flex-col gap-2 text-[11px] bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-2 text-zinc-300"
+                    className={`flex flex-col gap-2 ${listItemClass}`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate min-w-0">
-                        <span className="font-medium text-zinc-200">{rep.name}</span>
-                        <span className="text-zinc-500"> @{rep.username}</span>
+                        <span className="font-medium text-[var(--ink-soft)]">{rep.name}</span>
+                        <span className="text-[var(--color-text-muted)]"> @{rep.username}</span>
                       </span>
                       {onDeleteRepartidor && (
                         <button
@@ -758,7 +754,7 @@ export default function SettingsPage({
                               setDeletingRepartidorId(null);
                             }
                           }}
-                          className="text-red-400 hover:text-red-300 shrink-0 disabled:opacity-50"
+                          className="text-[var(--color-danger)] hover:text-red-300 shrink-0 disabled:opacity-50"
                           title="Eliminar repartidor"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -767,7 +763,7 @@ export default function SettingsPage({
                     </div>
                     {onUpdateRepartidorZone && (
                       <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3 h-3 text-sky-400 shrink-0" />
+                        <MapPin className="w-3 h-3 text-[var(--color-accent)] shrink-0" />
                         <select
                           value={rep.deliveryZone ?? ''}
                           disabled={updatingZoneId === rep.id}
@@ -783,7 +779,7 @@ export default function SettingsPage({
                               setUpdatingZoneId(null);
                             }
                           }}
-                          className="flex-1 min-w-0 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-1 text-[10px] text-zinc-300 focus:outline-none focus:border-sky-500"
+                          className="flex-1 min-w-0 bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-1.5 py-1 text-[10px] text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)]"
                         >
                           <option value="">Sin zona asignada</option>
                           {DELIVERY_ZONES.map((zone) => (
@@ -813,7 +809,7 @@ export default function SettingsPage({
             {repartidorFormMessage && !showRepartidorForm && (
               <p
                 className={`mt-3 text-[10px] font-mono ${
-                  repartidorFormMessage.includes('correctamente') ? 'text-emerald-400' : 'text-red-400'
+                  repartidorFormMessage.includes('correctamente') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
                 }`}
               >
                 {repartidorFormMessage}
@@ -884,14 +880,14 @@ export default function SettingsPage({
                 <button
                   type="submit"
                   disabled={repartidorFormLoading}
-                  className={btnPrimary('sky')}
+                  className={btnPrimary}
                 >
                   {repartidorFormLoading ? 'Creando...' : 'Crear repartidor'}
                 </button>
                 {repartidorFormMessage && (
                   <p
                     className={`text-[10px] font-mono ${
-                      repartidorFormMessage.includes('correctamente') ? 'text-emerald-400' : 'text-red-400'
+                      repartidorFormMessage.includes('correctamente') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
                     }`}
                   >
                     {repartidorFormMessage}
@@ -903,20 +899,20 @@ export default function SettingsPage({
         )}
 
         {agency && onTriggerSimulatorTick && (
-          <section className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3 lg:col-span-2">
+          <section className={`${sectionClass} lg:col-span-2`}>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4 text-amber-500" />
+              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4 text-[var(--color-warn)]" />
               </div>
               <div className="flex-1 min-w-[10rem]">
-                <p className="text-xs font-bold text-zinc-200">Simulador GPS</p>
-                <p className="text-[10px] text-zinc-500">Demo — mueve la flota en el mapa</p>
+                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
+                <p className="mono-label">Demo — mueve la flota en el mapa</p>
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={onTriggerSimulatorTick}
-                  className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 transition"
+                  className="p-2 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)] transition"
                   title="Avanzar paso manual"
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -924,10 +920,10 @@ export default function SettingsPage({
                 <button
                   type="button"
                   onClick={() => setIsSimulating(!isSimulating)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition ${
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-[5px] font-mono font-bold text-[10px] uppercase tracking-wider transition ${
                     isSimulating
-                      ? 'bg-amber-500 text-zinc-950 hover:bg-amber-400'
-                      : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
+                      ? 'bg-[var(--color-warn)] text-[var(--paper)] hover:brightness-110'
+                      : 'btn-secondary'
                   }`}
                 >
                   {isSimulating ? (
@@ -947,22 +943,22 @@ export default function SettingsPage({
 
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
           <section
-            className={`bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-3 lg:col-span-2 ${
+            className={`${sectionClass} lg:col-span-2 ${
               showPickupForm || editingPickupId ? 'xl:col-span-2' : ''
             }`}
           >
             <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-                <MapPin className="w-4 h-4 text-emerald-300" />
+              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-ok)]/10 flex items-center justify-center shrink-0">
+                <MapPin className="w-4 h-4 text-[var(--color-ok)]" />
               </div>
               <div className="flex-1 min-w-[10rem]">
-                <p className="text-xs font-bold text-emerald-200">Puntos de colecta</p>
-                <p className="text-[10px] text-zinc-500">{pickupPoints.length} punto{pickupPoints.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Puntos de colecta</p>
+                <p className="mono-label">{pickupPoints.length} punto{pickupPoints.length !== 1 ? 's' : ''}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowPickupForm(!showPickupForm)}
-                className={`${btnGhost} border-emerald-500/30 bg-emerald-600/15 text-emerald-200 hover:bg-emerald-600/25`}
+                className={btnGhost}
               >
                 {showPickupForm ? 'Cerrar' : '+ Agregar'}
               </button>
@@ -972,7 +968,7 @@ export default function SettingsPage({
                 {pickupPoints.map((point) => (
                   <li
                     key={point.id}
-                    className="bg-zinc-950/60 border border-zinc-800 rounded-lg px-2.5 py-2 text-[11px]"
+                    className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg px-2.5 py-2 text-[11px]"
                   >
                     {editingPickupId === point.id && onUpdatePickupPoint ? (
                       <form
@@ -998,7 +994,7 @@ export default function SettingsPage({
                           }
                         }}
                       >
-                        <p className="text-[9px] font-bold uppercase text-emerald-400 tracking-wider">
+                        <p className="text-[9px] font-bold uppercase text-[var(--color-ok)] tracking-wider">
                           Editando punto de colecta
                         </p>
                         <input
@@ -1020,7 +1016,7 @@ export default function SettingsPage({
                               key={preset.name}
                               type="button"
                               onClick={() => applyEditPickupPreset(preset)}
-                              className="text-[9px] px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                              className="text-[9px] px-2 py-1 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                             >
                               {preset.name.split('(')[0].trim()}
                             </button>
@@ -1030,14 +1026,14 @@ export default function SettingsPage({
                           <button
                             type="button"
                             onClick={cancelEditPickup}
-                            className={`flex-1 py-2 border border-zinc-700 text-zinc-400 text-[10px] font-bold uppercase rounded-lg hover:bg-zinc-900`}
+                            className="flex-1 btn-secondary py-2"
                           >
                             Cancelar
                           </button>
                           <button
                             type="submit"
                             disabled={editPickupLoading}
-                            className={`flex-1 ${btnPrimary('emerald')}`}
+                            className={`${btnPrimary}`}
                           >
                             {editPickupLoading ? 'Guardando...' : 'Guardar cambios'}
                           </button>
@@ -1046,15 +1042,15 @@ export default function SettingsPage({
                     ) : (
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <span className="font-bold text-emerald-300">{point.label}</span>
-                          <p className="text-zinc-400 mt-0.5">📍 {point.address}</p>
+                          <span className="font-bold text-[var(--color-ok)]">{point.label}</span>
+                          <p className="text-[var(--color-text-muted)] mt-0.5">📍 {point.address}</p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           {onUpdatePickupPoint && (
                             <button
                               type="button"
                               onClick={() => startEditPickup(point)}
-                              className="text-zinc-400 hover:text-emerald-300 p-1"
+                              className="text-[var(--color-text-muted)] hover:text-[var(--color-ok)] p-1"
                               title="Editar"
                             >
                               <Pencil className="w-4 h-4" />
@@ -1064,7 +1060,7 @@ export default function SettingsPage({
                             <button
                               type="button"
                               onClick={() => onDeletePickupPoint(point.id)}
-                              className="text-red-400 hover:text-red-300 p-1"
+                              className="text-[var(--color-danger)] hover:text-red-300 p-1"
                               title="Eliminar"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1123,7 +1119,7 @@ export default function SettingsPage({
                       key={preset.name}
                       type="button"
                       onClick={() => applyPickupPreset(preset)}
-                      className="text-[9px] px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      className="text-[9px] px-2 py-1 rounded-lg bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
                     >
                       {preset.name.split('(')[0].trim()}
                     </button>
@@ -1132,7 +1128,7 @@ export default function SettingsPage({
                 <button
                   type="submit"
                   disabled={pickupLoading}
-                  className={`sm:col-span-2 w-full sm:w-auto ${btnPrimary('emerald')}`}
+                  className={`sm:col-span-2 ${btnPrimary}`}
                 >
                   {pickupLoading ? 'Guardando...' : 'Guardar punto de colecta'}
                 </button>

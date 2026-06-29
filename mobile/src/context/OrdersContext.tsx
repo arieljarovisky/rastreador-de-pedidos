@@ -1,0 +1,106 @@
+import React, { createContext, useContext, useMemo } from 'react';
+import { useAuth } from './AuthContext';
+import { useOrders } from '../hooks/useOrders';
+import { useLocationReporter } from '../hooks/useLocationReporter';
+import { api } from '../api';
+import { Order, OrderStatus } from '../types';
+
+interface OrdersState {
+  orders: Order[];
+  loading: boolean;
+  refreshing: boolean;
+  connected: boolean;
+  error: string | null;
+  /** Coordenadas actuales del dispositivo (si hay permiso). */
+  coords: { lat: number; lng: number } | null;
+  permissionDenied: boolean;
+  /** Pedido que estoy entregando ahora mismo (status DELIVERING). */
+  deliveringOrder: Order | null;
+  refresh: () => Promise<void>;
+  updateStatus: (
+    orderId: string,
+    status: OrderStatus,
+    opts?: { repartidorId?: string; comment?: string }
+  ) => Promise<Order>;
+  getOrder: (orderId: string) => Order | undefined;
+}
+
+const OrdersContext = createContext<OrdersState | undefined>(undefined);
+
+export function OrdersProvider({ children }: { children: React.ReactNode }) {
+  const { token, user } = useAuth();
+  const { orders, loading, refreshing, connected, error, refresh } = useOrders(token);
+
+  const deliveringOrder = useMemo(
+    () =>
+      orders.find(
+        (o) => o.repartidorId === user?.id && o.status === OrderStatus.DELIVERING
+      ) ?? null,
+    [orders, user?.id]
+  );
+
+  // Reporta GPS continuamente; si hay pedido en viaje lo asocia a ese pedido.
+  const { coords, permissionDenied } = useLocationReporter(
+    token,
+    deliveringOrder?.id ?? null,
+    Boolean(token)
+  );
+
+  const updateStatus = useMemo(
+    () =>
+      async (
+        orderId: string,
+        status: OrderStatus,
+        opts?: { repartidorId?: string; comment?: string }
+      ): Promise<Order> => {
+        if (!token) throw new Error('Sin sesión');
+        const updated = await api.updateOrderStatus(token, orderId, status, opts);
+        // El socket/polling también lo reflejará, pero refrescamos para feedback inmediato.
+        refresh();
+        return updated;
+      },
+    [token, refresh]
+  );
+
+  const getOrder = useMemo(
+    () => (orderId: string) => orders.find((o) => o.id === orderId),
+    [orders]
+  );
+
+  const value = useMemo<OrdersState>(
+    () => ({
+      orders,
+      loading,
+      refreshing,
+      connected,
+      error,
+      coords,
+      permissionDenied,
+      deliveringOrder,
+      refresh,
+      updateStatus,
+      getOrder,
+    }),
+    [
+      orders,
+      loading,
+      refreshing,
+      connected,
+      error,
+      coords,
+      permissionDenied,
+      deliveringOrder,
+      refresh,
+      updateStatus,
+      getOrder,
+    ]
+  );
+
+  return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>;
+}
+
+export function useOrdersContext(): OrdersState {
+  const ctx = useContext(OrdersContext);
+  if (!ctx) throw new Error('useOrdersContext debe usarse dentro de <OrdersProvider>');
+  return ctx;
+}

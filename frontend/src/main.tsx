@@ -3,6 +3,9 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ModalProvider } from './context/ModalContext.tsx';
 import './index.css';
+import { applyPostaTheme, readPostaTheme } from './theme/usePostaTheme.ts';
+
+applyPostaTheme(readPostaTheme());
 
 // Registrar Service Worker para soporte PWA Offline y Push Notifications
 if ('serviceWorker' in navigator) {

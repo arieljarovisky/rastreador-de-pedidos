@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Posta Repartidor",
+    "slug": "posta-repartidor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "lupo",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0B0F18",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0F18"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.lupoenvios.repartidor",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Posta usa tu ubicación para mostrar tu posición en el mapa y enviar el seguimiento del envío en curso al cliente.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Posta usa tu ubicación en segundo plano para seguir reportando la entrega mientras viajás.",
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "package": "com.lupoenvios.repartidor",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0F18"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBn0iKMHPQetjslxIvTWgTqY-9a-chwkQA"
+        }
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Posta usa tu ubicación para reportar el seguimiento de tus envíos."
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "https://envios-erp.up.railway.app"
+    }
+  }
+}

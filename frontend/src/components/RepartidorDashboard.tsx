@@ -185,13 +185,13 @@ export default function RepartidorDashboard({
   return (
     <div className="flex flex-col h-full overflow-hidden" id="repartidor-dashboard">
 
-      <div className="grid grid-cols-2 bg-zinc-950 p-0.5 border-b border-zinc-800 shrink-0">
+      <div className="grid grid-cols-2 bg-[var(--surface-panel-2)] p-0.5 border-b border-[var(--surface-border)] shrink-0">
         <button
           onClick={() => setActiveTab('assigned')}
           className={`py-2 text-center text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
             activeTab === 'assigned'
-              ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
-              : 'text-zinc-500'
+              ? 'text-[var(--color-accent)] border-b-2 border-blue-400 bg-[var(--color-accent)]/5'
+              : 'text-[var(--color-text-muted)]'
           }`}
         >
           🏍️ Mis Envíos ({myAssignedOrders.length})
@@ -203,8 +203,8 @@ export default function RepartidorDashboard({
           }}
           className={`py-2 text-center text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${
             activeTab === 'available'
-              ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/5'
-              : 'text-zinc-500'
+              ? 'text-[var(--color-accent)] border-b-2 border-purple-400 bg-[var(--color-accent)]/5'
+              : 'text-[var(--color-text-muted)]'
           }`}
         >
           📦 Disponibles ({availableOrders.length})
@@ -213,17 +213,17 @@ export default function RepartidorDashboard({
 
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row gap-4 p-4">
 
-        <div className={`w-full md:w-1/3 flex flex-col h-full bg-zinc-900/30 border border-zinc-800 rounded-2xl p-3.5 overflow-hidden ${
+        <div className={`w-full md:w-1/3 flex flex-col h-full bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3.5 overflow-hidden ${
           selectedOrder && activeTab === 'assigned' ? 'hidden md:flex' : 'flex'
         }`}>
-          <h3 className="font-bold text-[10px] text-zinc-500 mb-3 uppercase tracking-wider font-mono">
+          <h3 className="font-bold text-[10px] text-[var(--color-text-muted)] mb-3 uppercase tracking-wider font-mono">
             {activeTab === 'assigned' ? 'Tareas en Proceso' : 'Pedidos en Almacén'}
           </h3>
 
           <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
             {activeTab === 'assigned' ? (
               myAssignedOrders.length === 0 ? (
-                <div className="text-center py-12 text-zinc-500 font-mono text-xs">
+                <div className="text-center py-12 text-[var(--color-text-muted)] font-mono text-xs">
                   No tienes pedidos pendientes asignados. ¡Ve a la pestaña de Disponibles para tomar uno!
                 </div>
               ) : (
@@ -233,47 +233,47 @@ export default function RepartidorDashboard({
                     onClick={() => onSelectOrder(order.id)}
                     className={`p-3 rounded border text-left transition cursor-pointer ${
                       selectedOrder?.id === order.id
-                        ? 'bg-blue-500/5 border-l-2 border-blue-500 border-t-zinc-800 border-r-zinc-800 border-b-zinc-800'
-                        : 'bg-zinc-950/40 border-zinc-800/80 hover:bg-zinc-800/50'
+                        ? 'bg-[var(--color-accent)]/5 border-l-2 border-[var(--color-accent)] border-t-[var(--surface-border)] border-r-[var(--surface-border)] border-b-[var(--surface-border)]'
+                        : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)]/50'
                     }`}
                   >
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-mono font-bold text-zinc-500">{order.id}</span>
+                      <span className="font-mono font-bold text-[var(--color-text-muted)]">{order.id}</span>
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                        order.status === OrderStatus.DELIVERING ? 'bg-amber-500/10 text-amber-400' : 'bg-blue-500/10 text-blue-400'
+                        order.status === OrderStatus.DELIVERING ? 'bg-amber-500/10 text-[var(--color-warn)]' : 'bg-blue-500/10 text-[var(--color-accent)]'
                       }`}>
                         {order.status === OrderStatus.DELIVERING ? '🚲 En Viaje' : '✓ Pend. Salida'}
                       </span>
                     </div>
-                    <h4 className="font-bold text-xs text-zinc-200 mt-1.5">{order.clientName}</h4>
-                    <p className="text-[11px] text-zinc-400 mt-0.5 truncate">📍 {order.address}</p>
+                    <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1.5">{order.clientName}</h4>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate">📍 {order.address}</p>
                   </div>
                 ))
               )
             ) : (
               availableOrders.length === 0 ? (
-                <div className="text-center py-12 text-zinc-500 font-mono text-xs">
+                <div className="text-center py-12 text-[var(--color-text-muted)] font-mono text-xs">
                   No hay pedidos pendientes para recoger por el momento.
                 </div>
               ) : (
                 availableOrders.map((order) => (
                   <div
                     key={order.id}
-                    className="p-3 rounded border border-zinc-800 bg-zinc-950/40 text-left space-y-2"
+                    className="p-3 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/40 text-left space-y-2"
                   >
                     <div className="flex items-center justify-between text-[10px] font-mono">
-                      <span className="font-bold text-zinc-500">{order.id}</span>
-                      <span className="text-purple-400 truncate max-w-[120px]">
+                      <span className="font-bold text-[var(--color-text-muted)]">{order.id}</span>
+                      <span className="text-[var(--color-accent)] truncate max-w-[120px]">
                         {getCollectLabel(order, pickupPoints, departurePoint)}
                       </span>
                     </div>
                     <div>
-                      <h4 className="font-bold text-xs text-zinc-200">{order.clientName}</h4>
-                      <p className="text-[11px] text-zinc-400 mt-0.5 leading-normal">📍 {order.address}</p>
+                      <h4 className="font-bold text-xs text-[var(--ink-soft)]">{order.clientName}</h4>
+                      <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 leading-normal">📍 {order.address}</p>
                     </div>
                     <button
                       onClick={() => handleAcceptOrder(order.id)}
-                      className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] uppercase tracking-wider rounded transition"
+                      className="w-full py-1.5 bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] uppercase tracking-wider rounded-[5px] transition"
                     >
                       Tomar y Asignar Pedido
                     </button>
@@ -290,10 +290,10 @@ export default function RepartidorDashboard({
           {selectedOrder && activeTab === 'assigned' ? (
             <div className="flex-1 flex flex-col gap-4 overflow-hidden">
 
-              <div className="flex-1 min-h-[180px] rounded-2xl border border-zinc-800 overflow-hidden relative">
+              <div className="flex-1 min-h-[180px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
                 <Suspense
                   fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-500 text-xs font-mono">
+                    <div className="w-full h-full flex items-center justify-center bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] text-xs font-mono">
                       Cargando mapa…
                     </div>
                   }
@@ -312,39 +312,39 @@ export default function RepartidorDashboard({
                 <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
               </div>
 
-              <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl p-3.5 shrink-0 text-left">
-                <div className="md:hidden flex items-center justify-between pb-2 border-b border-zinc-800/80 mb-2 shrink-0">
+              <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3.5 shrink-0 text-left">
+                <div className="md:hidden flex items-center justify-between pb-2 border-b border-[var(--surface-border)]/80 mb-2 shrink-0">
                   <button
                     onClick={() => onSelectOrder(null)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white rounded text-[10px] font-bold uppercase tracking-wider transition"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:text-white rounded text-[10px] font-bold uppercase tracking-wider transition"
                   >
                     ← Volver a la Lista
                   </button>
-                  <span className="text-[10px] font-mono font-bold text-zinc-500">
+                  <span className="text-[10px] font-mono font-bold text-[var(--color-text-muted)]">
                     {selectedOrder.id}
                   </span>
                 </div>
 
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-500">Destino de Entrega</span>
-                    <h3 className="font-bold text-xs text-zinc-200 uppercase font-mono tracking-wider">{selectedOrder.clientName}</h3>
-                    <p className="text-xs text-blue-400 mt-0.5 font-sans">📍 {selectedOrder.address}</p>
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Destino de Entrega</span>
+                    <h3 className="font-bold text-xs text-[var(--ink-soft)] uppercase font-mono tracking-wider">{selectedOrder.clientName}</h3>
+                    <p className="text-xs text-[var(--color-accent)] mt-0.5 font-sans">📍 {selectedOrder.address}</p>
                   </div>
 
                   <a
                     href={`https://www.google.com/maps/dir/?api=1&destination=${selectedOrder.lat},${selectedOrder.lng}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300 hover:text-white transition flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold"
+                    className="p-1.5 rounded bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:text-white transition flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold"
                   >
                     <Navigation className="w-3.5 h-3.5 text-blue-500" /> GPS Externo
                   </a>
                 </div>
 
                 {selectedOrder.notes && (
-                  <div className="mt-2 bg-zinc-950 border border-zinc-800/60 rounded p-2 text-[10px] text-zinc-400 flex items-start gap-1.5">
-                    <FileText className="w-3 h-3 text-zinc-500 shrink-0 mt-0.5" />
+                  <div className="mt-2 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/60 rounded p-2 text-[10px] text-[var(--color-text-muted)] flex items-start gap-1.5">
+                    <FileText className="w-3 h-3 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
                     <span>{selectedOrder.notes}</span>
                   </div>
                 )}
@@ -368,7 +368,7 @@ export default function RepartidorDashboard({
                             });
                           }
                         }}
-                        className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/10 uppercase tracking-wider"
+                        className="flex-1 py-2 bg-[var(--color-cta)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[#F6F0E4] font-mono font-bold text-xs rounded-[5px] transition flex items-center justify-center gap-1.5 uppercase tracking-wider"
                       >
                         <Play className="w-4 h-4" /> Iniciar Viaje de Entrega
                       </button>
@@ -407,7 +407,7 @@ export default function RepartidorDashboard({
                               });
                             }
                           }}
-                          className="px-3 py-2 border border-red-500/20 hover:border-red-500 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded transition font-bold text-xs uppercase tracking-wider"
+                          className="px-3 py-2 border border-red-500/20 hover:border-red-500 bg-red-500/5 hover:bg-red-500/10 text-[var(--color-danger)] rounded transition font-bold text-xs uppercase tracking-wider"
                         >
                           <AlertTriangle className="w-4 h-4" /> Incidencia
                         </button>
@@ -416,31 +416,31 @@ export default function RepartidorDashboard({
                   </div>
 
                   {otherDelivering && selectedOrder.status === OrderStatus.ASSIGNED && (
-                    <p className="text-[10px] text-amber-400 font-mono text-center">
+                    <p className="text-[10px] text-[var(--color-warn)] font-mono text-center">
                       Tenés un viaje en curso ({otherDelivering.id}). Finalizalo antes de iniciar otro.
                     </p>
                   )}
 
                   {selectedOrder.status === OrderStatus.ASSIGNED && currentCoords && (
-                    <div className="bg-zinc-950 border border-zinc-800 rounded p-2 text-[10px] text-blue-400 font-mono">
+                    <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-2 text-[10px] text-[var(--color-accent)] font-mono">
                       📍 Ruta por calles hacia el destino (línea azul en el mapa)
                     </div>
                   )}
 
                   {selectedOrder.status === OrderStatus.DELIVERING && (
-                    <div className="bg-zinc-950 border border-zinc-800 rounded p-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-zinc-300">📡 GPS En Vivo</span>
+                        <span className="font-bold text-[var(--ink-soft)]">📡 GPS En Vivo</span>
                         {!gpsError ? (
-                          <span className="text-emerald-400 font-bold font-mono text-[9px] animate-pulse">● Compartiendo ubicación</span>
+                          <span className="text-[var(--color-ok)] font-bold font-mono text-[9px] animate-pulse">● Compartiendo ubicación</span>
                         ) : (
-                          <span className="text-amber-400 font-mono text-[9px]">● Esperando señal GPS</span>
+                          <span className="text-[var(--color-warn)] font-mono text-[9px]">● Esperando señal GPS</span>
                         )}
                       </div>
 
                       <button
                         onClick={handleAutoPilotSimulation}
-                        className="text-amber-500 font-bold text-[9px] flex items-center gap-1 hover:text-amber-400 uppercase tracking-wider font-mono"
+                        className="text-amber-500 font-bold text-[9px] flex items-center gap-1 hover:text-[var(--color-warn)] uppercase tracking-wider font-mono"
                       >
                         <Sparkles className="w-3.5 h-3.5" /> Simular Trayecto
                       </button>
@@ -448,7 +448,7 @@ export default function RepartidorDashboard({
                   )}
 
                   {gpsError && (
-                    <p className="text-[10px] text-red-400 font-mono mt-1 text-center flex items-center gap-1 justify-center">
+                    <p className="text-[10px] text-[var(--color-danger)] font-mono mt-1 text-center flex items-center gap-1 justify-center">
                       <ShieldAlert className="w-3.5 h-3.5" /> {gpsError}
                     </p>
                   )}
@@ -456,8 +456,8 @@ export default function RepartidorDashboard({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-zinc-900/20 border border-zinc-800/50 border-dashed rounded-2xl">
-              <p className="text-zinc-500 font-mono text-xs max-w-xs leading-relaxed">
+            <div className="posta-empty flex-1 flex flex-col items-center justify-center p-8">
+              <p className="text-[var(--color-text-muted)] font-mono text-xs max-w-xs leading-relaxed">
                 Asígnate una orden en la pestaña superior &quot;Disponibles&quot; para ver la ruta al destino en el mapa.
               </p>
             </div>

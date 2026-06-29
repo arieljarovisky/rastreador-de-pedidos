@@ -1,5 +1,5 @@
 {
-  "name": "Rastreador de Pedidos",
+  "name": "Posta | Rastreo de Pedidos",
   "description": "PWA para visualización y seguimiento en tiempo real de la localización de pedidos para uso interno de vendedores y repartidores",
   "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

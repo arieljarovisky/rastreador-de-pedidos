@@ -24,12 +24,10 @@ interface MarketplaceIntegrationsProps {
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
 }
 
-const btnPrimary =
-  'px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-[11px] font-bold uppercase tracking-wider transition';
-const btnGhost =
-  'px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-[11px] font-bold uppercase tracking-wider transition disabled:opacity-50';
+const btnPrimary = 'btn-primary px-3 py-1.5 disabled:opacity-50';
+const btnGhost = 'btn-secondary px-3 py-1.5 disabled:opacity-50';
 const dateInputClass =
-  'bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-[10px] text-zinc-200 min-w-0';
+  'bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-2 py-1 text-[10px] text-[var(--color-text)] min-w-0 focus:outline-none focus:border-[var(--color-accent)]';
 
 function toDateInputValue(date: Date): string {
   const y = date.getFullYear();
@@ -99,25 +97,25 @@ function PlatformCard({
   const pending = shipments.filter((s) => !s.alreadyImported);
 
   return (
-    <div className="bg-zinc-950/50 border border-zinc-800 rounded-xl p-3 flex flex-col gap-3">
+    <div className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] p-3 flex flex-col gap-3">
       <div className="flex items-start gap-2">
-        <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+        <div className="w-9 h-9 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] flex items-center justify-center shrink-0">
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold text-zinc-100">{title}</p>
-          <p className="text-[10px] text-zinc-500">{subtitle}</p>
+          <p className="text-xs font-display font-semibold text-[var(--color-text)]">{title}</p>
+          <p className="mono-label">{subtitle}</p>
           {connected && accountName && (
-            <p className="text-[10px] text-emerald-400 mt-0.5 truncate">Conectado: {accountName}</p>
+            <p className="text-[10px] text-[var(--color-ok)] mt-0.5 truncate">Conectado: {accountName}</p>
           )}
           {!configured && (
-            <p className="text-[10px] text-amber-400 mt-0.5">
+            <p className="text-[10px] text-[var(--color-warn)] mt-0.5">
               Falta configurar credenciales en el servidor.
             </p>
           )}
           {platform === 'mercadolibre' && configured && webhookUrl && (
-            <p className="text-[10px] text-zinc-500 mt-1 break-all">
-              Webhook ML: <span className="text-zinc-400 font-mono">{webhookUrl}</span>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-1 break-all">
+              Webhook ML: <span className="text-[var(--ink-soft)] font-mono">{webhookUrl}</span>
             </p>
           )}
         </div>
@@ -148,7 +146,7 @@ function PlatformCard({
           {platform === 'tiendanube' && dateFrom && dateTo && onDateFromChange && onDateToChange && (
             <div className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
-                <span className="text-[9px] text-zinc-500 uppercase tracking-wide">Desde</span>
+                <span className="mono-label">Desde</span>
                 <input
                   type="date"
                   className={dateInputClass}
@@ -159,7 +157,7 @@ function PlatformCard({
                 />
               </label>
               <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
-                <span className="text-[9px] text-zinc-500 uppercase tracking-wide">Hasta</span>
+                <span className="mono-label">Hasta</span>
                 <input
                   type="date"
                   className={dateInputClass}
@@ -204,18 +202,18 @@ function PlatformCard({
           </div>
 
           {importLoading && (
-            <div className="flex items-center gap-2 rounded-lg border border-blue-900/40 bg-blue-950/30 px-2 py-1.5">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400 shrink-0" />
-              <p className="text-[10px] text-blue-200">Importando envíos de {title}…</p>
+            <div className="flex items-center gap-2 rounded-[5px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-2 py-1.5">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--color-accent)] shrink-0" />
+              <p className="text-[10px] text-[var(--color-text)]">Importando envíos de {title}…</p>
             </div>
           )}
 
           {shipmentsLoading && (
-            <p className="text-[10px] text-zinc-500">Consultando envíos en {title}…</p>
+            <p className="text-[10px] text-[var(--color-text-muted)]">Consultando envíos en {title}…</p>
           )}
 
           {!shipmentsLoading && shipments.length === 0 && (
-            <p className="text-[10px] text-zinc-500">
+            <p className="text-[10px] text-[var(--color-text-muted)]">
               Tocá &quot;Buscar envíos&quot; para ver pedidos{' '}
               {platform === 'mercadolibre' ? 'Flex' : 'Express'} pendientes de importar
               {platform === 'tiendanube' ? ' en el período seleccionado' : ''}.
@@ -223,37 +221,37 @@ function PlatformCard({
           )}
 
           {shipments.length > 0 && (
-            <ul className="space-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+            <ul className="space-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
               {shipments.map((s) => (
                 <li
                   key={s.externalId}
-                  className={`text-[10px] rounded-lg border px-2 py-1.5 ${
+                  className={`text-[10px] rounded-[5px] border px-2 py-1.5 ${
                     s.alreadyImported
-                      ? 'border-zinc-800 bg-zinc-900/40 text-zinc-500'
-                      : 'border-zinc-700 bg-zinc-900 text-zinc-300'
+                      ? 'border-[var(--surface-border)] bg-[var(--paper-3)]/60 text-[var(--color-text-muted)]'
+                      : 'border-[var(--edge-2)] bg-[var(--paper-3)] text-[var(--ink-soft)]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-zinc-200 truncate">
+                      <p className="font-medium text-[var(--color-text)] truncate">
                         #{s.externalId} · {s.clientName}
                         {s.createdAt && (
-                          <span className="text-zinc-500 font-normal">
+                          <span className="text-[var(--color-text-muted)] font-normal">
                             {' '}
                             · {formatShipmentDate(s.createdAt)}
                           </span>
                         )}
                       </p>
-                      <p className="text-zinc-500 truncate">{s.address}</p>
+                      <p className="text-[var(--color-text-muted)] truncate">{s.address}</p>
                     </div>
                     {s.alreadyImported ? (
-                      <span className="shrink-0 text-[9px] uppercase text-zinc-500">Importado</span>
+                      <span className="shrink-0 mono-label">Importado</span>
                     ) : (
                       <button
                         type="button"
                         disabled={importLoading}
                         onClick={() => onImportOne(s.externalId)}
-                        className="shrink-0 text-[9px] uppercase font-bold text-blue-400 hover:text-blue-300 disabled:opacity-50 inline-flex items-center gap-1"
+                        className="shrink-0 mono-label text-[var(--color-accent)] hover:brightness-110 disabled:opacity-50 inline-flex items-center gap-1"
                       >
                         {importingId === s.externalId ? (
                           <>
@@ -383,11 +381,11 @@ export default function MarketplaceIntegrations({
   };
 
   return (
-    <section className="bg-blue-950/20 border border-blue-900/30 rounded-xl p-3 lg:col-span-2">
+    <section className="paper-card p-3 lg:col-span-2">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div>
-          <p className="text-xs font-bold text-blue-200">Tiendas conectadas</p>
-          <p className="text-[10px] text-zinc-500">
+          <p className="text-xs font-display font-semibold text-[var(--color-text)]">Tiendas conectadas</p>
+          <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
             Importá envíos Flex (Mercado Libre) y Express (Tienda Nube). ML: importación y estados automáticos vía webhook.
           </p>
         </div>
@@ -402,7 +400,7 @@ export default function MarketplaceIntegrations({
       </div>
 
       {message && (
-        <p className={`text-[10px] mb-2 ${messageTone === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>
+        <p className={`text-[10px] mb-2 font-mono ${messageTone === 'error' ? 'text-[var(--color-danger)]' : 'text-[var(--color-ok)]'}`}>
           {message}
         </p>
       )}

@@ -83,14 +83,14 @@ export default function NotificationHub({
           try {
             new window.Notification(latest.title, {
               body: latest.body,
-              icon: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+              icon: '/icon-posta.svg',
             });
           } catch (err) {
             // Algunos navegadores requieren service worker para notificaciones push
             navigator.serviceWorker.ready.then((reg) => {
               reg.showNotification(latest.title, {
                 body: latest.body,
-                icon: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+                icon: '/icon-posta.svg',
               });
             });
           }
@@ -119,9 +119,9 @@ export default function NotificationHub({
       setPermission(status);
       if (status === 'granted') {
         playNotificationSound();
-        new window.Notification('¡Lupo Envíos!', {
+        new window.Notification('¡Posta!', {
           body: 'Notificaciones push del sistema activadas correctamente.',
-          icon: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+          icon: '/icon-posta.svg',
         });
       }
     } catch (e) {
@@ -141,14 +141,14 @@ export default function NotificationHub({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
             id="notification-banner-alert"
-            className="fixed top-4 right-4 z-[9999] max-w-sm w-full bg-slate-900/95 border-2 border-amber-500 text-white rounded-2xl p-4 shadow-2xl backdrop-blur-md flex items-start gap-3"
+            className="fixed top-4 right-4 z-[9999] max-w-sm w-full bg-slate-900/95 border-2 border-amber-500 text-white rounded-[var(--radius-posta)] p-4 shadow-2xl backdrop-blur-md flex items-start gap-3"
           >
             <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0 border border-amber-500/20">
               <Bell className="w-5 h-5 animate-bounce" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono tracking-wider text-amber-400 font-bold uppercase">Notificación Push</span>
+                <span className="text-[10px] font-mono tracking-wider text-[var(--color-warn)] font-bold uppercase">Notificación Push</span>
                 <span className="text-[9px] text-slate-400 ml-auto font-mono">Ahora</span>
               </div>
               <h4 className="font-bold text-sm text-slate-100 mt-0.5 truncate">{activeBanner.title}</h4>
@@ -156,7 +156,7 @@ export default function NotificationHub({
             </div>
             <button 
               onClick={() => setActiveBanner(null)}
-              className="text-slate-400 hover:text-white p-1 rounded-2xl hover:bg-slate-800 transition"
+              className="text-slate-400 hover:text-white p-1 rounded-[var(--radius-posta)] hover:bg-slate-800 transition"
             >
               <X className="w-4 h-4" />
             </button>
@@ -165,13 +165,13 @@ export default function NotificationHub({
       </AnimatePresence>
 
       {/* Widget lateral de Configuración de Notificaciones PWA (HIGH DENSITY) */}
-      <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
+      <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
         {showCollapseButton && onToggleCollapse && (
           <button
             type="button"
             onClick={onToggleCollapse}
             title="Ocultar panel de alertas"
-            className="hidden xl:flex items-center justify-center gap-1.5 w-full py-1.5 border-b border-zinc-800 bg-zinc-950/60 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900 transition shrink-0"
+            className="hidden xl:flex items-center justify-center gap-1.5 w-full py-1.5 border-b border-[var(--surface-border)] bg-[var(--surface-panel-2)]/60 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)] transition shrink-0"
           >
             <ChevronRight className="w-3.5 h-3.5" />
             Ocultar panel
@@ -180,18 +180,18 @@ export default function NotificationHub({
 
         <div className="p-3.5 flex flex-col flex-1 overflow-hidden min-h-0">
         <div className="flex items-center gap-2 mb-3 shrink-0">
-          <div className="w-8 h-8 rounded bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+          <div className="w-8 h-8 rounded bg-blue-500/10 border border-[var(--color-accent)]/20 flex items-center justify-center text-[var(--color-accent)]">
             <Bell className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-xs lg:text-sm text-zinc-200">Notificaciones PWA</h3>
-            <p className="text-[10px] text-zinc-500 font-mono">Estado: {permission === 'granted' ? 'PERMITIDO' : permission === 'denied' ? 'DENEGADO' : 'PENDIENTE'}</p>
+            <h3 className="font-bold text-xs lg:text-sm text-[var(--ink-soft)]">Notificaciones PWA</h3>
+            <p className="text-[10px] text-[var(--color-text-muted)] font-mono">Estado: {permission === 'granted' ? 'PERMITIDO' : permission === 'denied' ? 'DENEGADO' : 'PENDIENTE'}</p>
           </div>
           <div className="ml-auto flex items-center gap-0.5">
             <button
               onClick={playNotificationSound}
               title="Probar sonido de timbre"
-              className="text-zinc-400 hover:text-blue-400 p-1.5 rounded hover:bg-zinc-800 transition"
+              className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] p-1.5 rounded hover:bg-[var(--surface-panel)] transition"
             >
               <Volume2 className="w-4 h-4" />
             </button>
@@ -199,18 +199,18 @@ export default function NotificationHub({
         </div>
 
         {permission !== 'granted' ? (
-          <div className="bg-zinc-950 border border-zinc-800 rounded p-2.5 mb-3 shrink-0">
+          <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-2.5 mb-3 shrink-0">
             <div className="flex items-start gap-2">
               <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-300">Permiso requerido</p>
-                <p className="text-[9px] text-zinc-500 mt-0.5 leading-normal">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--ink-soft)]">Permiso requerido</p>
+                <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5 leading-normal">
                   Activa alertas nativas para recibir avisos de pedidos en tiempo real.
                 </p>
                 <button
                   onClick={requestPermission}
                   id="btn-request-notifications"
-                  className="mt-2 w-full text-center py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[9px] uppercase tracking-wider rounded transition"
+                  className="mt-2 w-full text-center py-1 bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[9px] uppercase tracking-wider rounded-[5px] transition"
                 >
                   Activar Alertas
                 </button>
@@ -218,20 +218,20 @@ export default function NotificationHub({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded p-2 text-emerald-400 text-[10px] font-medium mb-3 shrink-0 leading-normal">
-            <CheckCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded p-2 text-[var(--color-ok)] text-[10px] font-medium mb-3 shrink-0 leading-normal">
+            <CheckCheck className="w-4 h-4 text-[var(--color-ok)] shrink-0" />
             <span>Suscripción PWA activa. Alertas instantáneas configuradas.</span>
           </div>
         )}
 
         {/* Listado de últimas notificaciones del usuario */}
-        <div className="border-t border-zinc-800/80 pt-3 flex flex-col flex-1 overflow-hidden">
+        <div className="border-t border-[var(--surface-border)]/80 pt-3 flex flex-col flex-1 overflow-hidden">
           <div className="flex items-center justify-between mb-2 shrink-0">
-            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider font-mono">Buzón de Alertas ({unreadCount})</span>
+            <span className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider font-mono">Buzón de Alertas ({unreadCount})</span>
             {unreadCount > 0 && (
               <button
                 onClick={onMarkAllRead}
-                className="text-[9px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 font-bold uppercase tracking-wider"
+                className="text-[9px] text-[var(--color-accent)] hover:text-[var(--color-accent)] flex items-center gap-0.5 font-bold uppercase tracking-wider"
               >
                 <Check className="w-3 h-3" /> Marcar Leídas
               </button>
@@ -240,7 +240,7 @@ export default function NotificationHub({
 
           <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
             {notifications.length === 0 ? (
-              <div className="text-center py-8 text-[10px] text-zinc-500 font-mono">
+              <div className="text-center py-8 text-[10px] text-[var(--color-text-muted)] font-mono">
                 No hay notificaciones recientes.
               </div>
             ) : (
@@ -249,20 +249,20 @@ export default function NotificationHub({
                   key={notif.id}
                   className={`p-2 rounded text-[11px] border transition ${
                     notif.read
-                      ? 'bg-zinc-950/20 border-zinc-900/50 text-zinc-500'
-                      : 'bg-zinc-900 border-zinc-800/80 text-zinc-200'
+                      ? 'bg-[var(--surface-panel-2)]/20 border-zinc-900/50 text-[var(--color-text-muted)]'
+                      : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)]/80 text-[var(--ink-soft)]'
                   }`}
                 >
                   <div className="flex items-center gap-1.5 font-semibold text-[10px]">
-                    <span className={notif.read ? 'text-zinc-600' : 'text-blue-400'}>
+                    <span className={notif.read ? 'text-[var(--color-text-faint)]' : 'text-[var(--color-accent)]'}>
                       {notif.type === 'order_assigned' ? '🏍️ Asignación' : notif.type === 'order_delivered' ? '✓ Entregado' : '📢 Info'}
                     </span>
-                    <span className="text-[9px] text-zinc-500 ml-auto font-mono">
+                    <span className="text-[9px] text-[var(--color-text-muted)] ml-auto font-mono">
                       {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <h5 className="font-bold mt-0.5">{notif.title}</h5>
-                  <p className="text-[10px] text-zinc-400 mt-0.5 leading-relaxed">{notif.body}</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">{notif.body}</p>
                 </div>
               ))
             )}

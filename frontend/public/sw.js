@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'lupo-rastreo-v3';
+const CACHE_NAME = 'posta-rastreo-v1';
 
 const PRECACHE_ASSETS = [
   '/manifest.json',
@@ -85,20 +85,20 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'Lupo Envíos', body: 'Nueva actualización en tus pedidos.' };
+  let data = { title: 'Posta', body: 'Nueva actualización en tus pedidos.' };
   if (event.data) {
     try {
       data = event.data.json();
     } catch {
-      data = { title: 'Lupo Envíos', body: event.data.text() };
+      data = { title: 'Posta', body: event.data.text() };
     }
   }
 
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
-      badge: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+      icon: '/icon-posta.svg',
+      badge: '/icon-posta.svg',
       vibrate: [100, 50, 100],
       data: { url: '/' },
     })

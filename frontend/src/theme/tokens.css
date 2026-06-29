@@ -1,0 +1,116 @@
+/**
+ * Posta — Design tokens
+ * Tema oscuro (operativo, default) + tema papel (marca)
+ */
+
+:root,
+.theme-dark,
+[data-theme="dark"] {
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+  --radius-posta: 5px;
+
+  --bg: #0b0f18;
+  --panel: #141a28;
+  --panel-2: #1a2336;
+  --line: #283246;
+  --text: #e9edf4;
+  --text-muted: #8593ae;
+  --text-faint: #5c6986;
+  --accent: #5c87eb;
+  --stamp: #e8431f;
+  --ok: #3fae63;
+  --warn: #e69a2e;
+  --danger: #e5564f;
+
+  --st-pending: #a99b85;
+  --st-assigned: #5c87eb;
+  --st-delivering: #e69a2e;
+  --st-delivered: #3fae63;
+  --st-cancelled: #e5564f;
+
+  --surface-bg: var(--bg);
+  --surface-panel: var(--panel);
+  --surface-panel-2: var(--panel-2);
+  --surface-border: var(--line);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-cta: var(--stamp);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+
+  --logo-ink: var(--text);
+  --btn-secondary-border: var(--text);
+  --card-shadow: none;
+  --card-border-width: 1px;
+  --badge-blend: normal;
+  --input-bg: var(--panel-2);
+  --ink-soft: #c5cdd9;
+  --edge-2: var(--line);
+  --route-2: #8593ae;
+  --ink: var(--text);
+  --paper: var(--panel-2);
+  --paper-2: var(--panel);
+  --paper-3: var(--panel-2);
+}
+
+.theme-paper,
+[data-theme="paper"] {
+  --paper: #efe7d8;
+  --paper-2: #f6f0e4;
+  --paper-3: #e7ddcb;
+  --edge: #d8ccb5;
+  --edge-2: #c5b79c;
+  --ink: #1c1814;
+  --ink-soft: #544a3c;
+  --muted: #897c68;
+  --faint: #a99b85;
+  --stamp: #d8401e;
+  --stamp-deep: #a82e13;
+  --route: #2b3a55;
+  --route-2: #5a6b85;
+  --ok: #2e6b45;
+  --warn: #b5670e;
+  --danger: #b0301c;
+
+  --st-pending: #7a6e59;
+  --st-assigned: #2b3a55;
+  --st-delivering: #b5670e;
+  --st-delivered: #2e6b45;
+  --st-cancelled: #b0301c;
+
+  --bg: var(--paper);
+  --panel: var(--paper-2);
+  --panel-2: var(--paper-3);
+  --line: var(--edge);
+  --text: var(--ink);
+  --text-muted: var(--muted);
+  --text-faint: var(--faint);
+  --accent: var(--route);
+
+  --surface-bg: var(--paper);
+  --surface-panel: var(--paper-2);
+  --surface-panel-2: var(--paper-3);
+  --surface-border: var(--edge);
+  --color-text: var(--ink);
+  --color-text-muted: var(--muted);
+  --color-text-faint: var(--faint);
+  --color-accent: var(--route);
+  --color-cta: var(--stamp);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+
+  --logo-ink: var(--ink);
+  --btn-secondary-border: var(--ink);
+  --card-shadow: 4px 5px 0 rgba(28, 24, 20, 0.1);
+  --card-border-width: 1.4px;
+  --badge-blend: multiply;
+  --input-bg: var(--paper);
+
+  color-scheme: light;
+}

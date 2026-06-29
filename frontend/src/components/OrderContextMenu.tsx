@@ -75,12 +75,12 @@ export default function OrderContextMenu({ x, y, items, onClose }: OrderContextM
     <div
       ref={menuRef}
       style={{ left: x, top: y }}
-      className="fixed z-[9999] min-w-[11rem] py-1 rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl shadow-black/50"
+      className="fixed z-[9999] min-w-[11rem] py-1 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-2xl"
       role="menu"
     >
       {items.map((item) =>
         item.separator ? (
-          <div key={item.id} className="my-1 border-t border-zinc-800" />
+          <div key={item.id} className="my-1 border-t border-[var(--surface-border)]" />
         ) : (
           <button
             key={item.id}
@@ -93,12 +93,12 @@ export default function OrderContextMenu({ x, y, items, onClose }: OrderContextM
               onClose();
             }}
             className={[
-              'w-full text-left px-3 py-2 text-[11px] font-medium transition',
+              'w-full text-left px-3 py-2 text-[11px] font-medium transition font-mono',
               item.disabled
-                ? 'text-zinc-600 cursor-not-allowed'
+                ? 'text-[var(--color-text-faint)] cursor-not-allowed'
                 : item.danger
-                  ? 'text-red-400 hover:bg-red-950/40 hover:text-red-300'
-                  : 'text-zinc-200 hover:bg-zinc-800 hover:text-white',
+                  ? 'text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10'
+                  : 'text-[var(--color-text)] hover:bg-[var(--surface-panel-2)]',
             ].join(' ')}
           >
             {item.label}
