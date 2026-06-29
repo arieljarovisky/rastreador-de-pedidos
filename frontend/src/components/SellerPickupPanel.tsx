@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Barcode, MapPin, Package, Store } from 'lucide-react';
+import { Barcode, ChevronDown, ChevronUp, MapPin, Package, Store } from 'lucide-react';
 import { PickupPoint, User } from '../types.js';
 import MercadoLibreLabelScanner, {
   type MercadoLibreScanImportResult,
@@ -18,6 +18,8 @@ interface SellerPickupPanelProps {
   initialSellerId?: string;
   compact?: boolean;
   lockSellerSelection?: boolean;
+  /** En móvil: panel plegable para dejar espacio a la lista de pedidos */
+  collapsible?: boolean;
 }
 
 export default function SellerPickupPanel({
@@ -28,10 +30,15 @@ export default function SellerPickupPanel({
   initialSellerId = '',
   compact = false,
   lockSellerSelection = false,
+  collapsible = false,
 }: SellerPickupPanelProps) {
   const [sellerId, setSellerId] = useState(initialSellerId);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [sessionImports, setSessionImports] = useState<MercadoLibreScanImportResult[]>([]);
+  const [expanded, setExpanded] = useState(() => {
+    if (!collapsible || typeof window === 'undefined') return true;
+    return window.matchMedia('(min-width: 1024px)').matches;
+  });
 
   useEffect(() => {
     if (initialSellerId) setSellerId(initialSellerId);
@@ -68,7 +75,7 @@ export default function SellerPickupPanel({
     <>
       <div
         className={`border border-[var(--color-accent)]/25 bg-[var(--color-accent)]/5 rounded-lg ${
-          compact ? 'p-2.5 space-y-2' : 'p-3 space-y-3'
+          compact ? 'p-2.5 space-y-2' : expanded ? 'p-3 space-y-3' : 'p-2.5 space-y-2'
         }`}
       >
         <div className="flex items-start gap-2">
@@ -76,19 +83,42 @@ export default function SellerPickupPanel({
             <Package className="w-4 h-4 text-[var(--color-accent)]" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-display font-semibold text-[var(--color-text)]">
-              Colecta en vendedor
-            </p>
-            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
-              Escaneá las etiquetas de Mercado Libre al retirar los paquetes en el local del vendedor.
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-display font-semibold text-[var(--color-text)]">
+                Colecta en vendedor
+                {sessionImports.length > 0 && (
+                  <span className="ml-1.5 text-[10px] font-mono text-[var(--color-accent)]">
+                    ({sessionImports.length})
+                  </span>
+                )}
+              </p>
+              {collapsible && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded((v) => !v)}
+                  className="shrink-0 p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel-2)] lg:hidden"
+                  aria-expanded={expanded}
+                  title={expanded ? 'Ocultar colecta' : 'Mostrar colecta'}
+                >
+                  {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              )}
+            </div>
+            {(expanded || !collapsible) && (
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                Escaneá las etiquetas de Mercado Libre al retirar los paquetes en el local del vendedor.
+              </p>
+            )}
           </div>
         </div>
 
-        <div>
-          {!lockSellerSelection ? (
-            <>
-              <label className="mono-label block mb-1">¿En qué vendedor estás?</label>
+        {/* Siempre visible: vendedor + escanear (modo compacto en móvil) */}
+        <div className={expanded || !collapsible ? 'space-y-2' : 'flex flex-col gap-2 sm:flex-row sm:items-end'}>
+          {!lockSellerSelection && (
+            <div className={expanded || !collapsible ? '' : 'flex-1 min-w-0'}>
+              <label className={`mono-label block mb-1 ${!expanded && collapsible ? 'sr-only' : ''}`}>
+                ¿En qué vendedor estás?
+              </label>
               <select
                 value={sellerId}
                 onChange={(e) => setSellerId(e.target.value)}
@@ -101,11 +131,25 @@ export default function SellerPickupPanel({
                   </option>
                 ))}
               </select>
-            </>
-          ) : null}
+            </div>
+          )}
+
+          <button
+            type="button"
+            disabled={!sellerId}
+            onClick={() => setScannerOpen(true)}
+            className={`shrink-0 flex items-center justify-center gap-2 rounded-[5px] bg-[var(--color-accent)] hover:brightness-110 text-[var(--paper)] font-mono font-bold uppercase tracking-wider transition disabled:opacity-40 disabled:cursor-not-allowed ${
+              expanded || !collapsible
+                ? 'w-full py-2.5 text-[11px]'
+                : 'w-full sm:w-auto px-3 py-2 text-[10px]'
+            }`}
+          >
+            <Barcode className="w-4 h-4" />
+            Escanear ML
+          </button>
         </div>
 
-        {selectedSeller && (
+        {expanded && selectedSeller && (
           <div className="rounded-lg border border-[var(--surface-border)] bg-[var(--paper)] px-2.5 py-2 space-y-1.5">
             <p className="text-[11px] font-medium text-[var(--ink-soft)] flex items-center gap-1.5">
               <Store className="w-3.5 h-3.5 text-[var(--route)] shrink-0" />
@@ -127,20 +171,10 @@ export default function SellerPickupPanel({
           </div>
         )}
 
-        <button
-          type="button"
-          disabled={!sellerId}
-          onClick={() => setScannerOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[5px] bg-[var(--color-accent)] hover:brightness-110 text-[var(--paper)] font-mono font-bold text-[11px] uppercase tracking-wider transition disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Barcode className="w-4 h-4" />
-          Escanear etiquetas ML
-        </button>
-
-        {sessionImports.length > 0 && (
+        {expanded && sessionImports.length > 0 && (
           <div className="pt-1 border-t border-[var(--surface-border)]/80">
             <p className="mono-label mb-1.5">Colectados en esta visita ({sessionImports.length})</p>
-            <ul className="space-y-1 max-h-28 overflow-y-auto pr-1 scrollbar-thin">
+            <ul className="space-y-1 max-h-20 lg:max-h-28 overflow-y-auto pr-1 scrollbar-thin">
               {sessionImports.map((item) => (
                 <li
                   key={item.order.id}

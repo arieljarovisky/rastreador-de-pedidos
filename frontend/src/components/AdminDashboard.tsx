@@ -525,7 +525,7 @@ export default function AdminDashboard({
   };
 
   return (
-    <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 h-full overflow-hidden" id="admin-dashboard">
+    <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 h-full min-h-0 overflow-hidden" id="admin-dashboard">
       {contextMenu && (
         <OrderContextMenu
           x={contextMenu.x}
@@ -560,18 +560,18 @@ export default function AdminDashboard({
       </div>
 
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN (5 COLUMNAS - HIGH DENSITY) */}
-      <div className={`lg:col-span-5 flex flex-col h-full overflow-hidden posta-surface p-4 ${
+      <div className={`lg:col-span-5 flex flex-col flex-1 min-h-0 overflow-hidden posta-surface p-3 lg:p-4 ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
         {/* Cabecera, Búsqueda y Filtros */}
-        <div className="shrink-0 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm lg:text-base font-display font-semibold text-[var(--color-text)] flex items-center gap-1.5">
+        <div className="shrink-0 space-y-2 lg:space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-sm lg:text-base font-display font-semibold text-[var(--color-text)] flex items-center gap-1.5 truncate">
                 {userRole === UserRole.STORE_ADMIN ? '🛒 Posta Ventas (Local)' : userRole === UserRole.SUPER_ADMIN ? '👑 Posta Agencia (Super Admin)' : '⚙️ Posta Logística'}
               </h2>
-              <p className="mono-label">
+              <p className="mono-label hidden sm:block">
                 {userRole === UserRole.STORE_ADMIN ? 'Carga de envíos' : 'Asignación de viajes y flota'}
               </p>
             </div>
@@ -629,6 +629,7 @@ export default function AdminDashboard({
 
           {isAgencyAdmin(userRole) && onScanMercadoLibreLabel && (
             <SellerPickupPanel
+              collapsible
               sellers={sellers}
               pickupPoints={pickupPoints}
               onScanImport={onScanMercadoLibreLabel}
@@ -704,7 +705,7 @@ export default function AdminDashboard({
         </div>
 
         {/* LISTADO DE PEDIDOS / FORMULARIO CREACIÓN (CON SCROLL) */}
-        <div className="flex-1 overflow-y-auto mt-3 space-y-2 pr-1 scrollbar-thin">
+        <div className="flex-1 min-h-0 overflow-y-auto mt-2 lg:mt-3 space-y-2 pr-1 scrollbar-thin">
           
           {/* Formulario de creación desplegable (HIGH DENSITY MODERN STYLE) */}
           {showCreateForm && userRole === UserRole.STORE_ADMIN && (
@@ -925,34 +926,34 @@ export default function AdminDashboard({
                     </div>
                   ) : null}
 
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
-                    <span className="flex items-center gap-1">
+                  <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
+                    <span className="flex items-center gap-1 shrink-0">
                       <Clock className="w-3.5 h-3.5 text-[var(--color-text-faint)]" />
                       {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
-                    {order.repartidorName ? (
-                      <span className="text-[var(--color-accent)] font-semibold uppercase tracking-wider text-[8px] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 px-1 py-0.2 rounded">
-                        🏍️ {order.repartidorName.split(' ')[0]}
-                      </span>
-                    ) : (
-                      <span className="text-[var(--color-warn)] font-semibold text-[8px]">⚠️ SIN ASIGNAR</span>
-                    )}
-                  </div>
-
-                  {/* Acciones rápidas flotantes en hover */}
-                  {order.status === OrderStatus.PENDING && isAgencyAdmin(userRole) && (
-                    <div className="absolute right-3 bottom-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAssigningOrderId(order.id);
-                        }}
-                        className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[9px] px-2 py-0.5 rounded-[var(--radius-posta)] transition uppercase tracking-wider"
-                      >
-                        Gestionar
-                      </button>
+                    <div className="flex items-center gap-1.5 min-w-0 justify-end">
+                      {order.status === OrderStatus.PENDING && isAgencyAdmin(userRole) ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAssigningOrderId(order.id);
+                          }}
+                          className="shrink-0 bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] transition uppercase tracking-wider"
+                        >
+                          Gestionar
+                        </button>
+                      ) : order.repartidorName ? (
+                        <span className="text-[var(--color-accent)] font-semibold uppercase tracking-wider text-[8px] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 px-1 py-0.5 rounded truncate max-w-[7rem]">
+                          🏍️ {order.repartidorName.split(' ')[0]}
+                        </span>
+                      ) : (
+                        <span className="text-[var(--color-warn)] font-semibold text-[8px] shrink-0">
+                          ⚠️ SIN ASIGNAR
+                        </span>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })
