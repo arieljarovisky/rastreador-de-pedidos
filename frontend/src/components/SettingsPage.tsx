@@ -54,7 +54,9 @@ interface SettingsPageProps {
     pickupLng?: number;
   }) => Promise<User>;
   onFetchSellerDetail?: (sellerId: string) => Promise<SellerDetail>;
+  onUpdateSeller?: (sellerId: string, data: { name: string; username: string }) => Promise<User>;
   onUpdateSellerPassword?: (sellerId: string, password: string) => Promise<void>;
+  onDeleteSeller?: (sellerId: string) => Promise<{ unlinkedOrders: number }>;
   onCreateRepartidor?: (data: { username: string; password: string; name: string; deliveryZone?: string | null }) => Promise<void>;
   onUpdateRepartidorZone?: (repartidorId: string, deliveryZone: string | null) => Promise<void>;
   onDeleteRepartidor?: (id: string) => Promise<{ finalizedOrders: number }>;
@@ -97,7 +99,9 @@ export default function SettingsPage({
   onUpdateDeparture,
   onCreateSeller,
   onFetchSellerDetail,
+  onUpdateSeller,
   onUpdateSellerPassword,
+  onDeleteSeller,
   onCreateRepartidor,
   onUpdateRepartidorZone,
   onDeleteRepartidor,
@@ -144,6 +148,12 @@ export default function SettingsPage({
   const [confirmSellerPassword, setConfirmSellerPassword] = useState('');
   const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
   const [passwordUpdateMessage, setPasswordUpdateMessage] = useState<string | null>(null);
+  const [editingSeller, setEditingSeller] = useState(false);
+  const [editSellerName, setEditSellerName] = useState('');
+  const [editSellerUsername, setEditSellerUsername] = useState('');
+  const [sellerUpdateLoading, setSellerUpdateLoading] = useState(false);
+  const [sellerUpdateMessage, setSellerUpdateMessage] = useState<string | null>(null);
+  const [deletingSellerId, setDeletingSellerId] = useState<string | null>(null);
 
   const [showRepartidorForm, setShowRepartidorForm] = useState(false);
   const [repartidorName, setRepartidorName] = useState('');
@@ -222,6 +232,10 @@ export default function SettingsPage({
     try {
       const detail = await onFetchSellerDetail(sellerId);
       setSellerDetail(detail);
+      setEditSellerName(detail.user.name);
+      setEditSellerUsername(detail.user.username);
+      setEditingSeller(false);
+      setSellerUpdateMessage(null);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al cargar el vendedor';
       setSellerDetailError(message);
@@ -237,6 +251,8 @@ export default function SettingsPage({
     setNewSellerPassword('');
     setConfirmSellerPassword('');
     setPasswordUpdateMessage(null);
+    setEditingSeller(false);
+    setSellerUpdateMessage(null);
   };
 
   const inputClass =
@@ -457,14 +473,67 @@ export default function SettingsPage({
               <div className="mt-3 pt-3 border-t border-[var(--surface-border)]">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <p className="text-xs font-display font-semibold text-[var(--color-text)]">Detalle del vendedor</p>
-                  <button
-                    type="button"
-                    onClick={closeSellerDetail}
-                    className="p-1 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)]/50"
-                    title="Cerrar detalle"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {onUpdateSeller && sellerDetail && !editingSeller && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditSellerName(sellerDetail.user.name);
+                          setEditSellerUsername(sellerDetail.user.username);
+                          setEditingSeller(true);
+                          setSellerUpdateMessage(null);
+                        }}
+                        className="p-1 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)]/50"
+                        title="Editar vendedor"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    {onDeleteSeller && sellerDetail && (
+                      <button
+                        type="button"
+                        disabled={deletingSellerId === selectedSellerId}
+                        onClick={async () => {
+                          if (!selectedSellerId || !sellerDetail) return;
+                          const ok = await confirm({
+                            title: 'Eliminar vendedor',
+                            message: `¿Eliminar a ${sellerDetail.user.name} (@${sellerDetail.user.username})?\n\nLos pedidos históricos se conservan pero quedarán sin vendedor asignado. No se puede eliminar si tiene envíos en ruta.`,
+                            variant: 'danger',
+                            confirmText: 'Eliminar',
+                            cancelText: 'Cancelar',
+                          });
+                          if (!ok) return;
+                          setDeletingSellerId(selectedSellerId);
+                          try {
+                            const result = await onDeleteSeller(selectedSellerId);
+                            const extra =
+                              result.unlinkedOrders > 0
+                                ? ` Se desvincularon ${result.unlinkedOrders} pedido(s).`
+                                : '';
+                            closeSellerDetail();
+                            setSellerFormMessage(`Vendedor eliminado correctamente.${extra}`);
+                          } catch (err: unknown) {
+                            const message = err instanceof Error ? err.message : 'Error al eliminar vendedor.';
+                            setSellerUpdateMessage(message);
+                          } finally {
+                            setDeletingSellerId(null);
+                          }
+                        }}
+                        className="p-1 rounded-lg text-[var(--color-danger)] hover:text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+                        title="Eliminar vendedor"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={closeSellerDetail}
+                      className="p-1 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)]/50"
+                      title="Cerrar detalle"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {sellerDetailLoading && (
@@ -476,6 +545,83 @@ export default function SettingsPage({
                 {sellerDetail && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <div className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg p-3 space-y-2">
+                      {editingSeller && onUpdateSeller ? (
+                        <form
+                          className="space-y-2"
+                          onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!selectedSellerId) return;
+                            setSellerUpdateLoading(true);
+                            setSellerUpdateMessage(null);
+                            try {
+                              const updated = await onUpdateSeller(selectedSellerId, {
+                                name: editSellerName,
+                                username: editSellerUsername,
+                              });
+                              setSellerDetail((prev) =>
+                                prev ? { ...prev, user: { ...prev.user, ...updated } } : prev
+                              );
+                              setEditingSeller(false);
+                              setSellerUpdateMessage('Vendedor actualizado correctamente.');
+                            } catch (err: unknown) {
+                              const message =
+                                err instanceof Error ? err.message : 'No se pudo actualizar el vendedor.';
+                              setSellerUpdateMessage(message);
+                            } finally {
+                              setSellerUpdateLoading(false);
+                            }
+                          }}
+                        >
+                          <p className="text-xs font-bold text-[var(--ink-soft)] flex items-center gap-1.5">
+                            <Pencil className="w-3.5 h-3.5 text-[var(--route)]" />
+                            Editar vendedor
+                          </p>
+                          <input
+                            required
+                            value={editSellerName}
+                            onChange={(e) => setEditSellerName(e.target.value)}
+                            placeholder="Nombre del vendedor / tienda"
+                            className={inputClass}
+                          />
+                          <input
+                            required
+                            value={editSellerUsername}
+                            onChange={(e) => setEditSellerUsername(e.target.value)}
+                            placeholder="Usuario de acceso"
+                            className={inputClass}
+                            autoComplete="off"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="submit"
+                              disabled={sellerUpdateLoading}
+                              className={btnPrimary}
+                            >
+                              {sellerUpdateLoading ? 'Guardando…' : 'Guardar cambios'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingSeller(false);
+                                setSellerUpdateMessage(null);
+                                if (sellerDetail) {
+                                  setEditSellerName(sellerDetail.user.name);
+                                  setEditSellerUsername(sellerDetail.user.username);
+                                }
+                              }}
+                              className={btnGhost}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                          {sellerUpdateMessage && (
+                            <p className={msgClass(sellerUpdateMessage.includes('correctamente'))}>
+                              {sellerUpdateMessage}
+                            </p>
+                          )}
+                        </form>
+                      ) : (
+                        <>
                       <div>
                         <p className="mono-label">Nombre / tienda</p>
                         <p className="text-sm font-semibold text-[var(--color-text)]">{sellerDetail.user.name}</p>
@@ -490,6 +636,8 @@ export default function SettingsPage({
                           <p className="text-[var(--color-text-muted)] font-mono truncate">{sellerDetail.user.id}</p>
                         </div>
                       </div>
+                        </>
+                      )}
                       <div className="grid grid-cols-4 gap-1.5 pt-1">
                         <div className="text-center rounded-lg bg-[var(--paper-3)] border border-[var(--surface-border)] py-1.5">
                           <p className="text-sm font-bold text-[var(--ink-soft)]">{sellerDetail.stats.totalOrders}</p>

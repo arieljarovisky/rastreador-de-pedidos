@@ -427,6 +427,45 @@ export default function App() {
     }
   };
 
+  const handleUpdateSeller = async (
+    sellerId: string,
+    data: { name: string; username: string }
+  ): Promise<User> => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/accounts/sellers/${sellerId}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo actualizar el vendedor');
+    }
+    const updated = await res.json();
+    setSellers((prev) => prev.map((s) => (s.id === sellerId ? { ...s, ...updated } : s)));
+    return updated;
+  };
+
+  const handleDeleteSeller = async (sellerId: string): Promise<{ unlinkedOrders: number }> => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/accounts/sellers/${sellerId}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo eliminar el vendedor');
+    }
+    const result = await res.json();
+    setSellers((prev) => prev.filter((s) => s.id !== sellerId));
+    setPickupPoints((prev) => prev.filter((p) => p.userId !== sellerId));
+    void fetchData();
+    return result;
+  };
+
   const handleCreateRepartidor = async (data: {
     username: string;
     password: string;
@@ -1128,7 +1167,9 @@ export default function App() {
                   onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
                   onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
                   onFetchSellerDetail={isAgencyAdmin(user.role) ? handleFetchSellerDetail : undefined}
+                  onUpdateSeller={isAgencyAdmin(user.role) ? handleUpdateSeller : undefined}
                   onUpdateSellerPassword={isAgencyAdmin(user.role) ? handleUpdateSellerPassword : undefined}
+                  onDeleteSeller={isAgencyAdmin(user.role) ? handleDeleteSeller : undefined}
                   onCreateRepartidor={isAgencyAdmin(user.role) ? handleCreateRepartidor : undefined}
                   onUpdateRepartidorZone={isAgencyAdmin(user.role) ? handleUpdateRepartidorZone : undefined}
                   onDeleteRepartidor={isAgencyAdmin(user.role) ? handleDeleteRepartidor : undefined}

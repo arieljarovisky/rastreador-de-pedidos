@@ -6,6 +6,8 @@ import {
   listSellers,
   getSellerDetail,
   updateSellerPassword,
+  updateSeller,
+  deleteSeller,
   updateAgencyDeparture,
   getAgencyDepartureForUser,
   getUserById,
@@ -80,6 +82,51 @@ router.put('/sellers/:id/password', authenticate, requireAgencyAdmin(), async (r
     const message = err instanceof Error ? err.message : '';
     if (message === 'NOT_FOUND') {
       res.status(404).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/sellers/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const { name, username } = req.body;
+  if (!name || typeof name !== 'string') {
+    res.status(400).json({ error: 'El nombre es obligatorio.' });
+    return;
+  }
+
+  try {
+    const user = await updateSeller(
+      req.params.id,
+      { name, username: typeof username === 'string' ? username : undefined },
+      req.user?.agencyId
+    );
+    res.json(user);
+  } catch (err) {
+    if (handleCreateUserError(res, err)) return;
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.delete('/sellers/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  try {
+    const result = await deleteSeller(req.params.id, req.user?.agencyId);
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    if (message === 'SELLER_HAS_ACTIVE_ORDERS') {
+      res.status(409).json({
+        error: 'No se puede eliminar: el vendedor tiene pedidos en ruta o asignados. Cancelá o completá esos envíos primero.',
+      });
       return;
     }
     throw err;

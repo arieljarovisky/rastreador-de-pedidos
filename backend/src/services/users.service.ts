@@ -291,6 +291,84 @@ export async function updateSellerPassword(
   await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, sellerId]);
 }
 
+export async function updateSeller(
+  sellerId: string,
+  data: { name: string; username?: string },
+  agencyId?: string | null
+): Promise<User> {
+  const user = await getUserById(sellerId);
+  if (!user || user.role !== UserRole.STORE_ADMIN) {
+    throw new Error('NOT_FOUND');
+  }
+  if (agencyId && user.agencyId !== agencyId) {
+    throw new Error('NOT_FOUND');
+  }
+
+  const name = data.name.trim();
+  if (!name) {
+    throw new Error('NAME_REQUIRED');
+  }
+
+  let username = user.username;
+  if (data.username !== undefined) {
+    const normalizedUsername = data.username.trim().toLowerCase();
+    if (normalizedUsername.length < 3) {
+      throw new Error('USERNAME_SHORT');
+    }
+    if (normalizedUsername !== user.username.toLowerCase()) {
+      const existing = await findUserByUsername(normalizedUsername);
+      if (existing && existing.id !== sellerId) {
+        throw new Error('USERNAME_TAKEN');
+      }
+      username = normalizedUsername;
+    }
+  }
+
+  await pool.query('UPDATE users SET name = ?, username = ? WHERE id = ?', [name, username, sellerId]);
+  const updated = await getUserById(sellerId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
+}
+
+export async function deleteSeller(
+  sellerId: string,
+  agencyId?: string | null
+): Promise<{ unlinkedOrders: number }> {
+  const seller = await getUserById(sellerId);
+  if (!seller || seller.role !== UserRole.STORE_ADMIN) {
+    throw new Error('NOT_FOUND');
+  }
+  if (agencyId && seller.agencyId !== agencyId) {
+    throw new Error('NOT_FOUND');
+  }
+
+  const [activeRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM orders
+     WHERE seller_id = ? AND status IN (?, ?)`,
+    [sellerId, OrderStatus.ASSIGNED, OrderStatus.DELIVERING]
+  );
+  if (activeRows.length > 0) {
+    throw new Error('SELLER_HAS_ACTIVE_ORDERS');
+  }
+
+  const [unlinkResult] = await pool.query<ResultSetHeader>(
+    'UPDATE orders SET seller_id = NULL WHERE seller_id = ?',
+    [sellerId]
+  );
+
+  await pool.query('DELETE FROM notifications WHERE user_id = ?', [sellerId]);
+
+  const [result] = await pool.query<ResultSetHeader>(
+    'DELETE FROM users WHERE id = ? AND role = ?',
+    [sellerId, UserRole.STORE_ADMIN]
+  );
+  if (result.affectedRows === 0) {
+    throw new Error('NOT_FOUND');
+  }
+
+  return { unlinkedOrders: unlinkResult.affectedRows };
+}
+
 export async function deleteRepartidor(id: string): Promise<{ finalizedOrders: number }> {
   const repartidor = await getRepartidorById(id);
   if (!repartidor) {
