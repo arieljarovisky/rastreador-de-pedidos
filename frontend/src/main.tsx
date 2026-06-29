@@ -15,6 +15,14 @@ if ('serviceWorker' in navigator) {
       .then((reg) => {
         console.log('Service Worker registrado con éxito:', reg.scope);
         reg.update();
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing;
+          worker?.addEventListener('statechange', () => {
+            if (worker.state === 'activated' && navigator.serviceWorker.controller) {
+              window.location.reload();
+            }
+          });
+        });
       })
       .catch((err) => {
         console.error('Error al registrar Service Worker:', err);

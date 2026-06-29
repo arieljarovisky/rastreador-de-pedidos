@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, Suspense, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, Layers } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
@@ -11,8 +11,7 @@ import { findZoneForPoint, zoneLabel } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge from './ui/StatusBadge.tsx';
-
-const MapComponent = React.lazy(() => import('./MapComponent.tsx'));
+import MapComponent from './MapComponent.tsx';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -1041,23 +1040,15 @@ export default function AdminDashboard({
               )}
             </div>
           </div>
-          <Suspense
-            fallback={
-              <div className="w-full h-full flex items-center justify-center bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] text-xs font-mono">
-                Cargando mapa…
-              </div>
-            }
-          >
-            <MapComponent
-              orders={mapOrders}
-              repartidores={mapRepartidores}
-              departurePoint={departurePoint}
-              pickupPoints={pickupPoints}
-              activeOrderId={activeOrderId}
-              onSelectOrder={onSelectOrder}
-              showDeliveryZones={showMapZones}
-            />
-          </Suspense>
+          <MapComponent
+            orders={mapOrders}
+            repartidores={mapRepartidores}
+            departurePoint={departurePoint}
+            pickupPoints={pickupPoints}
+            activeOrderId={activeOrderId}
+            onSelectOrder={onSelectOrder}
+            showDeliveryZones={showMapZones}
+          />
           {/* Overlay Map Grid design like in the spec */}
           <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
         </div>

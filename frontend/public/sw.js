@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'posta-rastreo-v1';
+const CACHE_NAME = 'posta-rastreo-v2';
 
 const PRECACHE_ASSETS = [
   '/manifest.json',
@@ -36,17 +36,17 @@ function isApiRequest(url) {
   return url.pathname.startsWith('/api/');
 }
 
-function isAppShellRequest(request, url) {
-  return (
-    request.mode === 'navigate' ||
-    url.pathname.endsWith('.html') ||
-    url.pathname === '/' ||
-    url.pathname.startsWith('/assets/')
-  );
+function isHashedAsset(url) {
+  return url.pathname.startsWith('/assets/') && url.pathname.includes('-');
 }
 
-// HTML y bundles: red primero (evita 404 tras cada deploy en Vercel)
-async function networkFirst(request) {
+// HTML: siempre red — evita index.html viejo que apunta a chunks que ya no existen tras un deploy
+async function networkOnly(request) {
+  return fetch(request);
+}
+
+// Bundles con hash: red primero; solo cachear respuestas OK
+async function networkFirstAsset(request) {
   try {
     const response = await fetch(request);
     if (response.ok && request.url.startsWith(self.location.origin)) {
@@ -57,10 +57,6 @@ async function networkFirst(request) {
   } catch {
     const cached = await caches.match(request);
     if (cached) return cached;
-    if (request.mode === 'navigate') {
-      const fallback = await caches.match('/index.html');
-      if (fallback) return fallback;
-    }
     throw new Error('Offline');
   }
 }
@@ -71,8 +67,13 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (isApiRequest(url)) return;
 
-  if (isAppShellRequest(event.request, url)) {
-    event.respondWith(networkFirst(event.request));
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {
+    event.respondWith(networkOnly(event.request));
+    return;
+  }
+
+  if (isHashedAsset(url)) {
+    event.respondWith(networkFirstAsset(event.request));
     return;
   }
 
@@ -97,8 +98,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/icon-posta.svg',
-      badge: '/icon-posta.svg',
+      icon: '/icon-192.svg',
+      badge: '/icon-192.svg',
       vibrate: [100, 50, 100],
       data: { url: '/' },
     })

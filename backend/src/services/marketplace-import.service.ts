@@ -137,7 +137,7 @@ export async function importMarketplaceShipments(
 
       await createNotification({
         id: `n_import_${Date.now()}_${order.id}`,
-        userId: 'all',
+        userId: user.id,
         title: 'Envío importado',
         body: `Se importó el pedido ${shipment.platform === 'mercadolibre' ? 'Flex' : 'Express'} #${shipment.externalId} como ${order.id}.`,
         type: 'info',
@@ -152,6 +152,12 @@ export async function importMarketplaceShipments(
     } catch (err) {
       skipped++;
       const reason = err instanceof Error ? err.message : 'error desconocido';
+      if (reason === 'SELLER_NO_AGENCY') {
+        errors.push(
+          'Tu cuenta no está asociada a una agencia. Pedile a tu agencia de logística que verifique tu usuario.'
+        );
+        break;
+      }
       errors.push(`#${shipment.externalId}: ${reason}`);
     }
   }

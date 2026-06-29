@@ -211,10 +211,16 @@ export async function createOrder(
   const now = new Date();
 
   let sellerId: string | null = null;
-  let agencyId: string | null = user.agencyId ?? null;
+  let agencyId: string | null = null;
   if (user.role === UserRole.STORE_ADMIN) {
     sellerId = user.id;
+    const seller = await getUserById(user.id);
+    agencyId = seller?.agencyId ?? null;
+    if (!agencyId) {
+      throw new Error('SELLER_NO_AGENCY');
+    }
   } else if (isAgencyAdmin(user.role)) {
+    agencyId = user.agencyId ?? null;
     if (!agencyId) {
       throw new Error('FORBIDDEN');
     }

@@ -15,8 +15,11 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (!id.includes('node_modules')) return;
-            if (id.includes('leaflet')) return 'leaflet';
+            if (!id.includes('node_modules')) {
+              if (id.includes('MapComponent')) return 'map';
+              return;
+            }
+            if (id.includes('leaflet')) return 'map';
             if (id.includes('socket.io-client')) return 'socket';
             if (id.includes('lucide-react')) return 'icons';
             if (id.includes('motion')) return 'motion';

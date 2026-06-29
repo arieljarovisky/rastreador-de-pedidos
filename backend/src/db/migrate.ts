@@ -156,4 +156,11 @@ export async function runMigrations(): Promise<void> {
       }
     }
   }
+
+  await pool.query(
+    `UPDATE orders o
+     INNER JOIN users s ON s.id = o.seller_id
+     SET o.agency_id = s.agency_id
+     WHERE o.agency_id IS NULL AND s.agency_id IS NOT NULL`
+  );
 }

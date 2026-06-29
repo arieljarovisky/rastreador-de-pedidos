@@ -3,12 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText } from 'lucide-react';
 import { useModal } from '../context/ModalContext.tsx';
-
-const MapComponent = lazy(() => import('./MapComponent.tsx'));
+import MapComponent from './MapComponent.tsx';
 
 function getCollectLabel(
   order: Order,
@@ -291,24 +290,16 @@ export default function RepartidorDashboard({
             <div className="flex-1 flex flex-col gap-4 overflow-hidden">
 
               <div className="flex-1 min-h-[180px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
-                <Suspense
-                  fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] text-xs font-mono">
-                      Cargando mapa…
-                    </div>
-                  }
-                >
-                  <MapComponent
-                    orders={[selectedOrder]}
-                    repartidores={repForMap}
-                    departurePoint={departurePoint}
-                    pickupPoints={pickupPoints}
-                    activeOrderId={selectedOrder.id}
-                    liveRepartidorLocation={currentCoords}
-                    showDepartureHub={false}
-                    interactive={true}
-                  />
-                </Suspense>
+                <MapComponent
+                  orders={[selectedOrder]}
+                  repartidores={repForMap}
+                  departurePoint={departurePoint}
+                  pickupPoints={pickupPoints}
+                  activeOrderId={selectedOrder.id}
+                  liveRepartidorLocation={currentCoords}
+                  showDepartureHub={false}
+                  interactive={true}
+                />
                 <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
               </div>
 

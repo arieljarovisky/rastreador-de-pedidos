@@ -273,6 +273,13 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
       res.status(400).json({ error: 'Conectá tu cuenta antes de importar envíos.' });
       return;
     }
+    if (message === 'SELLER_NO_AGENCY') {
+      res.status(400).json({
+        error:
+          'Tu cuenta de vendedor no está asociada a una agencia. Pedile a tu agencia que verifique tu usuario.',
+      });
+      return;
+    }
     throw err;
   }
 });
