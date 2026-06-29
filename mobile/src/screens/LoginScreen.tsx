@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { colors, radius, spacing } from '../theme';
 import Button from '../components/Button';
+import PostaLogo from '../components/PostaLogo';
 
 export default function LoginScreen() {
   const { login, error, loading } = useAuth();
@@ -45,7 +46,7 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.brand}>
-          <Text style={styles.logo}>Posta</Text>
+          <PostaLogo size={52} />
           <Text style={styles.subtitle}>App de Repartidores</Text>
         </View>
 
@@ -97,13 +98,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
   },
-  brand: { alignItems: 'center', marginBottom: 48 },
-  logo: {
-    color: colors.text,
-    fontSize: 44,
-    fontWeight: '800',
-    letterSpacing: -1,
-  },
+  brand: { alignItems: 'center', marginBottom: 48, gap: 6 },
   subtitle: {
     color: colors.blue,
     fontSize: 14,

@@ -924,7 +924,7 @@ export default function App() {
     }
   };
 
-  // Enviar ubicación de repartidor (Repartidor)
+  // Enviar ubicación de repartidor (pedido en viaje: ruta + perfil)
   const handleReportLocation = async (orderId: string, lat: number, lng: number) => {
     if (!token) return;
     try {
@@ -938,6 +938,22 @@ export default function App() {
       });
     } catch (e) {
       console.warn('Error reportando GPS:', e);
+    }
+  };
+
+  const handleReportUserLocation = async (lat: number, lng: number) => {
+    if (!token) return;
+    try {
+      await fetch(apiUrl('/api/users/location'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ lat, lng }),
+      });
+    } catch (e) {
+      console.warn('Error reportando ubicación:', e);
     }
   };
 
@@ -1022,57 +1038,76 @@ export default function App() {
   return (
     <div className="app-viewport min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden">
       
-      {/* CABECERA PRINCIPAL */}
-      <header className="safe-top min-h-[3.5rem] sm:min-h-[4.25rem] lg:min-h-[5.25rem] flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-5 lg:px-8 py-2 sm:py-3 lg:py-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40">
-        {/* Marca + sesión */}
-        <div className="flex items-center gap-4 lg:gap-5 min-w-0 flex-1">
+      {/* CABECERA — móvil compacta */}
+      <header className="safe-top shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/90 relative z-40 xl:hidden">
+        <div className="flex items-center gap-1.5 px-2 py-1.5 min-h-[2.75rem]">
           <PostaLogo
-            size={40}
-            showWordmark={false}
+            size={26}
+            showWordmark
             variant={theme === 'paper' ? 'paper' : 'dark'}
-            className="shrink-0 lg:[&_svg]:w-11 lg:[&_svg]:h-11"
+            className="min-w-0 shrink"
           />
-
-          <div className="flex flex-col justify-center gap-1 min-w-0">
-            <div className="flex items-baseline gap-2.5 flex-wrap">
-              <h1 className="text-lg lg:text-xl font-display font-bold tracking-[-0.02em] text-[var(--color-text)] leading-none">
-                Posta
-              </h1>
-              <span className="text-xs lg:text-sm text-[var(--color-text-muted)] font-sans font-normal leading-none">
-                v2.4.0
+          <div className="flex-1 min-w-0" />
+          <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} compact />
+          <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
+          <button
+            type="button"
+            className="relative p-1.5 rounded-[var(--radius-posta)] hover:bg-[var(--surface-panel-2)] transition"
+            title="Alertas"
+            onClick={() => setMobileTab('notifications')}
+          >
+            <Bell className={`w-4 h-4 text-[var(--color-text-muted)] ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
+            {unreadNotifsCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 bg-[var(--color-cta)] text-[#F6F0E4] font-black text-[8px] min-w-[0.875rem] h-3.5 px-0.5 rounded-full flex items-center justify-center">
+                {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
               </span>
-            </div>
-            <p className="text-xs text-[var(--color-text-muted)] truncate md:hidden">
-              <span className="font-medium text-[var(--color-text)]">{user.name}</span>
-            </p>
-          </div>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Cerrar sesión"
+            className="p-1.5 rounded-[var(--radius-posta)] hover:bg-[var(--color-danger)]/10 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
 
-          <div className="flex items-center gap-2 shrink-0 sm:pl-2 lg:pl-3 sm:border-l sm:border-[var(--surface-border)] sm:ml-1">
+      {/* CABECERA — escritorio */}
+      <header className="safe-top hidden xl:flex min-h-[5.25rem] items-center justify-between gap-4 px-8 py-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40">
+        <div className="flex items-center gap-5 min-w-0 flex-1">
+          <PostaLogo
+            size={44}
+            showWordmark
+            variant={theme === 'paper' ? 'paper' : 'dark'}
+            className="shrink-0"
+          />
+          <span className="text-sm text-[var(--color-text-muted)] font-sans">v2.4.0</span>
+          <div className="flex items-center gap-2 pl-3 border-l border-[var(--surface-border)]">
             <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} />
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
         </div>
-
-        {/* Métricas y controles */}
-        <div className="flex gap-3 md:gap-6 lg:gap-8 items-center shrink-0">
-          <div className="hidden sm:flex flex-col items-end">
+        <div className="flex gap-8 items-center shrink-0">
+          <div className="flex flex-col items-end">
             <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Pedidos Activos</span>
-            <span className="text-base lg:text-xl font-mono text-[var(--color-ok)] font-semibold leading-none mt-0.5">
+            <span className="text-xl font-mono text-[var(--color-ok)] font-semibold leading-none mt-0.5">
               {orders.filter(o => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED).length}
             </span>
           </div>
           
-          <div className="hidden sm:flex flex-col items-end">
+          <div className="flex flex-col items-end">
             <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Repartidores</span>
-            <span className="text-base lg:text-xl font-mono text-[var(--color-accent)] font-semibold leading-none mt-0.5">
+            <span className="text-xl font-mono text-[var(--color-accent)] font-semibold leading-none mt-0.5">
               {String(repartidores.length).padStart(2, '0')}
             </span>
           </div>
 
-          <div className="hidden sm:block h-8 w-[1px] bg-[var(--surface-border)] mx-1"></div>
+          <div className="h-8 w-[1px] bg-[var(--surface-border)] mx-1"></div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden xl:flex items-center gap-1">
+            <div className="flex items-center gap-1">
               {showSettings && (
                 <>
                   <button
@@ -1120,29 +1155,12 @@ export default function App() {
               </button>
             </div>
 
-            <div
-              className="relative cursor-pointer p-1.5 hover:bg-[var(--surface-panel-2)] rounded-2xl transition xl:hidden"
-              title="Ver notificaciones"
-              onClick={() => setMobileTab('notifications')}
-              onKeyDown={(e) => e.key === 'Enter' && setMobileTab('notifications')}
-              role="button"
-              tabIndex={0}
-            >
-              <Bell className={`w-4 h-4 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
-              {unreadNotifsCount > 0 && (
-                <span className="absolute top-0 right-0 bg-[var(--color-cta)] text-[#F6F0E4] font-extrabold text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-[var(--surface-bg)]">
-                  {unreadNotifsCount}
-                </span>
-              )}
-            </div>
-
-            <div className="hidden md:block text-right">
-              <p className="text-xs lg:text-sm font-medium text-[var(--color-text)]">{user.name}</p>
+            <div className="text-right">
+              <p className="text-sm font-medium text-[var(--color-text)]">{user.name}</p>
               <p className="text-[9px] text-[var(--color-text-muted)] uppercase font-mono">{user.role}</p>
             </div>
 
-            {/* Avatar circle */}
-            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] flex items-center justify-center text-xs lg:text-sm font-bold text-[var(--color-text-muted)] uppercase shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] flex items-center justify-center text-sm font-bold text-[var(--color-text-muted)] uppercase shrink-0">
               {user.name.slice(0, 2)}
             </div>
 
@@ -1152,17 +1170,17 @@ export default function App() {
               title="Cerrar sesión"
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] bg-[var(--surface-panel-2)] hover:bg-[var(--color-danger)]/10 border border-[var(--surface-border)] hover:border-[var(--color-danger)]/40 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] font-bold text-[11px] transition"
             >
-              <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Salir</span>
+              <LogOut className="w-3.5 h-3.5" /> Salir
             </button>
           </div>
         </div>
       </header>
       
       {/* Selector de pestañas para vista mobile/tablet */}
-      <div className="xl:hidden scroll-tabs bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex shrink-0 min-h-[2.75rem] z-40">
+      <div className="xl:hidden scroll-tabs bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex shrink-0 min-h-[2.5rem] z-40">
         <button
           onClick={() => setMobileTab('dashboard')}
-          className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 px-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all ${
+          className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
             mobileTab === 'dashboard'
               ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
@@ -1174,7 +1192,7 @@ export default function App() {
         {showSettings && (
           <button
             onClick={() => setMobileTab('settings')}
-            className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 px-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all ${
+            className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
               mobileTab === 'settings'
                 ? 'text-[var(--color-text)] border-b-2 border-[var(--color-text-muted)] bg-[var(--surface-panel)]/50'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
@@ -1303,6 +1321,7 @@ export default function App() {
                 onSelectOrder={setActiveOrderId}
                 onUpdateOrderStatus={handleUpdateOrderStatus}
                 onReportLocation={handleReportLocation}
+                onReportUserLocation={handleReportUserLocation}
                 onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
                 onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
               />

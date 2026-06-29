@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText, Barcode } from 'lucide-react';
 import { useModal } from '../context/ModalContext.tsx';
@@ -35,6 +35,7 @@ interface RepartidorDashboardProps {
   onSelectOrder: (orderId: string | null) => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
   onReportLocation: (orderId: string, lat: number, lng: number) => Promise<void>;
+  onReportUserLocation: (lat: number, lng: number) => Promise<void>;
   onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
   onScanMercadoLibreLabel?: (
     code: string,
@@ -52,6 +53,7 @@ export default function RepartidorDashboard({
   onSelectOrder,
   onUpdateOrderStatus,
   onReportLocation,
+  onReportUserLocation,
   onOpenMercadoLibreLabel,
   onScanMercadoLibreLabel,
 }: RepartidorDashboardProps) {
@@ -62,12 +64,25 @@ export default function RepartidorDashboard({
   const [gpsError, setGpsError] = useState<string | null>(null);
   const lastGpsSentAt = useRef(0);
 
-  const reportGps = (orderId: string, latitude: number, longitude: number) => {
-    const now = Date.now();
-    if (now - lastGpsSentAt.current < 2000) return;
-    lastGpsSentAt.current = now;
-    onReportLocation(orderId, latitude, longitude);
-  };
+  const reportOrderGps = useCallback(
+    (orderId: string, latitude: number, longitude: number) => {
+      const now = Date.now();
+      if (now - lastGpsSentAt.current < 2000) return;
+      lastGpsSentAt.current = now;
+      onReportLocation(orderId, latitude, longitude);
+    },
+    [onReportLocation]
+  );
+
+  const reportUserGps = useCallback(
+    (latitude: number, longitude: number) => {
+      const now = Date.now();
+      if (now - lastGpsSentAt.current < 2000) return;
+      lastGpsSentAt.current = now;
+      onReportUserLocation(latitude, longitude);
+    },
+    [onReportUserLocation]
+  );
 
   const myAssignedOrders = orders.filter(
     (o) => o.repartidorId === currentUser.id && o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
@@ -80,7 +95,6 @@ export default function RepartidorDashboard({
     : null;
 
   const deliveringOrder = myAssignedOrders.find((o) => o.status === OrderStatus.DELIVERING) ?? null;
-  const gpsOrder = deliveringOrder ?? selectedOrder;
   const otherDelivering =
     deliveringOrder && deliveringOrder.id !== selectedOrder?.id ? deliveringOrder : null;
 
@@ -96,23 +110,21 @@ export default function RepartidorDashboard({
     [currentUser, currentCoords]
   );
 
-  // GPS en vivo: preview en assigned, reporte al servidor en delivering
+  // GPS en vivo: siempre compartir ubicación; en viaje también registra la ruta del pedido
   useEffect(() => {
     let watchId: number | null = null;
 
-    const trackLocation =
-      gpsOrder &&
-      (gpsOrder.status === OrderStatus.DELIVERING || gpsOrder.status === OrderStatus.ASSIGNED);
-
-    if (trackLocation && 'geolocation' in navigator) {
+    if ('geolocation' in navigator) {
       setGpsError(null);
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
           setCurrentCoords({ lat: latitude, lng: longitude });
           setGpsError(null);
-          if (gpsOrder.status === OrderStatus.DELIVERING) {
-            reportGps(gpsOrder.id, latitude, longitude);
+          if (deliveringOrder) {
+            reportOrderGps(deliveringOrder.id, latitude, longitude);
+          } else {
+            reportUserGps(latitude, longitude);
           }
         },
         (error) => {
@@ -120,9 +132,7 @@ export default function RepartidorDashboard({
           let errMsg = 'Error al leer el GPS.';
           if (error.code === error.PERMISSION_DENIED) {
             errMsg =
-              gpsOrder.status === OrderStatus.DELIVERING
-                ? 'Permiso de GPS denegado. Activá la ubicación en el navegador para continuar el viaje.'
-                : 'Permiso de GPS denegado. Activá la ubicación para ver la ruta al destino.';
+              'Permiso de GPS denegado. Activá la ubicación para que logística pueda verte en el mapa.';
           } else if (error.code === error.POSITION_UNAVAILABLE) {
             errMsg = 'Ubicación GPS no disponible.';
           }
@@ -130,8 +140,6 @@ export default function RepartidorDashboard({
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
       );
-    } else if (!trackLocation) {
-      setGpsError(null);
     } else {
       setGpsError('Este dispositivo no soporta geolocalización.');
     }
@@ -139,7 +147,7 @@ export default function RepartidorDashboard({
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     };
-  }, [gpsOrder?.id, gpsOrder?.status]);
+  }, [deliveringOrder?.id, reportOrderGps, reportUserGps]);
 
   const handleAutoPilotSimulation = async () => {
     if (!selectedOrder) return;
@@ -209,6 +217,20 @@ export default function RepartidorDashboard({
           </button>
         </div>
       )}
+
+      <div className="shrink-0 flex items-center justify-between gap-2 px-2 sm:px-3 py-1.5 border-b border-[var(--surface-border)]/80 bg-[var(--surface-panel-2)]/50">
+        <div className="flex items-center gap-1.5 text-[10px] font-mono">
+          <span className="font-bold text-[var(--ink-soft)]">📡 Ubicación</span>
+          {!gpsError ? (
+            <span className="text-[var(--color-ok)] font-bold animate-pulse">● Visible en mapa</span>
+          ) : (
+            <span className="text-[var(--color-warn)]">● Sin GPS</span>
+          )}
+        </div>
+        {deliveringOrder && (
+          <span className="text-[9px] text-[var(--color-accent)] font-mono uppercase">Ruta en vivo</span>
+        )}
+      </div>
 
       {onScanMercadoLibreLabel && (
         <MercadoLibreLabelScanner

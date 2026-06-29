@@ -4,9 +4,29 @@ interface ConnectionIndicatorProps {
   isOnline: boolean;
   wsConnected: boolean;
   className?: string;
+  /** Solo punto de color, sin texto */
+  compact?: boolean;
 }
 
-export default function ConnectionIndicator({ isOnline, wsConnected, className = '' }: ConnectionIndicatorProps) {
+export default function ConnectionIndicator({
+  isOnline,
+  wsConnected,
+  className = '',
+  compact = false,
+}: ConnectionIndicatorProps) {
+  if (compact) {
+    const tone = !isOnline ? 'offline' : wsConnected ? 'live' : 'online';
+    return (
+      <span
+        className={`connection-indicator connection-indicator--${tone} connection-indicator--compact ${className}`.trim()}
+        title={!isOnline ? 'Sin conexión' : wsConnected ? 'Tiempo real' : 'En línea'}
+        aria-label={!isOnline ? 'Sin conexión' : wsConnected ? 'Tiempo real' : 'En línea'}
+      >
+        <span className="connection-indicator__dot" aria-hidden="true" />
+      </span>
+    );
+  }
+
   if (!isOnline) {
     return (
       <span className={`connection-indicator connection-indicator--offline ${className}`.trim()}>
