@@ -15,7 +15,11 @@ router.post('/location', authenticate, requireRoles(UserRole.REPARTIDOR), async 
 
   const recordedAt = typeof timestamp === 'string' ? new Date(timestamp) : undefined;
   await updateUserLocation(req.user!.id, Number(lat), Number(lng), recordedAt);
-  await appendRepartidorLocationHistory(req.user!.id, Number(lat), Number(lng), recordedAt);
+  try {
+    await appendRepartidorLocationHistory(req.user!.id, Number(lat), Number(lng), recordedAt);
+  } catch (err) {
+    console.warn('[users/location] No se pudo guardar historial de flota:', err);
+  }
   const updated = await getUserById(req.user!.id);
   if (updated) {
     emitRepartidorLocation(updated);

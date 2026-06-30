@@ -320,6 +320,29 @@ export default function App() {
     return () => clearInterval(interval);
   }, [token, wsConnected, fetchData]);
 
+  // Refresco frecuente de la flota (posición de repartidores)
+  useEffect(() => {
+    if (!token || !user) return;
+    if (user.role !== UserRole.STORE_ADMIN && !isAgencyAdmin(user.role)) return;
+
+    const refreshFleet = async () => {
+      try {
+        const res = await fetch(apiUrl('/api/repartidores'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          setRepartidores(await res.json());
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    void refreshFleet();
+    const interval = setInterval(refreshFleet, 10_000);
+    return () => clearInterval(interval);
+  }, [token, user?.role]);
+
   // Almacenar en caché local para soporte offline
   useEffect(() => {
     if (orders.length > 0) {

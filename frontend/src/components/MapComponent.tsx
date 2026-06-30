@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { getDeliveryZone, type DeliveryZone } from '../config/deliveryZones.js';
 import { fetchDrivingRoute } from '../utils/route.js';
+import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
 import { getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 import * as L from 'leaflet';
@@ -88,12 +89,18 @@ const createSvgIcon = (color: string, iconText: string, glow: boolean = false) =
   });
 };
 
-const createRepartidorIcon = (name: string, mapColors: ReturnType<typeof getPostaMapColors>) => {
+const createRepartidorIcon = (
+  name: string,
+  mapColors: ReturnType<typeof getPostaMapColors>,
+  stale = false
+) => {
+  const color = stale ? '#7A6F60' : mapColors.departure;
+  const ping = stale ? '' : `<div class="absolute w-full h-full rounded-full opacity-25 animate-ping" style="background:${color}"></div>`;
   return L.divIcon({
     html: `
       <div class="relative w-9 h-9 flex items-center justify-center filter drop-shadow-[0_2px_5px_rgba(0,0,0,0.25)]">
-        <div class="absolute w-full h-full rounded-full opacity-25 animate-ping" style="background:${mapColors.departure}"></div>
-        <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-xs font-mono" style="background:var(--panel);border-color:${mapColors.departure};color:${mapColors.departure}">
+        ${ping}
+        <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-xs font-mono" style="background:var(--panel);border-color:${color};color:${color};${stale ? 'opacity:0.75;' : ''}">
           🏍️
         </div>
         <div class="absolute -bottom-6 border font-mono font-medium text-[9px] px-1 rounded shadow-md whitespace-nowrap" style="background:var(--panel);border-color:var(--line);color:var(--text)">
@@ -470,11 +477,14 @@ export default function MapComponent({
     repartidores.forEach((rep) => {
       if (!rep.currentLocation) return;
       const markerId = `rep_${rep.id}`;
-      const icon = createRepartidorIcon(rep.name, mapColors);
+      const stale = isStaleLocation(rep.currentLocation.timestamp);
+      const icon = createRepartidorIcon(rep.name, mapColors, stale);
+      const reportLabel = formatLastReport(rep.currentLocation.timestamp);
       const repPopup = `
             <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
-              <h4 class="font-bold uppercase tracking-wider font-mono" style="color:var(--accent)">🏍️ ${rep.name}</h4>
-              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">Último reporte: ${new Date(rep.currentLocation.timestamp).toLocaleTimeString()}</p>
+              <h4 class="font-bold uppercase tracking-wider font-mono" style="color:${stale ? 'var(--text-muted)' : 'var(--accent)'}">🏍️ ${rep.name}</h4>
+              <p class="text-[10px] mt-0.5" style="color:${stale ? 'var(--warn)' : 'var(--text-muted)'}">${stale ? '⚠️ GPS desactualizado · ' : ''}${reportLabel}</p>
+              ${stale ? '<p class="text-[9px] mt-1" style="color:var(--text-muted)">El repartidor debe tener la app abierta con ubicación activa.</p>' : ''}
             </div>
           `;
 
