@@ -2,6 +2,11 @@ CREATE TABLE IF NOT EXISTS agencies (
   id VARCHAR(36) PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency',
+  website VARCHAR(500) NULL,
+  instagram VARCHAR(255) NULL,
+  city VARCHAR(255) NULL,
+  province VARCHAR(255) NULL,
+  shipping_services JSON NULL,
   departure_address VARCHAR(500) NULL,
   departure_lat DECIMAL(10, 7) NULL,
   departure_lng DECIMAL(10, 7) NULL,
@@ -15,6 +20,9 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(255) NOT NULL,
   role ENUM('super_admin', 'store_admin', 'logistics_admin', 'repartidor') NOT NULL,
   agency_id VARCHAR(36) NULL,
+  preferred_agency_id VARCHAR(36) NULL,
+  city VARCHAR(255) NULL,
+  province VARCHAR(255) NULL,
   current_lat DECIMAL(10, 7) NULL,
   current_lng DECIMAL(10, 7) NULL,
   location_updated_at DATETIME(3) NULL,
@@ -24,7 +32,9 @@ CREATE TABLE IF NOT EXISTS users (
   delivery_zone VARCHAR(64) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_users_agency (agency_id),
-  CONSTRAINT fk_users_agency FOREIGN KEY (agency_id) REFERENCES agencies(id)
+  INDEX idx_users_preferred_agency (preferred_agency_id),
+  CONSTRAINT fk_users_agency FOREIGN KEY (agency_id) REFERENCES agencies(id),
+  CONSTRAINT fk_users_preferred_agency FOREIGN KEY (preferred_agency_id) REFERENCES agencies(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS delivery_zones (

@@ -16,6 +16,30 @@ export enum OrderStatus {
 /** Cómo la agencia registra escaneos en Mercado Libre Flex. */
 export type MlFlexMode = 'agency' | 'repartidor';
 
+/** Modelo de negocio de la plataforma. */
+export type BusinessModel = 'managed' | 'marketplace';
+
+export type AgencyShippingServiceType = 'same_day' | 'turbo' | 'custom';
+
+export interface AgencyShippingService {
+  type: AgencyShippingServiceType;
+  /** Etiqueta visible para servicios personalizados. */
+  label?: string;
+  description?: string;
+}
+
+/** Perfil público de agencia en el marketplace. */
+export interface MarketplaceAgency {
+  id: string;
+  name: string;
+  city?: string | null;
+  province?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  shippingServices: AgencyShippingService[];
+  departurePoint?: LocationPoint;
+}
+
 export interface UserLocation {
   lat: number;
   lng: number;
@@ -48,6 +72,13 @@ export interface User {
   agencyName?: string | null;
   /** Modo Flex de la agencia (mensajería única vs repartidor independiente). */
   agencyMlFlexMode?: MlFlexMode | null;
+  /** Vendedor marketplace: agencia preferida para envíos. */
+  preferredAgencyId?: string | null;
+  preferredAgencyName?: string | null;
+  /** Vendedor registrado de forma independiente (sin agencia fija). */
+  isMarketplaceSeller?: boolean;
+  city?: string | null;
+  province?: string | null;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];
@@ -115,6 +146,9 @@ export interface DbUserRow {
   name: string;
   role: UserRole;
   agency_id: string | null;
+  preferred_agency_id: string | null;
+  city: string | null;
+  province: string | null;
   password_hash: string;
   current_lat: number | null;
   current_lng: number | null;

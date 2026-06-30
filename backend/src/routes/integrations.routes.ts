@@ -345,10 +345,11 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
     return;
   }
 
-  const { externalIds, dateFrom, dateTo } = req.body as {
+  const { externalIds, dateFrom, dateTo, agencyId } = req.body as {
     externalIds?: string[];
     dateFrom?: string;
     dateTo?: string;
+    agencyId?: string;
   };
 
   try {
@@ -357,6 +358,7 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
     const result = await importMarketplaceShipments(req.user!, platform, externalIds, {
       dateFrom: tnDateRange?.dateFrom,
       dateTo: tnDateRange?.dateTo,
+      agencyId,
     });
     res.json(result);
   } catch (err) {
@@ -377,11 +379,14 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
       res.status(400).json({ error: 'Conectá tu cuenta antes de importar envíos.' });
       return;
     }
-    if (message === 'SELLER_NO_AGENCY') {
+    if (message === 'SELLER_NO_AGENCY' || message === 'AGENCY_REQUIRED') {
       res.status(400).json({
-        error:
-          'Tu cuenta de vendedor no está asociada a una agencia. Pedile a tu agencia que verifique tu usuario.',
+        error: 'Elegí una agencia de logística antes de importar envíos.',
       });
+      return;
+    }
+    if (message === 'AGENCY_NOT_FOUND') {
+      res.status(400).json({ error: 'La agencia seleccionada no existe.' });
       return;
     }
     throw err;

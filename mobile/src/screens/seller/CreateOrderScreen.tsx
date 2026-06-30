@@ -23,8 +23,9 @@ type Props = NativeStackScreenProps<SellerStackParamList, 'CreateOrder'>;
 
 export default function CreateOrderScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { createOrder } = useSellerOrdersContext();
+  const isMarketplaceSeller = Boolean(user?.isMarketplaceSeller || !user?.agencyId);
 
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -62,6 +63,13 @@ export default function CreateOrderScreen({ navigation }: Props) {
       Alert.alert('Ubicación pendiente', 'Usá "Ubicar en mapa" para confirmar la dirección.');
       return;
     }
+    if (isMarketplaceSeller && !user?.preferredAgencyId) {
+      Alert.alert(
+        'Agencia requerida',
+        'Elegí una agencia de logística en Configuración antes de crear envíos.'
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       const order = await createOrder({
@@ -93,7 +101,11 @@ export default function CreateOrderScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={[typography.body(13, colors.textMuted), styles.hint]}>
-          Cargá un envío manual. La agencia lo asignará a un repartidor cuando esté listo.
+          {isMarketplaceSeller
+            ? user?.preferredAgencyName
+              ? `El envío se enviará a ${user.preferredAgencyName}.`
+              : 'Elegí una agencia en Configuración antes de cargar envíos.'
+            : 'Cargá un envío manual. La agencia lo asignará a un repartidor cuando esté listo.'}
         </Text>
 
         <Field label="Cliente *">

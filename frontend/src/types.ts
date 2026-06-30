@@ -26,6 +26,36 @@ export enum OrderStatus {
 /** Cómo la agencia registra escaneos en Mercado Libre Flex. */
 export type MlFlexMode = 'agency' | 'repartidor';
 
+/** Modelo de negocio de la plataforma. */
+export type BusinessModel = 'managed' | 'marketplace';
+
+export type AgencyShippingServiceType = 'same_day' | 'turbo' | 'custom';
+
+export interface AgencyShippingService {
+  type: AgencyShippingServiceType;
+  label?: string;
+  description?: string;
+}
+
+export interface MarketplaceAgency {
+  id: string;
+  name: string;
+  city?: string | null;
+  province?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  shippingServices: AgencyShippingService[];
+  departurePoint?: LocationPoint;
+}
+
+export interface AgencyMarketplaceProfile {
+  website?: string | null;
+  instagram?: string | null;
+  city?: string | null;
+  province?: string | null;
+  shippingServices: AgencyShippingService[];
+}
+
 export interface UserLocation {
   lat: number;
   lng: number;
@@ -57,6 +87,11 @@ export interface User {
   agencyId?: string | null;
   agencyName?: string | null;
   agencyMlFlexMode?: MlFlexMode | null;
+  preferredAgencyId?: string | null;
+  preferredAgencyName?: string | null;
+  isMarketplaceSeller?: boolean;
+  city?: string | null;
+  province?: string | null;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];

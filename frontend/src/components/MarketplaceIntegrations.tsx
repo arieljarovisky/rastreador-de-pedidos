@@ -21,8 +21,11 @@ interface MarketplaceIntegrationsProps {
   onImport: (
     platform: 'mercadolibre' | 'tiendanube',
     externalIds?: string[],
-    options?: { dateFrom?: string; dateTo?: string }
+    options?: { dateFrom?: string; dateTo?: string; agencyId?: string }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
+  /** Vendedor marketplace debe elegir agencia antes de importar. */
+  importRequiresAgency?: boolean;
+  selectedAgencyName?: string | null;
 }
 
 const btnPrimary = 'btn-primary px-3 py-1.5 disabled:opacity-50';
@@ -299,6 +302,8 @@ export default function MarketplaceIntegrations({
   onDisconnect,
   onFetchShipments,
   onImport,
+  importRequiresAgency = false,
+  selectedAgencyName = null,
 }: MarketplaceIntegrationsProps) {
   const [mlShipments, setMlShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [tnShipments, setTnShipments] = useState<MarketplaceShipmentPreview[]>([]);
@@ -365,6 +370,12 @@ export default function MarketplaceIntegrations({
     if (platform === 'tiendanube' && tnDateFrom > tnDateTo) {
       setMessageTone('error');
       setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
+      return;
+    }
+
+    if (importRequiresAgency && !selectedAgencyName) {
+      setMessageTone('error');
+      setMessage('Elegí una agencia de logística en Configuración antes de importar envíos.');
       return;
     }
 

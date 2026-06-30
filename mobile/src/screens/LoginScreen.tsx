@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,18 +18,35 @@ import PaperCard from '../components/ui/PaperCard';
 import MonoLabel from '../components/ui/MonoLabel';
 import PostaInput from '../components/ui/PostaInput';
 
+type AuthMode = 'login' | 'register';
+
 export default function LoginScreen() {
-  const { login, error, loading } = useAuth();
+  const { login, registerSeller, error, loading } = useAuth();
+  const [mode, setMode] = useState<AuthMode>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [city, setCity] = useState('');
+  const [province, setProvince] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const insets = useSafeAreaInsets();
 
   const handleSubmit = async () => {
     if (!username.trim() || !password) return;
+    if (mode === 'register' && !name.trim()) return;
     setSubmitting(true);
     try {
-      await login(username.trim(), password);
+      if (mode === 'login') {
+        await login(username.trim(), password);
+      } else {
+        await registerSeller({
+          username: username.trim(),
+          password,
+          name: name.trim(),
+          city: city.trim() || undefined,
+          province: province.trim() || undefined,
+        });
+      }
     } catch {
       // el error se muestra desde el contexto
     } finally {
@@ -52,28 +70,61 @@ export default function LoginScreen() {
         <View style={styles.brand}>
           <PostaLogo size={44} variant="paper" />
           <MonoLabel color={paper.muted} style={styles.tagline}>
-            Hoja de ruta · CABA y GBA
+            Marketplace de envíos · Argentina
           </MonoLabel>
         </View>
 
         <PaperCard style={styles.form}>
-          <Text style={typography.displaySection(14, paper.ink)}>Iniciar sesión</Text>
+          <View style={styles.tabs}>
+            <Pressable
+              style={[styles.tab, mode === 'login' && styles.tabActive]}
+              onPress={() => setMode('login')}
+            >
+              <Text style={[styles.tabText, mode === 'login' && styles.tabTextActive]}>Ingresar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.tab, mode === 'register' && styles.tabActive]}
+              onPress={() => setMode('register')}
+            >
+              <Text style={[styles.tabText, mode === 'register' && styles.tabTextActive]}>Vendedor</Text>
+            </Pressable>
+          </View>
+
+          <Text style={typography.displaySection(14, paper.ink)}>
+            {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta de vendedor'}
+          </Text>
           <MonoLabel color={paper.muted} style={styles.accessLabel}>
-            Acceso operadores
+            {mode === 'login' ? 'Acceso operadores' : 'Registro independiente'}
           </MonoLabel>
 
           <Text style={[typography.body(12, paper.muted), styles.hintInForm]}>
-            Agencia, vendedor o repartidor: usá las credenciales que te dio tu operador logístico.
+            {mode === 'login'
+              ? 'Agencia, vendedor o repartidor: usá tus credenciales.'
+              : 'Registrate, conectá tu ecommerce y elegí la agencia que enviará tus pedidos.'}
           </Text>
 
-          <MonoLabel color={paper.muted} style={styles.fieldLabel}>
+          {mode === 'register' && (
+            <>
+              <MonoLabel color={paper.muted} style={styles.fieldLabel}>
+                Nombre / tienda *
+              </MonoLabel>
+              <PostaInput
+                variant="paper"
+                value={name}
+                onChangeText={setName}
+                placeholder="Ej: Mi Tienda Online"
+              />
+            </>
+          )}
+
+          <MonoLabel color={paper.muted} style={[styles.fieldLabel, { marginTop: spacing.lg }]}>
             Usuario
           </MonoLabel>
           <PostaInput
             variant="paper"
             value={username}
             onChangeText={setUsername}
-            placeholder="Ej: carlos"
+            placeholder="Ej: mitienda"
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -93,10 +144,10 @@ export default function LoginScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <Button
-            label="Ingresar"
+            label={mode === 'login' ? 'Ingresar' : 'Crear cuenta'}
             onPress={handleSubmit}
             loading={submitting || loading}
-            disabled={!username.trim() || !password}
+            disabled={!username.trim() || !password || (mode === 'register' && !name.trim())}
             paperTheme
             style={{ marginTop: spacing.xl }}
           />
@@ -120,6 +171,31 @@ const styles = StyleSheet.create({
   tagline: { marginTop: 4 },
   form: {
     padding: spacing.xl,
+  },
+  tabs: {
+    flexDirection: 'row',
+    backgroundColor: paper.panel2,
+    borderRadius: 6,
+    padding: 2,
+    marginBottom: spacing.lg,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 4,
+  },
+  tabActive: {
+    backgroundColor: paper.panel,
+  },
+  tabText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: paper.muted,
+    textTransform: 'uppercase',
+  },
+  tabTextActive: {
+    color: paper.ink,
   },
   accessLabel: { marginTop: 4, marginBottom: spacing.md },
   hintInForm: { lineHeight: 18, marginBottom: spacing.lg },

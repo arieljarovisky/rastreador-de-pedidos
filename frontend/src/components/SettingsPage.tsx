@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
-import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode } from '../types.js';
+import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode, type MarketplaceAgency, type AgencyMarketplaceProfile, type AgencyShippingService } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
 import {
@@ -23,6 +23,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
+import AgencyMarketplacePanel from './AgencyMarketplacePanel.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -145,12 +146,17 @@ interface SettingsPageProps {
   onImportMarketplaceShipments?: (
     platform: 'mercadolibre' | 'tiendanube',
     externalIds?: string[],
-    options?: { dateFrom?: string; dateTo?: string }
+    options?: { dateFrom?: string; dateTo?: string; agencyId?: string }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
   agencyIntegrationsStatus?: AgencyIntegrationsStatus | null;
   agencyCourierStatusLoading?: boolean;
   onRefreshAgencyCourierStatus?: () => Promise<void>;
   onUpdateAgencyMlFlexMode?: (mode: MlFlexMode) => Promise<void>;
+  onUpdateAgencyMarketplaceProfile?: (profile: AgencyMarketplaceProfile) => Promise<AgencyMarketplaceProfile>;
+  marketplaceAgencies?: MarketplaceAgency[];
+  marketplaceAgenciesLoading?: boolean;
+  onUpdateSellerPreferredAgency?: (agencyId: string) => Promise<void>;
+  onRefreshMarketplaceAgencies?: () => Promise<void>;
   onConnectMercadoLibreCourier?: () => Promise<void>;
   onDisconnectMercadoLibreCourier?: () => Promise<void>;
   onScanMercadoLibreLabel?: (
@@ -196,6 +202,11 @@ export default function SettingsPage({
   agencyCourierStatusLoading = false,
   onRefreshAgencyCourierStatus,
   onUpdateAgencyMlFlexMode,
+  onUpdateAgencyMarketplaceProfile,
+  marketplaceAgencies = [],
+  marketplaceAgenciesLoading = false,
+  onUpdateSellerPreferredAgency,
+  onRefreshMarketplaceAgencies,
   onConnectMercadoLibreCourier,
   onDisconnectMercadoLibreCourier,
   onScanMercadoLibreLabel,
@@ -206,6 +217,16 @@ export default function SettingsPage({
   const [mlFlexModeSaving, setMlFlexModeSaving] = useState(false);
   const mlFlexMode = agencyIntegrationsStatus?.mlFlexMode ?? user.agencyMlFlexMode ?? 'agency';
   const agencyCourierStatus = agencyIntegrationsStatus?.mercadolibreCourier ?? null;
+  const isMarketplaceSeller = Boolean(user.isMarketplaceSeller || (userRole === UserRole.STORE_ADMIN && !user.agencyId));
+
+  const [profileWebsite, setProfileWebsite] = useState('');
+  const [profileInstagram, setProfileInstagram] = useState('');
+  const [profileCity, setProfileCity] = useState(user.city ?? '');
+  const [profileProvince, setProfileProvince] = useState(user.province ?? '');
+  const [profileSameDay, setProfileSameDay] = useState(false);
+  const [profileTurbo, setProfileTurbo] = useState(false);
+  const [profileCustomLabel, setProfileCustomLabel] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
 
   const [showDepartureForm, setShowDepartureForm] = useState(false);
   const [departureAddress, setDepartureAddress] = useState(departurePoint?.address ?? '');
@@ -1462,6 +1483,120 @@ export default function SettingsPage({
 
 
       <div className="flex flex-col gap-3 w-full mt-3">
+        {agency && onUpdateAgencyMarketplaceProfile && (
+          <section className={sectionClass}>
+            <SettingsSectionHeader
+              emoji="🌐"
+              title="Perfil marketplace"
+              meta="Servicios y presencia online para vendedores"
+            />
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="mono-label block mb-1">Ciudad</label>
+                  <input
+                    type="text"
+                    value={profileCity}
+                    onChange={(e) => setProfileCity(e.target.value)}
+                    placeholder="Ej: Córdoba"
+                    className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="mono-label block mb-1">Provincia</label>
+                  <input
+                    type="text"
+                    value={profileProvince}
+                    onChange={(e) => setProfileProvince(e.target.value)}
+                    placeholder="Ej: Córdoba"
+                    className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mono-label block mb-1">Sitio web</label>
+                <input
+                  type="url"
+                  value={profileWebsite}
+                  onChange={(e) => setProfileWebsite(e.target.value)}
+                  placeholder="https://tuagencia.com"
+                  className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
+                />
+              </div>
+              <div>
+                <label className="mono-label block mb-1">Instagram</label>
+                <input
+                  type="text"
+                  value={profileInstagram}
+                  onChange={(e) => setProfileInstagram(e.target.value)}
+                  placeholder="@tuagencia"
+                  className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
+                />
+              </div>
+              <div>
+                <p className="mono-label mb-2">Servicios de envío</p>
+                <div className="flex flex-wrap gap-3">
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input type="checkbox" checked={profileSameDay} onChange={(e) => setProfileSameDay(e.target.checked)} />
+                    Envío en el día
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input type="checkbox" checked={profileTurbo} onChange={(e) => setProfileTurbo(e.target.checked)} />
+                    Envío turbo
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  value={profileCustomLabel}
+                  onChange={(e) => setProfileCustomLabel(e.target.value)}
+                  placeholder="Servicio personalizado (opcional)"
+                  className="w-full mt-2 bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={profileSaving}
+                className={btnPrimary}
+                onClick={() => {
+                  void (async () => {
+                    setProfileSaving(true);
+                    try {
+                      const services: AgencyShippingService[] = [];
+                      if (profileSameDay) services.push({ type: 'same_day' });
+                      if (profileTurbo) services.push({ type: 'turbo' });
+                      if (profileCustomLabel.trim()) {
+                        services.push({ type: 'custom', label: profileCustomLabel.trim() });
+                      }
+                      await onUpdateAgencyMarketplaceProfile({
+                        website: profileWebsite.trim() || null,
+                        instagram: profileInstagram.trim() || null,
+                        city: profileCity.trim() || null,
+                        province: profileProvince.trim() || null,
+                        shippingServices: services,
+                      });
+                      void onRefreshMarketplaceAgencies?.();
+                      void showAlert({
+                        title: 'Perfil guardado',
+                        message: 'Tu agencia ya aparece en el marketplace.',
+                        variant: 'success',
+                      });
+                    } catch (err: unknown) {
+                      void showAlert({
+                        title: 'Error',
+                        message: err instanceof Error ? err.message : 'No se pudo guardar',
+                        variant: 'error',
+                      });
+                    } finally {
+                      setProfileSaving(false);
+                    }
+                  })();
+                }}
+              >
+                {profileSaving ? 'Guardando…' : 'Guardar perfil marketplace'}
+              </button>
+            </div>
+          </section>
+        )}
         {agency && onConnectMercadoLibreCourier && (
           <section className={sectionClass}>
             <SettingsSectionHeader
@@ -1596,7 +1731,26 @@ export default function SettingsPage({
             )}
           </section>
         )}
-        {userRole === UserRole.STORE_ADMIN && (
+        {userRole === UserRole.STORE_ADMIN && isMarketplaceSeller && onUpdateSellerPreferredAgency && (
+          <section className={sectionClass}>
+            <SettingsSectionHeader
+              icon={<Building2 className="w-4 h-4 text-[var(--color-accent)]" />}
+              title="Elegir agencia de logística"
+              meta={
+                user.preferredAgencyName
+                  ? `Agencia actual: ${user.preferredAgencyName}`
+                  : 'Seleccioná quién enviará tus pedidos'
+              }
+            />
+            <AgencyMarketplacePanel
+              agencies={marketplaceAgencies}
+              selectedAgencyId={user.preferredAgencyId}
+              loading={marketplaceAgenciesLoading}
+              onSelectAgency={onUpdateSellerPreferredAgency}
+            />
+          </section>
+        )}
+        {userRole === UserRole.STORE_ADMIN && !isMarketplaceSeller && (
           <section className={sectionClass}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
@@ -1628,7 +1782,14 @@ export default function SettingsPage({
               onConnect={onConnectMarketplace}
               onDisconnect={onDisconnectMarketplace}
               onFetchShipments={onFetchMarketplaceShipments}
-              onImport={onImportMarketplaceShipments}
+              onImport={(platform, externalIds, options) =>
+                onImportMarketplaceShipments(platform, externalIds, {
+                  ...options,
+                  agencyId: user.preferredAgencyId ?? undefined,
+                })
+              }
+              importRequiresAgency={isMarketplaceSeller}
+              selectedAgencyName={user.preferredAgencyName}
             />
           )}
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (

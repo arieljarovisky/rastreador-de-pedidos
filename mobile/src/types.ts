@@ -20,6 +20,25 @@ export enum OrderStatus {
 
 export type MlFlexMode = 'agency' | 'repartidor';
 
+export type AgencyShippingServiceType = 'same_day' | 'turbo' | 'custom';
+
+export interface AgencyShippingService {
+  type: AgencyShippingServiceType;
+  label?: string;
+  description?: string;
+}
+
+export interface MarketplaceAgency {
+  id: string;
+  name: string;
+  city?: string | null;
+  province?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  shippingServices: AgencyShippingService[];
+  departurePoint?: LocationPoint;
+}
+
 export interface UserLocation {
   lat: number;
   lng: number;
@@ -51,6 +70,11 @@ export interface User {
   agencyId?: string | null;
   agencyName?: string | null;
   agencyMlFlexMode?: MlFlexMode | null;
+  preferredAgencyId?: string | null;
+  preferredAgencyName?: string | null;
+  isMarketplaceSeller?: boolean;
+  city?: string | null;
+  province?: string | null;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];

@@ -11,6 +11,7 @@ interface CreateOrderInput {
   lat: number;
   lng: number;
   notes?: string;
+  agencyId?: string;
 }
 
 interface SellerOrdersState {
@@ -35,7 +36,7 @@ interface SellerOrdersState {
 const SellerOrdersContext = createContext<SellerOrdersState | undefined>(undefined);
 
 export function SellerOrdersProvider({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { orders, repartidores, loading, refreshing, connected, error, refresh } = useOrders(
     token,
     { trackRepartidores: true }
@@ -49,11 +50,14 @@ export function SellerOrdersProvider({ children }: { children: React.ReactNode }
   const createOrder = useMemo(
     () => async (data: CreateOrderInput) => {
       if (!token) throw new Error('Sin sesión');
-      const order = await api.createOrder(token, data);
+      const order = await api.createOrder(token, {
+        ...data,
+        agencyId: data.agencyId ?? user?.preferredAgencyId ?? undefined,
+      });
       await refresh();
       return order;
     },
-    [token, refresh]
+    [token, user?.preferredAgencyId, refresh]
   );
 
   const cancelOrder = useMemo(
@@ -88,11 +92,15 @@ export function SellerOrdersProvider({ children }: { children: React.ReactNode }
   const importShipments = useMemo(
     () => async (platform: MarketplacePlatform, externalIds: string[]) => {
       if (!token) throw new Error('Sin sesión');
-      const result = await api.importMarketplaceShipments(token, platform, externalIds);
+      const agencyId = user?.preferredAgencyId ?? undefined;
+      if ((user?.isMarketplaceSeller || !user?.agencyId) && !agencyId) {
+        throw new Error('Elegí una agencia de logística en Configuración antes de importar.');
+      }
+      const result = await api.importMarketplaceShipments(token, platform, externalIds, agencyId);
       await refresh();
       return result;
     },
-    [token, refresh]
+    [token, user?.preferredAgencyId, user?.isMarketplaceSeller, user?.agencyId, refresh]
   );
 
   const value = useMemo<SellerOrdersState>(

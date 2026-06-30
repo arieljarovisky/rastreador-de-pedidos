@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyIntegrationsStatus, RepartidorMercadoLibreStatus, type MlFlexMode } from './types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyIntegrationsStatus, RepartidorMercadoLibreStatus, type MlFlexMode, type MarketplaceAgency, type AgencyMarketplaceProfile, type AgencyShippingService } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
@@ -63,6 +63,8 @@ export default function App() {
   const [agencyCourierStatusLoading, setAgencyCourierStatusLoading] = useState(false);
   const [repartidorMlStatus, setRepartidorMlStatus] = useState<RepartidorMercadoLibreStatus | null>(null);
   const [repartidorMlLoading, setRepartidorMlLoading] = useState(false);
+  const [marketplaceAgencies, setMarketplaceAgencies] = useState<MarketplaceAgency[]>([]);
+  const [marketplaceAgenciesLoading, setMarketplaceAgenciesLoading] = useState(false);
 
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
@@ -400,8 +402,8 @@ export default function App() {
   };
 
   const handleRegister = async (
-    endpoint: '/api/auth/register/agency',
-    data: { username: string; password: string; name: string }
+    endpoint: '/api/auth/register/agency' | '/api/auth/register/seller',
+    data: { username: string; password: string; name: string; city?: string; province?: string }
   ) => {
     setLoading(true);
     setAuthError(null);
@@ -804,7 +806,74 @@ export default function App() {
   };
 
   // Crear nuevo pedido (Admin)
-  const handleCreateOrder = async (orderData: Partial<Order>) => {
+  const fetchMarketplaceAgencies = useCallback(async () => {
+    if (!token) return;
+    setMarketplaceAgenciesLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/marketplace/agencies'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('No se pudieron cargar las agencias');
+      const data = (await res.json()) as MarketplaceAgency[];
+      setMarketplaceAgencies(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setMarketplaceAgenciesLoading(false);
+    }
+  }, [token]);
+
+  const handleUpdateSellerPreferredAgency = useCallback(
+    async (agencyId: string) => {
+      if (!token) return;
+      const res = await fetch(apiUrl('/api/accounts/seller/preferred-agency'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ agencyId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'No se pudo guardar la agencia');
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              preferredAgencyId: body.preferredAgencyId,
+              preferredAgencyName: body.preferredAgencyName,
+            }
+          : prev
+      );
+    },
+    [token]
+  );
+
+  const handleUpdateAgencyMarketplaceProfile = useCallback(
+    async (profile: AgencyMarketplaceProfile) => {
+      if (!token) return;
+      const res = await fetch(apiUrl('/api/accounts/agency/marketplace-profile'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(profile),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'No se pudo guardar el perfil');
+      return body as AgencyMarketplaceProfile;
+    },
+    [token]
+  );
+
+  useEffect(() => {
+    if (user?.isMarketplaceSeller || (user?.role === UserRole.STORE_ADMIN && !user.agencyId)) {
+      void fetchMarketplaceAgencies();
+    }
+  }, [user?.id, user?.isMarketplaceSeller, user?.agencyId, user?.role, fetchMarketplaceAgencies]);
+
+  const handleCreateOrder = async (orderData: Partial<Order> & { agencyId?: string }) => {
     if (!token) return;
     try {
       const res = await fetch(apiUrl('/api/orders'), {
@@ -813,18 +882,23 @@ export default function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify({
+          ...orderData,
+          agencyId: orderData.agencyId ?? user?.preferredAgencyId ?? undefined,
+        }),
       });
 
-      if (!res.ok) throw new Error('Error al guardar pedido');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Error al guardar pedido');
+      }
       
-      // Sincronizar inmediatamente
       fetchData();
     } catch (e) {
       console.error(e);
       void showAlert({
         title: 'Error al crear pedido',
-        message: 'No se pudo guardar el envío. Verificá la conexión e intentá de nuevo.',
+        message: e instanceof Error ? e.message : 'No se pudo guardar el envío. Verificá la conexión e intentá de nuevo.',
         variant: 'error',
       });
     }
@@ -1051,9 +1125,10 @@ export default function App() {
   const importMarketplaceShipments = async (
     platform: 'mercadolibre' | 'tiendanube',
     externalIds?: string[],
-    options?: { dateFrom?: string; dateTo?: string }
+    options?: { dateFrom?: string; dateTo?: string; agencyId?: string }
   ) => {
     if (!token) throw new Error('Sin sesión');
+    const agencyId = options?.agencyId ?? user?.preferredAgencyId ?? undefined;
     const res = await fetch(apiUrl(`/api/integrations/${platform}/import`), {
       method: 'POST',
       headers: {
@@ -1064,6 +1139,7 @@ export default function App() {
         externalIds,
         dateFrom: platform === 'tiendanube' ? options?.dateFrom : undefined,
         dateTo: platform === 'tiendanube' ? options?.dateTo : undefined,
+        agencyId,
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -1234,6 +1310,7 @@ export default function App() {
       <LoginScreen
         onLogin={handleLogin}
         onRegisterAgency={(data) => handleRegister('/api/auth/register/agency', data)}
+        onRegisterSeller={(data) => handleRegister('/api/auth/register/seller', data)}
         loading={loading}
         error={authError}
       />
@@ -1462,6 +1539,9 @@ export default function App() {
                   onDeleteOrder={handleDeleteOrder}
                   onArchiveOrder={handleArchiveOrder}
                   userRole={user.role}
+                  isMarketplaceSeller={Boolean(user.isMarketplaceSeller || (user.role === UserRole.STORE_ADMIN && !user.agencyId))}
+                  marketplaceAgencies={marketplaceAgencies}
+                  preferredAgencyId={user.preferredAgencyId}
                   onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
                   onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
                 />
@@ -1506,6 +1586,11 @@ export default function App() {
                   agencyCourierStatusLoading={agencyCourierStatusLoading}
                   onRefreshAgencyCourierStatus={isAgencyAdmin(user.role) ? fetchAgencyCourierStatus : undefined}
                   onUpdateAgencyMlFlexMode={isAgencyAdmin(user.role) ? handleUpdateAgencyMlFlexMode : undefined}
+                  onUpdateAgencyMarketplaceProfile={isAgencyAdmin(user.role) ? handleUpdateAgencyMarketplaceProfile : undefined}
+                  marketplaceAgencies={marketplaceAgencies}
+                  marketplaceAgenciesLoading={marketplaceAgenciesLoading}
+                  onUpdateSellerPreferredAgency={user.isMarketplaceSeller || !user.agencyId ? handleUpdateSellerPreferredAgency : undefined}
+                  onRefreshMarketplaceAgencies={fetchMarketplaceAgencies}
                   onConnectMercadoLibreCourier={isAgencyAdmin(user.role) ? connectMercadoLibreCourier : undefined}
                   onDisconnectMercadoLibreCourier={isAgencyAdmin(user.role) ? disconnectMercadoLibreCourier : undefined}
                   onScanMercadoLibreLabel={handleScanMercadoLibreLabel}

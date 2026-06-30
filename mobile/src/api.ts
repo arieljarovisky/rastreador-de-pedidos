@@ -9,6 +9,7 @@ import {
   MarketplaceImportResult,
   MarketplacePlatform,
   MarketplaceShipmentPreview,
+  MarketplaceAgency,
   Order,
   OrderStatus,
   PickupPoint,
@@ -73,6 +74,34 @@ export const api = {
     return request<LoginResponse>('/api/auth/login', {
       method: 'POST',
       body: { username, password },
+    });
+  },
+
+  registerSeller(data: {
+    username: string;
+    password: string;
+    name: string;
+    city?: string;
+    province?: string;
+  }): Promise<LoginResponse> {
+    return request<LoginResponse>('/api/auth/register/seller', {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  listMarketplaceAgencies(token: string): Promise<MarketplaceAgency[]> {
+    return request<MarketplaceAgency[]>('/api/marketplace/agencies', { token });
+  },
+
+  updateSellerPreferredAgency(
+    token: string,
+    agencyId: string
+  ): Promise<{ preferredAgencyId: string; preferredAgencyName: string }> {
+    return request('/api/accounts/seller/preferred-agency', {
+      method: 'PUT',
+      token,
+      body: { agencyId },
     });
   },
 
@@ -219,6 +248,7 @@ export const api = {
       lat: number;
       lng: number;
       notes?: string;
+      agencyId?: string;
     }
   ): Promise<Order> {
     return request<Order>('/api/orders', {
@@ -289,12 +319,13 @@ export const api = {
   importMarketplaceShipments(
     token: string,
     platform: MarketplacePlatform,
-    externalIds: string[]
+    externalIds: string[],
+    agencyId?: string
   ): Promise<MarketplaceImportResult> {
     return request<MarketplaceImportResult>(`/api/integrations/${platform}/import`, {
       method: 'POST',
       token,
-      body: { externalIds },
+      body: { externalIds, agencyId },
     });
   },
 

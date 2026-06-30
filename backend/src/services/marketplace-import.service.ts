@@ -37,8 +37,11 @@ function formatImportError(externalId: string, reason: string): string {
   if (reason === 'GEOCODE_UNAVAILABLE') {
     return `#${externalId}: el mapa está saturado. Esperá unos segundos e importá de nuevo.`;
   }
-  if (reason === 'SELLER_NO_AGENCY') {
-    return 'Tu cuenta no está asociada a una agencia. Pedile a tu agencia de logística que verifique tu usuario.';
+  if (reason === 'SELLER_NO_AGENCY' || reason === 'AGENCY_REQUIRED') {
+    return 'Elegí una agencia de logística antes de importar envíos.';
+  }
+  if (reason === 'AGENCY_NOT_FOUND') {
+    return 'La agencia seleccionada no existe.';
   }
   if (reason === 'EXTERNAL_ORDER_EXISTS') {
     return `#${externalId}: ya fue importado antes.`;
@@ -115,7 +118,7 @@ export async function importMarketplaceShipments(
   user: User,
   platform: IntegrationPlatform,
   externalIds?: string[],
-  options?: MarketplaceListOptions
+  options?: MarketplaceListOptions & { agencyId?: string }
 ): Promise<{ imported: number; skipped: number; orders: string[]; errors: string[] }> {
   const all = await listImportableShipments(user.id, platform, options);
   const toImport = externalIds?.length
@@ -182,6 +185,7 @@ export async function importMarketplaceShipments(
         externalSource: shipment.platform,
         externalOrderId: shipment.externalId,
         shippingType: shipment.shippingType,
+        agencyId: options?.agencyId,
       });
 
       const sellerId = await getSellerIdForOrder(order.id);
@@ -193,7 +197,7 @@ export async function importMarketplaceShipments(
       skipped++;
       const reason = err instanceof Error ? err.message : 'error desconocido';
       const formatted = formatImportError(shipment.externalId, reason);
-      if (reason === 'SELLER_NO_AGENCY') {
+      if (reason === 'SELLER_NO_AGENCY' || reason === 'AGENCY_REQUIRED') {
         errors.push(formatted);
         break;
       }

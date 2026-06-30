@@ -142,7 +142,10 @@ export async function runMigrations(): Promise<void> {
         new Date(),
       ]
     );
-    await pool.query('UPDATE users SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
+    await pool.query('UPDATE users SET agency_id = ? WHERE agency_id IS NULL AND role != ?', [
+      agencyId,
+      'store_admin',
+    ]);
     await pool.query('UPDATE orders SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
   } else {
     const [orphanUsers] = await pool.query<Array<{ cnt: number } & import('mysql2').RowDataPacket>>(
@@ -154,7 +157,10 @@ export async function runMigrations(): Promise<void> {
       );
       const agencyId = firstAgency[0]?.id;
       if (agencyId) {
-        await pool.query('UPDATE users SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
+        await pool.query('UPDATE users SET agency_id = ? WHERE agency_id IS NULL AND role != ?', [
+      agencyId,
+      'store_admin',
+    ]);
         await pool.query(
           `UPDATE orders o
            LEFT JOIN users s ON s.id = o.seller_id
@@ -221,6 +227,37 @@ export async function runMigrations(): Promise<void> {
   if (!(await columnExists('agencies', 'ml_flex_mode'))) {
     await pool.query(
       `ALTER TABLE agencies ADD COLUMN ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency' AFTER name`
+    );
+  }
+
+  for (const col of ['website', 'instagram', 'city', 'province'] as const) {
+    if (!(await columnExists('agencies', col))) {
+      const type = col === 'website' ? 'VARCHAR(500)' : 'VARCHAR(255)';
+      await pool.query(`ALTER TABLE agencies ADD COLUMN ${col} ${type} NULL`);
+    }
+  }
+  if (!(await columnExists('agencies', 'shipping_services'))) {
+    await pool.query('ALTER TABLE agencies ADD COLUMN shipping_services JSON NULL');
+  }
+
+  for (const col of ['preferred_agency_id', 'city', 'province'] as const) {
+    if (!(await columnExists('users', col))) {
+      if (col === 'preferred_agency_id') {
+        await pool.query('ALTER TABLE users ADD COLUMN preferred_agency_id VARCHAR(36) NULL AFTER agency_id');
+        await pool.query('CREATE INDEX idx_users_preferred_agency ON users (preferred_agency_id)');
+      } else {
+        await pool.query(`ALTER TABLE users ADD COLUMN ${col} VARCHAR(255) NULL`);
+      }
+    }
+  }
+
+  const [prefFkRows] = await pool.query<Array<{ CONSTRAINT_NAME: string } & import('mysql2').RowDataPacket>>(
+    `SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND CONSTRAINT_NAME = 'fk_users_preferred_agency'`
+  );
+  if (prefFkRows.length === 0 && (await columnExists('users', 'preferred_agency_id'))) {
+    await pool.query(
+      'ALTER TABLE users ADD CONSTRAINT fk_users_preferred_agency FOREIGN KEY (preferred_agency_id) REFERENCES agencies(id)'
     );
   }
 

@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
+import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, type MarketplaceAgency } from '../types.js';
+import { AgencySelectDropdown } from './AgencyMarketplacePanel.tsx';
 import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -25,12 +26,15 @@ interface AdminDashboardProps {
   barrios?: Barrio[];
   activeOrderId: string | null;
   onSelectOrder: (orderId: string | null) => void;
-  onCreateOrder: (orderData: Partial<Order> & { sellerId?: string }) => Promise<void>;
+  onCreateOrder: (orderData: Partial<Order> & { sellerId?: string; agencyId?: string }) => Promise<void>;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
   onDeleteOrder?: (orderId: string) => Promise<void>;
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
   userRole?: UserRole;
+  isMarketplaceSeller?: boolean;
+  marketplaceAgencies?: MarketplaceAgency[];
+  preferredAgencyId?: string | null;
   onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
   onScanMercadoLibreLabel?: (
     code: string,
@@ -135,6 +139,9 @@ export default function AdminDashboard({
   onDeleteOrder,
   onArchiveOrder,
   userRole = UserRole.STORE_ADMIN,
+  isMarketplaceSeller = false,
+  marketplaceAgencies = [],
+  preferredAgencyId = null,
   onOpenMercadoLibreLabel,
   onScanMercadoLibreLabel,
 }: AdminDashboardProps) {
@@ -256,6 +263,7 @@ export default function AdminDashboard({
   const [lat, setLat] = useState(-34.58);
   const [lng, setLng] = useState(-58.40);
   const [notes, setNotes] = useState('');
+  const [selectedAgencyId, setSelectedAgencyId] = useState(preferredAgencyId ?? '');
   const [formLoading, setFormLoading] = useState(false);
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeMessage, setGeocodeMessage] = useState<string | null>(null);
@@ -263,6 +271,12 @@ export default function AdminDashboard({
 
   // Estados para Asignación Rápida
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (preferredAgencyId) {
+      setSelectedAgencyId(preferredAgencyId);
+    }
+  }, [preferredAgencyId]);
 
   // Aplicar preset de dirección
   const applyPreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
@@ -324,6 +338,7 @@ export default function AdminDashboard({
         lat: finalLat,
         lng: finalLng,
         notes,
+        agencyId: isMarketplaceSeller ? selectedAgencyId || undefined : undefined,
       });
       // Reset
       setClientName('');
@@ -823,6 +838,18 @@ export default function AdminDashboard({
                   [Cancelar]
                 </button>
               </div>
+
+              {isMarketplaceSeller && (
+                <div>
+                  <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Agencia de logística *</label>
+                  <AgencySelectDropdown
+                    agencies={marketplaceAgencies}
+                    value={selectedAgencyId}
+                    onChange={setSelectedAgencyId}
+                    required
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 <div>

@@ -63,20 +63,52 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 router.post('/register/agency', async (req: Request, res: Response) => {
-  const { username, password, name } = req.body;
+  const { username, password, name, city, province } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: 'Usuario, contraseña y nombre de la agencia son requeridos.' });
     return;
   }
 
   try {
-    const agency = await createAgency({ name: name.trim() });
+    const agency = await createAgency({
+      name: name.trim(),
+      city: city?.trim(),
+      province: province?.trim(),
+    });
     const user = await createUser({
       username,
       password,
       name,
       role: UserRole.SUPER_ADMIN,
       agencyId: agency.id,
+      city: city?.trim(),
+      province: province?.trim(),
+    });
+    const fullUser = await getUserById(user.id);
+    const token = signToken(user.id, user.role);
+    res.status(201).json({ user: fullUser ?? user, token });
+  } catch (err) {
+    if (handleRegisterError(res, err)) return;
+    throw err;
+  }
+});
+
+router.post('/register/seller', async (req: Request, res: Response) => {
+  const { username, password, name, city, province } = req.body;
+  if (!username || !password || !name) {
+    res.status(400).json({ error: 'Usuario, contraseña y nombre del vendedor son requeridos.' });
+    return;
+  }
+
+  try {
+    const user = await createUser({
+      username,
+      password,
+      name: name.trim(),
+      role: UserRole.STORE_ADMIN,
+      marketplaceSeller: true,
+      city: city?.trim(),
+      province: province?.trim(),
     });
     const fullUser = await getUserById(user.id);
     const token = signToken(user.id, user.role);

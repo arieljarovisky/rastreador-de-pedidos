@@ -21,6 +21,14 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   login: (username: string, password: string) => Promise<void>;
+  registerSeller: (data: {
+    username: string;
+    password: string;
+    name: string;
+    city?: string;
+    province?: string;
+  }) => Promise<void>;
+  updatePreferredAgency: (agencyId: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -69,6 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  const persistSession = useCallback(async (data: { token: string; user: User }) => {
+    await AsyncStorage.multiSet([
+      [TOKEN_KEY, data.token],
+      [USER_KEY, JSON.stringify(data.user)],
+    ]);
+    setToken(data.token);
+    setUser(data.user);
+  }, []);
+
   const login = useCallback(async (username: string, password: string) => {
     setError(null);
     setLoading(true);
@@ -79,19 +96,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Tu cuenta no tiene acceso a la app móvil. Contactá a soporte de Posta.'
         );
       }
-      await AsyncStorage.multiSet([
-        [TOKEN_KEY, data.token],
-        [USER_KEY, JSON.stringify(data.user)],
-      ]);
-      setToken(data.token);
-      setUser(data.user);
+      await persistSession(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
       throw err;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [persistSession]);
+
+  const registerSeller = useCallback(
+    async (data: {
+      username: string;
+      password: string;
+      name: string;
+      city?: string;
+      province?: string;
+    }) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const result = await api.registerSeller(data);
+        if (result.user.role !== 'store_admin') {
+          throw new Error('Solo vendedores pueden registrarse desde la app.');
+        }
+        await persistSession(result);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'No se pudo crear la cuenta.');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [persistSession]
+  );
+
+  const updatePreferredAgency = useCallback(
+    async (agencyId: string) => {
+      if (!token) throw new Error('Sin sesión');
+      const result = await api.updateSellerPreferredAgency(token, agencyId);
+      setUser((prev) => {
+        if (!prev) return prev;
+        const next = {
+          ...prev,
+          preferredAgencyId: result.preferredAgencyId,
+          preferredAgencyName: result.preferredAgencyName,
+        };
+        AsyncStorage.setItem(USER_KEY, JSON.stringify(next));
+        return next;
+      });
+    },
+    [token]
+  );
 
   const logout = useCallback(async () => {
     await stopBackgroundLocation();
@@ -103,8 +159,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, token, loading, error, login, logout }),
-    [user, token, loading, error, login, logout]
+    () => ({ user, token, loading, error, login, registerSeller, updatePreferredAgency, logout }),
+    [user, token, loading, error, login, registerSeller, updatePreferredAgency, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

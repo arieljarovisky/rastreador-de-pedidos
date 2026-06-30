@@ -56,6 +56,7 @@ router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER
       lng: Number(lng),
       notes,
       sellerId,
+      agencyId: req.body.agencyId,
     });
 
     await createNotification({
@@ -81,11 +82,14 @@ router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER
       res.status(403).json({ error: 'No tienes permiso para crear pedidos.' });
       return;
     }
-    if (message === 'SELLER_NO_AGENCY') {
+    if (message === 'SELLER_NO_AGENCY' || message === 'AGENCY_REQUIRED') {
       res.status(400).json({
-        error:
-          'Tu cuenta de vendedor no está asociada a una agencia. Pedile a tu agencia que verifique tu usuario.',
+        error: 'Elegí una agencia de logística para enviar el pedido.',
       });
+      return;
+    }
+    if (message === 'AGENCY_NOT_FOUND') {
+      res.status(400).json({ error: 'La agencia seleccionada no existe.' });
       return;
     }
     throw err;

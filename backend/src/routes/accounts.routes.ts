@@ -25,8 +25,9 @@ import {
   canManagePickupPoint,
 } from '../services/pickup-points.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
-import { updateAgencyMlFlexMode } from '../services/agencies.service.js';
-import type { MlFlexMode } from '../types/index.js';
+import { updateAgencyMlFlexMode, updateAgencyMarketplaceProfile } from '../services/agencies.service.js';
+import { updateSellerPreferredAgency } from '../services/marketplace.service.js';
+import type { AgencyShippingService, MlFlexMode } from '../types/index.js';
 
 const router = Router();
 
@@ -284,6 +285,76 @@ router.put('/agency/ml-flex-mode', authenticate, requireAgencyAdmin(), async (re
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Agencia no encontrada.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  if (!req.user!.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+
+  const { website, instagram, city, province, shippingServices } = req.body as {
+    website?: string | null;
+    instagram?: string | null;
+    city?: string | null;
+    province?: string | null;
+    shippingServices?: AgencyShippingService[];
+  };
+
+  try {
+    const agency = await updateAgencyMarketplaceProfile(req.user!.agencyId, {
+      website,
+      instagram,
+      city,
+      province,
+      shippingServices,
+    });
+    res.json({
+      website: agency.website,
+      instagram: agency.instagram,
+      city: agency.city,
+      province: agency.province,
+      shippingServices: agency.shippingServices,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Agencia no encontrada.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/seller/preferred-agency', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
+  const { agencyId } = req.body as { agencyId?: string };
+  if (!agencyId) {
+    res.status(400).json({ error: 'Debés elegir una agencia.' });
+    return;
+  }
+
+  try {
+    const user = await updateSellerPreferredAgency(req.user!.id, agencyId);
+    res.json({
+      preferredAgencyId: user.preferredAgencyId,
+      preferredAgencyName: user.preferredAgencyName,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    if (message === 'NOT_MARKETPLACE_SELLER') {
+      res.status(400).json({ error: 'Tu cuenta ya está vinculada a una agencia fija.' });
+      return;
+    }
+    if (message === 'AGENCY_NOT_FOUND') {
       res.status(404).json({ error: 'Agencia no encontrada.' });
       return;
     }

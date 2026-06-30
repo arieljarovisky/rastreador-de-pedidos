@@ -7,7 +7,7 @@ import { getAgencyDeparture, getAgencyById, updateAgencyDeparture as updateAgenc
 import { isAgencyAdmin } from '../utils/roles.js';
 import { isValidZoneForAgency } from './delivery-zones.service.js';
 
-const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, current_lat, current_lng, location_updated_at,
+const USER_COLUMNS = `id, username, name, role, agency_id, preferred_agency_id, city, province, password_hash, current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng, delivery_zone`;
 
 function departureFromRow(row: DbUserRow): LocationPoint | undefined {
@@ -28,6 +28,10 @@ function rowToUser(row: DbUserRow): User {
     name: row.name,
     role: row.role,
     agencyId: row.agency_id ?? null,
+    preferredAgencyId: row.preferred_agency_id ?? null,
+    city: row.city ?? null,
+    province: row.province ?? null,
+    isMarketplaceSeller: row.role === UserRole.STORE_ADMIN && !row.agency_id,
   };
   if (row.current_lat != null && row.current_lng != null && row.location_updated_at) {
     user.currentLocation = {
@@ -52,6 +56,12 @@ async function enrichUser(user: User): Promise<User> {
     if (agency) {
       user.agencyName = agency.name;
       user.agencyMlFlexMode = agency.mlFlexMode;
+    }
+  }
+  if (user.preferredAgencyId) {
+    const agency = await getAgencyById(user.preferredAgencyId);
+    if (agency) {
+      user.preferredAgencyName = agency.name;
     }
   }
   if (user.role === UserRole.STORE_ADMIN) {
@@ -169,6 +179,10 @@ export async function createUser(data: {
   role: UserRole;
   agencyId?: string | null;
   deliveryZone?: string | null;
+  city?: string | null;
+  province?: string | null;
+  /** Vendedor independiente del marketplace (sin agencia fija). */
+  marketplaceSeller?: boolean;
 }): Promise<User> {
   const normalizedUsername = data.username.trim().toLowerCase();
   if (normalizedUsername.length < 3) {
@@ -187,7 +201,7 @@ export async function createUser(data: {
     throw new Error('INVALID_ZONE');
   }
 
-  if (data.role === UserRole.STORE_ADMIN && !data.agencyId) {
+  if (data.role === UserRole.STORE_ADMIN && !data.agencyId && !data.marketplaceSeller) {
     throw new Error('AGENCY_REQUIRED');
   }
   if (
@@ -208,8 +222,18 @@ export async function createUser(data: {
   const passwordHash = await bcrypt.hash(data.password, 10);
 
   await pool.query(
-    `INSERT INTO users (id, username, password_hash, name, role, agency_id, delivery_zone) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, normalizedUsername, passwordHash, data.name.trim(), data.role, data.agencyId ?? null, data.deliveryZone ?? null]
+    `INSERT INTO users (id, username, password_hash, name, role, agency_id, city, province, delivery_zone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      normalizedUsername,
+      passwordHash,
+      data.name.trim(),
+      data.role,
+      data.agencyId ?? null,
+      data.city?.trim() ?? null,
+      data.province?.trim() ?? null,
+      data.deliveryZone ?? null,
+    ]
   );
 
   const user = await getUserById(id);
@@ -247,10 +271,17 @@ export async function listSellers(agencyId: string): Promise<User[]> {
 
 export async function assertSellerInAgency(sellerId: string, agencyId: string): Promise<User> {
   const seller = await getUserById(sellerId);
-  if (!seller || seller.role !== UserRole.STORE_ADMIN || seller.agencyId !== agencyId) {
+  if (!seller || seller.role !== UserRole.STORE_ADMIN) {
     throw new Error('SELLER_NOT_FOUND');
   }
-  return seller;
+  if (seller.agencyId === agencyId) {
+    return seller;
+  }
+  // Vendedor marketplace: puede operar con la agencia si ya tiene pedidos o la eligió como preferida
+  if (!seller.agencyId && seller.preferredAgencyId === agencyId) {
+    return seller;
+  }
+  throw new Error('SELLER_NOT_FOUND');
 }
 
 export interface SellerStats {

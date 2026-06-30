@@ -219,6 +219,7 @@ export async function createOrder(
     lng: number;
     notes?: string;
     sellerId?: string;
+    agencyId?: string;
     externalSource?: string;
     externalOrderId?: string;
     shippingType?: string;
@@ -235,9 +236,16 @@ export async function createOrder(
   if (user.role === UserRole.STORE_ADMIN) {
     sellerId = user.id;
     const seller = await getUserById(user.id);
-    agencyId = seller?.agencyId ?? null;
-    if (!agencyId) {
-      throw new Error('SELLER_NO_AGENCY');
+    if (seller?.agencyId) {
+      agencyId = seller.agencyId;
+    } else {
+      agencyId = data.agencyId ?? seller?.preferredAgencyId ?? null;
+      if (!agencyId) {
+        throw new Error('AGENCY_REQUIRED');
+      }
+      const { getAgencyById } = await import('./agencies.service.js');
+      const agency = await getAgencyById(agencyId);
+      if (!agency) throw new Error('AGENCY_NOT_FOUND');
     }
   } else if (isAgencyAdmin(user.role)) {
     agencyId = user.agencyId ?? null;

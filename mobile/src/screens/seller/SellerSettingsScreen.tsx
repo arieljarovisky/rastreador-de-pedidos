@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
-import { IntegrationsStatus, MarketplacePlatform, PickupPoint } from '../../types';
+import { IntegrationsStatus, MarketplacePlatform, PickupPoint, MarketplaceAgency } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import { SellerStackParamList } from '../../navigation/types';
@@ -24,9 +24,12 @@ type Props = NativeStackScreenProps<SellerStackParamList, 'SellerSettings'>;
 
 export default function SellerSettingsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { user, token } = useAuth();
+  const { user, token, updatePreferredAgency } = useAuth();
   const [status, setStatus] = useState<IntegrationsStatus | null>(null);
   const [pickups, setPickups] = useState<PickupPoint[]>([]);
+  const [agencies, setAgencies] = useState<MarketplaceAgency[]>([]);
+  const [agencySaving, setAgencySaving] = useState<string | null>(null);
+  const isMarketplaceSeller = Boolean(user?.isMarketplaceSeller || !user?.agencyId);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyPlatform, setBusyPlatform] = useState<MarketplacePlatform | null>(null);
@@ -34,16 +37,18 @@ export default function SellerSettingsScreen({ navigation }: Props) {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [integrations, points] = await Promise.all([
+      const [integrations, points, agencyList] = await Promise.all([
         api.getIntegrationsStatus(token),
         api.getPickupPoints(token),
+        isMarketplaceSeller ? api.listMarketplaceAgencies(token) : Promise.resolve([]),
       ]);
       setStatus(integrations);
       setPickups(points);
+      setAgencies(agencyList);
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo cargar.');
     }
-  }, [token]);
+  }, [token, isMarketplaceSeller]);
 
   useFocusEffect(
     useCallback(() => {
@@ -120,8 +125,48 @@ export default function SellerSettingsScreen({ navigation }: Props) {
         <Text style={styles.rowSub}>@{user?.username}</Text>
         {user?.agencyName ? (
           <Text style={styles.rowSub}>Agencia: {user.agencyName}</Text>
+        ) : user?.preferredAgencyName ? (
+          <Text style={styles.rowSub}>Agencia elegida: {user.preferredAgencyName}</Text>
         ) : null}
       </Section>
+
+      {isMarketplaceSeller && (
+        <Section title="Agencia de logística">
+          {agencies.length === 0 ? (
+            <Text style={styles.empty}>No hay agencias disponibles todavía.</Text>
+          ) : (
+            agencies.map((agency) => {
+              const selected = agency.id === user?.preferredAgencyId;
+              return (
+                <Pressable
+                  key={agency.id}
+                  style={[styles.agencyCard, selected && styles.agencyCardSelected]}
+                  disabled={!!agencySaving}
+                  onPress={async () => {
+                    if (selected) return;
+                    setAgencySaving(agency.id);
+                    try {
+                      await updatePreferredAgency(agency.id);
+                    } catch (err) {
+                      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo guardar.');
+                    } finally {
+                      setAgencySaving(null);
+                    }
+                  }}
+                >
+                  <Text style={styles.integrationLabel}>{agency.name}</Text>
+                  {(agency.city || agency.province) && (
+                    <Text style={styles.rowSub}>
+                      {[agency.city, agency.province].filter(Boolean).join(', ')}
+                    </Text>
+                  )}
+                  {selected && <Text style={styles.selectedBadge}>Agencia elegida</Text>}
+                </Pressable>
+              );
+            })
+          )}
+        </Section>
+      )}
 
       <Section title="Marketplaces">
         <IntegrationRow
@@ -304,4 +349,22 @@ const styles = StyleSheet.create({
   pickupAddress: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
   pickupHint: { color: colors.textFaint, fontSize: 11, marginTop: spacing.sm, lineHeight: 16 },
   empty: { color: colors.textMuted, fontSize: 13 },
+  agencyCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  agencyCardSelected: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBg,
+  },
+  selectedBadge: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: spacing.sm,
+  },
 });
