@@ -3,6 +3,7 @@ import {
   AppNotification,
   GeocodeResult,
   IntegrationsStatus,
+  AgencyIntegrationsStatus,
   MarketplaceImportResult,
   MarketplacePlatform,
   MarketplaceShipmentPreview,
@@ -237,6 +238,10 @@ export const api = {
 
   getIntegrationsStatus(token: string): Promise<IntegrationsStatus> {
     return request<IntegrationsStatus>('/api/integrations/status', { token });
+  },
+
+  getAgencyCourierStatus(token: string): Promise<AgencyIntegrationsStatus> {
+    return request<AgencyIntegrationsStatus>('/api/integrations/agency/status', { token });
   },
 
   getIntegrationConnectUrl(token: string, platform: MarketplacePlatform): Promise<{ url: string }> {

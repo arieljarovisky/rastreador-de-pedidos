@@ -135,6 +135,16 @@ export interface IntegrationsStatus {
   };
 }
 
+export interface AgencyMercadoLibreCourierStatus {
+  configured: boolean;
+  connected: boolean;
+  account: IntegrationAccountStatus | null;
+}
+
+export interface AgencyIntegrationsStatus {
+  mercadolibreCourier: AgencyMercadoLibreCourierStatus;
+}
+
 export interface MarketplaceImportResult {
   imported: number;
   skipped: number;
