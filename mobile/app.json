@@ -2,7 +2,7 @@
   "expo": {
     "name": "Posta",
     "slug": "posta-repartidor",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "scheme": "lupo",
     "userInterfaceStyle": "dark",
@@ -29,6 +29,7 @@
       }
     },
     "android": {
+      "versionCode": 2,
       "package": "com.lupoenvios.repartidor",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
