@@ -1303,8 +1303,10 @@ export default function App() {
 
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
-        className={`flex-1 min-h-0 p-2 sm:p-3 md:p-4 relative ${
-          mobileTab === 'settings' ? 'overflow-y-auto scrollbar-thin' : 'overflow-hidden'
+        className={`flex-1 min-h-0 relative ${
+          mobileTab === 'settings'
+            ? 'overflow-y-auto scrollbar-thin px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
+            : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
       >
         <div className={`app-shell ${mobileTab === 'settings' ? '' : 'h-full'}`}>

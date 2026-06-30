@@ -364,7 +364,13 @@ export default function SettingsPage({
 
   return (
     <div className="w-full bg-[var(--surface-bg)] pb-6">
-      <header className="sticky top-0 z-20 shrink-0 flex items-center justify-between gap-3 pb-2 pt-0.5 border-b border-[var(--surface-border)] bg-[var(--surface-bg)]">
+      <header
+        className={`sticky top-0 z-20 shrink-0 flex items-center justify-between gap-3 py-2 bg-[var(--surface-bg)] ${
+          agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone)
+            ? ''
+            : 'border-b border-[var(--surface-border)]'
+        }`}
+      >
         <div className="min-w-0">
           <h2 className="text-sm font-display font-bold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2">
             <Settings className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
@@ -386,176 +392,8 @@ export default function SettingsPage({
         )}
       </header>
 
-      <div className="flex flex-col gap-3 mt-3 w-full">
-        {userRole === UserRole.STORE_ADMIN && (
-          <section className={sectionClass}>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
-                <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
-              </div>
-              <div className="flex-1 min-w-[12rem]">
-                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Agencia de logística</p>
-                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-                  {user.agencyName ?? (user.agencyId ? 'Agencia asociada' : 'Sin agencia asociada')}
-                </p>
-              </div>
-            </div>
-            <p className="text-[10px] text-[var(--color-text-faint)] font-mono mt-2 leading-relaxed">
-              Tus envíos y puntos de colecta se sincronizan con esta agencia.
-            </p>
-          </section>
-        )}
-        {userRole === UserRole.STORE_ADMIN &&
-          onRefreshIntegrationStatus &&
-          onConnectMarketplace &&
-          onDisconnectMarketplace &&
-          onFetchMarketplaceShipments &&
-          onImportMarketplaceShipments && (
-            <MarketplaceIntegrations
-              status={integrationStatus}
-              statusLoading={integrationStatusLoading}
-              statusError={integrationStatusError}
-              onRefreshStatus={onRefreshIntegrationStatus}
-              onConnect={onConnectMarketplace}
-              onDisconnect={onDisconnectMarketplace}
-              onFetchShipments={onFetchMarketplaceShipments}
-              onImport={onImportMarketplaceShipments}
-            />
-          )}
-        {agency && (onUpdateDeparture || onTriggerSimulatorTick) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 shrink-0">
-        {agency && onUpdateDeparture && (
-          <section className={`${sectionClass} !p-2.5`}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
-                <Warehouse className="w-3.5 h-3.5 text-[var(--route)]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Punto de salida</p>
-                <p className="text-[10px] text-[var(--color-text-muted)] truncate">
-                  {departurePoint ? departurePoint.address : 'Sin definir'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDepartureForm(!showDepartureForm)}
-                className={btnGhost}
-              >
-                {showDepartureForm ? 'Cerrar' : 'Editar'}
-              </button>
-            </div>
-            {showDepartureForm && (
-              <form
-                className="mt-3 space-y-2"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  setDepartureLoading(true);
-                  setDepartureMessage(null);
-                  try {
-                    const located = await geocodeAddress(departureAddress);
-                    await onUpdateDeparture({
-                      address: departureAddress,
-                      lat: located.lat,
-                      lng: located.lng,
-                    });
-                    setDepartureLat(located.lat);
-                    setDepartureLng(located.lng);
-                    setDepartureMessage('Punto de salida actualizado.');
-                    setShowDepartureForm(false);
-                  } catch (err: unknown) {
-                    const message = err instanceof Error ? err.message : 'Error al guardar.';
-                    setDepartureMessage(message);
-                  } finally {
-                    setDepartureLoading(false);
-                  }
-                }}
-              >
-                <input
-                  required
-                  value={departureAddress}
-                  onChange={(e) => setDepartureAddress(e.target.value)}
-                  placeholder="Dirección del depósito / hub"
-                  className={inputClass}
-                />
-                <div className="flex flex-wrap gap-1">
-                  {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => applyDeparturePreset(preset)}
-                      className="text-[9px] px-2 py-1 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                    >
-                      {preset.name.split('(')[0].trim()}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="submit"
-                  disabled={departureLoading}
-                  className={`w-full sm:w-auto ${btnPrimary}`}
-                >
-                  {departureLoading ? 'Guardando...' : 'Guardar punto de salida'}
-                </button>
-                {departureMessage && (
-                  <p
-                    className={`text-[10px] font-mono ${
-                      departureMessage.includes('actualizado') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
-                    }`}
-                  >
-                    {departureMessage}
-                  </p>
-                )}
-              </form>
-            )}
-          </section>
-        )}
-        {agency && onTriggerSimulatorTick && (
-          <section className={`${sectionClass} !p-2.5`}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
-                <Sparkles className="w-3.5 h-3.5 text-[var(--color-warn)]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
-                <p className="text-[9px] font-mono text-[var(--color-text-muted)] truncate">Mueve la flota en el mapa</p>
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={onTriggerSimulatorTick}
-                  className="p-1.5 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)] transition"
-                  title="Avanzar paso manual"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsSimulating(!isSimulating)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] font-mono font-bold text-[9px] uppercase tracking-wider transition ${
-                    isSimulating
-                      ? 'bg-[var(--color-warn)] text-[var(--paper)] hover:brightness-110'
-                      : 'btn-secondary'
-                  }`}
-                >
-                  {isSimulating ? (
-                    <>
-                      <Pause className="w-3 h-3" /> Pausar
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3 h-3" /> Autoplay
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-          </div>
-        )}
-
-        {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (
-          <section className="paper-card p-0 flex flex-col">
+      {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (
+        <section className="paper-card p-0 flex flex-col rounded-t-none">
             <div className="shrink-0 px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--paper)]/40 flex flex-wrap items-center justify-between gap-2">
               <span className="mono-label">Flota y cobertura</span>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-mono text-[var(--color-text-muted)]">
@@ -1497,7 +1335,176 @@ export default function SettingsPage({
           </SettingsFleetColumn>
         )}
             </div>
+        </section>
+      )}
+
+
+      <div className="flex flex-col gap-3 w-full mt-3">
+        {userRole === UserRole.STORE_ADMIN && (
+          <section className={sectionClass}>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
+                <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
+              </div>
+              <div className="flex-1 min-w-[12rem]">
+                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Agencia de logística</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                  {user.agencyName ?? (user.agencyId ? 'Agencia asociada' : 'Sin agencia asociada')}
+                </p>
+              </div>
+            </div>
+            <p className="text-[10px] text-[var(--color-text-faint)] font-mono mt-2 leading-relaxed">
+              Tus envíos y puntos de colecta se sincronizan con esta agencia.
+            </p>
           </section>
+        )}
+        {userRole === UserRole.STORE_ADMIN &&
+          onRefreshIntegrationStatus &&
+          onConnectMarketplace &&
+          onDisconnectMarketplace &&
+          onFetchMarketplaceShipments &&
+          onImportMarketplaceShipments && (
+            <MarketplaceIntegrations
+              status={integrationStatus}
+              statusLoading={integrationStatusLoading}
+              statusError={integrationStatusError}
+              onRefreshStatus={onRefreshIntegrationStatus}
+              onConnect={onConnectMarketplace}
+              onDisconnect={onDisconnectMarketplace}
+              onFetchShipments={onFetchMarketplaceShipments}
+              onImport={onImportMarketplaceShipments}
+            />
+          )}
+        {agency && (onUpdateDeparture || onTriggerSimulatorTick) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 shrink-0">
+        {agency && onUpdateDeparture && (
+          <section className={`${sectionClass} !p-2.5`}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
+                <Warehouse className="w-3.5 h-3.5 text-[var(--route)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Punto de salida</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] truncate">
+                  {departurePoint ? departurePoint.address : 'Sin definir'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDepartureForm(!showDepartureForm)}
+                className={btnGhost}
+              >
+                {showDepartureForm ? 'Cerrar' : 'Editar'}
+              </button>
+            </div>
+            {showDepartureForm && (
+              <form
+                className="mt-3 space-y-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setDepartureLoading(true);
+                  setDepartureMessage(null);
+                  try {
+                    const located = await geocodeAddress(departureAddress);
+                    await onUpdateDeparture({
+                      address: departureAddress,
+                      lat: located.lat,
+                      lng: located.lng,
+                    });
+                    setDepartureLat(located.lat);
+                    setDepartureLng(located.lng);
+                    setDepartureMessage('Punto de salida actualizado.');
+                    setShowDepartureForm(false);
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : 'Error al guardar.';
+                    setDepartureMessage(message);
+                  } finally {
+                    setDepartureLoading(false);
+                  }
+                }}
+              >
+                <input
+                  required
+                  value={departureAddress}
+                  onChange={(e) => setDepartureAddress(e.target.value)}
+                  placeholder="Dirección del depósito / hub"
+                  className={inputClass}
+                />
+                <div className="flex flex-wrap gap-1">
+                  {DIRECTORY_PRESETS.slice(0, 3).map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => applyDeparturePreset(preset)}
+                      className="text-[9px] px-2 py-1 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                    >
+                      {preset.name.split('(')[0].trim()}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="submit"
+                  disabled={departureLoading}
+                  className={`w-full sm:w-auto ${btnPrimary}`}
+                >
+                  {departureLoading ? 'Guardando...' : 'Guardar punto de salida'}
+                </button>
+                {departureMessage && (
+                  <p
+                    className={`text-[10px] font-mono ${
+                      departureMessage.includes('actualizado') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+                    }`}
+                  >
+                    {departureMessage}
+                  </p>
+                )}
+              </form>
+            )}
+          </section>
+        )}
+        {agency && onTriggerSimulatorTick && (
+          <section className={`${sectionClass} !p-2.5`}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-[var(--color-warn)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
+                <p className="text-[9px] font-mono text-[var(--color-text-muted)] truncate">Mueve la flota en el mapa</p>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={onTriggerSimulatorTick}
+                  className="p-1.5 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)] transition"
+                  title="Avanzar paso manual"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSimulating(!isSimulating)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] font-mono font-bold text-[9px] uppercase tracking-wider transition ${
+                    isSimulating
+                      ? 'bg-[var(--color-warn)] text-[var(--paper)] hover:brightness-110'
+                      : 'btn-secondary'
+                  }`}
+                >
+                  {isSimulating ? (
+                    <>
+                      <Pause className="w-3 h-3" /> Pausar
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3 h-3" /> Autoplay
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+          </div>
         )}
 
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
