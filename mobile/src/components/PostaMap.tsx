@@ -67,10 +67,10 @@ function buildLeafletHtml(markers: MapMarker[], polylines: MapPolyline[]): strin
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <style>
-    html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #0b0f18; overflow: hidden; }
+    html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: ${colors.bg}; overflow: hidden; }
     #map { width: 100%; height: 100%; }
-    .leaflet-control-attribution { font-size: 9px; background: rgba(20,26,40,0.85) !important; color: #8593ae !important; }
-    .leaflet-bar a { background: #141a28 !important; color: #e9edf4 !important; border-color: #283246 !important; }
+    .leaflet-control-attribution { font-size: 9px; background: rgba(20,18,16,0.9) !important; color: ${colors.textMuted} !important; }
+    .leaflet-bar a { background: ${colors.surface} !important; color: ${colors.text} !important; border-color: ${colors.border} !important; }
   </style>
 </head>
 <body>

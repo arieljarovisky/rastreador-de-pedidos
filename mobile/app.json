@@ -6,12 +6,12 @@
     "orientation": "portrait",
     "scheme": "lupo",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0B0F18",
+    "backgroundColor": "#141210",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B0F18"
+      "backgroundColor": "#141210"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -32,7 +32,7 @@
       "package": "com.lupoenvios.repartidor",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0B0F18"
+        "backgroundColor": "#141210"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",

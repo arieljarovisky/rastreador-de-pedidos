@@ -16,15 +16,15 @@ export const fonts = {
 
 /** Tema oscuro — dashboards operativos (data-theme="dark") */
 export const colors = {
-  bg: '#0B0F18',
-  surface: '#141A28',
-  surfaceAlt: '#1A2336',
-  border: '#283246',
-  borderSoft: '#5C6986',
-  text: '#E9EDF4',
-  textMuted: '#8593AE',
-  textFaint: '#5C6986',
-  inputBg: '#1A2336',
+  bg: '#141210',
+  surface: '#1C1814',
+  surfaceAlt: '#1F1B17',
+  border: '#2E2820',
+  borderSoft: '#7A6F60',
+  text: '#EDE6D8',
+  textMuted: '#B8AB98',
+  textFaint: '#7A6F60',
+  inputBg: '#1F1B17',
 
   accent: '#5C87EB',
   accentBg: 'rgba(92, 135, 235, 0.12)',

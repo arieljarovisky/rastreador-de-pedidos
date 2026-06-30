@@ -34,7 +34,7 @@
   --plan-best-muted:#C9BEAD;
   --surface-ink:#1C1814;
   --mock-bg:#FAF6EE;
-  --mock-frame:#1C1814;
+  --mock-frame:#D8CCB5;
   --mock-bar-border:rgba(28,24,20,.1);
   --mock-panel:#F6F0E4;
   --mock-border:rgba(28,24,20,.12);
@@ -87,19 +87,19 @@
   --plan-best-bg:#2A1F18;
   --plan-best-muted:#C9BEAD;
   --surface-ink:#0E0C0A;
-  --mock-bg:#0B0F18;
-  --mock-frame:#14110C;
-  --mock-bar-border:rgba(255,255,255,.07);
-  --mock-panel:#141A28;
-  --mock-border:rgba(255,255,255,.06);
-  --mock-title:#7C8597;
-  --mock-text:#E9EDF4;
-  --mock-text-muted:#5C6577;
+  --mock-bg:#141210;
+  --mock-frame:#0E0C0A;
+  --mock-bar-border:rgba(255,255,255,.08);
+  --mock-panel:#1C1814;
+  --mock-border:rgba(255,255,255,.08);
+  --mock-title:#7A6F60;
+  --mock-text:#EDE6D8;
+  --mock-text-muted:#7A6F60;
   --mock-live:#86E6AC;
   --mock-live-dot:#3FAE63;
-  --mock-clock:#5C6577;
-  --mock-kpi-num:#E9EDF4;
-  --mock-kpi-label:#5C6577;
+  --mock-clock:#7A6F60;
+  --mock-kpi-num:#EDE6D8;
+  --mock-kpi-label:#7A6F60;
   --mock-kpi-warn:#F0A93A;
   --mock-kpi-ok:#5FCE86;
   --mock-ava-bg:rgba(95,135,235,.16);
@@ -110,12 +110,12 @@
   --mock-badge-d-text:#F0B85A;
   --mock-badge-e-bg:rgba(95,206,134,.16);
   --mock-badge-e-text:#74D89A;
-  --mock-map-bg:#080C14;
+  --mock-map-bg:#0E0C0A;
   --mock-map-grid:rgba(255,255,255,.05);
-  --mock-map-label:#3A4658;
+  --mock-map-label:#7A6F60;
   --mock-map-route:#5C87EB;
   --mock-map-marker:#E8431F;
-  --mock-map-rider:#0B0F18;
+  --mock-map-rider:#141210;
   --noise-opacity:.22;
   --noise-blend:soft-light;
 }
@@ -284,9 +284,10 @@ header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;poin
 .recibo{background:var(--paper2);border:1.5px solid var(--ink);border-radius:4px;padding:24px;box-shadow:5px 6px 0 var(--shadow);position:relative}
 .recibo .rhead{display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px dashed var(--edge2);padding-bottom:14px;margin-bottom:14px}
 .recibo .rname{display:flex;align-items:center;gap:12px}
-.recibo .rlogo{width:42px;height:42px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:700;font-size:.95rem}
+.recibo .rlogo{width:42px;height:42px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:700;font-size:.95rem;flex:0 0 auto}
+.recibo .rlogo img,.recibo .rlogo svg{width:28px;height:28px;display:block;object-fit:contain}
 .recibo.ml .rlogo{background:#FFE600;color:#2D3277}
-.recibo.tn .rlogo{background:var(--route);color:#F0E9DB}
+.recibo.tn .rlogo{background:#fff;padding:7px}
 .recibo h3{font-size:1.12rem}
 .recibo .rsub{font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-top:2px}
 .recibo p{font-size:.93rem;color:var(--ink2)}
@@ -775,7 +776,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
       </div>
       <div class="recibo tn">
         <div class="rhead">
-          <div class="rname"><div class="rlogo">TN</div><div><h3>Tienda Nube</h3><div class="rsub">Express</div></div></div>
+          <div class="rname"><div class="rlogo rlogo-tn" aria-hidden="true"><img src="assets/tiendanube-logo.png" alt="" width="28" height="28" loading="lazy"></div><div><h3>Tienda Nube</h3><div class="rsub">Express</div></div></div>
           <span class="stamp green">Conectado</span>
         </div>
         <p>Sincronizá tus pedidos Express y seguilos dentro de Posta, junto al resto de tus entregas.</p>

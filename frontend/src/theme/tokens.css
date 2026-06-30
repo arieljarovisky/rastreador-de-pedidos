@@ -11,13 +11,13 @@
   --font-mono: "Space Mono", ui-monospace, monospace;
   --radius-posta: 5px;
 
-  --bg: #0b0f18;
-  --panel: #141a28;
-  --panel-2: #1a2336;
-  --line: #283246;
-  --text: #e9edf4;
-  --text-muted: #8593ae;
-  --text-faint: #5c6986;
+  --bg: #141210;
+  --panel: #1c1814;
+  --panel-2: #1f1b17;
+  --line: #2e2820;
+  --text: #ede6d8;
+  --text-muted: #b8ab98;
+  --text-faint: #7a6f60;
   --accent: #5c87eb;
   --stamp: #e8431f;
   --ok: #3fae63;
@@ -49,9 +49,9 @@
   --card-border-width: 1px;
   --badge-blend: normal;
   --input-bg: var(--panel-2);
-  --ink-soft: #c5cdd9;
+  --ink-soft: #c9bead;
   --edge-2: var(--line);
-  --route-2: #8593ae;
+  --route-2: #9a9085;
   --ink: var(--text);
   --paper: var(--panel-2);
   --paper-2: var(--panel);
