@@ -2,6 +2,7 @@ import http from 'http';
 import app from './app.js';
 import { env } from './config/env.js';
 import { resetDatabase } from './db/reset-database.js';
+import { ensureDatabaseSchema } from './db/ensure-schema.js';
 import { runMigrations } from './db/migrate.js';
 import { setupSocket } from './realtime/socket.js';
 
@@ -10,6 +11,8 @@ async function start(): Promise<void> {
     console.log('[startup] DB_RESET_ON_START=true → reseteando base de datos...');
     await resetDatabase();
     console.log('[startup] Reset completado. Desactivá DB_RESET_ON_START después de este deploy.');
+  } else {
+    await ensureDatabaseSchema();
   }
 
   await runMigrations();
