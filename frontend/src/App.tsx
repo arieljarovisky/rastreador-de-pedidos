@@ -760,13 +760,20 @@ export default function App() {
     localStorage.removeItem('lupo_token');
     localStorage.removeItem('lupo_user');
     localStorage.removeItem(ACTIVE_TAB_KEY);
+    localStorage.removeItem('cached_orders');
+    localStorage.removeItem('cached_notifications');
     setToken(null);
     setUser(null);
     setOrders([]);
     setNotifications([]);
     setActiveOrderId(null);
     setMobileTabState('dashboard');
-    window.location.href = '/';
+    setAuthError(null);
+    setLoading(false);
+    setAgencyIntegrationsStatus(null);
+    setRepartidorMlStatus(null);
+    setIntegrationStatus(null);
+    window.location.replace('/app');
   };
 
   // Crear nuevo pedido (Admin)
