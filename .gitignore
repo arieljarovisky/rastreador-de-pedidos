@@ -17,3 +17,15 @@ coverage/
 
 # Documentación local (tutorial PDF, capturas, scripts de generación)
 docs/
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/build/
+backend/coverage/
+backend/docs/
+backend/data/
+backend/logs/
+backend/tmp/
+backend/tmp/**
+backend/src/db/**
