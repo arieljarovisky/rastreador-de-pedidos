@@ -565,9 +565,11 @@ export default function SettingsPage({
                 <span className="text-[var(--color-accent)]">{repsWithZone} con zona</span>
               </div>
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-12 divide-y xl:divide-y-0 xl:divide-x divide-[var(--surface-border)]">
+            <div className="flex flex-col divide-y divide-[var(--surface-border)]">
+        {(onCreateSeller || (agency && onCreateDeliveryZone)) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-[var(--surface-border)] items-start">
         {onCreateSeller && (
-          <SettingsFleetColumn className="xl:col-span-3">
+          <SettingsFleetColumn>
             <SettingsSectionHeader
               icon={<UserPlus className="w-3.5 h-3.5 text-[var(--route)]" />}
               accentClass="bg-[var(--route)]/10"
@@ -1022,7 +1024,7 @@ export default function SettingsPage({
         )}
 
         {agency && onCreateDeliveryZone && (
-          <SettingsFleetColumn className="xl:col-span-3">
+          <SettingsFleetColumn>
             <SettingsSectionHeader
               icon={<Layers className="w-3.5 h-3.5 text-[var(--color-accent)]" />}
               title="Zonas de entrega"
@@ -1259,9 +1261,11 @@ export default function SettingsPage({
             )}
           </SettingsFleetColumn>
         )}
+          </div>
+        )}
 
         {(onCreateRepartidor || onDeleteRepartidor) && (
-          <SettingsFleetColumn className="xl:col-span-6">
+          <SettingsFleetColumn>
             <SettingsSectionHeader
               emoji="🏍️"
               title="Repartidores"
@@ -1307,7 +1311,7 @@ export default function SettingsPage({
                             className="border-b border-[var(--surface-border)]/50 hover:bg-[var(--paper)]/60 transition-colors"
                           >
                             <td className="px-2.5 py-1.5">
-                              <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate max-w-[14rem]">
+                              <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate">
                                 {rep.name}
                               </p>
                               <p className="text-[9px] text-[var(--color-text-muted)] font-mono truncate">

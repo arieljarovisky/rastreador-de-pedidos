@@ -1310,9 +1310,9 @@ export default function App() {
         <div className={`app-shell ${mobileTab === 'settings' ? '' : 'h-full'}`}>
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
-            className={`flex flex-col xl:flex-row ${
-              mobileTab === 'settings' ? '' : 'h-full overflow-hidden'
-            } ${notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
+            className={`flex flex-col ${
+              mobileTab === 'settings' ? 'w-full' : 'xl:flex-row h-full overflow-hidden'
+            } ${mobileTab !== 'settings' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {mobileTab !== 'settings' && (
               <div
@@ -1382,16 +1382,18 @@ export default function App() {
               </div>
             )}
 
-            <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
-              <NotificationHub
-                notifications={notifications}
-                onMarkAllRead={handleMarkAllRead}
-                onClearNotifications={handleClearNotifications}
-                activeUserId={user.id}
-                onToggleCollapse={toggleNotifsSidebar}
-                showCollapseButton
-              />
-            </NotifsSidebar>
+            {mobileTab !== 'settings' && (
+              <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+                <NotificationHub
+                  notifications={notifications}
+                  onMarkAllRead={handleMarkAllRead}
+                  onClearNotifications={handleClearNotifications}
+                  activeUserId={user.id}
+                  onToggleCollapse={toggleNotifsSidebar}
+                  showCollapseButton
+                />
+              </NotifsSidebar>
+            )}
           </div>
         ) : (
           <div
