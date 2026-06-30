@@ -7,7 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build:apk": "eas build --platform android --profile production --non-interactive --wait",
+    "build:apk": "npx eas-cli build --platform android --profile production --non-interactive --wait",
     "save:apk": "node scripts/save-apk-to-backend.mjs",
     "release:android": "npm run build:apk && npm run save:apk"
   },
