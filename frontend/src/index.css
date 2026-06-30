@@ -232,6 +232,14 @@
     box-shadow: 4px 5px 0 rgba(28, 24, 20, 0.1);
   }
 
+  .settings-fleet-table tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--paper) 35%, transparent);
+  }
+
+  .settings-fleet-table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  }
+
   .posta-surface {
     background: color-mix(in srgb, var(--surface-panel) 85%, transparent);
     border: 1px solid var(--surface-border);

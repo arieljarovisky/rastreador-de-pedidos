@@ -1339,7 +1339,7 @@ export default function App() {
             )}
 
             {mobileTab === 'settings' && (
-              <div className="flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out">
+              <div className="flex-1 min-w-0 w-full h-full overflow-hidden">
                 <SettingsPage
                   user={user}
                   onBack={() => setMobileTab('dashboard')}

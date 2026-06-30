@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
@@ -23,12 +23,56 @@ import {
   Key,
   Building2,
   Layers,
+  Search,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
+
+function SettingsSectionHeader({
+  icon,
+  emoji,
+  title,
+  meta,
+  action,
+  accentClass = 'bg-[var(--color-accent)]/10',
+}: {
+  icon?: ReactNode;
+  emoji?: string;
+  title: string;
+  meta?: string;
+  action?: ReactNode;
+  accentClass?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 shrink-0 pb-2 mb-2 border-b border-[var(--surface-border)]">
+      <div
+        className={`w-7 h-7 rounded-[5px] flex items-center justify-center shrink-0 text-sm ${accentClass}`}
+      >
+        {icon ?? (emoji ? <span className="leading-none">{emoji}</span> : null)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-display font-semibold text-[var(--color-text)] leading-tight">{title}</p>
+        {meta ? <p className="mono-label mt-0.5 truncate normal-case tracking-normal">{meta}</p> : null}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function SettingsFleetColumn({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`flex flex-col min-h-0 min-w-0 overflow-hidden p-3 ${className}`}>{children}</div>
+  );
+}
 
 const DIRECTORY_PRESETS = [
   { name: 'Palermo Chico (Av. del Libertador 2400)', lat: -34.5802, lng: -58.4035 },
@@ -203,6 +247,7 @@ export default function SettingsPage({
   const [zoneFormLoading, setZoneFormLoading] = useState(false);
   const [zoneFormMessage, setZoneFormMessage] = useState<string | null>(null);
   const [deletingZoneId, setDeletingZoneId] = useState<string | null>(null);
+  const [repartidorSearch, setRepartidorSearch] = useState('');
 
   const [showPickupForm, setShowPickupForm] = useState(false);
   const [pickupLabel, setPickupLabel] = useState('');
@@ -304,9 +349,22 @@ export default function SettingsPage({
   const msgClass = (ok: boolean) =>
     `text-[10px] font-mono ${ok ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'}`;
 
+  const filteredRepartidores = useMemo(() => {
+    const q = repartidorSearch.trim().toLowerCase();
+    if (!q) return repartidores;
+    return repartidores.filter(
+      (r) => r.name.toLowerCase().includes(q) || r.username.toLowerCase().includes(q)
+    );
+  }, [repartidores, repartidorSearch]);
+
+  const repsWithZone = useMemo(
+    () => repartidores.filter((r) => r.deliveryZone).length,
+    [repartidores]
+  );
+
   return (
-    <div className="h-full flex flex-col min-h-0 bg-[var(--surface-bg)] w-full max-w-none">
-      <header className="shrink-0 flex items-center justify-between gap-2 sm:gap-3 pb-2 sm:pb-3 border-b border-[var(--surface-border)] px-0.5">
+    <div className="h-full flex flex-col min-h-0 bg-[var(--surface-bg)] w-full">
+      <header className="shrink-0 flex items-center justify-between gap-3 pb-2 border-b border-[var(--surface-border)]">
         <div className="min-w-0">
           <h2 className="text-sm font-display font-bold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2">
             <Settings className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
@@ -328,8 +386,9 @@ export default function SettingsPage({
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto mt-2 sm:mt-3 px-0.5 sm:px-1 scrollbar-thin min-h-0">
-        <div className="grid grid-cols-1 gap-3 pb-2 w-full">
+      <div className="flex-1 min-h-0 flex flex-col gap-3 mt-3 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto scrollbar-thin pr-0.5">
+        <div className="flex flex-col gap-3 w-full min-h-0">
         {userRole === UserRole.STORE_ADMIN && (
           <section className={sectionClass}>
             <div className="flex flex-wrap items-center gap-2">
@@ -365,16 +424,18 @@ export default function SettingsPage({
               onImport={onImportMarketplaceShipments}
             />
           )}
+        {agency && (onUpdateDeparture || onTriggerSimulatorTick) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 shrink-0">
         {agency && onUpdateDeparture && (
-          <section className={`${sectionClass} !py-2.5`}>
-            <div className="flex flex-wrap items-center gap-3">
+          <section className={`${sectionClass} !p-2.5`}>
+            <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
                 <Warehouse className="w-3.5 h-3.5 text-[var(--route)]" />
               </div>
-              <div className="flex-1 min-w-[12rem]">
+              <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Punto de salida</p>
-                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate">
-                  {departurePoint ? departurePoint.address : 'Sin definir — configurá el depósito de la agencia'}
+                <p className="text-[10px] text-[var(--color-text-muted)] truncate">
+                  {departurePoint ? departurePoint.address : 'Sin definir'}
                 </p>
               </div>
               <button
@@ -450,39 +511,92 @@ export default function SettingsPage({
             )}
           </section>
         )}
-
-        {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start min-w-0">
-        {onCreateSeller && (
-          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0 xl:col-span-2 xl:order-1`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
-                <UserPlus className="w-4 h-4 text-[var(--route)]" />
+        {agency && onTriggerSimulatorTick && (
+          <section className={`${sectionClass} !p-2.5`}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-[var(--color-warn)]" />
               </div>
-              <div className="flex-1 min-w-[10rem]">
-                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Vendedores</p>
-                <p className="mono-label">{sellers.length} registrado{sellers.length !== 1 ? 's' : ''}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
+                <p className="text-[9px] font-mono text-[var(--color-text-muted)] truncate">Mueve la flota en el mapa</p>
               </div>
-              {!selectedSellerId && (
+              <div className="flex gap-1 shrink-0">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (showSellerForm) {
-                      setShowSellerForm(false);
-                    } else {
-                      closeSellerDetail();
-                      setShowSellerForm(true);
-                    }
-                  }}
-                  className={btnGhost}
+                  onClick={onTriggerSimulatorTick}
+                  className="p-1.5 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)] transition"
+                  title="Avanzar paso manual"
                 >
-                  {showSellerForm ? 'Cerrar' : '+ Nuevo'}
+                  <RefreshCw className="w-3.5 h-3.5" />
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setIsSimulating(!isSimulating)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] font-mono font-bold text-[9px] uppercase tracking-wider transition ${
+                    isSimulating
+                      ? 'bg-[var(--color-warn)] text-[var(--paper)] hover:brightness-110'
+                      : 'btn-secondary'
+                  }`}
+                >
+                  {isSimulating ? (
+                    <>
+                      <Pause className="w-3 h-3" /> Pausar
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3 h-3" /> Autoplay
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
+          </section>
+        )}
+          </div>
+        )}
+
+        {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (
+          <section className="paper-card p-0 flex flex-col min-h-[32rem] xl:min-h-[calc(100vh-13rem)] overflow-hidden">
+            <div className="shrink-0 px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--paper)]/40 flex flex-wrap items-center justify-between gap-2">
+              <span className="mono-label">Flota y cobertura</span>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-mono text-[var(--color-text-muted)]">
+                <span>{sellers.length} vendedor{sellers.length !== 1 ? 'es' : ''}</span>
+                <span>{deliveryZones.length} zonas</span>
+                <span>{repartidores.length} repartidores</span>
+                <span className="text-[var(--color-accent)]">{repsWithZone} con zona</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 xl:grid-cols-12 flex-1 min-h-0 divide-y xl:divide-y-0 xl:divide-x divide-[var(--surface-border)]">
+        {onCreateSeller && (
+          <SettingsFleetColumn className="xl:col-span-3">
+            <SettingsSectionHeader
+              icon={<UserPlus className="w-3.5 h-3.5 text-[var(--route)]" />}
+              accentClass="bg-[var(--route)]/10"
+              title="Vendedores"
+              meta={`${sellers.length} registrado${sellers.length !== 1 ? 's' : ''}`}
+              action={
+                !selectedSellerId ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (showSellerForm) {
+                        setShowSellerForm(false);
+                      } else {
+                        closeSellerDetail();
+                        setShowSellerForm(true);
+                      }
+                    }}
+                    className={btnGhost}
+                  >
+                    {showSellerForm ? 'Cerrar' : '+ Nuevo'}
+                  </button>
+                ) : undefined
+              }
+            />
 
             {sellers.length > 0 && !showSellerForm && !selectedSellerId && (
-              <ul className="mt-2.5 space-y-1.5">
+              <ul className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-1 pr-0.5">
                 {sellers.map((s) => (
                   <li key={s.id}>
                     <button
@@ -502,7 +616,7 @@ export default function SettingsPage({
             )}
 
             {selectedSellerId && !showSellerForm && (
-              <div className="mt-2.5 min-w-0">
+              <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin min-w-0 pr-0.5">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <button
                     type="button"
@@ -803,7 +917,7 @@ export default function SettingsPage({
             )}
             {showSellerForm && (
               <form
-                className="mt-3 space-y-2"
+                className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2 pr-0.5"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setSellerFormLoading(true);
@@ -906,46 +1020,42 @@ export default function SettingsPage({
                 )}
               </form>
             )}
-          </section>
+          </SettingsFleetColumn>
         )}
 
         {agency && onCreateDeliveryZone && (
-          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0 xl:col-span-3 xl:order-2`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
-                <Layers className="w-4 h-4 text-[var(--color-accent)]" />
-              </div>
-              <div className="flex-1 min-w-[10rem]">
-                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Zonas de entrega</p>
-                <p className="mono-label">
-                  {deliveryZones.length} zona{deliveryZones.length !== 1 ? 's' : ''} · elegí barrios y el mapa se arma solo
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowZoneForm(!showZoneForm);
-                  setEditingZoneId(null);
-                  setZoneName('');
-                  setSelectedBarrios([]);
-                  setBarrioSearch('');
-                  setZoneColor(ZONE_COLOR_PRESETS[deliveryZones.length % ZONE_COLOR_PRESETS.length]);
-                  setZoneFormMessage(null);
-                }}
-                className={btnGhost}
-              >
-                {showZoneForm ? 'Cerrar' : '+ Nueva zona'}
-              </button>
-            </div>
+          <SettingsFleetColumn className="xl:col-span-3">
+            <SettingsSectionHeader
+              icon={<Layers className="w-3.5 h-3.5 text-[var(--color-accent)]" />}
+              title="Zonas de entrega"
+              meta={`${deliveryZones.length} zona${deliveryZones.length !== 1 ? 's' : ''} · por barrio`}
+              action={
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowZoneForm(!showZoneForm);
+                    setEditingZoneId(null);
+                    setZoneName('');
+                    setSelectedBarrios([]);
+                    setBarrioSearch('');
+                    setZoneColor(ZONE_COLOR_PRESETS[deliveryZones.length % ZONE_COLOR_PRESETS.length]);
+                    setZoneFormMessage(null);
+                  }}
+                  className={btnGhost}
+                >
+                  {showZoneForm ? 'Cerrar' : '+ Nueva'}
+                </button>
+              }
+            />
 
             {deliveryZones.length > 0 && !showZoneForm && (
-              <ul className="mt-2.5 space-y-1 max-h-[min(60vh,32rem)] overflow-y-auto pr-0.5 scrollbar-thin">
+              <ul className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-1 pr-0.5">
                 {deliveryZones.map((zone) => (
-                  <li key={zone.id} className={`flex items-center gap-2 ${listItemClass}`}>
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: zone.color }}
-                    />
+                  <li
+                    key={zone.id}
+                    className="group flex items-center gap-2 rounded-[5px] border border-[var(--surface-border)] bg-[var(--paper)] px-2 py-1.5 hover:border-[var(--color-accent)]/25 transition-colors"
+                    style={{ boxShadow: `inset 3px 0 0 ${zone.color}` }}
+                  >
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate">{zone.name}</p>
                       {zone.barrios?.length ? (
@@ -1022,7 +1132,7 @@ export default function SettingsPage({
 
             {showZoneForm && (
               <form
-                className="mt-3 space-y-2"
+                className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2 pr-0.5"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   if (selectedBarrios.length === 0) {
@@ -1149,116 +1259,149 @@ export default function SettingsPage({
                 )}
               </form>
             )}
-          </section>
+          </SettingsFleetColumn>
         )}
 
         {(onCreateRepartidor || onDeleteRepartidor) && (
-          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0 xl:col-span-7 xl:order-3`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0 text-lg leading-none">
-                🏍️
-              </div>
-              <div className="flex-1 min-w-[10rem]">
-                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Repartidores</p>
-                <p className="mono-label">{repartidores.length} activo{repartidores.length !== 1 ? 's' : ''} · asigná una zona por repartidor</p>
-              </div>
-              {onCreateRepartidor && (
-                <button
-                  type="button"
-                  onClick={() => setShowRepartidorForm(!showRepartidorForm)}
-                  className={btnGhost}
-                >
-                  {showRepartidorForm ? 'Cerrar' : '+ Nuevo'}
-                </button>
-              )}
-            </div>
-            {repartidores.length > 0 && !showRepartidorForm && (
-              <ul className="mt-2.5 grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5 max-h-[min(70vh,42rem)] overflow-y-auto pr-0.5 scrollbar-thin">
-                {repartidores.map((rep) => (
-                  <li
-                    key={rep.id}
-                    className={`flex items-center gap-2 ${listItemClass}`}
+          <SettingsFleetColumn className="xl:col-span-6">
+            <SettingsSectionHeader
+              emoji="🏍️"
+              title="Repartidores"
+              meta={`${repartidores.length} activos · ${repsWithZone} con zona`}
+              action={
+                onCreateRepartidor ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowRepartidorForm(!showRepartidorForm)}
+                    className={btnGhost}
                   >
-                    <span className="truncate min-w-0 flex-1 text-[11px]">
-                      <span className="font-medium text-[var(--ink-soft)]">{rep.name}</span>
-                      <span className="text-[var(--color-text-muted)]"> @{rep.username}</span>
-                    </span>
-                    {onUpdateRepartidorZone && (
-                      <select
-                        value={rep.deliveryZone ?? ''}
-                        disabled={updatingZoneId === rep.id}
-                        onChange={async (e) => {
-                          const zone = e.target.value || null;
-                          setUpdatingZoneId(rep.id);
-                          try {
-                            await onUpdateRepartidorZone(rep.id, zone);
-                          } catch (err: unknown) {
-                            const message = err instanceof Error ? err.message : 'No se pudo actualizar la zona.';
-                            void showAlert({ title: 'Error', message, variant: 'error' });
-                          } finally {
-                            setUpdatingZoneId(null);
-                          }
-                        }}
-                        className="w-[7.5rem] shrink-0 bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-1.5 py-1 text-[10px] text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)]"
-                      >
-                        <option value="">Sin zona</option>
-                        {deliveryZones.map((zone) => (
-                          <option key={zone.id} value={zone.id}>
-                            {zone.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    {rep.deliveryZone && (
-                      <span
-                        className="hidden sm:inline text-[8px] font-mono uppercase tracking-wider px-1 py-0.5 rounded shrink-0 max-w-[5rem] truncate"
-                        style={{
-                          color: getDeliveryZone(deliveryZones, rep.deliveryZone)?.color ?? '#64748b',
-                          backgroundColor: `${getDeliveryZone(deliveryZones, rep.deliveryZone)?.color ?? '#64748b'}18`,
-                          border: `1px solid ${getDeliveryZone(deliveryZones, rep.deliveryZone)?.color ?? '#64748b'}40`,
-                        }}
-                      >
-                        {zoneLabel(deliveryZones, rep.deliveryZone)}
-                      </span>
-                    )}
-                    {onDeleteRepartidor && (
-                      <button
-                        type="button"
-                        disabled={deletingRepartidorId === rep.id}
-                        onClick={async () => {
-                          const ok = await confirm({
-                            title: 'Eliminar repartidor',
-                            message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente. Esta acción no se puede deshacer.`,
-                            variant: 'danger',
-                            confirmText: 'Eliminar',
-                            cancelText: 'Cancelar',
-                          });
-                          if (!ok) return;
-                          setDeletingRepartidorId(rep.id);
-                          setRepartidorFormMessage(null);
-                          try {
-                            const result = await onDeleteRepartidor(rep.id);
-                            const extra =
-                              result.finalizedOrders > 0
-                                ? ` Se finalizaron ${result.finalizedOrders} viaje(s) en curso.`
-                                : '';
-                            setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
-                          } catch (err: unknown) {
-                            const message = err instanceof Error ? err.message : 'Error al eliminar repartidor.';
-                            setRepartidorFormMessage(message);
-                          } finally {
-                            setDeletingRepartidorId(null);
-                          }
-                        }}
-                        className="text-[var(--color-danger)] hover:text-red-300 shrink-0 disabled:opacity-50 p-0.5"
-                        title="Eliminar repartidor"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                    {showRepartidorForm ? 'Cerrar' : '+ Nuevo'}
+                  </button>
+                ) : undefined
+              }
+            />
+            {repartidores.length > 0 && !showRepartidorForm && (
+              <>
+                <div className="relative shrink-0 mb-2">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--color-text-faint)]" />
+                  <input
+                    value={repartidorSearch}
+                    onChange={(e) => setRepartidorSearch(e.target.value)}
+                    placeholder="Buscar por nombre o usuario…"
+                    className={`${inputClass} !pl-7 !py-1.5`}
+                  />
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto scrollbar-thin rounded-[5px] border border-[var(--surface-border)]">
+                  <table className="settings-fleet-table w-full text-left border-collapse">
+                    <thead className="sticky top-0 z-10 bg-[var(--panel)]">
+                      <tr className="border-b border-[var(--surface-border)]">
+                        <th className="mono-label px-2.5 py-1.5 font-normal text-left">Repartidor</th>
+                        <th className="mono-label px-2 py-1.5 font-normal text-left w-[10rem]">Zona</th>
+                        <th className="w-9" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRepartidores.map((rep) => {
+                        const zone = getDeliveryZone(deliveryZones, rep.deliveryZone);
+                        return (
+                          <tr
+                            key={rep.id}
+                            className="border-b border-[var(--surface-border)]/50 hover:bg-[var(--paper)]/60 transition-colors"
+                          >
+                            <td className="px-2.5 py-1.5">
+                              <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate max-w-[14rem]">
+                                {rep.name}
+                              </p>
+                              <p className="text-[9px] text-[var(--color-text-muted)] font-mono truncate">
+                                @{rep.username}
+                              </p>
+                            </td>
+                            <td className="px-2 py-1.5">
+                              {onUpdateRepartidorZone ? (
+                                <select
+                                  value={rep.deliveryZone ?? ''}
+                                  disabled={updatingZoneId === rep.id}
+                                  onChange={async (e) => {
+                                    const z = e.target.value || null;
+                                    setUpdatingZoneId(rep.id);
+                                    try {
+                                      await onUpdateRepartidorZone(rep.id, z);
+                                    } catch (err: unknown) {
+                                      const message =
+                                        err instanceof Error ? err.message : 'No se pudo actualizar la zona.';
+                                      void showAlert({ title: 'Error', message, variant: 'error' });
+                                    } finally {
+                                      setUpdatingZoneId(null);
+                                    }
+                                  }}
+                                  className="w-full bg-[var(--paper)] border rounded-[5px] px-1.5 py-1 text-[10px] text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)]"
+                                  style={{
+                                    borderColor: zone ? `${zone.color}66` : 'var(--surface-border)',
+                                  }}
+                                >
+                                  <option value="">Sin zona</option>
+                                  {deliveryZones.map((z) => (
+                                    <option key={z.id} value={z.id}>
+                                      {z.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-[10px] text-[var(--color-text-muted)]">
+                                  {zoneLabel(deliveryZones, rep.deliveryZone)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-1 py-1.5 text-center">
+                              {onDeleteRepartidor && (
+                                <button
+                                  type="button"
+                                  disabled={deletingRepartidorId === rep.id}
+                                  onClick={async () => {
+                                    const ok = await confirm({
+                                      title: 'Eliminar repartidor',
+                                      message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente.`,
+                                      variant: 'danger',
+                                      confirmText: 'Eliminar',
+                                      cancelText: 'Cancelar',
+                                    });
+                                    if (!ok) return;
+                                    setDeletingRepartidorId(rep.id);
+                                    setRepartidorFormMessage(null);
+                                    try {
+                                      const result = await onDeleteRepartidor(rep.id);
+                                      const extra =
+                                        result.finalizedOrders > 0
+                                          ? ` Se finalizaron ${result.finalizedOrders} viaje(s).`
+                                          : '';
+                                      setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
+                                    } catch (err: unknown) {
+                                      const message =
+                                        err instanceof Error ? err.message : 'Error al eliminar repartidor.';
+                                      setRepartidorFormMessage(message);
+                                    } finally {
+                                      setDeletingRepartidorId(null);
+                                    }
+                                  }}
+                                  className="text-[var(--color-danger)] hover:text-red-300 disabled:opacity-50 p-1"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {filteredRepartidores.length === 0 && (
+                    <p className="text-[10px] text-[var(--color-text-muted)] text-center py-4 font-mono">
+                      Sin resultados para &quot;{repartidorSearch}&quot;
+                    </p>
+                  )}
+                </div>
+              </>
             )}
             {repartidorFormMessage && !showRepartidorForm && (
               <p
@@ -1271,7 +1414,7 @@ export default function SettingsPage({
             )}
             {showRepartidorForm && onCreateRepartidor && (
               <form
-                className="mt-3 space-y-2"
+                className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2 pr-0.5"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setRepartidorFormLoading(true);
@@ -1349,52 +1492,8 @@ export default function SettingsPage({
                 )}
               </form>
             )}
-          </section>
+          </SettingsFleetColumn>
         )}
-          </div>
-        )}
-
-        {agency && onTriggerSimulatorTick && (
-          <section className={`${sectionClass} !py-2.5`}>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="w-7 h-7 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-3.5 h-3.5 text-[var(--color-warn)]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
-                  <p className="text-[9px] font-mono text-[var(--color-text-muted)] truncate">Mueve la flota en el mapa</p>
-                </div>
-              </div>
-              <div className="flex gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={onTriggerSimulatorTick}
-                  className="p-2 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)] transition"
-                  title="Avanzar paso manual"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsSimulating(!isSimulating)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-[5px] font-mono font-bold text-[10px] uppercase tracking-wider transition ${
-                    isSimulating
-                      ? 'bg-[var(--color-warn)] text-[var(--paper)] hover:brightness-110'
-                      : 'btn-secondary'
-                  }`}
-                >
-                  {isSimulating ? (
-                    <>
-                      <Pause className="w-3.5 h-3.5" /> Pausar
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3.5 h-3.5" /> Autoplay
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
           </section>
         )}
@@ -1590,6 +1689,7 @@ export default function SettingsPage({
             )}
           </section>
         )}
+        </div>
         </div>
       </div>
     </div>
