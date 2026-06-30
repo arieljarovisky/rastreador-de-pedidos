@@ -4,6 +4,7 @@ export type RepartidorStackParamList = {
   Orders: undefined;
   OrderDetail: { orderId: string };
   ScanLabel: undefined;
+  RepartidorProfile: undefined;
 };
 
 export type SellerStackParamList = {

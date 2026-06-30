@@ -83,6 +83,7 @@ export async function runMigrations(): Promise<void> {
       CREATE TABLE agencies (
         id VARCHAR(36) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
+        ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency',
         departure_address VARCHAR(500) NULL,
         departure_lat DECIMAL(10, 7) NULL,
         departure_lng DECIMAL(10, 7) NULL,
@@ -215,5 +216,11 @@ export async function runMigrations(): Promise<void> {
         INDEX idx_dismissals_notification (notification_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+  }
+
+  if (!(await columnExists('agencies', 'ml_flex_mode'))) {
+    await pool.query(
+      `ALTER TABLE agencies ADD COLUMN ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency' AFTER name`
+    );
   }
 }

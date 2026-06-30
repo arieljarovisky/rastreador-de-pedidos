@@ -16,7 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
 import { api } from '../../api';
-import { AgencyMercadoLibreCourierStatus, OrderStatus } from '../../types';
+import { AgencyMercadoLibreCourierStatus, MlFlexMode, OrderStatus } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import { zoneLabel } from '../../config/deliveryZones';
@@ -30,9 +30,11 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
   const { orders, repartidores, sellers, deliveryZones } = useAgencyOrdersContext();
 
   const [courierStatus, setCourierStatus] = useState<AgencyMercadoLibreCourierStatus | null>(null);
+  const [mlFlexMode, setMlFlexMode] = useState<MlFlexMode>(user?.agencyMlFlexMode ?? 'agency');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [courierBusy, setCourierBusy] = useState(false);
+  const [modeSaving, setModeSaving] = useState(false);
 
   const pending = orders.filter((o) => o.status === OrderStatus.PENDING).length;
   const enRoute = orders.filter((o) => o.status === OrderStatus.DELIVERING).length;
@@ -42,6 +44,7 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
     try {
       const status = await api.getAgencyCourierStatus(token);
       setCourierStatus(status.mercadolibreCourier);
+      setMlFlexMode(status.mlFlexMode);
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo cargar la integración.');
     }
@@ -74,6 +77,19 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo abrir la conexión.');
     } finally {
       setCourierBusy(false);
+    }
+  };
+
+  const setFlexMode = async (mode: MlFlexMode) => {
+    if (!token || mode === mlFlexMode) return;
+    setModeSaving(true);
+    try {
+      const result = await api.updateAgencyMlFlexMode(token, mode);
+      setMlFlexMode(result.mlFlexMode);
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo guardar el modo.');
+    } finally {
+      setModeSaving(false);
     }
   };
 
@@ -128,51 +144,76 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Mensajería Mercado Libre Flex</Text>
+        <Text style={styles.sectionTitle}>Mercado Libre Flex</Text>
         <View style={styles.integrationCard}>
-          <View style={styles.integrationHeader}>
-            <Text style={styles.integrationLabel}>Cuenta de mensajería</Text>
-            <Text
-              style={[
-                styles.badge,
-                courierStatus?.connected ? styles.badgeOk : styles.badgeOff,
-              ]}
+          <Text style={styles.integrationHint}>
+            Elegí cómo se registran los escaneos en Mercado Libre Flex:
+          </Text>
+          <View style={styles.modeRow}>
+            <Pressable
+              style={[styles.modeCard, mlFlexMode === 'agency' && styles.modeCardActive]}
+              disabled={modeSaving}
+              onPress={() => void setFlexMode('agency')}
             >
-              {courierStatus?.connected ? 'Conectado' : 'Sin conectar'}
-            </Text>
+              <Text style={styles.modeTitle}>Mensajería en ML</Text>
+              <Text style={styles.modeDesc}>Una cuenta de mensajería para toda la agencia.</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeCard, mlFlexMode === 'repartidor' && styles.modeCardActive]}
+              disabled={modeSaving}
+              onPress={() => void setFlexMode('repartidor')}
+            >
+              <Text style={styles.modeTitle}>Repartidores independientes</Text>
+              <Text style={styles.modeDesc}>Cada repartidor conecta su cuenta ML en su perfil.</Text>
+            </Pressable>
           </View>
-          {!courierStatus?.configured ? (
-            <Text style={styles.warn}>
-              Mercado Libre no está configurado en el servidor de Posta.
+
+          {mlFlexMode === 'repartidor' ? (
+            <Text style={styles.integrationHint}>
+              Los repartidores deben conectar Mercado Libre desde Perfil en la app.
             </Text>
           ) : (
-            <Text style={styles.integrationHint}>
-              Al escanear etiquetas, Posta informa el envío a Mercado Libre Flex automáticamente.
-              Usá la cuenta de negocio de tu mensajería registrada en ML.
-            </Text>
+            <>
+              <View style={styles.integrationHeader}>
+                <Text style={styles.integrationLabel}>Cuenta de mensajería</Text>
+                <Text
+                  style={[
+                    styles.badge,
+                    courierStatus?.connected ? styles.badgeOk : styles.badgeOff,
+                  ]}
+                >
+                  {courierStatus?.connected ? 'Conectado' : 'Sin conectar'}
+                </Text>
+              </View>
+              {!courierStatus?.configured ? (
+                <Text style={styles.warn}>
+                  Mercado Libre no está configurado en el servidor de Posta.
+                </Text>
+              ) : null}
+              {courierStatus?.connected && courierStatus.account?.nickname ? (
+                <Text style={styles.rowMeta}>Cuenta: {courierStatus.account.nickname}</Text>
+              ) : null}
+              <View style={styles.integrationActions}>
+                {courierStatus?.connected ? (
+                  <Pressable
+                    style={styles.linkBtnDanger}
+                    onPress={disconnectCourier}
+                    disabled={courierBusy}
+                  >
+                    <Text style={styles.linkBtnDangerText}>{courierBusy ? '…' : 'Desconectar'}</Text>
+                  </Pressable>
+                ) : (
+                  <Button
+                    label="Conectar mensajería ML"
+                    onPress={connectCourier}
+                    loading={courierBusy}
+                    disabled={!courierStatus?.configured}
+                    style={{ flex: 1 }}
+                  />
+                )}
+              </View>
+            </>
           )}
-          {courierStatus?.connected && courierStatus.account?.nickname ? (
-            <Text style={styles.rowMeta}>Cuenta: {courierStatus.account.nickname}</Text>
-          ) : null}
-          <View style={styles.integrationActions}>
-            {courierStatus?.connected ? (
-              <Pressable
-                style={styles.linkBtnDanger}
-                onPress={disconnectCourier}
-                disabled={courierBusy}
-              >
-                <Text style={styles.linkBtnDangerText}>{courierBusy ? '…' : 'Desconectar'}</Text>
-              </Pressable>
-            ) : (
-              <Button
-                label="Conectar mensajería ML"
-                onPress={connectCourier}
-                loading={courierBusy}
-                disabled={!courierStatus?.configured}
-                style={{ flex: 1 }}
-              />
-            )}
-          </View>
         </View>
       </View>
 
@@ -302,6 +343,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   integrationActions: { flexDirection: 'row', marginTop: spacing.md },
+  modeRow: { gap: spacing.sm, marginVertical: spacing.md },
+  modeCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    backgroundColor: colors.surfaceAlt,
+  },
+  modeCardActive: {
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(91, 141, 184, 0.12)',
+  },
+  modeTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  modeDesc: { color: colors.textMuted, fontSize: 11, marginTop: 4, lineHeight: 15 },
   linkBtnDanger: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   linkBtnDangerText: { color: colors.red, fontWeight: '600', fontSize: 13 },
   row: {

@@ -1,24 +1,27 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { LocationPoint } from '../types/index.js';
+import type { MlFlexMode } from '../types/index.js';
 import { seedDefaultZonesForAgency } from './delivery-zones.service.js';
 
 export interface Agency {
   id: string;
   name: string;
+  mlFlexMode: MlFlexMode;
   departurePoint?: LocationPoint;
 }
 
 interface AgencyRow extends RowDataPacket {
   id: string;
   name: string;
+  ml_flex_mode: MlFlexMode;
   departure_address: string | null;
   departure_lat: number | null;
   departure_lng: number | null;
 }
 
 function rowToAgency(row: AgencyRow): Agency {
-  const agency: Agency = { id: row.id, name: row.name };
+  const agency: Agency = { id: row.id, name: row.name, mlFlexMode: row.ml_flex_mode ?? 'agency' };
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
     agency.departurePoint = {
       address: row.departure_address,
@@ -55,7 +58,7 @@ export async function createAgency(data: {
 
 export async function getAgencyById(id: string): Promise<Agency | null> {
   const [rows] = await pool.query<AgencyRow[]>(
-    `SELECT id, name, departure_address, departure_lat, departure_lng FROM agencies WHERE id = ?`,
+    `SELECT id, name, ml_flex_mode, departure_address, departure_lat, departure_lng FROM agencies WHERE id = ?`,
     [id]
   );
   const row = rows[0];
@@ -80,6 +83,20 @@ export async function updateAgencyDeparture(
   );
 
   const updated = await getAgencyDeparture(agencyId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
+}
+
+export async function updateAgencyMlFlexMode(
+  agencyId: string,
+  mlFlexMode: MlFlexMode
+): Promise<Agency> {
+  const agency = await getAgencyById(agencyId);
+  if (!agency) throw new Error('NOT_FOUND');
+
+  await pool.query(`UPDATE agencies SET ml_flex_mode = ? WHERE id = ?`, [mlFlexMode, agencyId]);
+
+  const updated = await getAgencyById(agencyId);
   if (!updated) throw new Error('NOT_FOUND');
   return updated;
 }

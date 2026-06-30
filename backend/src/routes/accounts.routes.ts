@@ -25,6 +25,8 @@ import {
   canManagePickupPoint,
 } from '../services/pickup-points.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import { updateAgencyMlFlexMode } from '../services/agencies.service.js';
+import type { MlFlexMode } from '../types/index.js';
 
 const router = Router();
 
@@ -255,6 +257,30 @@ router.put('/agency/departure', authenticate, requireAgencyAdmin(), async (req: 
       lng: Number(lng),
     });
     res.json(user.departurePoint ?? null);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Agencia no encontrada.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/agency/ml-flex-mode', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const { mlFlexMode } = req.body as { mlFlexMode?: MlFlexMode };
+  if (mlFlexMode !== 'agency' && mlFlexMode !== 'repartidor') {
+    res.status(400).json({ error: 'Modo inválido. Usá "agency" o "repartidor".' });
+    return;
+  }
+  if (!req.user!.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+
+  try {
+    const agency = await updateAgencyMlFlexMode(req.user!.agencyId, mlFlexMode);
+    res.json({ mlFlexMode: agency.mlFlexMode });
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'NOT_FOUND') {

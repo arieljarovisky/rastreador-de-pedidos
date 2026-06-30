@@ -33,6 +33,7 @@ import {
   processMercadoLibreNotification,
   type MercadoLibreNotificationPayload,
 } from '../services/mercadolibre-webhook.service.js';
+import { getAgencyById } from '../services/agencies.service.js';
 import {
   getTiendaNubePrivacyWebhookUrls,
   processTiendaNubeCustomerDataRequest,
@@ -97,7 +98,9 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
 router.get('/agency/status', authenticate, requireRoles(...AGENCY_ADMIN_ROLES), async (req: Request, res: Response) => {
   const integrations = await listIntegrationsForUser(req.user!.id);
   const ml = integrations.find((i) => i.platform === 'mercadolibre');
+  const agency = req.user!.agencyId ? await getAgencyById(req.user!.agencyId) : null;
   res.json({
+    mlFlexMode: agency?.mlFlexMode ?? 'agency',
     mercadolibreCourier: {
       configured: isMercadoLibreConfigured(),
       connected: Boolean(ml),
@@ -106,7 +109,21 @@ router.get('/agency/status', authenticate, requireRoles(...AGENCY_ADMIN_ROLES), 
   });
 });
 
-router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_ADMIN, ...AGENCY_ADMIN_ROLES), (req: Request, res: Response) => {
+router.get('/repartidor/status', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
+  const integrations = await listIntegrationsForUser(req.user!.id);
+  const ml = integrations.find((i) => i.platform === 'mercadolibre');
+  const agency = req.user!.agencyId ? await getAgencyById(req.user!.agencyId) : null;
+  res.json({
+    mlFlexMode: agency?.mlFlexMode ?? 'agency',
+    mercadolibre: {
+      configured: isMercadoLibreConfigured(),
+      connected: Boolean(ml),
+      account: ml ? integrationStatusPublic(ml) : null,
+    },
+  });
+});
+
+router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_ADMIN, ...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR), (req: Request, res: Response) => {
   if (!isMercadoLibreConfigured()) {
     res.status(503).json({ error: 'Mercado Libre no está configurado en el servidor (ML_APP_ID, ML_APP_SECRET).' });
     return;
@@ -258,10 +275,14 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
   }
 });
 
-router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN, ...AGENCY_ADMIN_ROLES), async (req: Request, res: Response) => {
+router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN, ...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   const platform = req.params.platform as IntegrationPlatform;
   if (platform !== 'mercadolibre' && platform !== 'tiendanube') {
     res.status(400).json({ error: 'Plataforma inválida.' });
+    return;
+  }
+  if (req.user!.role === UserRole.REPARTIDOR && platform !== 'mercadolibre') {
+    res.status(403).json({ error: 'No tenés permiso para desconectar esa integración.' });
     return;
   }
   const existing = await getIntegration(req.user!.id, platform);

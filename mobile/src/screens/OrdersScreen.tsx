@@ -62,6 +62,9 @@ export default function OrdersScreen({ navigation }: Props) {
         </View>
         <View style={styles.headerRight}>
           <ConnectionBadge connected={connected} />
+          <Pressable onPress={() => navigation.navigate('RepartidorProfile')} hitSlop={8}>
+            <Text style={styles.profileLink}>Perfil</Text>
+          </Pressable>
           <Pressable onPress={logout} hitSlop={8}>
             <Text style={styles.logout}>Salir</Text>
           </Pressable>
@@ -189,10 +192,15 @@ const styles = StyleSheet.create({
   },
   greeting: {},
   name: {},
-  headerRight: { alignItems: 'flex-end', gap: 8 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   connRow: {},
   dot: {},
   connText: {},
+  profileLink: {
+    fontFamily: fonts.bodySemiBold,
+    color: colors.accent,
+    fontSize: 13,
+  },
   logout: {
     fontFamily: fonts.bodySemiBold,
     color: colors.red,

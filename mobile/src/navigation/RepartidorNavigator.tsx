@@ -4,6 +4,7 @@ import { OrdersProvider } from '../context/OrdersContext';
 import OrdersScreen from '../screens/OrdersScreen';
 import OrderDetailScreen from '../screens/OrderDetailScreen';
 import ScanLabelScreen from '../screens/ScanLabelScreen';
+import RepartidorProfileScreen from '../screens/RepartidorProfileScreen';
 import { RepartidorStackParamList } from './types';
 import { colors, fonts } from '../theme';
 
@@ -34,6 +35,11 @@ export default function RepartidorNavigator() {
           name="ScanLabel"
           component={ScanLabelScreen}
           options={{ title: 'Escanear etiqueta ML' }}
+        />
+        <Stack.Screen
+          name="RepartidorProfile"
+          component={RepartidorProfileScreen}
+          options={{ title: 'Mi perfil' }}
         />
       </Stack.Navigator>
     </OrdersProvider>

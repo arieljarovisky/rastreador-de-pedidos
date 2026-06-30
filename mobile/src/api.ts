@@ -4,6 +4,8 @@ import {
   GeocodeResult,
   IntegrationsStatus,
   AgencyIntegrationsStatus,
+  MlFlexMode,
+  RepartidorMercadoLibreStatus,
   MarketplaceImportResult,
   MarketplacePlatform,
   MarketplaceShipmentPreview,
@@ -242,6 +244,18 @@ export const api = {
 
   getAgencyCourierStatus(token: string): Promise<AgencyIntegrationsStatus> {
     return request<AgencyIntegrationsStatus>('/api/integrations/agency/status', { token });
+  },
+
+  updateAgencyMlFlexMode(token: string, mlFlexMode: MlFlexMode): Promise<{ mlFlexMode: MlFlexMode }> {
+    return request<{ mlFlexMode: MlFlexMode }>('/api/accounts/agency/ml-flex-mode', {
+      method: 'PUT',
+      token,
+      body: { mlFlexMode },
+    });
+  },
+
+  getRepartidorMlStatus(token: string): Promise<RepartidorMercadoLibreStatus> {
+    return request<RepartidorMercadoLibreStatus>('/api/integrations/repartidor/status', { token });
   },
 
   getIntegrationConnectUrl(token: string, platform: MarketplacePlatform): Promise<{ url: string }> {

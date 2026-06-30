@@ -13,6 +13,9 @@ export enum OrderStatus {
   CANCELLED = 'cancelled',
 }
 
+/** Cómo la agencia registra escaneos en Mercado Libre Flex. */
+export type MlFlexMode = 'agency' | 'repartidor';
+
 export interface UserLocation {
   lat: number;
   lng: number;
@@ -43,6 +46,8 @@ export interface User {
   role: UserRole;
   agencyId?: string | null;
   agencyName?: string | null;
+  /** Modo Flex de la agencia (mensajería única vs repartidor independiente). */
+  agencyMlFlexMode?: MlFlexMode | null;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];

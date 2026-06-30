@@ -51,6 +51,7 @@ async function enrichUser(user: User): Promise<User> {
     const agency = await getAgencyById(user.agencyId);
     if (agency) {
       user.agencyName = agency.name;
+      user.agencyMlFlexMode = agency.mlFlexMode;
     }
   }
   if (user.role === UserRole.STORE_ADMIN) {

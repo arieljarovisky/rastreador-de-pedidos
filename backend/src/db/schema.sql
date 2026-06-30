@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS agencies (
   id VARCHAR(36) PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
+  ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency',
   departure_address VARCHAR(500) NULL,
   departure_lat DECIMAL(10, 7) NULL,
   departure_lng DECIMAL(10, 7) NULL,

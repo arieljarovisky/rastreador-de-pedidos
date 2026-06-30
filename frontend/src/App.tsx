@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyMercadoLibreCourierStatus } from './types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyIntegrationsStatus, RepartidorMercadoLibreStatus, type MlFlexMode } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
@@ -58,8 +58,10 @@ export default function App() {
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
-  const [agencyCourierStatus, setAgencyCourierStatus] = useState<AgencyMercadoLibreCourierStatus | null>(null);
+  const [agencyIntegrationsStatus, setAgencyIntegrationsStatus] = useState<AgencyIntegrationsStatus | null>(null);
   const [agencyCourierStatusLoading, setAgencyCourierStatusLoading] = useState(false);
+  const [repartidorMlStatus, setRepartidorMlStatus] = useState<RepartidorMercadoLibreStatus | null>(null);
+  const [repartidorMlLoading, setRepartidorMlLoading] = useState(false);
 
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
@@ -194,8 +196,14 @@ export default function App() {
 
         const courierRes = await fetch(apiUrl('/api/integrations/agency/status'), { headers });
         if (courierRes.ok) {
-          const body = (await courierRes.json()) as { mercadolibreCourier: AgencyMercadoLibreCourierStatus };
-          setAgencyCourierStatus(body.mercadolibreCourier);
+          setAgencyIntegrationsStatus((await courierRes.json()) as AgencyIntegrationsStatus);
+        }
+      }
+
+      if (currentUser?.role === UserRole.REPARTIDOR) {
+        const repMlRes = await fetch(apiUrl('/api/integrations/repartidor/status'), { headers });
+        if (repMlRes.ok) {
+          setRepartidorMlStatus((await repMlRes.json()) as RepartidorMercadoLibreStatus);
         }
       }
 
@@ -884,15 +892,50 @@ export default function App() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        const body = (await res.json()) as { mercadolibreCourier: AgencyMercadoLibreCourierStatus };
-        setAgencyCourierStatus(body.mercadolibreCourier);
+        setAgencyIntegrationsStatus((await res.json()) as AgencyIntegrationsStatus);
       }
     } catch {
-      // silencioso: el panel muestra estado desconocido
+      // silencioso
     } finally {
       setAgencyCourierStatusLoading(false);
     }
   }, [token]);
+
+  const fetchRepartidorMlStatus = useCallback(async () => {
+    if (!token) return;
+    setRepartidorMlLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/integrations/repartidor/status'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setRepartidorMlStatus((await res.json()) as RepartidorMercadoLibreStatus);
+      }
+    } catch {
+      // silencioso
+    } finally {
+      setRepartidorMlLoading(false);
+    }
+  }, [token]);
+
+  const handleUpdateAgencyMlFlexMode = useCallback(
+    async (mlFlexMode: MlFlexMode) => {
+      if (!token) throw new Error('Sin sesión');
+      const res = await fetch(apiUrl('/api/accounts/agency/ml-flex-mode'), {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mlFlexMode }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((body as { error?: string }).error || 'No se pudo guardar el modo Flex');
+      setUser((prev) => (prev ? { ...prev, agencyMlFlexMode: mlFlexMode } : prev));
+      await fetchAgencyCourierStatus();
+    },
+    [token, fetchAgencyCourierStatus]
+  );
 
   const connectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
     if (!token) throw new Error('Sin sesión');
@@ -919,6 +962,23 @@ export default function App() {
       throw new Error(body.error || 'No se pudo desconectar');
     }
     await fetchAgencyCourierStatus();
+  };
+
+  const connectRepartidorMercadoLibre = async () => {
+    await connectMarketplace('mercadolibre');
+  };
+
+  const disconnectRepartidorMercadoLibre = async () => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/integrations/mercadolibre'), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 204) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'No se pudo desconectar');
+    }
+    await fetchRepartidorMlStatus();
   };
 
   const disconnectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
@@ -1408,9 +1468,10 @@ export default function App() {
                   onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}
                   onFetchMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? fetchMarketplaceShipments : undefined}
                   onImportMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? importMarketplaceShipments : undefined}
-                  agencyCourierStatus={isAgencyAdmin(user.role) ? agencyCourierStatus : null}
+                  agencyIntegrationsStatus={isAgencyAdmin(user.role) ? agencyIntegrationsStatus : null}
                   agencyCourierStatusLoading={agencyCourierStatusLoading}
                   onRefreshAgencyCourierStatus={isAgencyAdmin(user.role) ? fetchAgencyCourierStatus : undefined}
+                  onUpdateAgencyMlFlexMode={isAgencyAdmin(user.role) ? handleUpdateAgencyMlFlexMode : undefined}
                   onConnectMercadoLibreCourier={isAgencyAdmin(user.role) ? connectMercadoLibreCourier : undefined}
                   onDisconnectMercadoLibreCourier={isAgencyAdmin(user.role) ? disconnectMercadoLibreCourier : undefined}
                   onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
@@ -1454,6 +1515,11 @@ export default function App() {
                 onReportUserLocation={handleReportUserLocation}
                 onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
                 onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
+                repartidorMlStatus={repartidorMlStatus}
+                repartidorMlLoading={repartidorMlLoading}
+                onRefreshRepartidorMlStatus={fetchRepartidorMlStatus}
+                onConnectRepartidorMercadoLibre={connectRepartidorMercadoLibre}
+                onDisconnectRepartidorMercadoLibre={disconnectRepartidorMercadoLibre}
               />
             </div>
 

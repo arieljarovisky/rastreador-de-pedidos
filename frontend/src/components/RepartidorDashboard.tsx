@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
+import { Order, OrderStatus, User, LocationPoint, PickupPoint, RepartidorMercadoLibreStatus } from '../types.js';
 import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText, Barcode } from 'lucide-react';
 import { useModal } from '../context/ModalContext.tsx';
 import MapComponent from './MapComponent.tsx';
@@ -42,6 +42,11 @@ interface RepartidorDashboardProps {
     sellerId?: string,
     scanLocation?: { lat: number; lng: number } | null
   ) => Promise<MercadoLibreScanImportResult>;
+  repartidorMlStatus?: RepartidorMercadoLibreStatus | null;
+  repartidorMlLoading?: boolean;
+  onRefreshRepartidorMlStatus?: () => Promise<void>;
+  onConnectRepartidorMercadoLibre?: () => Promise<void>;
+  onDisconnectRepartidorMercadoLibre?: () => Promise<void>;
 }
 
 export default function RepartidorDashboard({
@@ -56,6 +61,11 @@ export default function RepartidorDashboard({
   onReportUserLocation,
   onOpenMercadoLibreLabel,
   onScanMercadoLibreLabel,
+  repartidorMlStatus = null,
+  repartidorMlLoading = false,
+  onRefreshRepartidorMlStatus,
+  onConnectRepartidorMercadoLibre,
+  onDisconnectRepartidorMercadoLibre,
 }: RepartidorDashboardProps) {
   const { alert: showAlert } = useModal();
   const [activeTab, setActiveTab] = useState<'assigned' | 'available'>('assigned');
@@ -201,6 +211,69 @@ export default function RepartidorDashboard({
 
   return (
     <div className="flex flex-col h-full overflow-hidden" id="repartidor-dashboard">
+
+      {(repartidorMlStatus?.mlFlexMode === 'repartidor' || currentUser.agencyMlFlexMode === 'repartidor') &&
+        onConnectRepartidorMercadoLibre && (
+          <div className="shrink-0 px-2 sm:px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5">
+              Tu cuenta Mercado Libre Flex
+            </p>
+            {repartidorMlLoading ? (
+              <p className="text-[11px] text-[var(--color-text-muted)]">Consultando…</p>
+            ) : repartidorMlStatus?.mercadolibre.connected ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] text-[var(--color-ok)]">
+                  Conectado como {repartidorMlStatus.mercadolibre.account?.nickname ?? 'ML'}
+                </p>
+                {onDisconnectRepartidorMercadoLibre && (
+                  <button
+                    type="button"
+                    className="text-[10px] font-mono text-[var(--color-danger)] hover:underline"
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          await onDisconnectRepartidorMercadoLibre();
+                          await onRefreshRepartidorMlStatus?.();
+                        } catch (err: unknown) {
+                          void showAlert({
+                            title: 'Error',
+                            message: err instanceof Error ? err.message : 'No se pudo desconectar',
+                            variant: 'error',
+                          });
+                        }
+                      })();
+                    }}
+                  >
+                    Desconectar
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] text-[var(--color-warn)]">Sin conectar — los escaneos no se informan a ML</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        await onConnectRepartidorMercadoLibre();
+                      } catch (err: unknown) {
+                        void showAlert({
+                          title: 'Error',
+                          message: err instanceof Error ? err.message : 'No se pudo conectar',
+                          variant: 'error',
+                        });
+                      }
+                    })();
+                  }}
+                  className="text-[10px] font-mono font-bold uppercase px-2 py-1 rounded-[var(--radius-posta)] bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/30"
+                >
+                  Conectar ML
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
       {onScanMercadoLibreLabel && (
         <div className="shrink-0 flex items-center justify-between gap-2 px-2 sm:px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/60">

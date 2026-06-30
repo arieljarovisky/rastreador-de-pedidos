@@ -12,6 +12,8 @@ import {
   type IntegrationPlatform,
   type StoreIntegration,
 } from './integrations.service.js';
+import { getAgencyById } from './agencies.service.js';
+import { UserRole } from '../types/index.js';
 
 const ML_API = 'https://api.mercadolibre.com';
 
@@ -561,11 +563,45 @@ export async function registerMercadoLibreCourierShipment(
   };
 }
 
-/** Registra el envío en Flex al escanear, usando la mensajería de la agencia. */
+/** Registra el envío en Flex al escanear según el modo configurado en la agencia. */
 export async function syncMercadoLibreFlexOnScan(
   agencyId: string,
-  shipmentId: string
+  shipmentId: string,
+  scanningUserId: string,
+  scanningUserRole: UserRole
 ): Promise<{ registered: boolean; message: string }> {
+  const agency = await getAgencyById(agencyId);
+  const mode = agency?.mlFlexMode ?? 'agency';
+
+  if (mode === 'repartidor') {
+    if (scanningUserRole !== UserRole.REPARTIDOR) {
+      return {
+        registered: false,
+        message:
+          'Tu agencia opera con repartidores independientes: el escaneo debe hacerlo un repartidor con su cuenta ML conectada.',
+      };
+    }
+
+    const repartidorIntegration = await getIntegration(scanningUserId, 'mercadolibre');
+    if (!repartidorIntegration) {
+      return {
+        registered: false,
+        message: 'Conectá tu cuenta de Mercado Libre Flex en tu perfil.',
+      };
+    }
+
+    const result = await registerMercadoLibreCourierShipment(repartidorIntegration, shipmentId);
+    if (result.ok) {
+      return {
+        registered: true,
+        message: result.alreadyRegistered
+          ? 'Envío ya registrado en Mercado Libre Flex.'
+          : 'Registrado en Mercado Libre Flex con tu cuenta.',
+      };
+    }
+    return { registered: false, message: result.message };
+  }
+
   const courierIntegration = await getMercadoLibreCourierIntegrationForAgency(agencyId);
   if (!courierIntegration) {
     return {

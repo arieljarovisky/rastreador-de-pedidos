@@ -270,7 +270,12 @@ async function attachMercadoLibreFlexSync(
     };
   }
 
-  const flexSync = await syncMercadoLibreFlexOnScan(user.agencyId, shipmentId);
+  const flexSync = await syncMercadoLibreFlexOnScan(
+    user.agencyId,
+    shipmentId,
+    user.id,
+    user.role
+  );
   return {
     ...base,
     mlFlexRegistered: flexSync.registered,
