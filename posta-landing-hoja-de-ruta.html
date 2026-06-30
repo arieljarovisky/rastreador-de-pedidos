@@ -20,6 +20,7 @@
   --body:'IBM Plex Sans',system-ui,sans-serif;
   --mono:'Space Mono',ui-monospace,monospace;
   --maxw:1140px;
+  --pad-x:clamp(24px,6vw,48px);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -29,7 +30,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;opa
 main,header,footer{position:relative;z-index:2}
 a{color:inherit;text-decoration:none}
 svg{display:block}
-.wrap{max-width:var(--maxw);margin:0 auto;padding:0 clamp(22px,5vw,26px)}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--pad-x)}
 
 .mono{font-family:var(--mono)}
 .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--stamp2);font-weight:700}
@@ -77,7 +78,7 @@ header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;poin
 .navlinks a:hover{color:var(--stamp)}
 .navcta{display:flex;align-items:center;gap:13px}
 .burger{display:none;background:none;border:1.5px solid var(--ink);border-radius:4px;width:42px;height:42px;cursor:pointer;color:var(--ink)}
-.mobile-menu{display:none;flex-direction:column;padding:8px 26px 20px;border-bottom:1.5px solid var(--ink);background:var(--paper)}
+.mobile-menu{display:none;flex-direction:column;padding:8px var(--pad-x) 20px;border-bottom:1.5px solid var(--ink);background:var(--paper)}
 .mobile-menu a{font-family:var(--mono);text-transform:uppercase;font-size:.82rem;letter-spacing:.06em;padding:13px 0;border-bottom:1px solid var(--edge);color:var(--ink2)}
 .mobile-menu .btn{margin-top:16px;justify-content:center}
 
@@ -281,7 +282,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 }
 
 @media (max-width:900px){
-  .wrap{padding:0 28px}
+  :root{--pad-x:clamp(28px,7vw,44px)}
   .hero{overflow:visible}
   .hero-grid{grid-template-columns:1fr;gap:46px}
   .dl-actions{grid-template-columns:1fr}
@@ -293,8 +294,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   .foot{grid-template-columns:1fr 1fr}
 }
 @media (max-width:620px){
-  .wrap{padding:0 32px}
-  .mobile-menu{padding:8px 32px 20px}
+  :root{--pad-x:clamp(24px,8vw,40px)}
   .navlinks,.navcta .btn{display:none}
   .burger{display:flex;align-items:center;justify-content:center}
   .nav{height:56px}
