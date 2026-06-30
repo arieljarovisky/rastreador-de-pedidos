@@ -15,7 +15,7 @@ import geocodeRoutes from './routes/geocode.routes.js';
 import integrationsRoutes from './routes/integrations.routes.js';
 import { isMercadoLibreConfigured } from './services/mercadolibre.service.js';
 import { isTiendaNubeConfigured } from './services/tiendanube.service.js';
-import { DELIVERY_ZONES } from './config/delivery-zones.js';
+import deliveryZonesRoutes from './routes/delivery-zones.routes.js';
 
 const app = express();
 
@@ -67,9 +67,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.get('/api/delivery-zones', (_req, res) => {
-  res.json(DELIVERY_ZONES);
-});
+app.use('/api/delivery-zones', deliveryZonesRoutes);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/accounts', accountsRoutes);

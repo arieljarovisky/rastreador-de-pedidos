@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
-import { getDeliveryZone } from '../config/deliveryZones.js';
+import { getDeliveryZone, type DeliveryZone } from '../config/deliveryZones.js';
 import { fetchDrivingRoute } from '../utils/route.js';
 import { getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
@@ -55,6 +55,7 @@ interface MapComponentProps {
   repartidores?: User[];
   departurePoint?: LocationPoint | null;
   pickupPoints?: PickupPoint[];
+  deliveryZones?: DeliveryZone[];
   activeOrderId: string | null;
   onSelectOrder?: (orderId: string) => void;
   interactive?: boolean;
@@ -112,6 +113,7 @@ export default function MapComponent({
   repartidores = [],
   departurePoint = null,
   pickupPoints = [],
+  deliveryZones = [],
   activeOrderId,
   onSelectOrder,
   interactive = true,
@@ -267,7 +269,7 @@ export default function MapComponent({
     });
 
     zoneReps.forEach((names, zoneId) => {
-      const zone = getDeliveryZone(zoneId);
+      const zone = getDeliveryZone(deliveryZones, zoneId);
       if (!zone) return;
 
       const rect = L.rectangle(
@@ -292,7 +294,7 @@ export default function MapComponent({
 
       zoneLayersRef.current.push(rect);
     });
-  }, [repartidores, showDeliveryZones]);
+  }, [repartidores, showDeliveryZones, deliveryZones]);
 
   // Observer de redimensionamiento
   useEffect(() => {

@@ -22,11 +22,12 @@ import {
   ChevronRight,
   Key,
   Building2,
+  Layers,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
-import { DELIVERY_ZONES, zoneLabel, getDeliveryZone } from '../config/deliveryZones.js';
+import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, type DeliveryZone } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 const DIRECTORY_PRESETS = [
@@ -44,6 +45,27 @@ interface SettingsPageProps {
   repartidores: User[];
   sellers?: User[];
   pickupPoints?: PickupPoint[];
+  deliveryZones?: DeliveryZone[];
+  onCreateDeliveryZone?: (data: {
+    name: string;
+    color?: string;
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+  }) => Promise<DeliveryZone>;
+  onUpdateDeliveryZone?: (
+    zoneId: string,
+    data: {
+      name?: string;
+      color?: string;
+      south?: number;
+      west?: number;
+      north?: number;
+      east?: number;
+    }
+  ) => Promise<DeliveryZone>;
+  onDeleteDeliveryZone?: (zoneId: string) => Promise<void>;
   onUpdateDeparture?: (data: LocationPoint) => Promise<void>;
   onCreateSeller?: (data: {
     username: string;
@@ -102,6 +124,10 @@ export default function SettingsPage({
   repartidores,
   sellers = [],
   pickupPoints = [],
+  deliveryZones = [],
+  onCreateDeliveryZone,
+  onUpdateDeliveryZone,
+  onDeleteDeliveryZone,
   onUpdateDeparture,
   onCreateSeller,
   onFetchSellerDetail,
@@ -171,6 +197,18 @@ export default function SettingsPage({
   const [updatingZoneId, setUpdatingZoneId] = useState<string | null>(null);
   const [repartidorFormMessage, setRepartidorFormMessage] = useState<string | null>(null);
   const [deletingRepartidorId, setDeletingRepartidorId] = useState<string | null>(null);
+
+  const [showZoneForm, setShowZoneForm] = useState(false);
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
+  const [zoneName, setZoneName] = useState('');
+  const [zoneColor, setZoneColor] = useState(ZONE_COLOR_PRESETS[0]);
+  const [zoneSouth, setZoneSouth] = useState('-34.72');
+  const [zoneWest, setZoneWest] = useState('-58.52');
+  const [zoneNorth, setZoneNorth] = useState('-34.58');
+  const [zoneEast, setZoneEast] = useState('-58.36');
+  const [zoneFormLoading, setZoneFormLoading] = useState(false);
+  const [zoneFormMessage, setZoneFormMessage] = useState<string | null>(null);
+  const [deletingZoneId, setDeletingZoneId] = useState<string | null>(null);
 
   const [showPickupForm, setShowPickupForm] = useState(false);
   const [pickupLabel, setPickupLabel] = useState('');
@@ -877,6 +915,232 @@ export default function SettingsPage({
           </section>
         )}
 
+        {agency && onCreateDeliveryZone && (
+          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
+                <Layers className="w-4 h-4 text-[var(--color-accent)]" />
+              </div>
+              <div className="flex-1 min-w-[10rem]">
+                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Zonas de entrega</p>
+                <p className="mono-label">
+                  {deliveryZones.length} zona{deliveryZones.length !== 1 ? 's' : ''} · rectángulos geográficos para asignar repartidores
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowZoneForm(!showZoneForm);
+                  setEditingZoneId(null);
+                  setZoneName('');
+                  setZoneColor(ZONE_COLOR_PRESETS[deliveryZones.length % ZONE_COLOR_PRESETS.length]);
+                  setZoneFormMessage(null);
+                }}
+                className={btnGhost}
+              >
+                {showZoneForm ? 'Cerrar' : '+ Nueva zona'}
+              </button>
+            </div>
+
+            {deliveryZones.length > 0 && !showZoneForm && (
+              <ul className="mt-2.5 space-y-1.5 max-h-[min(50vh,28rem)] overflow-y-auto pr-1 scrollbar-thin">
+                {deliveryZones.map((zone) => (
+                  <li key={zone.id} className={`flex flex-col gap-1.5 ${listItemClass}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded w-fit"
+                        style={{
+                          color: zone.color,
+                          backgroundColor: `${zone.color}18`,
+                          border: `1px solid ${zone.color}40`,
+                        }}
+                      >
+                        {zone.name}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {onUpdateDeliveryZone && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingZoneId(zone.id);
+                              setZoneName(zone.name);
+                              setZoneColor(zone.color);
+                              setZoneSouth(String(zone.south));
+                              setZoneWest(String(zone.west));
+                              setZoneNorth(String(zone.north));
+                              setZoneEast(String(zone.east));
+                              setShowZoneForm(true);
+                              setZoneFormMessage(null);
+                            }}
+                            className="text-[var(--color-accent)] hover:opacity-80"
+                            title="Editar zona"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {onDeleteDeliveryZone && (
+                          <button
+                            type="button"
+                            disabled={deletingZoneId === zone.id}
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: 'Eliminar zona',
+                                message: `¿Eliminar la zona "${zone.name}"?\n\nLos repartidores asignados deben reasignarse antes.`,
+                                variant: 'danger',
+                                confirmText: 'Eliminar',
+                                cancelText: 'Cancelar',
+                              });
+                              if (!ok) return;
+                              setDeletingZoneId(zone.id);
+                              setZoneFormMessage(null);
+                              try {
+                                await onDeleteDeliveryZone(zone.id);
+                                setZoneFormMessage('Zona eliminada correctamente.');
+                              } catch (err: unknown) {
+                                const message = err instanceof Error ? err.message : 'Error al eliminar zona.';
+                                setZoneFormMessage(message);
+                              } finally {
+                                setDeletingZoneId(null);
+                              }
+                            }}
+                            className="text-[var(--color-danger)] hover:text-red-300 disabled:opacity-50"
+                            title="Eliminar zona"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[9px] font-mono text-[var(--color-text-muted)]">
+                      Sur {zone.south} · Oeste {zone.west} · Norte {zone.north} · Este {zone.east}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {zoneFormMessage && !showZoneForm && (
+              <p
+                className={`mt-3 text-[10px] font-mono ${
+                  zoneFormMessage.includes('correctamente') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+                }`}
+              >
+                {zoneFormMessage}
+              </p>
+            )}
+
+            {showZoneForm && (
+              <form
+                className="mt-3 space-y-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setZoneFormLoading(true);
+                  setZoneFormMessage(null);
+                  const payload = {
+                    name: zoneName,
+                    color: zoneColor,
+                    south: Number(zoneSouth),
+                    west: Number(zoneWest),
+                    north: Number(zoneNorth),
+                    east: Number(zoneEast),
+                  };
+                  try {
+                    if (editingZoneId && onUpdateDeliveryZone) {
+                      await onUpdateDeliveryZone(editingZoneId, payload);
+                      setZoneFormMessage('Zona actualizada correctamente.');
+                    } else {
+                      await onCreateDeliveryZone(payload);
+                      setZoneFormMessage('Zona creada correctamente.');
+                    }
+                    setShowZoneForm(false);
+                    setEditingZoneId(null);
+                    setZoneName('');
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : 'Error al guardar la zona.';
+                    setZoneFormMessage(message);
+                  } finally {
+                    setZoneFormLoading(false);
+                  }
+                }}
+              >
+                <input
+                  required
+                  value={zoneName}
+                  onChange={(e) => setZoneName(e.target.value)}
+                  placeholder="Nombre de la zona (ej. Palermo)"
+                  className={inputClass}
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {ZONE_COLOR_PRESETS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setZoneColor(color)}
+                      className={`w-6 h-6 rounded-full border-2 ${zoneColor === color ? 'border-white scale-110' : 'border-transparent'}`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+                <p className="mono-label pt-0.5">Límites del rectángulo (lat/lng)</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <input
+                    required
+                    type="number"
+                    step="any"
+                    value={zoneSouth}
+                    onChange={(e) => setZoneSouth(e.target.value)}
+                    placeholder="Sur"
+                    className={inputClass}
+                  />
+                  <input
+                    required
+                    type="number"
+                    step="any"
+                    value={zoneWest}
+                    onChange={(e) => setZoneWest(e.target.value)}
+                    placeholder="Oeste"
+                    className={inputClass}
+                  />
+                  <input
+                    required
+                    type="number"
+                    step="any"
+                    value={zoneNorth}
+                    onChange={(e) => setZoneNorth(e.target.value)}
+                    placeholder="Norte"
+                    className={inputClass}
+                  />
+                  <input
+                    required
+                    type="number"
+                    step="any"
+                    value={zoneEast}
+                    onChange={(e) => setZoneEast(e.target.value)}
+                    placeholder="Este"
+                    className={inputClass}
+                  />
+                </div>
+                <p className="text-[9px] text-[var(--color-text-muted)] leading-normal">
+                  Definí un rectángulo con coordenadas. Podés obtenerlas desde Google Maps haciendo clic derecho en el mapa.
+                </p>
+                <button type="submit" disabled={zoneFormLoading} className={btnPrimary}>
+                  {zoneFormLoading ? 'Guardando...' : editingZoneId ? 'Guardar cambios' : 'Crear zona'}
+                </button>
+                {zoneFormMessage && (
+                  <p
+                    className={`text-[10px] font-mono ${
+                      zoneFormMessage.includes('correctamente') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+                    }`}
+                  >
+                    {zoneFormMessage}
+                  </p>
+                )}
+              </form>
+            )}
+          </section>
+        )}
+
         {(onCreateRepartidor || onDeleteRepartidor) && (
           <section className={`${sectionClass} flex flex-col min-h-0 min-w-0`}>
             <div className="flex flex-wrap items-center gap-2">
@@ -966,7 +1230,7 @@ export default function SettingsPage({
                           className="flex-1 min-w-0 bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-1.5 py-1 text-[10px] text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)]"
                         >
                           <option value="">Sin zona asignada</option>
-                          {DELIVERY_ZONES.map((zone) => (
+                          {deliveryZones.map((zone) => (
                             <option key={zone.id} value={zone.id}>
                               {zone.name}
                             </option>
@@ -978,12 +1242,12 @@ export default function SettingsPage({
                       <span
                         className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded w-fit"
                         style={{
-                          color: getDeliveryZone(rep.deliveryZone)?.color ?? '#64748b',
-                          backgroundColor: `${getDeliveryZone(rep.deliveryZone)?.color ?? '#64748b'}18`,
-                          border: `1px solid ${getDeliveryZone(rep.deliveryZone)?.color ?? '#64748b'}40`,
+                          color: getDeliveryZone(deliveryZones, rep.deliveryZone)?.color ?? '#64748b',
+                          backgroundColor: `${getDeliveryZone(deliveryZones, rep.deliveryZone)?.color ?? '#64748b'}18`,
+                          border: `1px solid ${getDeliveryZone(deliveryZones, rep.deliveryZone)?.color ?? '#64748b'}40`,
                         }}
                       >
-                        {zoneLabel(rep.deliveryZone)}
+                        {zoneLabel(deliveryZones, rep.deliveryZone)}
                       </span>
                     )}
                   </li>
@@ -1055,7 +1319,7 @@ export default function SettingsPage({
                   className={inputClass}
                 >
                   <option value="">Zona de entrega (opcional)</option>
-                  {DELIVERY_ZONES.map((zone) => (
+                  {deliveryZones.map((zone) => (
                     <option key={zone.id} value={zone.id}>
                       {zone.name}
                     </option>

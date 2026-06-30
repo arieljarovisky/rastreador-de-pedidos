@@ -3,11 +3,13 @@ import { useAuth } from './AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { api, MercadoLibreScanImportResult } from '../api';
 import { Order, OrderStatus, User } from '../types';
+import type { DeliveryZone } from '../config/deliveryZones';
 
 interface AgencyOrdersState {
   orders: Order[];
   repartidores: User[];
   sellers: User[];
+  deliveryZones: DeliveryZone[];
   loading: boolean;
   refreshing: boolean;
   connected: boolean;
@@ -36,6 +38,7 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
     { trackRepartidores: true }
   );
   const [sellers, setSellers] = useState<User[]>([]);
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
 
   const loadSellers = useMemo(
     () => async () => {
@@ -46,15 +49,29 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
     [token]
   );
 
+  const loadDeliveryZones = useMemo(
+    () => async () => {
+      if (!token) return;
+      try {
+        const data = await api.getDeliveryZones(token);
+        setDeliveryZones(data);
+      } catch {
+        setDeliveryZones([]);
+      }
+    },
+    [token]
+  );
+
   useEffect(() => {
     void loadSellers();
-  }, [loadSellers]);
+    void loadDeliveryZones();
+  }, [loadSellers, loadDeliveryZones]);
 
   const refreshAll = useMemo(
     () => async () => {
-      await Promise.all([refresh(), loadSellers()]);
+      await Promise.all([refresh(), loadSellers(), loadDeliveryZones()]);
     },
-    [refresh, loadSellers]
+    [refresh, loadSellers, loadDeliveryZones]
   );
 
   const getOrder = useMemo(
@@ -159,6 +176,7 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
       orders,
       repartidores,
       sellers,
+      deliveryZones,
       loading,
       refreshing,
       connected,
@@ -178,6 +196,7 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
       orders,
       repartidores,
       sellers,
+      deliveryZones,
       loading,
       refreshing,
       connected,

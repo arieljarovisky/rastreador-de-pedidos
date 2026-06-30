@@ -15,7 +15,7 @@ type Props = NativeStackScreenProps<AgencyStackParamList, 'AgencySettings'>;
 export default function AgencySettingsScreen({ navigation: _navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
-  const { orders, repartidores, sellers } = useAgencyOrdersContext();
+  const { orders, repartidores, sellers, deliveryZones } = useAgencyOrdersContext();
 
   const pending = orders.filter((o) => o.status === OrderStatus.PENDING).length;
   const enRoute = orders.filter((o) => o.status === OrderStatus.DELIVERING).length;
@@ -46,7 +46,7 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
             <View key={rep.id} style={styles.row}>
               <Text style={styles.rowName}>🏍️ {rep.name}</Text>
               <Text style={styles.rowMeta}>
-                {rep.deliveryZone ? zoneLabel(rep.deliveryZone) : 'Sin zona'}
+                {rep.deliveryZone ? zoneLabel(deliveryZones, rep.deliveryZone) : 'Sin zona'}
                 {rep.currentLocation ? ' · GPS activo' : ''}
               </Text>
             </View>
@@ -69,7 +69,7 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
       </View>
 
       <Text style={styles.hint}>
-        Para crear vendedores, repartidores o configurar el punto de salida, usá la web de Posta
+        Para crear vendedores, repartidores, zonas de entrega o configurar el punto de salida, usá la web de Posta
         desde una computadora.
       </Text>
 

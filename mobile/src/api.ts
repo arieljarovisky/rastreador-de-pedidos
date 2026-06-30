@@ -11,6 +11,7 @@ import {
   PickupPoint,
   User,
 } from './types';
+import type { DeliveryZone } from './config/deliveryZones';
 
 export interface LoginResponse {
   user: User;
@@ -167,6 +168,10 @@ export const api = {
 
   getSellers(token: string): Promise<User[]> {
     return request<User[]>('/api/accounts/sellers', { token });
+  },
+
+  getDeliveryZones(token: string): Promise<DeliveryZone[]> {
+    return request<DeliveryZone[]>('/api/delivery-zones', { token });
   },
 
   assignOrderSeller(token: string, orderId: string, sellerId: string): Promise<Order> {

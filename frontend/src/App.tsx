@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from './types.js';
+import type { DeliveryZone } from './config/deliveryZones.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -49,6 +50,7 @@ export default function App() {
   const [sellers, setSellers] = useState<User[]>([]);
   const [departurePoint, setDeparturePoint] = useState<LocationPoint | null>(null);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
@@ -189,6 +191,14 @@ export default function App() {
         if (sellersRes.ok) {
           const data = await sellersRes.json();
           setSellers(data);
+        }
+      }
+
+      if (currentUser?.agencyId) {
+        const zonesRes = await fetch(apiUrl('/api/delivery-zones'), { headers });
+        if (zonesRes.ok) {
+          const data = await zonesRes.json();
+          setDeliveryZones(data);
         }
       }
 
@@ -505,6 +515,76 @@ export default function App() {
     }
     const updated = await res.json();
     setRepartidores((prev) => prev.map((r) => (r.id === repartidorId ? updated : r)));
+  };
+
+  const handleCreateDeliveryZone = async (data: {
+    name: string;
+    color?: string;
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+  }) => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl('/api/delivery-zones'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo crear la zona');
+    }
+    const created = await res.json();
+    setDeliveryZones((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    return created;
+  };
+
+  const handleUpdateDeliveryZone = async (
+    zoneId: string,
+    data: {
+      name?: string;
+      color?: string;
+      south?: number;
+      west?: number;
+      north?: number;
+      east?: number;
+    }
+  ) => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/delivery-zones/${zoneId}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo actualizar la zona');
+    }
+    const updated = await res.json();
+    setDeliveryZones((prev) =>
+      prev.map((z) => (z.id === zoneId ? updated : z)).sort((a, b) => a.name.localeCompare(b.name))
+    );
+    return updated;
+  };
+
+  const handleDeleteDeliveryZone = async (zoneId: string) => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/delivery-zones/${zoneId}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo eliminar la zona');
+    }
+    setDeliveryZones((prev) => prev.filter((z) => z.id !== zoneId));
   };
 
   const handleDeleteRepartidor = async (id: string): Promise<{ finalizedOrders: number }> => {
@@ -1242,6 +1322,7 @@ export default function App() {
                   sellers={sellers}
                   departurePoint={departurePoint}
                   pickupPoints={pickupPoints}
+                  deliveryZones={deliveryZones}
                   activeOrderId={activeOrderId}
                   onSelectOrder={setActiveOrderId}
                   onCreateOrder={handleCreateOrder}
@@ -1265,6 +1346,10 @@ export default function App() {
                   repartidores={repartidores}
                   sellers={sellers}
                   pickupPoints={pickupPoints}
+                  deliveryZones={deliveryZones}
+                  onCreateDeliveryZone={isAgencyAdmin(user.role) ? handleCreateDeliveryZone : undefined}
+                  onUpdateDeliveryZone={isAgencyAdmin(user.role) ? handleUpdateDeliveryZone : undefined}
+                  onDeleteDeliveryZone={isAgencyAdmin(user.role) ? handleDeleteDeliveryZone : undefined}
                   onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
                   onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
                   onFetchSellerDetail={isAgencyAdmin(user.role) ? handleFetchSellerDetail : undefined}

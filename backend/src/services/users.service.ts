@@ -5,7 +5,7 @@ import { DbUserRow, LocationPoint, PickupPoint, User, UserRole, OrderStatus } fr
 import { listPickupPointsForUser } from './pickup-points.service.js';
 import { getAgencyDeparture, getAgencyById, updateAgencyDeparture as updateAgencyDepartureRecord } from './agencies.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
-import { isValidZoneId } from '../config/delivery-zones.js';
+import { isValidZoneForAgency } from './delivery-zones.service.js';
 
 const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng, delivery_zone`;
@@ -166,7 +166,10 @@ export async function createUser(data: {
   if (!data.name.trim()) {
     throw new Error('NAME_REQUIRED');
   }
-  if (data.deliveryZone && !isValidZoneId(data.deliveryZone)) {
+  if (data.deliveryZone && data.agencyId) {
+    const valid = await isValidZoneForAgency(data.agencyId, data.deliveryZone);
+    if (!valid) throw new Error('INVALID_ZONE');
+  } else if (data.deliveryZone) {
     throw new Error('INVALID_ZONE');
   }
 
@@ -208,8 +211,10 @@ export async function updateRepartidorZone(
   if (!rep) {
     throw new Error('NOT_FOUND');
   }
-  if (deliveryZone && !isValidZoneId(deliveryZone)) {
-    throw new Error('INVALID_ZONE');
+  if (deliveryZone) {
+    if (!rep.agencyId) throw new Error('INVALID_ZONE');
+    const valid = await isValidZoneForAgency(rep.agencyId, deliveryZone);
+    if (!valid) throw new Error('INVALID_ZONE');
   }
   await pool.query('UPDATE users SET delivery_zone = ? WHERE id = ?', [deliveryZone, repartidorId]);
   const updated = await getUserById(repartidorId);

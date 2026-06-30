@@ -8,8 +8,8 @@ export interface DeliveryZone {
   east: number;
 }
 
-/** Zonas predefinidas para CABA y GBA (rectángulos aproximados) */
-export const DELIVERY_ZONES: DeliveryZone[] = [
+/** Zonas predefinidas para CABA y GBA (se copian a cada agencia al crear/migrar) */
+export const DEFAULT_DELIVERY_ZONES: DeliveryZone[] = [
   {
     id: 'zona_norte',
     name: 'Zona Norte',
@@ -57,19 +57,5 @@ export const DELIVERY_ZONES: DeliveryZone[] = [
   },
 ];
 
-export function getDeliveryZone(zoneId: string): DeliveryZone | undefined {
-  return DELIVERY_ZONES.find((z) => z.id === zoneId);
-}
-
-export function isValidZoneId(zoneId: string): boolean {
-  return DELIVERY_ZONES.some((z) => z.id === zoneId);
-}
-
-export function findZoneForPoint(lat: number, lng: number): DeliveryZone | null {
-  for (const zone of DELIVERY_ZONES) {
-    if (lat >= zone.south && lat <= zone.north && lng >= zone.west && lng <= zone.east) {
-      return zone;
-    }
-  }
-  return null;
-}
+/** @deprecated Usar delivery-zones.service con agencyId */
+export const DELIVERY_ZONES = DEFAULT_DELIVERY_ZONES;
