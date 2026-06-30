@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, type MarketplaceAgency } from '../types.js';
 import { AgencySelectDropdown } from './AgencyMarketplacePanel.tsx';
-import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, ChevronUp, Layers } from 'lucide-react';
+import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, ChevronUp, Layers, ShoppingCart, Crown, Settings, Package, Bike, ClipboardList } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
@@ -611,7 +611,8 @@ export default function AdminDashboard({
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel)]'
           }`}
         >
-          🗺️ Monitoreo GPS
+          <Navigation className="w-3 h-3 inline-block mr-1" />
+          Monitoreo GPS
         </button>
       </div>
 
@@ -638,7 +639,22 @@ export default function AdminDashboard({
                 )}
               </button>
               <h2 className="text-sm font-display font-semibold text-[var(--color-text)] flex items-center gap-1.5 truncate">
-                {userRole === UserRole.STORE_ADMIN ? '🛒 Posta Ventas' : userRole === UserRole.SUPER_ADMIN ? '👑 Posta Agencia' : '⚙️ Posta Logística'}
+                {userRole === UserRole.STORE_ADMIN ? (
+                  <>
+                    <ShoppingCart className="w-3.5 h-3.5 shrink-0 text-[var(--color-accent)]" />
+                    Posta Ventas
+                  </>
+                ) : userRole === UserRole.SUPER_ADMIN ? (
+                  <>
+                    <Crown className="w-3.5 h-3.5 shrink-0 text-[var(--color-accent)]" />
+                    Posta Agencia
+                  </>
+                ) : (
+                  <>
+                    <Settings className="w-3.5 h-3.5 shrink-0 text-[var(--color-accent)]" />
+                    Posta Logística
+                  </>
+                )}
               </h2>
               {ordersHeaderCollapsed && (
                 <span className="text-[10px] font-mono text-[var(--color-text-muted)] shrink-0">
@@ -829,7 +845,10 @@ export default function AdminDashboard({
           {showCreateForm && userRole === UserRole.STORE_ADMIN && (
             <form onSubmit={handleSubmitOrder} className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-3.5 space-y-3 animate-slide-down shadow-xl">
               <div className="flex items-center justify-between border-b border-[var(--surface-border)] pb-2 mb-2">
-                <h3 className="font-bold text-xs text-[var(--color-accent)] flex items-center gap-1">📝 Cargar nuevo envío</h3>
+                <h3 className="font-bold text-xs text-[var(--color-accent)] flex items-center gap-1">
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Cargar nuevo envío
+                </h3>
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
@@ -1014,22 +1033,27 @@ export default function AdminDashboard({
                   <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-white transition truncate">
                     {order.clientName}
                   </h4>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate leading-snug">
-                    📍 {order.address}
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate leading-snug flex items-center gap-1">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    {order.address}
                   </p>
                   {isAgencyAdmin(userRole) && (() => {
                     const orderZone = findZoneForPoint(deliveryZones, order.lat, order.lng, barrios);
                     if (!orderZone) return null;
                     return (
-                      <p className="text-[9px] mt-1 font-mono font-bold uppercase tracking-wider" style={{ color: orderZone.color }}>
-                        🗺️ {orderZone.name}
+                      <p className="text-[9px] mt-1 font-mono font-bold uppercase tracking-wider flex items-center gap-1" style={{ color: orderZone.color }}>
+                        <Layers className="w-3 h-3 shrink-0" />
+                        {orderZone.name}
                       </p>
                     );
                   })()}
                   {isAgencyAdmin(userRole) && (
                     <p className="text-[10px] mt-1 font-mono">
                       {order.sellerName ? (
-                        <span className="text-[var(--route-2,var(--color-accent))]">🛒 {order.sellerName}</span>
+                        <span className="text-[var(--route-2,var(--color-accent))] inline-flex items-center gap-1">
+                          <ShoppingCart className="w-3 h-3 shrink-0" />
+                          {order.sellerName}
+                        </span>
                       ) : (
                         <span className="text-[var(--color-warn)] font-bold">⚠️ Sin vendedor asignado</span>
                       )}
@@ -1074,8 +1098,9 @@ export default function AdminDashboard({
                           Gestionar
                         </button>
                       ) : order.repartidorName ? (
-                        <span className="text-[var(--color-accent)] font-semibold uppercase tracking-wider text-[8px] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 px-1 py-0.5 rounded truncate max-w-[7rem]">
-                          🏍️ {order.repartidorName.split(' ')[0]}
+                        <span className="text-[var(--color-accent)] font-semibold uppercase tracking-wider text-[8px] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 px-1 py-0.5 rounded truncate max-w-[7rem] inline-flex items-center gap-0.5">
+                          <Bike className="w-3 h-3 shrink-0" />
+                          {order.repartidorName.split(' ')[0]}
                         </span>
                       ) : (
                         <span className="text-[var(--color-warn)] font-semibold text-[8px] shrink-0">
@@ -1140,10 +1165,16 @@ export default function AdminDashboard({
                 </p>
               )}
               {isAgencyAdmin(userRole) && selectedOrder.sellerName && (
-                <p className="text-[10px] font-mono text-[var(--color-accent)]">🛒 {selectedOrder.sellerName}</p>
+                <p className="text-[10px] font-mono text-[var(--color-accent)] flex items-center gap-1">
+                  <ShoppingCart className="w-3 h-3 shrink-0" />
+                  {selectedOrder.sellerName}
+                </p>
               )}
               {selectedOrder.repartidorName ? (
-                <p className="text-[10px] font-mono text-[var(--color-accent)]">🏍️ {selectedOrder.repartidorName}</p>
+                <p className="text-[10px] font-mono text-[var(--color-accent)] flex items-center gap-1">
+                  <Bike className="w-3 h-3 shrink-0" />
+                  {selectedOrder.repartidorName}
+                </p>
               ) : selectedOrder.status === OrderStatus.PENDING ? (
                 <p className="text-[10px] font-mono text-[var(--color-warn)]">⚠️ Sin repartidor asignado</p>
               ) : null}
@@ -1291,7 +1322,8 @@ export default function AdminDashboard({
               <div className="flex items-start justify-between border-b border-[var(--surface-border)] pb-2">
                 <div>
                   <h3 className="font-bold text-xs lg:text-sm text-[var(--color-text)] flex items-center gap-1.5 uppercase font-mono tracking-wider">
-                    📦 Envío {selectedOrder.id}
+                    <Package className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                    Envío {selectedOrder.id}
                   </h3>
                   <p className="text-[10px] text-[var(--color-text-muted)] font-sans mt-0.5">Destinatario: {selectedOrder.clientName}</p>
                 </div>
@@ -1346,8 +1378,9 @@ export default function AdminDashboard({
                     <div className="flex items-center gap-2 text-[11px]">
                       <span className="font-semibold text-[var(--color-text-muted)]">Vendedor / tienda:</span>
                       {selectedOrder.sellerName ? (
-                        <span className="bg-[var(--color-accent)]/10 text-[var(--route-2,var(--color-accent))] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
-                          🛒 {selectedOrder.sellerName}
+                        <span className="bg-[var(--color-accent)]/10 text-[var(--route-2,var(--color-accent))] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider inline-flex items-center gap-1">
+                          <ShoppingCart className="w-3 h-3" />
+                          {selectedOrder.sellerName}
                         </span>
                       ) : (
                         <span className="text-[var(--color-warn)] font-bold font-mono text-[10px] uppercase tracking-wider bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/10 px-1.5 py-0.5 rounded">
@@ -1360,8 +1393,9 @@ export default function AdminDashboard({
                   <div className="flex items-center gap-2 text-[11px]">
                     <span className="font-semibold text-[var(--color-text-muted)]">Repartidor asignado:</span>
                     {selectedOrder.repartidorName ? (
-                      <span className="bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
-                        🏍️ {selectedOrder.repartidorName}
+                      <span className="bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider inline-flex items-center gap-1">
+                        <Bike className="w-3 h-3" />
+                        {selectedOrder.repartidorName}
                       </span>
                     ) : (
                       <span className="text-[var(--color-warn)] font-bold font-mono text-[10px] uppercase tracking-wider bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/10 px-1.5 py-0.5 rounded">SIN ASIGNAR</span>
@@ -1475,7 +1509,8 @@ export default function AdminDashboard({
                     userRole === UserRole.STORE_ADMIN ? (
                       <div className="posta-chip-accent border border-[var(--color-accent)]/25 p-2.5 rounded space-y-1">
                         <p className="text-[10px] font-bold text-[var(--color-accent)] flex items-center gap-1 uppercase font-mono">
-                          ⚙️ Coordinado por Logística
+                          <Settings className="w-3 h-3 shrink-0" />
+                          Coordinado por Logística
                         </p>
                         <p className="text-[9px] text-[var(--color-text-muted)] leading-normal font-sans">
                           La asignación de repartidores y el ruteo están a cargo de la administración de logística de envíos.
@@ -1567,7 +1602,10 @@ export default function AdminDashboard({
                                 className="text-[var(--color-accent)] hover:underline"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                📍 Ubicación del escaneo
+                                <span className="inline-flex items-center gap-0.5">
+                                  <MapPin className="w-3 h-3 inline" />
+                                  Ubicación del escaneo
+                                </span>
                               </a>
                             </>
                           )}

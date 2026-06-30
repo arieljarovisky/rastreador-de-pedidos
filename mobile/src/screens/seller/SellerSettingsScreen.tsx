@@ -18,6 +18,7 @@ import { api } from '../../api';
 import { IntegrationsStatus, MarketplacePlatform, PickupPoint, MarketplaceAgency } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
+import AgencyMarketplaceList from '../../components/AgencyMarketplaceList';
 import { SellerStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<SellerStackParamList, 'SellerSettings'>;
@@ -28,7 +29,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
   const [status, setStatus] = useState<IntegrationsStatus | null>(null);
   const [pickups, setPickups] = useState<PickupPoint[]>([]);
   const [agencies, setAgencies] = useState<MarketplaceAgency[]>([]);
-  const [agencySaving, setAgencySaving] = useState<string | null>(null);
+  const [agencySaving, setAgencySaving] = useState<string | 'clear' | null>(null);
   const isMarketplaceSeller = Boolean(user?.isMarketplaceSeller || !user?.agencyId);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -132,39 +133,21 @@ export default function SellerSettingsScreen({ navigation }: Props) {
 
       {isMarketplaceSeller && (
         <Section title="Agencia de logística">
-          {agencies.length === 0 ? (
-            <Text style={styles.empty}>No hay agencias disponibles todavía.</Text>
-          ) : (
-            agencies.map((agency) => {
-              const selected = agency.id === user?.preferredAgencyId;
-              return (
-                <Pressable
-                  key={agency.id}
-                  style={[styles.agencyCard, selected && styles.agencyCardSelected]}
-                  disabled={!!agencySaving}
-                  onPress={async () => {
-                    if (selected) return;
-                    setAgencySaving(agency.id);
-                    try {
-                      await updatePreferredAgency(agency.id);
-                    } catch (err) {
-                      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo guardar.');
-                    } finally {
-                      setAgencySaving(null);
-                    }
-                  }}
-                >
-                  <Text style={styles.integrationLabel}>{agency.name}</Text>
-                  {(agency.city || agency.province) && (
-                    <Text style={styles.rowSub}>
-                      {[agency.city, agency.province].filter(Boolean).join(', ')}
-                    </Text>
-                  )}
-                  {selected && <Text style={styles.selectedBadge}>Agencia elegida</Text>}
-                </Pressable>
-              );
-            })
-          )}
+          <AgencyMarketplaceList
+            agencies={agencies}
+            selectedAgencyId={user?.preferredAgencyId}
+            saving={agencySaving}
+            onSelect={async (agencyId) => {
+              setAgencySaving(agencyId ?? 'clear');
+              try {
+                await updatePreferredAgency(agencyId);
+              } catch (err) {
+                Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo guardar.');
+              } finally {
+                setAgencySaving(null);
+              }
+            }}
+          />
         </Section>
       )}
 

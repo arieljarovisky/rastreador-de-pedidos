@@ -28,6 +28,12 @@ export interface AgencyShippingService {
   description?: string;
 }
 
+export interface AgencyCoverageZone {
+  id: string;
+  name: string;
+  barrios?: string[];
+}
+
 export interface MarketplaceAgency {
   id: string;
   name: string;
@@ -37,6 +43,7 @@ export interface MarketplaceAgency {
   instagram?: string | null;
   shippingServices: AgencyShippingService[];
   departurePoint?: LocationPoint;
+  coverageZones?: AgencyCoverageZone[];
 }
 
 export interface UserLocation {

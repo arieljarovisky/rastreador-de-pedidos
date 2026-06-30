@@ -21,6 +21,9 @@ import {
   Layers,
   Search,
   ChevronDown,
+  Bike,
+  Globe,
+  Package,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import AgencyMarketplacePanel from './AgencyMarketplacePanel.tsx';
@@ -155,7 +158,7 @@ interface SettingsPageProps {
   onUpdateAgencyMarketplaceProfile?: (profile: AgencyMarketplaceProfile) => Promise<AgencyMarketplaceProfile>;
   marketplaceAgencies?: MarketplaceAgency[];
   marketplaceAgenciesLoading?: boolean;
-  onUpdateSellerPreferredAgency?: (agencyId: string) => Promise<void>;
+  onUpdateSellerPreferredAgency?: (agencyId: string | null) => Promise<void>;
   onRefreshMarketplaceAgencies?: () => Promise<void>;
   onConnectMercadoLibreCourier?: () => Promise<void>;
   onDisconnectMercadoLibreCourier?: () => Promise<void>;
@@ -1221,7 +1224,7 @@ export default function SettingsPage({
         {(onCreateRepartidor || onDeleteRepartidor) && (
           <SettingsFleetColumn>
             <SettingsSectionHeader
-              emoji="🏍️"
+              icon={<Bike className="w-4 h-4 text-[var(--color-accent)]" />}
               title="Repartidores"
               meta={`${repartidores.length} activos · ${repsWithZone} con zona`}
               action={
@@ -1486,7 +1489,7 @@ export default function SettingsPage({
         {agency && onUpdateAgencyMarketplaceProfile && (
           <section className={sectionClass}>
             <SettingsSectionHeader
-              emoji="🌐"
+              icon={<Globe className="w-4 h-4 text-[var(--color-accent)]" />}
               title="Perfil marketplace"
               meta="Servicios y presencia online para vendedores"
             />
@@ -1600,7 +1603,7 @@ export default function SettingsPage({
         {agency && onConnectMercadoLibreCourier && (
           <section className={sectionClass}>
             <SettingsSectionHeader
-              emoji="📦"
+              icon={<Package className="w-4 h-4 text-[var(--color-accent)]" />}
               title="Mercado Libre Flex"
               meta="Modo de operación y conexión con ML"
             />

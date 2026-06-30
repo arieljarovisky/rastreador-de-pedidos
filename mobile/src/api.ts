@@ -96,8 +96,8 @@ export const api = {
 
   updateSellerPreferredAgency(
     token: string,
-    agencyId: string
-  ): Promise<{ preferredAgencyId: string; preferredAgencyName: string }> {
+    agencyId: string | null
+  ): Promise<{ preferredAgencyId: string | null; preferredAgencyName: string | null }> {
     return request('/api/accounts/seller/preferred-agency', {
       method: 'PUT',
       token,

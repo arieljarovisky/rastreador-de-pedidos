@@ -332,14 +332,15 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
 });
 
 router.put('/seller/preferred-agency', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
-  const { agencyId } = req.body as { agencyId?: string };
-  if (!agencyId) {
-    res.status(400).json({ error: 'Debés elegir una agencia.' });
+  const { agencyId } = req.body as { agencyId?: string | null };
+  if (agencyId === undefined) {
+    res.status(400).json({ error: 'Debés indicar una agencia o null para quitar la selección.' });
     return;
   }
+  const resolvedAgencyId = agencyId === '' ? null : agencyId;
 
   try {
-    const user = await updateSellerPreferredAgency(req.user!.id, agencyId);
+    const user = await updateSellerPreferredAgency(req.user!.id, resolvedAgencyId);
     res.json({
       preferredAgencyId: user.preferredAgencyId,
       preferredAgencyName: user.preferredAgencyName,

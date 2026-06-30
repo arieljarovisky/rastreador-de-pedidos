@@ -28,7 +28,7 @@ interface AuthState {
     city?: string;
     province?: string;
   }) => Promise<void>;
-  updatePreferredAgency: (agencyId: string) => Promise<void>;
+  updatePreferredAgency: (agencyId: string | null) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -132,15 +132,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updatePreferredAgency = useCallback(
-    async (agencyId: string) => {
+    async (agencyId: string | null) => {
       if (!token) throw new Error('Sin sesión');
       const result = await api.updateSellerPreferredAgency(token, agencyId);
       setUser((prev) => {
         if (!prev) return prev;
         const next = {
           ...prev,
-          preferredAgencyId: result.preferredAgencyId,
-          preferredAgencyName: result.preferredAgencyName,
+          preferredAgencyId: result.preferredAgencyId ?? null,
+          preferredAgencyName: result.preferredAgencyName ?? null,
         };
         AsyncStorage.setItem(USER_KEY, JSON.stringify(next));
         return next;

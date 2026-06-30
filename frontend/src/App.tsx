@@ -824,7 +824,7 @@ export default function App() {
   }, [token]);
 
   const handleUpdateSellerPreferredAgency = useCallback(
-    async (agencyId: string) => {
+    async (agencyId: string | null) => {
       if (!token) return;
       const res = await fetch(apiUrl('/api/accounts/seller/preferred-agency'), {
         method: 'PUT',
@@ -836,15 +836,16 @@ export default function App() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'No se pudo guardar la agencia');
-      setUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              preferredAgencyId: body.preferredAgencyId,
-              preferredAgencyName: body.preferredAgencyName,
-            }
-          : prev
-      );
+      setUser((prev) => {
+        if (!prev) return prev;
+        const next = {
+          ...prev,
+          preferredAgencyId: body.preferredAgencyId ?? null,
+          preferredAgencyName: body.preferredAgencyName ?? null,
+        };
+        localStorage.setItem('lupo_user', JSON.stringify(next));
+        return next;
+      });
     },
     [token]
   );

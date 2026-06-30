@@ -28,6 +28,13 @@ export interface AgencyShippingService {
   description?: string;
 }
 
+/** Zona de cobertura visible en el marketplace. */
+export interface AgencyCoverageZone {
+  id: string;
+  name: string;
+  barrios?: string[];
+}
+
 /** Perfil público de agencia en el marketplace. */
 export interface MarketplaceAgency {
   id: string;
@@ -38,6 +45,7 @@ export interface MarketplaceAgency {
   instagram?: string | null;
   shippingServices: AgencyShippingService[];
   departurePoint?: LocationPoint;
+  coverageZones?: AgencyCoverageZone[];
 }
 
 export interface UserLocation {
