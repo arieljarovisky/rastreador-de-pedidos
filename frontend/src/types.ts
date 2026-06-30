@@ -67,6 +67,8 @@ export interface AgencyMercadoLibreCourierStatus {
     connectedAt: string;
   } | null;
 }
+
+export interface SellerStats {
   totalOrders: number;
   pendingOrders: number;
   activeOrders: number;
