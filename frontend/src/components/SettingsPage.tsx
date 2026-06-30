@@ -70,7 +70,7 @@ function SettingsFleetColumn({
   className?: string;
 }) {
   return (
-    <div className={`flex flex-col min-h-0 min-w-0 overflow-hidden p-3 ${className}`}>{children}</div>
+    <div className={`flex flex-col min-w-0 p-3 ${className}`}>{children}</div>
   );
 }
 
@@ -363,8 +363,8 @@ export default function SettingsPage({
   );
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-[var(--surface-bg)] w-full">
-      <header className="shrink-0 flex items-center justify-between gap-3 pb-2 border-b border-[var(--surface-border)]">
+    <div className="w-full bg-[var(--surface-bg)] pb-6">
+      <header className="sticky top-0 z-20 shrink-0 flex items-center justify-between gap-3 pb-2 pt-0.5 border-b border-[var(--surface-border)] bg-[var(--surface-bg)]">
         <div className="min-w-0">
           <h2 className="text-sm font-display font-bold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2">
             <Settings className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
@@ -386,9 +386,7 @@ export default function SettingsPage({
         )}
       </header>
 
-      <div className="flex-1 min-h-0 flex flex-col gap-3 mt-3 overflow-hidden">
-        <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto scrollbar-thin pr-0.5">
-        <div className="flex flex-col gap-3 w-full min-h-0">
+      <div className="flex flex-col gap-3 mt-3 w-full">
         {userRole === UserRole.STORE_ADMIN && (
           <section className={sectionClass}>
             <div className="flex flex-wrap items-center gap-2">
@@ -557,7 +555,7 @@ export default function SettingsPage({
         )}
 
         {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (
-          <section className="paper-card p-0 flex flex-col min-h-[32rem] xl:min-h-[calc(100vh-13rem)] overflow-hidden">
+          <section className="paper-card p-0 flex flex-col">
             <div className="shrink-0 px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--paper)]/40 flex flex-wrap items-center justify-between gap-2">
               <span className="mono-label">Flota y cobertura</span>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-mono text-[var(--color-text-muted)]">
@@ -567,7 +565,7 @@ export default function SettingsPage({
                 <span className="text-[var(--color-accent)]">{repsWithZone} con zona</span>
               </div>
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-12 flex-1 min-h-0 divide-y xl:divide-y-0 xl:divide-x divide-[var(--surface-border)]">
+            <div className="grid grid-cols-1 xl:grid-cols-12 divide-y xl:divide-y-0 xl:divide-x divide-[var(--surface-border)]">
         {onCreateSeller && (
           <SettingsFleetColumn className="xl:col-span-3">
             <SettingsSectionHeader
@@ -596,7 +594,7 @@ export default function SettingsPage({
             />
 
             {sellers.length > 0 && !showSellerForm && !selectedSellerId && (
-              <ul className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-1 pr-0.5">
+              <ul className="space-y-1">
                 {sellers.map((s) => (
                   <li key={s.id}>
                     <button
@@ -616,7 +614,7 @@ export default function SettingsPage({
             )}
 
             {selectedSellerId && !showSellerForm && (
-              <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin min-w-0 pr-0.5">
+              <div className="min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <button
                     type="button"
@@ -917,7 +915,7 @@ export default function SettingsPage({
             )}
             {showSellerForm && (
               <form
-                className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2 pr-0.5"
+                className="space-y-2"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setSellerFormLoading(true);
@@ -1049,7 +1047,7 @@ export default function SettingsPage({
             />
 
             {deliveryZones.length > 0 && !showZoneForm && (
-              <ul className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-1 pr-0.5">
+              <ul className="space-y-1">
                 {deliveryZones.map((zone) => (
                   <li
                     key={zone.id}
@@ -1132,7 +1130,7 @@ export default function SettingsPage({
 
             {showZoneForm && (
               <form
-                className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2 pr-0.5"
+                className="space-y-2"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   if (selectedBarrios.length === 0) {
@@ -1291,9 +1289,9 @@ export default function SettingsPage({
                     className={`${inputClass} !pl-7 !py-1.5`}
                   />
                 </div>
-                <div className="flex-1 min-h-0 overflow-auto scrollbar-thin rounded-[5px] border border-[var(--surface-border)]">
+                <div className="rounded-[5px] border border-[var(--surface-border)]">
                   <table className="settings-fleet-table w-full text-left border-collapse">
-                    <thead className="sticky top-0 z-10 bg-[var(--panel)]">
+                    <thead className="sticky top-[3.25rem] z-10 bg-[var(--panel)]">
                       <tr className="border-b border-[var(--surface-border)]">
                         <th className="mono-label px-2.5 py-1.5 font-normal text-left">Repartidor</th>
                         <th className="mono-label px-2 py-1.5 font-normal text-left w-[10rem]">Zona</th>
@@ -1414,7 +1412,7 @@ export default function SettingsPage({
             )}
             {showRepartidorForm && onCreateRepartidor && (
               <form
-                className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2 pr-0.5"
+                className="space-y-2"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setRepartidorFormLoading(true);
@@ -1690,8 +1688,6 @@ export default function SettingsPage({
           </section>
         )}
         </div>
-        </div>
-      </div>
     </div>
   );
 }

@@ -1302,13 +1302,17 @@ export default function App() {
       </div>
 
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
-      <main className="flex-1 overflow-hidden p-2 sm:p-3 md:p-4 relative min-h-0">
-        <div className="app-shell h-full">
+      <main
+        className={`flex-1 min-h-0 p-2 sm:p-3 md:p-4 relative ${
+          mobileTab === 'settings' ? 'overflow-y-auto scrollbar-thin' : 'overflow-hidden'
+        }`}
+      >
+        <div className={`app-shell ${mobileTab === 'settings' ? '' : 'h-full'}`}>
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
-            className={`flex flex-col xl:flex-row h-full overflow-hidden ${
-              notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'
-            }`}
+            className={`flex flex-col xl:flex-row ${
+              mobileTab === 'settings' ? '' : 'h-full overflow-hidden'
+            } ${notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {mobileTab !== 'settings' && (
               <div
@@ -1339,7 +1343,7 @@ export default function App() {
             )}
 
             {mobileTab === 'settings' && (
-              <div className="flex-1 min-w-0 w-full h-full overflow-hidden">
+              <div className="flex-1 min-w-0 w-full">
                 <SettingsPage
                   user={user}
                   onBack={() => setMobileTab('dashboard')}
