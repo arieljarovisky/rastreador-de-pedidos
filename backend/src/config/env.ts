@@ -67,4 +67,11 @@ export const env = {
       process.env.TN_REDIRECT_URI?.trim() ||
       `${resolvePublicUrl()}/api/integrations/tiendanube/callback`,
   },
+  mobileApp: {
+    version: process.env.MOBILE_APP_VERSION?.trim() || '1.0.0',
+    minVersion:
+      process.env.MOBILE_APP_MIN_VERSION?.trim() ||
+      process.env.MOBILE_APP_VERSION?.trim() ||
+      '1.0.0',
+  },
 };

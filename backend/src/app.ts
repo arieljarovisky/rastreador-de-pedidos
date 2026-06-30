@@ -16,6 +16,7 @@ import integrationsRoutes from './routes/integrations.routes.js';
 import { isMercadoLibreConfigured } from './services/mercadolibre.service.js';
 import { isTiendaNubeConfigured } from './services/tiendanube.service.js';
 import deliveryZonesRoutes from './routes/delivery-zones.routes.js';
+import appRoutes from './routes/app.routes.js';
 
 const app = express();
 
@@ -67,6 +68,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+app.use('/api/app', appRoutes);
 app.use('/api/delivery-zones', deliveryZonesRoutes);
 
 app.use('/api/auth', authRoutes);

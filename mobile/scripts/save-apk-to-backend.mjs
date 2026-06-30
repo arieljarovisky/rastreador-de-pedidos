@@ -9,7 +9,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const mobileRoot = path.resolve(__dirname, '..');
-const outPath = path.resolve(mobileRoot, '..', 'backend', 'downloads', 'posta-repartidor.apk');
+const backendDownloads = path.resolve(mobileRoot, '..', 'backend', 'downloads');
+const outPath = path.join(backendDownloads, 'posta-repartidor.apk');
+const versionPath = path.join(backendDownloads, 'app-version.json');
+const appJsonPath = path.join(mobileRoot, 'app.json');
 const buildId = process.argv[2];
 
 function run(cmd) {
@@ -34,5 +37,24 @@ if (!url) throw new Error(`Build ${id} sin URL de artefacto.`);
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 run(`curl -fsSL "${url}" -o "${outPath}"`);
 
+const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
+const version = appJson?.expo?.version ?? '1.0.0';
+let previousMessage;
+try {
+  previousMessage = JSON.parse(fs.readFileSync(versionPath, 'utf8')).message;
+} catch {
+  previousMessage = undefined;
+}
+
+const versionPayload = {
+  version,
+  minVersion: version,
+  message:
+    previousMessage ??
+    'Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras.',
+};
+fs.writeFileSync(versionPath, `${JSON.stringify(versionPayload, null, 2)}\n`);
+
 const sizeMb = (fs.statSync(outPath).size / (1024 * 1024)).toFixed(1);
 console.log(`APK guardado: ${outPath} (${sizeMb} MB)`);
+console.log(`Versión publicada: ${version} → ${versionPath}`);

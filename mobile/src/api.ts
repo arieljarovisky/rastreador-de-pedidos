@@ -22,6 +22,13 @@ export interface LoginResponse {
   token: string;
 }
 
+export interface AppVersionInfo {
+  version: string;
+  minVersion: string;
+  downloadUrl: string;
+  message?: string;
+}
+
 class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -71,6 +78,10 @@ export const api = {
 
   me(token: string): Promise<User> {
     return request<User>('/api/auth/me', { token });
+  },
+
+  getAppVersion(): Promise<AppVersionInfo> {
+    return request<AppVersionInfo>('/api/app/version');
   },
 
   /** Repartidor: ve sus pedidos asignados/en curso + pendientes libres. */

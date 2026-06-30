@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
+import AppUpdateChecker from './src/components/AppUpdateChecker';
 import { colors } from './src/theme';
 
 import './src/location/backgroundLocationTask';
@@ -54,7 +55,9 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       <AuthProvider>
-        <RootNavigator />
+        <AppUpdateChecker>
+          <RootNavigator />
+        </AppUpdateChecker>
       </AuthProvider>
     </SafeAreaProvider>
   );
