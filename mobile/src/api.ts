@@ -284,6 +284,8 @@ export interface MercadoLibreScanImportResult {
   sellerId: string;
   sellerName: string;
   externalOrderId: string;
+  mlFlexRegistered: boolean;
+  mlFlexMessage: string;
 }
 
 export { ApiError };

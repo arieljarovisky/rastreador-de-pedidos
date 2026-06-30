@@ -63,6 +63,23 @@ export async function listIntegrationsForUser(userId: string): Promise<StoreInte
   return rows.map(rowToIntegration);
 }
 
+/** Cuenta ML de mensajería vinculada al admin de la agencia (para registrar envíos en Flex). */
+export async function getMercadoLibreCourierIntegrationForAgency(
+  agencyId: string
+): Promise<StoreIntegration | null> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT si.* FROM store_integrations si
+     INNER JOIN users u ON u.id = si.user_id
+     WHERE si.platform = 'mercadolibre'
+       AND u.agency_id = ?
+       AND u.role IN ('super_admin', 'logistics_admin')
+     ORDER BY CASE u.role WHEN 'super_admin' THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [agencyId]
+  );
+  return rows[0] ? rowToIntegration(rows[0]) : null;
+}
+
 export async function listMercadoLibreIntegrationsForAgency(
   agencyId: string
 ): Promise<StoreIntegration[]> {

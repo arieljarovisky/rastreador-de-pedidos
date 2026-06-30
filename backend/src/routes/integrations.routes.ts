@@ -94,7 +94,19 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
   });
 });
 
-router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_ADMIN), (req: Request, res: Response) => {
+router.get('/agency/status', authenticate, requireRoles(...AGENCY_ADMIN_ROLES), async (req: Request, res: Response) => {
+  const integrations = await listIntegrationsForUser(req.user!.id);
+  const ml = integrations.find((i) => i.platform === 'mercadolibre');
+  res.json({
+    mercadolibreCourier: {
+      configured: isMercadoLibreConfigured(),
+      connected: Boolean(ml),
+      account: ml ? integrationStatusPublic(ml) : null,
+    },
+  });
+});
+
+router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_ADMIN, ...AGENCY_ADMIN_ROLES), (req: Request, res: Response) => {
   if (!isMercadoLibreConfigured()) {
     res.status(503).json({ error: 'Mercado Libre no está configurado en el servidor (ML_APP_ID, ML_APP_SECRET).' });
     return;
@@ -246,7 +258,7 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
   }
 });
 
-router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
+router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN, ...AGENCY_ADMIN_ROLES), async (req: Request, res: Response) => {
   const platform = req.params.platform as IntegrationPlatform;
   if (platform !== 'mercadolibre' && platform !== 'tiendanube') {
     res.status(400).json({ error: 'Plataforma inválida.' });

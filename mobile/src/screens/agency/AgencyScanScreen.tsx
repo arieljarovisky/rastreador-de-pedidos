@@ -69,10 +69,15 @@ export default function AgencyScanScreen({ navigation }: Props) {
       try {
         const result = await scanMercadoLibreLabel(trimmed, selectedSellerId);
         setStatusOk(true);
+        const flexNote = result.mlFlexMessage
+          ? result.mlFlexRegistered
+            ? ` · ${result.mlFlexMessage}`
+            : ` · Flex: ${result.mlFlexMessage}`
+          : '';
         setStatusMessage(
           result.alreadyImported
-            ? `Re-escaneado: ${result.order.id} · ${result.order.clientName}`
-            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})`
+            ? `Re-escaneado: ${result.order.id} · ${result.order.clientName}${flexNote}`
+            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})${flexNote}`
         );
         cooldownUntil.current = Date.now() + 3500;
         setManualCode('');

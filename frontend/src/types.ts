@@ -59,7 +59,14 @@ export interface User {
   deliveryZone?: string | null;
 }
 
-export interface SellerStats {
+export interface AgencyMercadoLibreCourierStatus {
+  configured: boolean;
+  connected: boolean;
+  account: {
+    nickname: string | null;
+    connectedAt: string;
+  } | null;
+}
   totalOrders: number;
   pendingOrders: number;
   activeOrders: number;

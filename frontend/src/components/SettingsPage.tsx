@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
-import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail } from '../types.js';
+import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyMercadoLibreCourierStatus } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
 import {
@@ -147,6 +147,11 @@ interface SettingsPageProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
+  agencyCourierStatus?: AgencyMercadoLibreCourierStatus | null;
+  agencyCourierStatusLoading?: boolean;
+  onRefreshAgencyCourierStatus?: () => Promise<void>;
+  onConnectMercadoLibreCourier?: () => Promise<void>;
+  onDisconnectMercadoLibreCourier?: () => Promise<void>;
   onScanMercadoLibreLabel?: (
     code: string,
     sellerId?: string,
@@ -186,6 +191,11 @@ export default function SettingsPage({
   onDisconnectMarketplace,
   onFetchMarketplaceShipments,
   onImportMarketplaceShipments,
+  agencyCourierStatus = null,
+  agencyCourierStatusLoading = false,
+  onRefreshAgencyCourierStatus,
+  onConnectMercadoLibreCourier,
+  onDisconnectMercadoLibreCourier,
   onScanMercadoLibreLabel,
 }: SettingsPageProps) {
   const userRole = user.role;
@@ -1447,6 +1457,82 @@ export default function SettingsPage({
 
 
       <div className="flex flex-col gap-3 w-full mt-3">
+        {agency && onConnectMercadoLibreCourier && (
+          <section className={sectionClass}>
+            <SettingsSectionHeader
+              emoji="📦"
+              title="Mensajería Mercado Libre Flex"
+              meta="Al escanear etiquetas, Posta registra el envío en Flex"
+            />
+            {agencyCourierStatusLoading ? (
+              <p className="text-[11px] text-[var(--color-text-muted)]">Consultando conexión…</p>
+            ) : !agencyCourierStatus?.configured ? (
+              <p className="text-[11px] text-[var(--color-warn)]">
+                Mercado Libre no está configurado en el servidor (ML_APP_ID / ML_APP_SECRET).
+              </p>
+            ) : agencyCourierStatus.connected ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-[var(--color-ok)]">
+                  Conectado como{' '}
+                  <span className="font-mono">
+                    {agencyCourierStatus.account?.nickname ?? 'mensajería ML'}
+                  </span>
+                </p>
+                <p className="text-[10px] text-[var(--color-text-faint)] leading-relaxed">
+                  Usá la cuenta de negocio de tu mensajería registrada en Mercado Libre Flex.
+                </p>
+                {onDisconnectMercadoLibreCourier && (
+                  <button
+                    type="button"
+                    className={btnGhost}
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          await onDisconnectMercadoLibreCourier();
+                          await onRefreshAgencyCourierStatus?.();
+                        } catch (err: unknown) {
+                          void showAlert({
+                            title: 'Error',
+                            message: err instanceof Error ? err.message : 'No se pudo desconectar',
+                            variant: 'error',
+                          });
+                        }
+                      })();
+                    }}
+                  >
+                    Desconectar
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
+                  Conectá la cuenta de mensajería de tu agencia para que cada escaneo se informe a
+                  Mercado Libre Flex automáticamente.
+                </p>
+                <button
+                  type="button"
+                  className={btnPrimary}
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        await onConnectMercadoLibreCourier();
+                      } catch (err: unknown) {
+                        void showAlert({
+                          title: 'Error',
+                          message: err instanceof Error ? err.message : 'No se pudo conectar',
+                          variant: 'error',
+                        });
+                      }
+                    })();
+                  }}
+                >
+                  Conectar mensajería ML
+                </button>
+              </div>
+            )}
+          </section>
+        )}
         {userRole === UserRole.STORE_ADMIN && (
           <section className={sectionClass}>
             <div className="flex flex-wrap items-center gap-2">

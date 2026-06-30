@@ -55,6 +55,7 @@ export const env = {
   mercadolibre: {
     appId: process.env.ML_APP_ID?.trim() || '',
     appSecret: process.env.ML_APP_SECRET?.trim() || '',
+    siteId: (process.env.ML_SITE_ID?.trim() || 'MLA').toUpperCase(),
     redirectUri:
       process.env.ML_REDIRECT_URI?.trim() ||
       `${resolvePublicUrl()}/api/integrations/mercadolibre/callback`,

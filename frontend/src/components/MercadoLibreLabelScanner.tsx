@@ -16,6 +16,8 @@ export interface MercadoLibreScanImportResult {
   sellerId: string;
   sellerName: string;
   externalOrderId: string;
+  mlFlexRegistered?: boolean;
+  mlFlexMessage?: string;
 }
 
 export interface ScanLocation {
@@ -97,10 +99,15 @@ export default function MercadoLibreLabelScanner({
         const result = await onImport(trimmed, effectiveSellerId || undefined, scanLocation);
         setStatusOk(true);
         const locationNote = scanLocation ? ' · ubicación registrada' : '';
+        const flexNote = result.mlFlexMessage
+          ? result.mlFlexRegistered
+            ? ` · ${result.mlFlexMessage}`
+            : ` · Flex: ${result.mlFlexMessage}`
+          : '';
         setStatusMessage(
           result.alreadyImported
-            ? `Re-escaneado: ${result.order.id} · ${result.order.clientName} — bitácora${locationNote}`
-            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})${locationNote}`
+            ? `Re-escaneado: ${result.order.id} · ${result.order.clientName} — bitácora${locationNote}${flexNote}`
+            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})${locationNote}${flexNote}`
         );
         cooldownUntilRef.current = Date.now() + 3500;
         onImported?.(result);

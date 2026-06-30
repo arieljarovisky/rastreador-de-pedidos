@@ -44,10 +44,15 @@ export default function ScanLabelScreen({ navigation }: Props) {
         const result = await scanMercadoLibreLabel(trimmed);
         setStatusOk(true);
         const locNote = result.order.history?.some((h) => h.lat != null) ? ' · ubicación registrada' : '';
+        const flexNote = result.mlFlexMessage
+          ? result.mlFlexRegistered
+            ? ` · ${result.mlFlexMessage}`
+            : ` · Flex: ${result.mlFlexMessage}`
+          : '';
         setStatusMessage(
           result.alreadyImported
-            ? `Re-escaneado: ${result.order.id} · ${result.order.clientName}${locNote}`
-            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})${locNote}`
+            ? `Re-escaneado: ${result.order.id} · ${result.order.clientName}${locNote}${flexNote}`
+            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})${locNote}${flexNote}`
         );
         cooldownUntil.current = Date.now() + 3500;
         setManualCode('');

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from './types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyMercadoLibreCourierStatus } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
@@ -58,6 +58,8 @@ export default function App() {
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
+  const [agencyCourierStatus, setAgencyCourierStatus] = useState<AgencyMercadoLibreCourierStatus | null>(null);
+  const [agencyCourierStatusLoading, setAgencyCourierStatusLoading] = useState(false);
 
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
@@ -188,6 +190,19 @@ export default function App() {
         if (sellersRes.ok) {
           const data = await sellersRes.json();
           setSellers(data);
+        }
+
+        const courierRes = await fetch(apiUrl('/api/integrations/agency/status'), { headers });
+        if (courierRes.ok) {
+          const body = (await courierRes.json()) as { mercadolibreCourier: AgencyMercadoLibreCourierStatus };
+          setAgencyCourierStatus(body.mercadolibreCourier);
+        }
+      }
+
+      if (currentUser?.role === UserRole.STORE_ADMIN) {
+        const intRes = await fetch(apiUrl('/api/integrations/status'), { headers });
+        if (intRes.ok) {
+          setIntegrationStatus(await intRes.json());
         }
       }
 
@@ -861,6 +876,24 @@ export default function App() {
     }
   }, [token]);
 
+  const fetchAgencyCourierStatus = useCallback(async () => {
+    if (!token) return;
+    setAgencyCourierStatusLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/integrations/agency/status'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { mercadolibreCourier: AgencyMercadoLibreCourierStatus };
+        setAgencyCourierStatus(body.mercadolibreCourier);
+      }
+    } catch {
+      // silencioso: el panel muestra estado desconocido
+    } finally {
+      setAgencyCourierStatusLoading(false);
+    }
+  }, [token]);
+
   const connectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
     if (!token) throw new Error('Sin sesión');
     const res = await fetch(apiUrl(`/api/integrations/${platform}/connect`), {
@@ -869,6 +902,23 @@ export default function App() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'No se pudo iniciar la conexión');
     window.location.href = body.url;
+  };
+
+  const connectMercadoLibreCourier = async () => {
+    await connectMarketplace('mercadolibre');
+  };
+
+  const disconnectMercadoLibreCourier = async () => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/integrations/mercadolibre'), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 204) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'No se pudo desconectar');
+    }
+    await fetchAgencyCourierStatus();
   };
 
   const disconnectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
@@ -1358,6 +1408,11 @@ export default function App() {
                   onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}
                   onFetchMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? fetchMarketplaceShipments : undefined}
                   onImportMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? importMarketplaceShipments : undefined}
+                  agencyCourierStatus={isAgencyAdmin(user.role) ? agencyCourierStatus : null}
+                  agencyCourierStatusLoading={agencyCourierStatusLoading}
+                  onRefreshAgencyCourierStatus={isAgencyAdmin(user.role) ? fetchAgencyCourierStatus : undefined}
+                  onConnectMercadoLibreCourier={isAgencyAdmin(user.role) ? connectMercadoLibreCourier : undefined}
+                  onDisconnectMercadoLibreCourier={isAgencyAdmin(user.role) ? disconnectMercadoLibreCourier : undefined}
                   onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
                 />
               </div>

@@ -7,6 +7,7 @@ import {
 } from './orders.service.js';
 import {
   getIntegration,
+  getMercadoLibreCourierIntegrationForAgency,
   upsertIntegration,
   type IntegrationPlatform,
   type StoreIntegration,
@@ -443,6 +444,148 @@ export async function listMercadoLibreFlexShipments(userId: string): Promise<Mer
 
 export function isMercadoLibreConfigured(): boolean {
   return Boolean(env.mercadolibre.appId && env.mercadolibre.appSecret && env.mercadolibre.redirectUri);
+}
+
+export type MercadoLibreCourierRegisterResult =
+  | { ok: true; alreadyRegistered?: boolean }
+  | { ok: false; code: string; message: string };
+
+/** Resuelve el ID de envío ML a partir de una referencia (orden o envío). */
+export async function resolveMercadoLibreShipmentId(
+  sellerId: string,
+  refId: string
+): Promise<string> {
+  if (/^2000\d{8,}$/.test(refId)) {
+    try {
+      const integration = await getValidMercadoLibreIntegration(sellerId);
+      const flex = await fetchMercadoLibreFlexShipment(integration, refId);
+      if (flex) return flex.externalId;
+    } catch {
+      // usar refId tal cual
+    }
+  }
+  return refId;
+}
+
+/**
+ * Registra en Mercado Libre Flex que la mensajería tomó el envío (API courier-shipment).
+ * Requiere cuenta de mensajería vinculada vía OAuth (admin de agencia).
+ */
+export async function registerMercadoLibreCourierShipment(
+  integration: StoreIntegration,
+  shipmentId: string,
+  siteId = env.mercadolibre.siteId
+): Promise<MercadoLibreCourierRegisterResult> {
+  const courierUserId = integration.externalUserId;
+  if (!courierUserId) {
+    return {
+      ok: false,
+      code: 'ML_COURIER_NO_USER',
+      message: 'La cuenta de mensajería no tiene user_id de Mercado Libre.',
+    };
+  }
+
+  const numericId = Number(shipmentId);
+  if (!Number.isFinite(numericId) || numericId <= 0) {
+    return {
+      ok: false,
+      code: 'ML_INVALID_SHIPMENT',
+      message: 'ID de envío inválido para Mercado Libre Flex.',
+    };
+  }
+
+  let validIntegration: StoreIntegration;
+  try {
+    validIntegration = await getValidMercadoLibreIntegration(integration.userId);
+  } catch {
+    return {
+      ok: false,
+      code: 'ML_COURIER_NOT_CONNECTED',
+      message: 'La cuenta de mensajería perdió la conexión con Mercado Libre. Reconectala en Configuración.',
+    };
+  }
+
+  const url = `${ML_API}/flex/sites/${siteId}/users/${courierUserId}/courier-shipment/v1`;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${validIntegration.accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ shipment_id: numericId }),
+    });
+
+    if (res.status === 429) {
+      await sleep(800 * (attempt + 1));
+      continue;
+    }
+
+    if (res.status === 204) {
+      return { ok: true };
+    }
+    if (res.status === 409) {
+      return { ok: true, alreadyRegistered: true };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: false,
+        code: 'ML_COURIER_AUTH',
+        message:
+          'Mercado Libre rechazó la cuenta de mensajería. Verificá que esté registrada como mensajería Flex y reconectala.',
+      };
+    }
+    if (res.status === 404) {
+      return {
+        ok: false,
+        code: 'ML_SHIPMENT_NOT_FOUND',
+        message: 'Mercado Libre no encontró ese envío Flex.',
+      };
+    }
+
+    const body = await res.text().catch(() => '');
+    console.warn('[ml-flex] courier-shipment failed', res.status, body.slice(0, 200));
+    return {
+      ok: false,
+      code: 'ML_COURIER_REGISTER_FAILED',
+      message: 'Mercado Libre no aceptó el registro del envío. Revisá el estado del pedido en ML.',
+    };
+  }
+
+  return {
+    ok: false,
+    code: 'ML_COURIER_RATE_LIMIT',
+    message: 'Mercado Libre está saturado. El escaneo quedó en Posta; reintentá registrar en Flex más tarde.',
+  };
+}
+
+/** Registra el envío en Flex al escanear, usando la mensajería de la agencia. */
+export async function syncMercadoLibreFlexOnScan(
+  agencyId: string,
+  shipmentId: string
+): Promise<{ registered: boolean; message: string }> {
+  const courierIntegration = await getMercadoLibreCourierIntegrationForAgency(agencyId);
+  if (!courierIntegration) {
+    return {
+      registered: false,
+      message:
+        'El admin de la agencia debe conectar la cuenta de mensajería Mercado Libre Flex en Configuración.',
+    };
+  }
+
+  const result = await registerMercadoLibreCourierShipment(courierIntegration, shipmentId);
+  if (result.ok) {
+    return {
+      registered: true,
+      message: result.alreadyRegistered
+        ? 'Envío ya registrado en Mercado Libre Flex.'
+        : 'Registrado en Mercado Libre Flex.',
+    };
+  }
+
+  return { registered: false, message: result.message };
 }
 
 export async function getMercadoLibreShippingLabelPdf(

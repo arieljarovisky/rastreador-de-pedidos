@@ -14,6 +14,8 @@ import {
   parseMercadoLibreScanCode,
   resolveMercadoLibreFlexFromScan,
   findImportedMercadoLibreFlex,
+  resolveMercadoLibreShipmentId,
+  syncMercadoLibreFlexOnScan,
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import {
@@ -231,6 +233,8 @@ export interface MercadoLibreScanImportResult {
   sellerId: string;
   sellerName: string;
   externalOrderId: string;
+  mlFlexRegistered: boolean;
+  mlFlexMessage: string;
 }
 
 export interface ScanLocation {
@@ -253,6 +257,27 @@ export function parseScanLocation(lat?: unknown, lng?: unknown): ScanLocation | 
   return { lat: parsedLat, lng: parsedLng };
 }
 
+async function attachMercadoLibreFlexSync(
+  user: User,
+  base: Omit<MercadoLibreScanImportResult, 'mlFlexRegistered' | 'mlFlexMessage'>,
+  shipmentId: string
+): Promise<MercadoLibreScanImportResult> {
+  if (!user.agencyId) {
+    return {
+      ...base,
+      mlFlexRegistered: false,
+      mlFlexMessage: 'Sin agencia asociada para sincronizar con Flex.',
+    };
+  }
+
+  const flexSync = await syncMercadoLibreFlexOnScan(user.agencyId, shipmentId);
+  return {
+    ...base,
+    mlFlexRegistered: flexSync.registered,
+    mlFlexMessage: flexSync.message,
+  };
+}
+
 export async function importMercadoLibreByScanForAgency(
   user: User,
   code: string,
@@ -273,7 +298,8 @@ export async function importMercadoLibreByScanForAgency(
     existing: Order,
     externalOrderId: string,
     sellerName: string,
-    sellerIdForResult: string
+    sellerIdForResult: string,
+    shipmentId: string
   ): Promise<MercadoLibreScanImportResult> {
     assertOrderAccessibleForLabelScan(user, existing);
     const updated = await recordMercadoLibreLabelScan(user, existing.id, externalOrderId, {
@@ -283,13 +309,17 @@ export async function importMercadoLibreByScanForAgency(
     });
     const assignedSellerId = await getSellerIdForOrder(updated.id);
     emitOrderUpdated(updated, assignedSellerId);
-    return {
-      order: updated,
-      alreadyImported: true,
-      sellerId: sellerIdForResult,
-      sellerName,
-      externalOrderId,
-    };
+    return attachMercadoLibreFlexSync(
+      user,
+      {
+        order: updated,
+        alreadyImported: true,
+        sellerId: sellerIdForResult,
+        sellerName,
+        externalOrderId,
+      },
+      shipmentId
+    );
   }
 
   for (const candidate of candidates) {
@@ -297,11 +327,16 @@ export async function importMercadoLibreByScanForAgency(
     if (existing) {
       const existingSellerId = await getSellerIdForOrder(existing.id);
       const seller = existingSellerId ? await getUserById(existingSellerId) : null;
+      const shipmentId =
+        existingSellerId != null
+          ? await resolveMercadoLibreShipmentId(existingSellerId, existing.externalOrderId ?? candidate.id)
+          : existing.externalOrderId ?? candidate.id;
       return returnRescan(
         existing,
         candidate.id,
         seller?.name ?? 'Vendedor',
-        existingSellerId ?? ''
+        existingSellerId ?? '',
+        shipmentId
       );
     }
   }
@@ -336,7 +371,8 @@ export async function importMercadoLibreByScanForAgency(
         existing,
         flex.mlOrderId,
         seller?.name ?? 'Vendedor',
-        validIntegration.userId
+        validIntegration.userId,
+        flex.externalId
       );
     }
 
@@ -378,13 +414,17 @@ export async function importMercadoLibreByScanForAgency(
       orderId: order.id,
     });
 
-    return {
-      order,
-      alreadyImported: false,
-      sellerId: validIntegration.userId,
-      sellerName: seller?.name ?? 'Vendedor',
-      externalOrderId: flex.externalId,
-    };
+    return attachMercadoLibreFlexSync(
+      user,
+      {
+        order,
+        alreadyImported: false,
+        sellerId: validIntegration.userId,
+        sellerName: seller?.name ?? 'Vendedor',
+        externalOrderId: flex.externalId,
+      },
+      flex.externalId
+    );
   }
 
   throw new Error('ML_SCAN_NOT_FOUND');
