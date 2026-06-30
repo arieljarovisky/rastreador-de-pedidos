@@ -24,12 +24,15 @@ import {
   Building2,
   Layers,
   Search,
+  ChevronDown,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
+
+const REPARTIDORES_PAGE_SIZE = 8;
 
 function SettingsSectionHeader({
   icon,
@@ -70,7 +73,7 @@ function SettingsFleetColumn({
   className?: string;
 }) {
   return (
-    <div className={`flex flex-col min-w-0 p-3 ${className}`}>{children}</div>
+    <div className={`flex flex-col min-w-0 w-full p-3 ${className}`}>{children}</div>
   );
 }
 
@@ -248,6 +251,7 @@ export default function SettingsPage({
   const [zoneFormMessage, setZoneFormMessage] = useState<string | null>(null);
   const [deletingZoneId, setDeletingZoneId] = useState<string | null>(null);
   const [repartidorSearch, setRepartidorSearch] = useState('');
+  const [repartidoresLimit, setRepartidoresLimit] = useState(REPARTIDORES_PAGE_SIZE);
 
   const [showPickupForm, setShowPickupForm] = useState(false);
   const [pickupLabel, setPickupLabel] = useState('');
@@ -343,7 +347,7 @@ export default function SettingsPage({
     'w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-3 py-2 text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)]';
   const btnPrimary = 'btn-primary py-2 px-3 disabled:opacity-50 w-full sm:w-auto';
   const btnGhost = 'btn-secondary px-2.5 py-1 shrink-0';
-  const sectionClass = 'paper-card p-3';
+  const sectionClass = 'paper-card p-3 w-full';
   const listItemClass =
     'bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-2.5 py-2 text-[11px] text-[var(--ink-soft)]';
   const msgClass = (ok: boolean) =>
@@ -356,6 +360,18 @@ export default function SettingsPage({
       (r) => r.name.toLowerCase().includes(q) || r.username.toLowerCase().includes(q)
     );
   }, [repartidores, repartidorSearch]);
+
+  useEffect(() => {
+    setRepartidoresLimit(REPARTIDORES_PAGE_SIZE);
+  }, [repartidorSearch]);
+
+  const visibleRepartidores = useMemo(
+    () => filteredRepartidores.slice(0, repartidoresLimit),
+    [filteredRepartidores, repartidoresLimit]
+  );
+
+  const hasMoreRepartidores = visibleRepartidores.length < filteredRepartidores.length;
+  const canCollapseRepartidores = repartidoresLimit > REPARTIDORES_PAGE_SIZE;
 
   const repsWithZone = useMemo(
     () => repartidores.filter((r) => r.deliveryZone).length,
@@ -387,7 +403,7 @@ export default function SettingsPage({
       </header>
 
       {agency && (onUpdateDeparture || onTriggerSimulatorTick) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 shrink-0 mt-3">
+        <div className="flex flex-col gap-3 w-full mt-3">
         {agency && onUpdateDeparture && (
           <section className={`${sectionClass} !p-2.5`}>
             <div className="flex items-center gap-2.5">
@@ -520,7 +536,7 @@ export default function SettingsPage({
 
 
       {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (
-        <section className="paper-card p-0 flex flex-col mt-3">
+        <section className="paper-card p-0 flex flex-col mt-3 w-full">
             <div className="shrink-0 px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--paper)]/40 flex flex-wrap items-center justify-between gap-2">
               <span className="mono-label">Flota y cobertura</span>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-mono text-[var(--color-text-muted)]">
@@ -530,9 +546,7 @@ export default function SettingsPage({
                 <span className="text-[var(--color-accent)]">{repsWithZone} con zona</span>
               </div>
             </div>
-            <div className="flex flex-col divide-y divide-[var(--surface-border)]">
-        {(onCreateSeller || (agency && onCreateDeliveryZone)) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-[var(--surface-border)] items-start">
+            <div className="flex flex-col divide-y divide-[var(--surface-border)] w-full">
         {onCreateSeller && (
           <SettingsFleetColumn>
             <SettingsSectionHeader
@@ -1226,8 +1240,6 @@ export default function SettingsPage({
             )}
           </SettingsFleetColumn>
         )}
-          </div>
-        )}
 
         {(onCreateRepartidor || onDeleteRepartidor) && (
           <SettingsFleetColumn>
@@ -1258,9 +1270,9 @@ export default function SettingsPage({
                     className={`${inputClass} !pl-7 !py-1.5`}
                   />
                 </div>
-                <div className="rounded-[5px] border border-[var(--surface-border)] max-h-[min(22rem,45vh)] overflow-y-auto overflow-x-hidden scrollbar-thin">
+                <div className="rounded-[5px] border border-[var(--surface-border)]">
                   <table className="settings-fleet-table w-full text-left border-collapse">
-                    <thead className="sticky top-0 z-10 bg-[var(--panel)] shadow-[0_1px_0_var(--surface-border)]">
+                    <thead>
                       <tr className="border-b border-[var(--surface-border)]">
                         <th className="mono-label px-2.5 py-1.5 font-normal text-left">Repartidor</th>
                         <th className="mono-label px-2 py-1.5 font-normal text-left w-[10rem]">Zona</th>
@@ -1268,7 +1280,7 @@ export default function SettingsPage({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRepartidores.map((rep) => {
+                      {visibleRepartidores.map((rep) => {
                         const zone = getDeliveryZone(deliveryZones, rep.deliveryZone);
                         return (
                           <tr
@@ -1368,12 +1380,32 @@ export default function SettingsPage({
                     </p>
                   )}
                 </div>
-                {repartidores.length > 8 && (
-                  <p className="text-[9px] font-mono text-[var(--color-text-muted)] mt-1.5 text-right">
-                    {filteredRepartidores.length === repartidores.length
-                      ? `${repartidores.length} repartidores · desplazá para ver todos`
-                      : `${filteredRepartidores.length} de ${repartidores.length} · desplazá para ver más`}
-                  </p>
+                {(hasMoreRepartidores || canCollapseRepartidores) && (
+                  <div className="flex flex-wrap justify-center gap-2 mt-2">
+                    {hasMoreRepartidores && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRepartidoresLimit((prev) =>
+                            Math.min(prev + REPARTIDORES_PAGE_SIZE, filteredRepartidores.length)
+                          )
+                        }
+                        className={`${btnGhost} flex items-center gap-1`}
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                        Ver más ({filteredRepartidores.length - visibleRepartidores.length} restantes)
+                      </button>
+                    )}
+                    {canCollapseRepartidores && (
+                      <button
+                        type="button"
+                        onClick={() => setRepartidoresLimit(REPARTIDORES_PAGE_SIZE)}
+                        className={btnGhost}
+                      >
+                        Ver menos
+                      </button>
+                    )}
+                  </div>
                 )}
               </>
             )}
@@ -1528,7 +1560,7 @@ export default function SettingsPage({
               </button>
             </div>
             {pickupPoints.length > 0 && (
-              <ul className="mt-2.5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1.5">
+              <ul className="mt-2.5 grid grid-cols-1 gap-1.5 w-full">
                 {pickupPoints.map((point) => (
                   <li
                     key={point.id}
