@@ -12,6 +12,7 @@ import {
   User,
 } from './types';
 import type { DeliveryZone } from './config/deliveryZones';
+import type { Barrio } from './config/deliveryZones';
 
 export interface LoginResponse {
   user: User;
@@ -172,6 +173,10 @@ export const api = {
 
   getDeliveryZones(token: string): Promise<DeliveryZone[]> {
     return request<DeliveryZone[]>('/api/delivery-zones', { token });
+  },
+
+  getBarrios(token: string): Promise<Barrio[]> {
+    return request<Barrio[]>('/api/delivery-zones/barrios', { token });
   },
 
   assignOrderSeller(token: string, orderId: string, sellerId: string): Promise<Order> {

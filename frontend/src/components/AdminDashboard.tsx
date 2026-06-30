@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
-import { findZoneForPoint, zoneLabel, type DeliveryZone } from '../config/deliveryZones.js';
+import { findZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge from './ui/StatusBadge.tsx';
@@ -22,6 +22,7 @@ interface AdminDashboardProps {
   departurePoint?: LocationPoint | null;
   pickupPoints?: PickupPoint[];
   deliveryZones?: DeliveryZone[];
+  barrios?: Barrio[];
   activeOrderId: string | null;
   onSelectOrder: (orderId: string | null) => void;
   onCreateOrder: (orderData: Partial<Order> & { sellerId?: string }) => Promise<void>;
@@ -125,6 +126,7 @@ export default function AdminDashboard({
   departurePoint = null,
   pickupPoints = [],
   deliveryZones = [],
+  barrios = [],
   activeOrderId,
   onSelectOrder,
   onCreateOrder,
@@ -1002,7 +1004,7 @@ export default function AdminDashboard({
                     📍 {order.address}
                   </p>
                   {isAgencyAdmin(userRole) && (() => {
-                    const orderZone = findZoneForPoint(deliveryZones, order.lat, order.lng);
+                    const orderZone = findZoneForPoint(deliveryZones, order.lat, order.lng, barrios);
                     if (!orderZone) return null;
                     return (
                       <p className="text-[9px] mt-1 font-mono font-bold uppercase tracking-wider" style={{ color: orderZone.color }}>
@@ -1464,7 +1466,7 @@ export default function AdminDashboard({
                       <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] p-2 rounded space-y-1">
                         <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)]">Asignar repartidor al viaje:</p>
                         {(() => {
-                          const orderZone = findZoneForPoint(deliveryZones, selectedOrder.lat, selectedOrder.lng);
+                          const orderZone = findZoneForPoint(deliveryZones, selectedOrder.lat, selectedOrder.lng, barrios);
                           const suggestedRep = orderZone
                             ? repartidores.find((r) => r.deliveryZone === orderZone.id)
                             : null;

@@ -30,6 +30,7 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
     repartidores,
     sellers,
     deliveryZones,
+    barrios,
     assignRepartidor,
     unassignRepartidor,
     assignSeller,
@@ -43,8 +44,8 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
   const order = getOrder(orderId);
 
   const orderZone = useMemo(
-    () => (order ? findZoneForPoint(deliveryZones, order.lat, order.lng) : null),
-    [order, deliveryZones]
+    () => (order ? findZoneForPoint(deliveryZones, order.lat, order.lng, barrios) : null),
+    [order, deliveryZones, barrios]
   );
 
   const suggestedRep = useMemo(() => {

@@ -27,7 +27,7 @@ import {
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
-import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, type DeliveryZone } from '../config/deliveryZones.js';
+import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 const DIRECTORY_PRESETS = [
@@ -46,23 +46,18 @@ interface SettingsPageProps {
   sellers?: User[];
   pickupPoints?: PickupPoint[];
   deliveryZones?: DeliveryZone[];
+  barrios?: Barrio[];
   onCreateDeliveryZone?: (data: {
-    name: string;
+    name?: string;
     color?: string;
-    south: number;
-    west: number;
-    north: number;
-    east: number;
+    barrios: string[];
   }) => Promise<DeliveryZone>;
   onUpdateDeliveryZone?: (
     zoneId: string,
     data: {
       name?: string;
       color?: string;
-      south?: number;
-      west?: number;
-      north?: number;
-      east?: number;
+      barrios?: string[];
     }
   ) => Promise<DeliveryZone>;
   onDeleteDeliveryZone?: (zoneId: string) => Promise<void>;
@@ -125,6 +120,7 @@ export default function SettingsPage({
   sellers = [],
   pickupPoints = [],
   deliveryZones = [],
+  barrios = [],
   onCreateDeliveryZone,
   onUpdateDeliveryZone,
   onDeleteDeliveryZone,
@@ -202,10 +198,8 @@ export default function SettingsPage({
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [zoneName, setZoneName] = useState('');
   const [zoneColor, setZoneColor] = useState(ZONE_COLOR_PRESETS[0]);
-  const [zoneSouth, setZoneSouth] = useState('-34.72');
-  const [zoneWest, setZoneWest] = useState('-58.52');
-  const [zoneNorth, setZoneNorth] = useState('-34.58');
-  const [zoneEast, setZoneEast] = useState('-58.36');
+  const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
+  const [barrioSearch, setBarrioSearch] = useState('');
   const [zoneFormLoading, setZoneFormLoading] = useState(false);
   const [zoneFormMessage, setZoneFormMessage] = useState<string | null>(null);
   const [deletingZoneId, setDeletingZoneId] = useState<string | null>(null);
@@ -924,7 +918,7 @@ export default function SettingsPage({
               <div className="flex-1 min-w-[10rem]">
                 <p className="text-xs font-display font-semibold text-[var(--color-text)]">Zonas de entrega</p>
                 <p className="mono-label">
-                  {deliveryZones.length} zona{deliveryZones.length !== 1 ? 's' : ''} · rectángulos geográficos para asignar repartidores
+                  {deliveryZones.length} zona{deliveryZones.length !== 1 ? 's' : ''} · elegí barrios y el mapa se arma solo
                 </p>
               </div>
               <button
@@ -933,6 +927,8 @@ export default function SettingsPage({
                   setShowZoneForm(!showZoneForm);
                   setEditingZoneId(null);
                   setZoneName('');
+                  setSelectedBarrios([]);
+                  setBarrioSearch('');
                   setZoneColor(ZONE_COLOR_PRESETS[deliveryZones.length % ZONE_COLOR_PRESETS.length]);
                   setZoneFormMessage(null);
                 }}
@@ -965,10 +961,8 @@ export default function SettingsPage({
                               setEditingZoneId(zone.id);
                               setZoneName(zone.name);
                               setZoneColor(zone.color);
-                              setZoneSouth(String(zone.south));
-                              setZoneWest(String(zone.west));
-                              setZoneNorth(String(zone.north));
-                              setZoneEast(String(zone.east));
+                              setSelectedBarrios(zone.barrios ?? []);
+                              setBarrioSearch('');
                               setShowZoneForm(true);
                               setZoneFormMessage(null);
                             }}
@@ -1012,7 +1006,9 @@ export default function SettingsPage({
                       </div>
                     </div>
                     <p className="text-[9px] font-mono text-[var(--color-text-muted)]">
-                      Sur {zone.south} · Oeste {zone.west} · Norte {zone.north} · Este {zone.east}
+                      {zone.barrios?.length
+                        ? barrioNames(barrios, zone.barrios)
+                        : `Área: sur ${zone.south}, oeste ${zone.west}`}
                     </p>
                   </li>
                 ))}
@@ -1034,15 +1030,16 @@ export default function SettingsPage({
                 className="mt-3 space-y-2"
                 onSubmit={async (e) => {
                   e.preventDefault();
+                  if (selectedBarrios.length === 0) {
+                    setZoneFormMessage('Seleccioná al menos un barrio.');
+                    return;
+                  }
                   setZoneFormLoading(true);
                   setZoneFormMessage(null);
                   const payload = {
-                    name: zoneName,
+                    name: zoneName.trim() || undefined,
                     color: zoneColor,
-                    south: Number(zoneSouth),
-                    west: Number(zoneWest),
-                    north: Number(zoneNorth),
-                    east: Number(zoneEast),
+                    barrios: selectedBarrios,
                   };
                   try {
                     if (editingZoneId && onUpdateDeliveryZone) {
@@ -1055,6 +1052,8 @@ export default function SettingsPage({
                     setShowZoneForm(false);
                     setEditingZoneId(null);
                     setZoneName('');
+                    setSelectedBarrios([]);
+                    setBarrioSearch('');
                   } catch (err: unknown) {
                     const message = err instanceof Error ? err.message : 'Error al guardar la zona.';
                     setZoneFormMessage(message);
@@ -1064,10 +1063,9 @@ export default function SettingsPage({
                 }}
               >
                 <input
-                  required
                   value={zoneName}
                   onChange={(e) => setZoneName(e.target.value)}
-                  placeholder="Nombre de la zona (ej. Palermo)"
+                  placeholder="Nombre de la zona (opcional, se arma con los barrios)"
                   className={inputClass}
                 />
                 <div className="flex flex-wrap gap-1.5">
@@ -1082,49 +1080,67 @@ export default function SettingsPage({
                     />
                   ))}
                 </div>
-                <p className="mono-label pt-0.5">Límites del rectángulo (lat/lng)</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <input
-                    required
-                    type="number"
-                    step="any"
-                    value={zoneSouth}
-                    onChange={(e) => setZoneSouth(e.target.value)}
-                    placeholder="Sur"
-                    className={inputClass}
-                  />
-                  <input
-                    required
-                    type="number"
-                    step="any"
-                    value={zoneWest}
-                    onChange={(e) => setZoneWest(e.target.value)}
-                    placeholder="Oeste"
-                    className={inputClass}
-                  />
-                  <input
-                    required
-                    type="number"
-                    step="any"
-                    value={zoneNorth}
-                    onChange={(e) => setZoneNorth(e.target.value)}
-                    placeholder="Norte"
-                    className={inputClass}
-                  />
-                  <input
-                    required
-                    type="number"
-                    step="any"
-                    value={zoneEast}
-                    onChange={(e) => setZoneEast(e.target.value)}
-                    placeholder="Este"
-                    className={inputClass}
-                  />
+                <p className="mono-label pt-0.5">Barrios incluidos</p>
+                {selectedBarrios.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedBarrios.map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setSelectedBarrios((prev) => prev.filter((b) => b !== id))}
+                        className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/30"
+                      >
+                        {barrioNames(barrios, [id])} ×
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input
+                  value={barrioSearch}
+                  onChange={(e) => setBarrioSearch(e.target.value)}
+                  placeholder="Buscar barrio..."
+                  className={inputClass}
+                />
+                <div className="max-h-40 overflow-y-auto border border-[var(--surface-border)] rounded-[5px] p-1.5 space-y-1 scrollbar-thin">
+                  {barrios
+                    .filter((b) => {
+                      const q = barrioSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return b.name.toLowerCase().includes(q) || b.area.toLowerCase().includes(q);
+                    })
+                    .map((barrio) => {
+                      const checked = selectedBarrios.includes(barrio.id);
+                      return (
+                        <label
+                          key={barrio.id}
+                          className={`flex items-center gap-2 px-1.5 py-1 rounded cursor-pointer text-[11px] ${
+                            checked ? 'bg-[var(--color-accent)]/10' : 'hover:bg-[var(--paper)]'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setSelectedBarrios((prev) =>
+                                checked ? prev.filter((id) => id !== barrio.id) : [...prev, barrio.id]
+                              );
+                            }}
+                            className="accent-[var(--color-accent)]"
+                          />
+                          <span className="text-[var(--ink-soft)]">{barrio.name}</span>
+                          <span className="text-[var(--color-text-muted)] text-[9px] font-mono ml-auto">{barrio.area}</span>
+                        </label>
+                      );
+                    })}
                 </div>
                 <p className="text-[9px] text-[var(--color-text-muted)] leading-normal">
-                  Definí un rectángulo con coordenadas. Podés obtenerlas desde Google Maps haciendo clic derecho en el mapa.
+                  Elegí uno o más barrios. Las coordenadas del área se calculan automáticamente.
                 </p>
-                <button type="submit" disabled={zoneFormLoading} className={btnPrimary}>
+                <button
+                  type="submit"
+                  disabled={zoneFormLoading || selectedBarrios.length === 0}
+                  className={btnPrimary}
+                >
                   {zoneFormLoading ? 'Guardando...' : editingZoneId ? 'Guardar cambios' : 'Crear zona'}
                 </button>
                 {zoneFormMessage && (

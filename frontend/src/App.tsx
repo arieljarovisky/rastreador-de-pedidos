@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from './types.js';
-import type { DeliveryZone } from './config/deliveryZones.js';
+import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -51,6 +51,7 @@ export default function App() {
   const [departurePoint, setDeparturePoint] = useState<LocationPoint | null>(null);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [barrios, setBarrios] = useState<Barrio[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
@@ -195,10 +196,15 @@ export default function App() {
       }
 
       if (currentUser?.agencyId) {
-        const zonesRes = await fetch(apiUrl('/api/delivery-zones'), { headers });
+        const [zonesRes, barriosRes] = await Promise.all([
+          fetch(apiUrl('/api/delivery-zones'), { headers }),
+          fetch(apiUrl('/api/delivery-zones/barrios'), { headers }),
+        ]);
         if (zonesRes.ok) {
-          const data = await zonesRes.json();
-          setDeliveryZones(data);
+          setDeliveryZones(await zonesRes.json());
+        }
+        if (barriosRes.ok) {
+          setBarrios(await barriosRes.json());
         }
       }
 
@@ -518,12 +524,9 @@ export default function App() {
   };
 
   const handleCreateDeliveryZone = async (data: {
-    name: string;
+    name?: string;
     color?: string;
-    south: number;
-    west: number;
-    north: number;
-    east: number;
+    barrios: string[];
   }) => {
     if (!token) throw new Error('Sin sesión');
     const res = await fetch(apiUrl('/api/delivery-zones'), {
@@ -548,10 +551,7 @@ export default function App() {
     data: {
       name?: string;
       color?: string;
-      south?: number;
-      west?: number;
-      north?: number;
-      east?: number;
+      barrios?: string[];
     }
   ) => {
     if (!token) throw new Error('Sin sesión');
@@ -1323,6 +1323,7 @@ export default function App() {
                   departurePoint={departurePoint}
                   pickupPoints={pickupPoints}
                   deliveryZones={deliveryZones}
+                  barrios={barrios}
                   activeOrderId={activeOrderId}
                   onSelectOrder={setActiveOrderId}
                   onCreateOrder={handleCreateOrder}
@@ -1347,6 +1348,7 @@ export default function App() {
                   sellers={sellers}
                   pickupPoints={pickupPoints}
                   deliveryZones={deliveryZones}
+                  barrios={barrios}
                   onCreateDeliveryZone={isAgencyAdmin(user.role) ? handleCreateDeliveryZone : undefined}
                   onUpdateDeliveryZone={isAgencyAdmin(user.role) ? handleUpdateDeliveryZone : undefined}
                   onDeleteDeliveryZone={isAgencyAdmin(user.role) ? handleDeleteDeliveryZone : undefined}

@@ -3,13 +3,14 @@ import { useAuth } from './AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { api, MercadoLibreScanImportResult } from '../api';
 import { Order, OrderStatus, User } from '../types';
-import type { DeliveryZone } from '../config/deliveryZones';
+import type { DeliveryZone, Barrio } from '../config/deliveryZones';
 
 interface AgencyOrdersState {
   orders: Order[];
   repartidores: User[];
   sellers: User[];
   deliveryZones: DeliveryZone[];
+  barrios: Barrio[];
   loading: boolean;
   refreshing: boolean;
   connected: boolean;
@@ -39,6 +40,7 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
   );
   const [sellers, setSellers] = useState<User[]>([]);
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [barrios, setBarrios] = useState<Barrio[]>([]);
 
   const loadSellers = useMemo(
     () => async () => {
@@ -53,10 +55,15 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
     () => async () => {
       if (!token) return;
       try {
-        const data = await api.getDeliveryZones(token);
-        setDeliveryZones(data);
+        const [zones, barrioList] = await Promise.all([
+          api.getDeliveryZones(token),
+          api.getBarrios(token),
+        ]);
+        setDeliveryZones(zones);
+        setBarrios(barrioList);
       } catch {
         setDeliveryZones([]);
+        setBarrios([]);
       }
     },
     [token]
@@ -177,6 +184,7 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
       repartidores,
       sellers,
       deliveryZones,
+      barrios,
       loading,
       refreshing,
       connected,
@@ -197,6 +205,7 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
       repartidores,
       sellers,
       deliveryZones,
+      barrios,
       loading,
       refreshing,
       connected,

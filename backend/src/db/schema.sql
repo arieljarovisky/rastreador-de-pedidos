@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS delivery_zones (
   west DECIMAL(10, 7) NOT NULL,
   north DECIMAL(10, 7) NOT NULL,
   east DECIMAL(10, 7) NOT NULL,
+  barrios JSON NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_delivery_zones_agency (agency_id),
   CONSTRAINT fk_delivery_zones_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE

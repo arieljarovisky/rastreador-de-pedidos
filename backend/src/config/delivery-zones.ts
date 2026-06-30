@@ -6,6 +6,7 @@ export interface DeliveryZone {
   west: number;
   north: number;
   east: number;
+  barrios?: string[];
 }
 
 /** Zonas predefinidas para CABA y GBA (se copian a cada agencia al crear/migrar) */

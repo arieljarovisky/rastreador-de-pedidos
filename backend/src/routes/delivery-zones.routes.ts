@@ -6,6 +6,7 @@ import {
   updateZone,
   deleteZone,
 } from '../services/delivery-zones.service.js';
+import { listBarrios } from '../config/barrios.js';
 
 const router = Router();
 
@@ -16,6 +17,10 @@ function requireAgencyId(req: Request, res: Response): string | null {
   }
   return req.user.agencyId;
 }
+
+router.get('/barrios', authenticate, (_req: Request, res: Response) => {
+  res.json(listBarrios());
+});
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
   const agencyId = requireAgencyId(req, res);
@@ -29,20 +34,24 @@ router.post('/', authenticate, requireAgencyAdmin(), async (req: Request, res: R
   const agencyId = requireAgencyId(req, res);
   if (!agencyId) return;
 
-  const { name, color, south, west, north, east } = req.body;
-  if (!name || south === undefined || west === undefined || north === undefined || east === undefined) {
-    res.status(400).json({ error: 'Nombre y límites (sur, oeste, norte, este) son requeridos.' });
+  const { name, color, south, west, north, east, barrios } = req.body;
+  const barrioIds = Array.isArray(barrios) ? barrios.filter((b): b is string => typeof b === 'string') : undefined;
+  const hasBounds = south !== undefined && west !== undefined && north !== undefined && east !== undefined;
+
+  if (!barrioIds?.length && !hasBounds) {
+    res.status(400).json({ error: 'Seleccioná al menos un barrio.' });
     return;
   }
 
   try {
     const zone = await createZone(agencyId, {
-      name,
+      name: typeof name === 'string' ? name : undefined,
       color,
-      south: Number(south),
-      west: Number(west),
-      north: Number(north),
-      east: Number(east),
+      south: hasBounds ? Number(south) : undefined,
+      west: hasBounds ? Number(west) : undefined,
+      north: hasBounds ? Number(north) : undefined,
+      east: hasBounds ? Number(east) : undefined,
+      barrios: barrioIds,
     });
     res.status(201).json(zone);
   } catch (err) {
@@ -53,6 +62,14 @@ router.post('/', authenticate, requireAgencyAdmin(), async (req: Request, res: R
     }
     if (message === 'INVALID_BOUNDS') {
       res.status(400).json({ error: 'Los límites geográficos no son válidos (sur < norte, oeste < este).' });
+      return;
+    }
+    if (message === 'INVALID_BARRIOS') {
+      res.status(400).json({ error: 'Uno o más barrios no son válidos.' });
+      return;
+    }
+    if (message === 'BARRIOS_OR_BOUNDS_REQUIRED') {
+      res.status(400).json({ error: 'Seleccioná al menos un barrio.' });
       return;
     }
     if (message === 'INVALID_COLOR') {
@@ -67,7 +84,8 @@ router.put('/:id', authenticate, requireAgencyAdmin(), async (req: Request, res:
   const agencyId = requireAgencyId(req, res);
   if (!agencyId) return;
 
-  const { name, color, south, west, north, east } = req.body;
+  const { name, color, south, west, north, east, barrios } = req.body;
+  const barrioIds = Array.isArray(barrios) ? barrios.filter((b): b is string => typeof b === 'string') : undefined;
 
   try {
     const zone = await updateZone(agencyId, req.params.id, {
@@ -77,6 +95,7 @@ router.put('/:id', authenticate, requireAgencyAdmin(), async (req: Request, res:
       west: west !== undefined ? Number(west) : undefined,
       north: north !== undefined ? Number(north) : undefined,
       east: east !== undefined ? Number(east) : undefined,
+      barrios: barrioIds,
     });
     res.json(zone);
   } catch (err) {
@@ -91,6 +110,10 @@ router.put('/:id', authenticate, requireAgencyAdmin(), async (req: Request, res:
     }
     if (message === 'INVALID_BOUNDS') {
       res.status(400).json({ error: 'Los límites geográficos no son válidos.' });
+      return;
+    }
+    if (message === 'INVALID_BARRIOS') {
+      res.status(400).json({ error: 'Uno o más barrios no son válidos.' });
       return;
     }
     if (message === 'INVALID_COLOR') {

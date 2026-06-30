@@ -185,11 +185,16 @@ export async function runMigrations(): Promise<void> {
         west DECIMAL(10, 7) NOT NULL,
         north DECIMAL(10, 7) NOT NULL,
         east DECIMAL(10, 7) NOT NULL,
+        barrios JSON NULL,
         created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
         INDEX idx_delivery_zones_agency (agency_id),
         CONSTRAINT fk_delivery_zones_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+  }
+
+  if (!(await columnExists('delivery_zones', 'barrios'))) {
+    await pool.query('ALTER TABLE delivery_zones ADD COLUMN barrios JSON NULL AFTER east');
   }
 
   const [agencyRows] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
