@@ -305,7 +305,7 @@ export default function SettingsPage({
     `text-[10px] font-mono ${ok ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'}`;
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-[var(--surface-bg)]">
+    <div className="h-full flex flex-col min-h-0 bg-[var(--surface-bg)] w-full max-w-none">
       <header className="shrink-0 flex items-center justify-between gap-2 sm:gap-3 pb-2 sm:pb-3 border-b border-[var(--surface-border)] px-0.5">
         <div className="min-w-0">
           <h2 className="text-sm font-display font-bold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2">
@@ -328,10 +328,10 @@ export default function SettingsPage({
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto mt-2 sm:mt-3 pr-0.5 sm:pr-1 scrollbar-thin min-h-0">
-        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2 sm:gap-3 pb-2 auto-rows-min max-w-[1600px]">
+      <div className="flex-1 overflow-y-auto mt-2 sm:mt-3 px-0.5 sm:px-1 scrollbar-thin min-h-0">
+        <div className="grid grid-cols-1 gap-3 pb-2 w-full">
         {userRole === UserRole.STORE_ADMIN && (
-          <section className={`${sectionClass} lg:col-span-2 2xl:col-span-3`}>
+          <section className={sectionClass}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
                 <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
@@ -366,13 +366,13 @@ export default function SettingsPage({
             />
           )}
         {agency && onUpdateDeparture && (
-          <section className={`${sectionClass} lg:col-span-2 2xl:col-span-3 ${showDepartureForm ? 'xl:col-span-2' : ''}`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
-                <Warehouse className="w-4 h-4 text-[var(--route)]" />
+          <section className={`${sectionClass} !py-2.5`}>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="w-7 h-7 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
+                <Warehouse className="w-3.5 h-3.5 text-[var(--route)]" />
               </div>
               <div className="flex-1 min-w-[12rem]">
-                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Punto de salida</p>
+                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Punto de salida</p>
                 <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate">
                   {departurePoint ? departurePoint.address : 'Sin definir — configurá el depósito de la agencia'}
                 </p>
@@ -451,10 +451,10 @@ export default function SettingsPage({
           </section>
         )}
 
-        {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor) && (
-          <div className="lg:col-span-2 2xl:col-span-3 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start min-w-0">
+        {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start min-w-0">
         {onCreateSeller && (
-          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0`}>
+          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0 xl:col-span-2 xl:order-1`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
                 <UserPlus className="w-4 h-4 text-[var(--route)]" />
@@ -910,7 +910,7 @@ export default function SettingsPage({
         )}
 
         {agency && onCreateDeliveryZone && (
-          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0`}>
+          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0 xl:col-span-3 xl:order-2`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
                 <Layers className="w-4 h-4 text-[var(--color-accent)]" />
@@ -939,21 +939,22 @@ export default function SettingsPage({
             </div>
 
             {deliveryZones.length > 0 && !showZoneForm && (
-              <ul className="mt-2.5 space-y-1.5 max-h-[min(50vh,28rem)] overflow-y-auto pr-1 scrollbar-thin">
+              <ul className="mt-2.5 space-y-1 max-h-[min(60vh,32rem)] overflow-y-auto pr-0.5 scrollbar-thin">
                 {deliveryZones.map((zone) => (
-                  <li key={zone.id} className={`flex flex-col gap-1.5 ${listItemClass}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded w-fit"
-                        style={{
-                          color: zone.color,
-                          backgroundColor: `${zone.color}18`,
-                          border: `1px solid ${zone.color}40`,
-                        }}
-                      >
-                        {zone.name}
-                      </span>
-                      <div className="flex items-center gap-1 shrink-0">
+                  <li key={zone.id} className={`flex items-center gap-2 ${listItemClass}`}>
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: zone.color }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate">{zone.name}</p>
+                      {zone.barrios?.length ? (
+                        <p className="text-[9px] text-[var(--color-text-muted)] truncate">
+                          {barrioNames(barrios, zone.barrios)}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
                         {onUpdateDeliveryZone && (
                           <button
                             type="button"
@@ -1003,13 +1004,7 @@ export default function SettingsPage({
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
-                      </div>
                     </div>
-                    <p className="text-[9px] font-mono text-[var(--color-text-muted)]">
-                      {zone.barrios?.length
-                        ? barrioNames(barrios, zone.barrios)
-                        : `Área: sur ${zone.south}, oeste ${zone.west}`}
-                    </p>
                   </li>
                 ))}
               </ul>
@@ -1101,7 +1096,7 @@ export default function SettingsPage({
                   placeholder="Buscar barrio..."
                   className={inputClass}
                 />
-                <div className="max-h-40 overflow-y-auto border border-[var(--surface-border)] rounded-[5px] p-1.5 space-y-1 scrollbar-thin">
+                <div className="max-h-48 xl:max-h-56 overflow-y-auto border border-[var(--surface-border)] rounded-[5px] p-1.5 grid grid-cols-1 sm:grid-cols-2 gap-0.5 scrollbar-thin">
                   {barrios
                     .filter((b) => {
                       const q = barrioSearch.trim().toLowerCase();
@@ -1158,7 +1153,7 @@ export default function SettingsPage({
         )}
 
         {(onCreateRepartidor || onDeleteRepartidor) && (
-          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0`}>
+          <section className={`${sectionClass} flex flex-col min-h-0 min-w-0 xl:col-span-7 xl:order-3`}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0 text-lg leading-none">
                 🏍️
@@ -1178,85 +1173,45 @@ export default function SettingsPage({
               )}
             </div>
             {repartidores.length > 0 && !showRepartidorForm && (
-              <ul className="mt-2.5 space-y-1.5 max-h-[min(70vh,42rem)] overflow-y-auto pr-1 scrollbar-thin">
+              <ul className="mt-2.5 grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5 max-h-[min(70vh,42rem)] overflow-y-auto pr-0.5 scrollbar-thin">
                 {repartidores.map((rep) => (
                   <li
                     key={rep.id}
-                    className={`flex flex-col gap-2 ${listItemClass}`}
+                    className={`flex items-center gap-2 ${listItemClass}`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate min-w-0">
-                        <span className="font-medium text-[var(--ink-soft)]">{rep.name}</span>
-                        <span className="text-[var(--color-text-muted)]"> @{rep.username}</span>
-                      </span>
-                      {onDeleteRepartidor && (
-                        <button
-                          type="button"
-                          disabled={deletingRepartidorId === rep.id}
-                          onClick={async () => {
-                            const ok = await confirm({
-                              title: 'Eliminar repartidor',
-                              message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente. Esta acción no se puede deshacer.`,
-                              variant: 'danger',
-                              confirmText: 'Eliminar',
-                              cancelText: 'Cancelar',
-                            });
-                            if (!ok) return;
-                            setDeletingRepartidorId(rep.id);
-                            setRepartidorFormMessage(null);
-                            try {
-                              const result = await onDeleteRepartidor(rep.id);
-                              const extra =
-                                result.finalizedOrders > 0
-                                  ? ` Se finalizaron ${result.finalizedOrders} viaje(s) en curso.`
-                                  : '';
-                              setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
-                            } catch (err: unknown) {
-                              const message = err instanceof Error ? err.message : 'Error al eliminar repartidor.';
-                              setRepartidorFormMessage(message);
-                            } finally {
-                              setDeletingRepartidorId(null);
-                            }
-                          }}
-                          className="text-[var(--color-danger)] hover:text-red-300 shrink-0 disabled:opacity-50"
-                          title="Eliminar repartidor"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+                    <span className="truncate min-w-0 flex-1 text-[11px]">
+                      <span className="font-medium text-[var(--ink-soft)]">{rep.name}</span>
+                      <span className="text-[var(--color-text-muted)]"> @{rep.username}</span>
+                    </span>
                     {onUpdateRepartidorZone && (
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3 h-3 text-[var(--color-accent)] shrink-0" />
-                        <select
-                          value={rep.deliveryZone ?? ''}
-                          disabled={updatingZoneId === rep.id}
-                          onChange={async (e) => {
-                            const zone = e.target.value || null;
-                            setUpdatingZoneId(rep.id);
-                            try {
-                              await onUpdateRepartidorZone(rep.id, zone);
-                            } catch (err: unknown) {
-                              const message = err instanceof Error ? err.message : 'No se pudo actualizar la zona.';
-                              void showAlert({ title: 'Error', message, variant: 'error' });
-                            } finally {
-                              setUpdatingZoneId(null);
-                            }
-                          }}
-                          className="flex-1 min-w-0 bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-1.5 py-1 text-[10px] text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)]"
-                        >
-                          <option value="">Sin zona asignada</option>
-                          {deliveryZones.map((zone) => (
-                            <option key={zone.id} value={zone.id}>
-                              {zone.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <select
+                        value={rep.deliveryZone ?? ''}
+                        disabled={updatingZoneId === rep.id}
+                        onChange={async (e) => {
+                          const zone = e.target.value || null;
+                          setUpdatingZoneId(rep.id);
+                          try {
+                            await onUpdateRepartidorZone(rep.id, zone);
+                          } catch (err: unknown) {
+                            const message = err instanceof Error ? err.message : 'No se pudo actualizar la zona.';
+                            void showAlert({ title: 'Error', message, variant: 'error' });
+                          } finally {
+                            setUpdatingZoneId(null);
+                          }
+                        }}
+                        className="w-[7.5rem] shrink-0 bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-1.5 py-1 text-[10px] text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)]"
+                      >
+                        <option value="">Sin zona</option>
+                        {deliveryZones.map((zone) => (
+                          <option key={zone.id} value={zone.id}>
+                            {zone.name}
+                          </option>
+                        ))}
+                      </select>
                     )}
                     {rep.deliveryZone && (
                       <span
-                        className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded w-fit"
+                        className="hidden sm:inline text-[8px] font-mono uppercase tracking-wider px-1 py-0.5 rounded shrink-0 max-w-[5rem] truncate"
                         style={{
                           color: getDeliveryZone(deliveryZones, rep.deliveryZone)?.color ?? '#64748b',
                           backgroundColor: `${getDeliveryZone(deliveryZones, rep.deliveryZone)?.color ?? '#64748b'}18`,
@@ -1265,6 +1220,41 @@ export default function SettingsPage({
                       >
                         {zoneLabel(deliveryZones, rep.deliveryZone)}
                       </span>
+                    )}
+                    {onDeleteRepartidor && (
+                      <button
+                        type="button"
+                        disabled={deletingRepartidorId === rep.id}
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: 'Eliminar repartidor',
+                            message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente. Esta acción no se puede deshacer.`,
+                            variant: 'danger',
+                            confirmText: 'Eliminar',
+                            cancelText: 'Cancelar',
+                          });
+                          if (!ok) return;
+                          setDeletingRepartidorId(rep.id);
+                          setRepartidorFormMessage(null);
+                          try {
+                            const result = await onDeleteRepartidor(rep.id);
+                            const extra =
+                              result.finalizedOrders > 0
+                                ? ` Se finalizaron ${result.finalizedOrders} viaje(s) en curso.`
+                                : '';
+                            setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
+                          } catch (err: unknown) {
+                            const message = err instanceof Error ? err.message : 'Error al eliminar repartidor.';
+                            setRepartidorFormMessage(message);
+                          } finally {
+                            setDeletingRepartidorId(null);
+                          }
+                        }}
+                        className="text-[var(--color-danger)] hover:text-red-300 shrink-0 disabled:opacity-50 p-0.5"
+                        title="Eliminar repartidor"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </li>
                 ))}
@@ -1365,14 +1355,16 @@ export default function SettingsPage({
         )}
 
         {agency && onTriggerSimulatorTick && (
-          <section className={`${sectionClass} lg:col-span-2 2xl:col-span-3`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-8 h-8 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4 text-[var(--color-warn)]" />
-              </div>
-              <div className="flex-1 min-w-[10rem]">
-                <p className="text-xs font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
-                <p className="mono-label">Mueve la flota en el mapa</p>
+          <section className={`${sectionClass} !py-2.5`}>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="w-7 h-7 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 text-[var(--color-warn)]" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
+                  <p className="text-[9px] font-mono text-[var(--color-text-muted)] truncate">Mueve la flota en el mapa</p>
+                </div>
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <button
@@ -1408,11 +1400,7 @@ export default function SettingsPage({
         )}
 
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
-          <section
-            className={`${sectionClass} lg:col-span-2 2xl:col-span-3 ${
-              showPickupForm || editingPickupId ? 'xl:col-span-2' : ''
-            }`}
-          >
+          <section className={sectionClass}>
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-8 h-8 rounded-[5px] bg-[var(--color-ok)]/10 flex items-center justify-center shrink-0">
                 <MapPin className="w-4 h-4 text-[var(--color-ok)]" />
