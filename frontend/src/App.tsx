@@ -15,7 +15,7 @@ import NotifsSidebar from './components/NotifsSidebar.tsx';
 import { LogOut, Bell, Settings, LayoutDashboard } from 'lucide-react';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
-import { applyPostaTheme, readPostaTheme, type PostaTheme } from './theme/usePostaTheme.ts';
+import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl } from './api.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
@@ -92,15 +92,11 @@ export default function App() {
   }, [showAlert]);
 
   const [notifsSidebarOpen, setNotifsSidebarOpen] = useState(readNotifsSidebarOpen);
-  const [theme, setThemeState] = useState<PostaTheme>(() => readPostaTheme());
+  const theme = usePostaTheme();
 
   const toggleTheme = useCallback(() => {
-    setThemeState((prev) => {
-      const next: PostaTheme = prev === 'dark' ? 'paper' : 'dark';
-      applyPostaTheme(next);
-      return next;
-    });
-  }, []);
+    applyPostaTheme(theme === 'dark' ? 'paper' : 'dark');
+  }, [theme]);
 
   const toggleNotifsSidebar = useCallback(() => {
     setNotifsSidebarOpen((prev) => {
@@ -1079,7 +1075,7 @@ export default function App() {
 
   if (loading && !user) {
     return (
-      <div className="min-h-screen bg-[var(--surface-bg)] flex flex-col items-center justify-center p-4" data-theme="dark">
+      <div className="min-h-screen bg-[var(--surface-bg)] flex flex-col items-center justify-center p-4">
         <svg className="animate-spin h-6 w-6 text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />

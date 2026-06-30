@@ -2,12 +2,29 @@ import { useEffect, useState } from 'react';
 
 export type PostaTheme = 'dark' | 'paper';
 
-const STORAGE_KEY = 'posta_theme';
+/** Clave compartida con la landing (valores: light | dark). */
+export const LANDING_THEME_KEY = 'posta-theme';
+
+/** Clave legada del panel (valores: paper | dark). */
+const LEGACY_APP_THEME_KEY = 'posta_theme';
+
+function landingToAppTheme(value: string | null): PostaTheme | null {
+  if (value === 'dark') return 'dark';
+  if (value === 'light') return 'paper';
+  return null;
+}
+
+function appToLandingTheme(theme: PostaTheme): 'light' | 'dark' {
+  return theme === 'paper' ? 'light' : 'dark';
+}
 
 export function readPostaTheme(): PostaTheme {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === 'paper' || saved === 'dark') return saved;
+    const fromLanding = landingToAppTheme(localStorage.getItem(LANDING_THEME_KEY));
+    if (fromLanding) return fromLanding;
+
+    const legacy = localStorage.getItem(LEGACY_APP_THEME_KEY);
+    if (legacy === 'paper' || legacy === 'dark') return legacy;
   } catch {
     // ignore
   }
@@ -20,7 +37,8 @@ export function applyPostaTheme(theme: PostaTheme): void {
   root.classList.toggle('theme-dark', theme === 'dark');
   root.classList.toggle('theme-paper', theme === 'paper');
   try {
-    localStorage.setItem(STORAGE_KEY, theme);
+    localStorage.setItem(LANDING_THEME_KEY, appToLandingTheme(theme));
+    localStorage.setItem(LEGACY_APP_THEME_KEY, theme);
   } catch {
     // ignore
   }

@@ -8,6 +8,8 @@ import { Shield, Key, Eye, EyeOff, Lock, User as UserIcon, Building2, ArrowLeft 
 import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
 import PaperCard from './ui/PaperCard.tsx';
+import ThemeToggle from './ui/ThemeToggle.tsx';
+import { applyPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
 
 type AuthMode = 'login' | 'register-agency';
 
@@ -35,6 +37,11 @@ export default function LoginScreen({
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const theme = usePostaTheme();
+
+  const toggleTheme = () => {
+    applyPostaTheme(theme === 'dark' ? 'paper' : 'dark');
+  };
 
   const resetForm = () => {
     setUsername('');
@@ -63,9 +70,12 @@ export default function LoginScreen({
   const isRegister = mode !== 'login';
 
   return (
-    <div className="app-viewport safe-top safe-bottom min-h-[100dvh] flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 bg-[var(--surface-bg)]" data-theme="paper" id="login-container">
+    <div className="app-viewport safe-top safe-bottom min-h-[100dvh] flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 bg-[var(--surface-bg)] relative" id="login-container">
+      <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 sm:right-4">
+        <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
+      </div>
       <div className="mb-4 sm:mb-6 text-center w-full max-w-md">
-        <PostaLogo variant="paper" size={44} className="justify-center mb-2 sm:mb-3 sm:[&_svg]:w-12 sm:[&_svg]:h-12" />
+        <PostaLogo variant={theme === 'paper' ? 'paper' : 'dark'} size={44} className="justify-center mb-2 sm:mb-3 sm:[&_svg]:w-12 sm:[&_svg]:h-12" />
         <p className="mono-label text-[var(--color-text-muted)] mt-2">
           Hoja de ruta · CABA y GBA
         </p>

@@ -33,6 +33,35 @@
   --plan-best-bg:#1C1814;
   --plan-best-muted:#C9BEAD;
   --surface-ink:#1C1814;
+  --mock-bg:#FAF6EE;
+  --mock-frame:#1C1814;
+  --mock-bar-border:rgba(28,24,20,.1);
+  --mock-panel:#F6F0E4;
+  --mock-border:rgba(28,24,20,.12);
+  --mock-title:#897C68;
+  --mock-text:#1C1814;
+  --mock-text-muted:#544A3C;
+  --mock-live:#2E6B45;
+  --mock-live-dot:#3FAE63;
+  --mock-clock:#897C68;
+  --mock-kpi-num:#1C1814;
+  --mock-kpi-label:#897C68;
+  --mock-kpi-warn:#B5670E;
+  --mock-kpi-ok:#2E6B45;
+  --mock-ava-bg:rgba(43,58,85,.12);
+  --mock-ava-text:#2B3A55;
+  --mock-badge-a-bg:rgba(43,58,85,.14);
+  --mock-badge-a-text:#2B3A55;
+  --mock-badge-d-bg:rgba(181,103,14,.14);
+  --mock-badge-d-text:#B5670E;
+  --mock-badge-e-bg:rgba(46,107,69,.14);
+  --mock-badge-e-text:#2E6B45;
+  --mock-map-bg:#EDE6D8;
+  --mock-map-grid:rgba(28,24,20,.06);
+  --mock-map-label:#A99B85;
+  --mock-map-route:#2B3A55;
+  --mock-map-marker:#D8401E;
+  --mock-map-rider:#FAF6EE;
   --noise-opacity:.5;
   --noise-blend:multiply;
   --disp:'Bricolage Grotesque',system-ui,sans-serif;
@@ -58,6 +87,35 @@
   --plan-best-bg:#2A1F18;
   --plan-best-muted:#C9BEAD;
   --surface-ink:#0E0C0A;
+  --mock-bg:#0B0F18;
+  --mock-frame:#14110C;
+  --mock-bar-border:rgba(255,255,255,.07);
+  --mock-panel:#141A28;
+  --mock-border:rgba(255,255,255,.06);
+  --mock-title:#7C8597;
+  --mock-text:#E9EDF4;
+  --mock-text-muted:#5C6577;
+  --mock-live:#86E6AC;
+  --mock-live-dot:#3FAE63;
+  --mock-clock:#5C6577;
+  --mock-kpi-num:#E9EDF4;
+  --mock-kpi-label:#5C6577;
+  --mock-kpi-warn:#F0A93A;
+  --mock-kpi-ok:#5FCE86;
+  --mock-ava-bg:rgba(95,135,235,.16);
+  --mock-ava-text:#7CA0F0;
+  --mock-badge-a-bg:rgba(95,135,235,.16);
+  --mock-badge-a-text:#8DAAF2;
+  --mock-badge-d-bg:rgba(240,169,58,.16);
+  --mock-badge-d-text:#F0B85A;
+  --mock-badge-e-bg:rgba(95,206,134,.16);
+  --mock-badge-e-text:#74D89A;
+  --mock-map-bg:#080C14;
+  --mock-map-grid:rgba(255,255,255,.05);
+  --mock-map-label:#3A4658;
+  --mock-map-route:#5C87EB;
+  --mock-map-marker:#E8431F;
+  --mock-map-rider:#0B0F18;
   --noise-opacity:.22;
   --noise-blend:soft-light;
 }
@@ -146,32 +204,32 @@ header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;poin
 .capwrap{position:relative;transform:rotate(-1.6deg)}
 .tape{position:absolute;top:-15px;left:50%;width:118px;height:30px;background:rgba(216,64,30,.16);border:1px solid rgba(216,64,30,.3);transform:translateX(-50%) rotate(-2.5deg);z-index:3}
 .capcap{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);text-align:center;margin-top:13px}
-.console{background:#0B0F18;border:7px solid #14110C;border-radius:6px;overflow:hidden;box-shadow:7px 9px 0 var(--shadow-lg)}
-.console-bar{display:flex;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid rgba(255,255,255,.07)}
+.console{background:var(--mock-bg);border:7px solid var(--mock-frame);border-radius:6px;overflow:hidden;box-shadow:7px 9px 0 var(--shadow-lg);transition:background .25s ease,border-color .25s ease,box-shadow .25s ease}
+.console-bar{display:flex;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid var(--mock-bar-border)}
 .tl{display:flex;gap:6px}.tl span{width:10px;height:10px;border-radius:50%}
 .tl .r{background:#E8431F}.tl .y{background:#E0A92E}.tl .g{background:#3FAE63}
-.console-title{font-family:var(--mono);font-size:.7rem;color:#7C8597}
-.live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:#86E6AC}
-.live i{width:6px;height:6px;border-radius:50%;background:#3FAE63;animation:blink 1.4s ease-in-out infinite}
-.clock{font-family:var(--mono);font-size:.66rem;color:#5C6577;margin-left:9px}
+.console-title{font-family:var(--mono);font-size:.7rem;color:var(--mock-title)}
+.live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:var(--mock-live)}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--mock-live-dot);animation:blink 1.4s ease-in-out infinite}
+.clock{font-family:var(--mono);font-size:.66rem;color:var(--mock-clock);margin-left:9px}
 .console-body{padding:13px}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:11px}
-.kpi{background:#141A28;border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:9px 10px}
-.kpi .n{font-family:var(--disp);font-weight:700;font-size:1.2rem;line-height:1;color:#E9EDF4}
-.kpi .l{font-family:var(--mono);font-size:.54rem;letter-spacing:.06em;text-transform:uppercase;color:#5C6577;margin-top:4px}
-.kpi.a .n{color:#F0A93A}.kpi.g .n{color:#5FCE86}
-.mapwrap{border:1px solid rgba(255,255,255,.07);border-radius:8px;overflow:hidden}
+.kpi{background:var(--mock-panel);border:1px solid var(--mock-border);border-radius:7px;padding:9px 10px;transition:background .25s ease,border-color .25s ease}
+.kpi .n{font-family:var(--disp);font-weight:700;font-size:1.2rem;line-height:1;color:var(--mock-kpi-num)}
+.kpi .l{font-family:var(--mono);font-size:.54rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mock-kpi-label);margin-top:4px}
+.kpi.a .n{color:var(--mock-kpi-warn)}.kpi.g .n{color:var(--mock-kpi-ok)}
+.mapwrap{border:1px solid var(--mock-border);border-radius:8px;overflow:hidden}
 .map-svg{width:100%;height:auto;display:block}
 .orders{margin-top:9px;display:flex;flex-direction:column;gap:7px}
-.orow{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:#141A28}
-.orow .ava{width:27px;height:27px;border-radius:6px;background:rgba(95,135,235,.16);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.6rem;color:#7CA0F0;flex:0 0 auto}
-.orow .who{font-size:.8rem;font-weight:500;color:#E9EDF4}
-.orow .zone{font-family:var(--mono);font-size:.58rem;color:#5C6577;margin-top:1px}
+.orow{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--mock-border);border-radius:7px;background:var(--mock-panel);transition:background .25s ease,border-color .25s ease}
+.orow .ava{width:27px;height:27px;border-radius:6px;background:var(--mock-ava-bg);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.6rem;color:var(--mock-ava-text);flex:0 0 auto}
+.orow .who{font-size:.8rem;font-weight:500;color:var(--mock-text)}
+.orow .zone{font-family:var(--mono);font-size:.58rem;color:var(--mock-text-muted);margin-top:1px}
 .orow .grow{flex:1}
 .cbadge{font-family:var(--mono);font-size:.56rem;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:20px;white-space:nowrap}
-.cb-a{background:rgba(95,135,235,.16);color:#8DAAF2}
-.cb-d{background:rgba(240,169,58,.16);color:#F0B85A}
-.cb-e{background:rgba(95,206,134,.16);color:#74D89A}
+.cb-a{background:var(--mock-badge-a-bg);color:var(--mock-badge-a-text)}
+.cb-d{background:var(--mock-badge-d-bg);color:var(--mock-badge-d-text)}
+.cb-e{background:var(--mock-badge-e-bg);color:var(--mock-badge-e-text)}
 
 /* CONTEXT MANIFEST LINE */
 .manifest{border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);padding:16px 0}
@@ -457,22 +515,22 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
               <svg class="map-svg" viewBox="0 0 420 196" xmlns="http://www.w3.org/2000/svg" aria-label="Mapa con la ruta de una entrega en vivo">
                 <defs>
                   <pattern id="g2" width="30" height="30" patternUnits="userSpaceOnUse">
-                    <path d="M30 0H0V30" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+                    <path d="M30 0H0V30" fill="none" stroke="var(--mock-map-grid)" stroke-width="1"/>
                   </pattern>
                 </defs>
-                <rect width="420" height="196" fill="#080C14"/>
+                <rect width="420" height="196" fill="var(--mock-map-bg)"/>
                 <rect width="420" height="196" fill="url(#g2)"/>
-                <text x="18" y="24" fill="#3A4658" font-family="'Space Mono',monospace" font-size="9">ZONA NORTE</text>
-                <text x="320" y="184" fill="#564a3a" font-family="'Space Mono',monospace" font-size="9">GBA SUR</text>
-                <path class="rt" d="M44,160 C100,146 112,86 178,94 C238,101 256,138 356,52" fill="none" stroke="#5C87EB" stroke-width="3" stroke-linecap="round"/>
-                <circle cx="44" cy="160" r="7" fill="none" stroke="#5C87EB" stroke-width="3"/>
-                <circle cx="44" cy="160" r="3" fill="#5C87EB"/>
-                <text x="36" y="180" fill="#5C6577" font-family="'Space Mono',monospace" font-size="8">SALIDA</text>
-                <path d="M356 40 C349 40 344 45 344 52 C344 61 356 72 356 72 C356 72 368 61 368 52 C368 45 363 40 356 40 Z" fill="#E8431F"/>
-                <circle cx="356" cy="52" r="3.2" fill="#0B0F18"/>
+                <text x="18" y="24" fill="var(--mock-map-label)" font-family="'Space Mono',monospace" font-size="9">ZONA NORTE</text>
+                <text x="320" y="184" fill="var(--mock-map-label)" font-family="'Space Mono',monospace" font-size="9">GBA SUR</text>
+                <path class="rt" d="M44,160 C100,146 112,86 178,94 C238,101 256,138 356,52" fill="none" stroke="var(--mock-map-route)" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="44" cy="160" r="7" fill="none" stroke="var(--mock-map-route)" stroke-width="3"/>
+                <circle cx="44" cy="160" r="3" fill="var(--mock-map-route)"/>
+                <text x="36" y="180" fill="var(--mock-text-muted)" font-family="'Space Mono',monospace" font-size="8">SALIDA</text>
+                <path d="M356 40 C349 40 344 45 344 52 C344 61 356 72 356 72 C356 72 368 61 368 52 C368 45 363 40 356 40 Z" fill="var(--mock-map-marker)"/>
+                <circle cx="356" cy="52" r="3.2" fill="var(--mock-map-bg)"/>
                 <g style="offset-path:path('M44,160 C100,146 112,86 178,94 C238,101 256,138 356,52');animation:ride 7s ease-in-out infinite">
-                  <circle r="6.5" fill="#0B0F18" stroke="#5C87EB" stroke-width="2.4"/>
-                  <circle r="2.4" fill="#5C87EB"/>
+                  <circle r="6.5" fill="var(--mock-map-rider)" stroke="var(--mock-map-route)" stroke-width="2.4"/>
+                  <circle r="2.4" fill="var(--mock-map-route)"/>
                 </g>
               </svg>
             </div>
@@ -954,6 +1012,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   function applyTheme(theme){
     document.documentElement.setAttribute('data-theme',theme);
     localStorage.setItem(themeKey,theme);
+    localStorage.setItem('posta_theme',theme==='dark'?'dark':'paper');
     if(themeToggle){
       themeToggle.setAttribute('aria-label',theme==='dark'?'Activar modo claro':'Activar modo oscuro');
     }
