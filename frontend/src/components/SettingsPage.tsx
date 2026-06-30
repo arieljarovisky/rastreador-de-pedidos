@@ -9,10 +9,6 @@ import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
 import {
   Warehouse,
-  Sparkles,
-  RefreshCw,
-  Play,
-  Pause,
   UserPlus,
   MapPin,
   Trash2,
@@ -136,7 +132,6 @@ interface SettingsPageProps {
     data: { label?: string; address: string; lat: number; lng: number }
   ) => Promise<void>;
   onDeletePickupPoint?: (id: string) => Promise<void>;
-  onTriggerSimulatorTick?: () => Promise<void>;
   integrationStatus?: MarketplaceIntegrationStatus | null;
   integrationStatusLoading?: boolean;
   integrationStatusError?: string | null;
@@ -183,7 +178,6 @@ export default function SettingsPage({
   onCreatePickupPoint,
   onUpdatePickupPoint,
   onDeletePickupPoint,
-  onTriggerSimulatorTick,
   integrationStatus = null,
   integrationStatusLoading = false,
   integrationStatusError = null,
@@ -198,7 +192,6 @@ export default function SettingsPage({
   const agency = isAgencyAdmin(userRole);
   const { confirm, alert: showAlert } = useModal();
 
-  const [isSimulating, setIsSimulating] = useState(false);
   const [showDepartureForm, setShowDepartureForm] = useState(false);
   const [departureAddress, setDepartureAddress] = useState(departurePoint?.address ?? '');
   const [departureLat, setDepartureLat] = useState(departurePoint?.lat ?? -34.5885);
@@ -271,12 +264,6 @@ export default function SettingsPage({
       setDepartureLng(departurePoint.lng);
     }
   }, [departurePoint]);
-
-  useEffect(() => {
-    if (!isSimulating || !onTriggerSimulatorTick) return;
-    const interval = window.setInterval(() => onTriggerSimulatorTick(), 3000);
-    return () => clearInterval(interval);
-  }, [isSimulating, onTriggerSimulatorTick]);
 
   const applyDeparturePreset = (preset: (typeof DIRECTORY_PRESETS)[0]) => {
     setDepartureAddress(preset.name);
@@ -402,11 +389,9 @@ export default function SettingsPage({
         )}
       </header>
 
-      {agency && (onUpdateDeparture || onTriggerSimulatorTick) && (
-        <div className="flex flex-col gap-3 w-full mt-3">
-        {agency && onUpdateDeparture && (
-          <section className={`${sectionClass} !p-2.5`}>
-            <div className="flex items-center gap-2.5">
+      {agency && onUpdateDeparture && (
+        <section className={`${sectionClass} !p-2.5 mt-3`}>
+          <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-[5px] bg-[var(--route)]/10 flex items-center justify-center shrink-0">
                 <Warehouse className="w-3.5 h-3.5 text-[var(--route)]" />
               </div>
@@ -487,52 +472,8 @@ export default function SettingsPage({
                 )}
               </form>
             )}
-          </section>
-        )}
-        {agency && onTriggerSimulatorTick && (
-          <section className={`${sectionClass} !p-2.5`}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
-                <Sparkles className="w-3.5 h-3.5 text-[var(--color-warn)]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">Simulador GPS</p>
-                <p className="text-[9px] font-mono text-[var(--color-text-muted)] truncate">Mueve la flota en el mapa</p>
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={onTriggerSimulatorTick}
-                  className="p-1.5 rounded-[5px] bg-[var(--paper-3)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)] transition"
-                  title="Avanzar paso manual"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsSimulating(!isSimulating)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] font-mono font-bold text-[9px] uppercase tracking-wider transition ${
-                    isSimulating
-                      ? 'bg-[var(--color-warn)] text-[var(--paper)] hover:brightness-110'
-                      : 'btn-secondary'
-                  }`}
-                >
-                  {isSimulating ? (
-                    <>
-                      <Pause className="w-3 h-3" /> Pausar
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-3 h-3" /> Autoplay
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-          </div>
-        )}
+        </section>
+      )}
 
 
       {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (

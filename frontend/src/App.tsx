@@ -1038,22 +1038,6 @@ export default function App() {
     }
   };
 
-  // Forzar una llamada al tick del simulador
-  const handleTriggerSimulatorTick = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(apiUrl('/api/simulator/tick'), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        fetchData();
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   // Marcar todas las notificaciones como leídas
   const handleMarkAllRead = async () => {
     if (!token) return;
@@ -1370,7 +1354,6 @@ export default function App() {
                   onCreatePickupPoint={handleCreatePickupPoint}
                   onUpdatePickupPoint={handleUpdatePickupPoint}
                   onDeletePickupPoint={handleDeletePickupPoint}
-                  onTriggerSimulatorTick={isAgencyAdmin(user.role) ? handleTriggerSimulatorTick : undefined}
                   integrationStatus={integrationStatus}
                   integrationStatusLoading={integrationStatusLoading}
                   integrationStatusError={integrationStatusError}
