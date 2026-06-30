@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Posta — Hoja de ruta en vivo para tu logística</title>
-<meta name="description" content="Posta sigue cada moto en tiempo real, arma la ruta por GPS y mantiene a tu agencia, tus tiendas y tus repartidores en la misma página. CABA y GBA.">
+<meta name="description" content="Posta: hoja de ruta en vivo para logística y marketplace de envíos en Argentina. Agencias y vendedores se registran por su cuenta; el vendedor elige quién despacha cada pedido.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -251,6 +251,19 @@ header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;poin
 
 /* ROLES — fichas */
 .roles{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.roles.roles-2{grid-template-columns:repeat(2,1fr)}
+.marketplace-band{background:var(--paper2);border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)}
+.marketplace-compare{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:36px}
+.model-card{background:var(--paper);border:1.5px solid var(--edge);border-radius:4px;padding:22px 24px}
+.model-card.is-new{border-color:var(--stamp);box-shadow:5px 6px 0 var(--stampwash)}
+.model-card .model-tag{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:8px}
+.model-card.is-new .model-tag{color:var(--stamp2)}
+.model-card h3{font-size:1.25rem;margin-bottom:8px}
+.model-card p{font-size:.92rem;color:var(--ink2);line-height:1.5}
+.services{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.svc{font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px;border-radius:20px;border:1.5px solid var(--edge2);color:var(--ink2);background:var(--paper2)}
+.svc.hot{border-color:var(--stamp);color:var(--stamp2);background:var(--stampwash)}
+.marketplace-cta{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap}
 .ficha{background:var(--paper2);border:1.5px solid var(--ink);border-radius:4px;padding:0 24px 24px;box-shadow:5px 6px 0 var(--shadow);position:relative}
 .ficha .tab{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--on-dark);background:var(--surface-ink);padding:7px 13px;margin-left:-1px;transform:translateY(-1px)}
 .ficha.r1 .tab{background:var(--route)}.ficha.r2 .tab{background:var(--stamp)}.ficha.r3 .tab{background:var(--ok)}
@@ -395,6 +408,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   .dl-actions{grid-template-columns:1fr}
   .dl-steps{grid-template-columns:repeat(2,1fr)}
   .roles,.integ,.plans{grid-template-columns:1fr}
+  .roles.roles-2,.marketplace-compare{grid-template-columns:1fr}
   .feats{grid-template-columns:1fr}
   .mrow{grid-template-columns:64px 1fr;gap:8px 20px}
   .mrow p{grid-column:2}
@@ -453,6 +467,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     </a>
     <nav class="navlinks">
       <a href="#porque">Por qué</a>
+      <a href="#marketplace">Marketplace</a>
       <a href="#roles">Roles</a>
       <a href="#recorrido">Recorrido</a>
       <a href="#descargar">App</a>
@@ -472,6 +487,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   </div>
   <div class="mobile-menu" id="mobileMenu">
     <a href="#porque">Por qué</a>
+    <a href="#marketplace">Marketplace</a>
     <a href="#roles">Roles</a>
     <a href="#recorrido">Recorrido</a>
     <a href="#descargar">Descargar app</a>
@@ -488,7 +504,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     <div class="hero-head">
       <span class="eyebrow">Hoja de ruta · en vivo · CABA → GBA</span>
       <h1>Sabés dónde está <u>cada envío</u>.<span class="stamp stampfly">En vivo</span></h1>
-      <p class="lead">Posta sigue cada moto en tiempo real, te arma la ruta por GPS y mantiene a tu agencia, tus tiendas y tus repartidores en la misma página. Sin planillas. Sin “¿dónde está mi pedido?”.</p>
+      <p class="lead">Posta sigue cada moto en tiempo real, te arma la ruta por GPS y conecta agencias, vendedores y repartidores. Operación clásica en CABA y GBA, o <strong style="color:var(--ink);font-weight:600">marketplace de envíos en todo el país</strong>: cada uno se registra por su cuenta y el vendedor elige la agencia que despacha.</p>
       <div class="hero-cta">
         <a href="/app" class="btn btn-stamp">Iniciar sesión <span class="arrow">→</span></a>
         <a href="#descargar" class="btn btn-ink">Descargar app repartidor</a>
@@ -552,7 +568,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 <!-- MANIFEST LINE -->
 <div class="manifest">
   <div class="wrap">
-    <span><b>Opera en</b> Norte · Centro · Sur · Oeste · GBA Sur</span>
+    <span><b>Opera en</b> Norte · Centro · Sur · Oeste · GBA Sur · <b>Todo Argentina</b> (marketplace)</span>
     <span class="sep">/</span>
     <span><b>Se conecta con</b> Mercado Libre · Tienda Nube</span>
   </div>
@@ -588,6 +604,99 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 
 <div class="perf"></div>
 
+<!-- MARKETPLACE -->
+<section class="section marketplace-band" id="marketplace">
+  <div class="wrap">
+    <div class="shead">
+      <span class="eyebrow">Nuevo · Posta Marketplace</span>
+      <h2>Agencias y vendedores, conectados en toda Argentina.</h2>
+      <p>Un modelo distinto al de la agencia que crea cuentas para sus clientes: acá cada uno se registra solo, el vendedor conecta su ecommerce y elige qué agencia envía cada pedido.</p>
+    </div>
+
+    <div class="marketplace-compare">
+      <div class="model-card">
+        <div class="model-tag">Modelo clásico</div>
+        <h3>Agencia cerrada</h3>
+        <p>La agencia se registra, crea vendedores y repartidores, y opera su flota en CABA y GBA. Ideal si ya tenés tu operación armada.</p>
+      </div>
+      <div class="model-card is-new">
+        <div class="model-tag">Nuevo · Marketplace</div>
+        <h3>Red abierta de envíos</h3>
+        <p>Agencias y vendedores de cualquier parte del país se registran por separado. El vendedor importa desde Mercado Libre o Tienda Nube y elige la agencia que despacha.</p>
+        <div class="services">
+          <span class="svc hot">Envío en el día</span>
+          <span class="svc hot">Envío turbo</span>
+          <span class="svc">Servicios personalizados</span>
+          <span class="svc">Web e Instagram en el perfil</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="roles roles-2">
+      <div class="ficha r1">
+        <span class="tab">Marketplace · Agencia</span>
+        <h3>Sos agencia de logística</h3>
+        <ul>
+          <li><span class="ck">✓</span>Te registrás con tu empresa, en cualquier provincia.</li>
+          <li><span class="ck">✓</span>Publicás tu perfil: ciudad, web, Instagram y servicios que ofrecés.</li>
+          <li><span class="ck">✓</span>Ofrecés envío en el día, turbo o servicios a medida.</li>
+          <li><span class="ck">✓</span>Recibís pedidos de vendedores que te eligen en el marketplace.</li>
+          <li><span class="ck">✓</span>Asignás repartidores y seguís todo en el mapa en vivo.</li>
+        </ul>
+      </div>
+      <div class="ficha r2">
+        <span class="tab">Marketplace · Vendedor</span>
+        <h3>Sos tienda o ecommerce</h3>
+        <ul>
+          <li><span class="ck">✓</span>Te registrás solo, sin depender de una agencia fija.</li>
+          <li><span class="ck">✓</span>Conectás Mercado Libre Flex y Tienda Nube Express.</li>
+          <li><span class="ck">✓</span>Explorás agencias, comparás servicios y elegís quién envía.</li>
+          <li><span class="ck">✓</span>Cada pedido (manual o importado) va con la agencia que seleccionaste.</li>
+          <li><span class="ck">✓</span>Seguís el estado en vivo, sin llamar a nadie.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="shead" style="margin-top:48px;margin-bottom:28px">
+      <span class="eyebrow">Cómo funciona</span>
+      <h2>Del registro a la entrega.</h2>
+    </div>
+    <div class="flow">
+      <div class="stop s1">
+        <div class="seal">01</div>
+        <span class="stamp ink">Registro</span>
+        <h3>Cada uno entra solo</h3>
+        <p>Agencia o vendedor crea su cuenta desde la web. Sin intermediarios.</p>
+      </div>
+      <div class="stop s2">
+        <div class="seal">02</div>
+        <span class="stamp navy">Conexión</span>
+        <h3>Ecommerce listo</h3>
+        <p>El vendedor vincula ML o Tienda Nube. La agencia completa su perfil y servicios.</p>
+      </div>
+      <div class="stop s3">
+        <div class="seal">03</div>
+        <span class="stamp">Elección</span>
+        <h3>Agencia elegida</h3>
+        <p>El vendedor elige qué agencia despacha. Puede cambiar según zona o urgencia.</p>
+      </div>
+      <div class="stop s4">
+        <div class="seal">04</div>
+        <span class="stamp green">Despacho</span>
+        <h3>Entrega en vivo</h3>
+        <p>La agencia asigna repartidor, ruta GPS y confirmación desde el celular.</p>
+      </div>
+    </div>
+
+    <div class="marketplace-cta">
+      <a href="/app" class="btn btn-stamp">Registrarme como agencia <span class="arrow">→</span></a>
+      <a href="/app" class="btn btn-ink">Registrarme como vendedor</a>
+    </div>
+  </div>
+</section>
+
+<div class="perf"></div>
+
 <!-- ROLES -->
 <section class="section" id="roles">
   <div class="wrap">
@@ -611,8 +720,9 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
         <h3>Vendedor</h3>
         <ul>
           <li><span class="ck">✓</span>Cargás envíos a mano o los importás de tus tiendas.</li>
+          <li><span class="ck">✓</span>En marketplace: te registrás solo y elegís la agencia.</li>
           <li><span class="ck">✓</span>Seguís cada entrega sin tener que llamar a nadie.</li>
-          <li><span class="ck">✓</span>La dirección se geocodifica sola en CABA y GBA.</li>
+          <li><span class="ck">✓</span>La dirección se geocodifica sola en el mapa.</li>
         </ul>
       </div>
       <div class="ficha r3">
@@ -808,36 +918,36 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     </div>
     <div class="plans">
       <div class="plan">
-        <span class="pk">Para tiendas</span>
-        <h3>Tienda</h3>
-        <p class="pd">Para vendedores que cargan e importan sus propios envíos.</p>
+        <span class="pk">Marketplace</span>
+        <h3>Vendedor libre</h3>
+        <p class="pd">Registrate solo, conectá tu tienda y elegí la agencia que envía.</p>
         <ul>
-          <li><span class="ck">✓</span>Carga manual e importación</li>
-          <li><span class="ck">✓</span>Mercado Libre y Tienda Nube</li>
-          <li><span class="ck">✓</span>Seguimiento en vivo</li>
+          <li><span class="ck">✓</span>Registro independiente</li>
+          <li><span class="ck">✓</span>Catálogo de agencias en Argentina</li>
+          <li><span class="ck">✓</span>ML y Tienda Nube</li>
         </ul>
-        <a href="/app" class="btn btn-ink">Iniciar sesión</a>
+        <a href="/app" class="btn btn-ink">Crear cuenta vendedor</a>
       </div>
       <div class="plan best">
         <span class="stamp reco">Recomendado</span>
         <span class="pk">Para agencias</span>
         <h3>Agencia</h3>
-        <p class="pd">Para coordinar tu flota y repartidores con el mapa en vivo.</p>
+        <p class="pd">Coordiná tu flota o publicá tu perfil en el marketplace.</p>
         <ul>
-          <li><span class="ck">✓</span>Todo lo del plan Tienda</li>
-          <li><span class="ck">✓</span>Asignación y mapa de flota</li>
-          <li><span class="ck">✓</span>Repartidores y zonas ilimitadas</li>
-          <li><span class="ck">✓</span>Estadísticas del día</li>
+          <li><span class="ck">✓</span>Mapa en vivo y asignación</li>
+          <li><span class="ck">✓</span>Perfil con web, IG y servicios</li>
+          <li><span class="ck">✓</span>Envío en el día, turbo y custom</li>
+          <li><span class="ck">✓</span>Repartidores y zonas</li>
         </ul>
-        <a href="/app" class="btn btn-stamp">Iniciar sesión</a>
+        <a href="/app" class="btn btn-stamp">Crear cuenta agencia</a>
       </div>
       <div class="plan">
-        <span class="pk">A medida</span>
+        <span class="pk">Clásico + escala</span>
         <h3>Enterprise</h3>
-        <p class="pd">Volumen alto, zonas a medida e integraciones propias.</p>
+        <p class="pd">Volumen alto, reglas a medida e integraciones propias.</p>
         <ul>
-          <li><span class="ck">✓</span>Todo lo del plan Agencia</li>
-          <li><span class="ck">✓</span>Zonas y reglas personalizadas</li>
+          <li><span class="ck">✓</span>Agencia cerrada o marketplace</li>
+          <li><span class="ck">✓</span>Zonas personalizadas</li>
           <li><span class="ck">✓</span>Soporte prioritario</li>
         </ul>
         <a href="/app" class="btn btn-ink">Contactanos</a>
@@ -851,7 +961,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 <section class="wrap" id="empezar" style="padding-bottom:10px">
   <div class="final">
     <h2>¿Arrancamos?</h2>
-    <p>Creá tu cuenta y empezá a coordinar tu logística en minutos. Sin tarjeta.</p>
+    <p>Creá tu cuenta de agencia o vendedor en el marketplace, o ingresá si ya tenés usuario. Sin tarjeta.</p>
     <div class="final-cta">
       <a href="/app" class="btn btn-paper">Iniciar sesión <span class="arrow">→</span></a>
       <a href="#descargar" class="btn btn-oncolor">Descargar app repartidor</a>
@@ -877,12 +987,13 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
           </span>
           Posta
         </a>
-        <p>Hoja de ruta en tiempo real para tu logística. Seguimiento en vivo, rutas por GPS y tu flota coordinada en CABA y Gran Buenos Aires.</p>
+        <p>Hoja de ruta en tiempo real y marketplace de envíos para Argentina. Seguimiento en vivo, rutas por GPS y agencias conectadas con vendedores de todo el país.</p>
       </div>
       <div>
         <h4>Producto</h4>
         <ul>
           <li><a href="#porque">Por qué Posta</a></li>
+          <li><a href="#marketplace">Marketplace</a></li>
           <li><a href="#roles">Roles</a></li>
           <li><a href="#recorrido">Recorrido</a></li>
           <li><a href="#integraciones">Integraciones</a></li>
