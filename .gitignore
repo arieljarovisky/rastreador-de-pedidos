@@ -28,4 +28,4 @@ backend/data/
 backend/logs/
 backend/tmp/
 backend/tmp/**
-backend/src/db/**
+.vercel
