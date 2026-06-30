@@ -39,7 +39,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
     [orders, user?.id]
   );
 
-  // Reporta GPS continuamente; si hay pedido en viaje lo asocia a ese pedido.
+  // GPS de flota siempre activo; si hay pedido en viaje también registra la ruta del envío.
   const { coords, permissionDenied } = useLocationReporter(
     token,
     deliveringOrder?.id ?? null,

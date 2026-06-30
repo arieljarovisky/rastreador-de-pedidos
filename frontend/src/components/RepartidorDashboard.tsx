@@ -74,24 +74,22 @@ export default function RepartidorDashboard({
   const [gpsError, setGpsError] = useState<string | null>(null);
   const lastGpsSentAt = useRef(0);
 
-  const reportOrderGps = useCallback(
-    (orderId: string, latitude: number, longitude: number) => {
-      const now = Date.now();
-      if (now - lastGpsSentAt.current < 2000) return;
-      lastGpsSentAt.current = now;
-      onReportLocation(orderId, latitude, longitude);
-    },
-    [onReportLocation]
-  );
-
-  const reportUserGps = useCallback(
-    (latitude: number, longitude: number) => {
+  const reportFleetGps = useCallback(
+    (latitude: number, longitude: number, orderId?: string) => {
       const now = Date.now();
       if (now - lastGpsSentAt.current < 2000) return;
       lastGpsSentAt.current = now;
       onReportUserLocation(latitude, longitude);
+      if (orderId) onReportLocation(orderId, latitude, longitude);
     },
-    [onReportUserLocation]
+    [onReportLocation, onReportUserLocation]
+  );
+
+  const reportOrderGps = useCallback(
+    (orderId: string, latitude: number, longitude: number) => {
+      reportFleetGps(latitude, longitude, orderId);
+    },
+    [reportFleetGps]
   );
 
   const myAssignedOrders = orders.filter(
@@ -131,11 +129,7 @@ export default function RepartidorDashboard({
           const { latitude, longitude } = position.coords;
           setCurrentCoords({ lat: latitude, lng: longitude });
           setGpsError(null);
-          if (deliveringOrder) {
-            reportOrderGps(deliveringOrder.id, latitude, longitude);
-          } else {
-            reportUserGps(latitude, longitude);
-          }
+          reportFleetGps(latitude, longitude, deliveringOrder?.id);
         },
         (error) => {
           console.error('Error de Geolocalización:', error);
@@ -157,7 +151,7 @@ export default function RepartidorDashboard({
     return () => {
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     };
-  }, [deliveringOrder?.id, reportOrderGps, reportUserGps]);
+  }, [deliveringOrder?.id, reportFleetGps]);
 
   const handleAutoPilotSimulation = async () => {
     if (!selectedOrder) return;

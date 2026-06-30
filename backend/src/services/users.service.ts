@@ -106,6 +106,19 @@ export async function updateUserLocation(
   );
 }
 
+export async function appendRepartidorLocationHistory(
+  userId: string,
+  lat: number,
+  lng: number,
+  recordedAt?: Date
+): Promise<void> {
+  const now = recordedAt ?? new Date();
+  await pool.query(
+    'INSERT INTO repartidor_location_history (user_id, lat, lng, created_at) VALUES (?, ?, ?, ?)',
+    [userId, lat, lng, now]
+  );
+}
+
 export async function getRepartidorById(id: string): Promise<User | null> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE id = ? AND role = ?`,

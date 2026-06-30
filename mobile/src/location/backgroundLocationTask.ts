@@ -3,7 +3,7 @@ import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GPS_THROTTLE_MS } from '../config';
 import { getActiveOrderId } from './locationQueue';
-import { flushLocationQueue, reportOrEnqueue } from './locationSync';
+import { flushLocationQueue, reportLocationPoint } from './locationSync';
 
 export const BACKGROUND_LOCATION_TASK = 'posta-background-location';
 
@@ -28,12 +28,15 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   await AsyncStorage.setItem(LAST_SENT_KEY, String(now));
 
   const activeOrderId = await getActiveOrderId();
-  await reportOrEnqueue(token, {
-    lat: latest.coords.latitude,
-    lng: latest.coords.longitude,
-    timestamp: new Date(latest.timestamp).toISOString(),
-    orderId: activeOrderId ?? undefined,
-  });
+  await reportLocationPoint(
+    token,
+    {
+      lat: latest.coords.latitude,
+      lng: latest.coords.longitude,
+      timestamp: new Date(latest.timestamp).toISOString(),
+    },
+    activeOrderId
+  );
 
   await flushLocationQueue();
 });

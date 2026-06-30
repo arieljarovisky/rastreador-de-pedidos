@@ -20,8 +20,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.lupoenvios.repartidor",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Posta usa tu ubicación para mostrar tu posición en el mapa y enviar el seguimiento del envío en curso al cliente.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Posta usa tu ubicación en segundo plano para seguir reportando la entrega mientras viajás.",
+        "NSLocationWhenInUseUsageDescription": "Posta requiere tu ubicación para que puedas usar la app como repartidor y compartir tu posición con logística.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Posta requiere tu ubicación todo el tiempo para el seguimiento en vivo de la flota, con o sin envío activo.",
         "NSCameraUsageDescription": "Posta usa la cámara para escanear etiquetas de Mercado Libre.",
         "UIBackgroundModes": [
           "location"
@@ -61,8 +61,8 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Posta usa tu ubicación para reportar el seguimiento de tus envíos.",
-          "locationAlwaysAndWhenInUsePermission": "Posta usa tu ubicación en segundo plano para seguir reportando la entrega mientras viajás.",
+          "locationWhenInUsePermission": "Posta requiere tu ubicación para que puedas usar la app como repartidor.",
+          "locationAlwaysAndWhenInUsePermission": "Posta requiere tu ubicación todo el tiempo para el seguimiento en vivo de la flota.",
           "isAndroidBackgroundLocationEnabled": true,
           "isIosBackgroundLocationEnabled": true
         }

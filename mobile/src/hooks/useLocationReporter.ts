@@ -5,7 +5,7 @@ import { GPS_THROTTLE_MS } from '../config';
 import { setActiveOrderId } from '../location/locationQueue';
 import {
   flushLocationQueue,
-  reportOrEnqueue,
+  reportLocationPoint,
   startLocationSyncListeners,
 } from '../location/locationSync';
 import {
@@ -102,12 +102,15 @@ export function useLocationReporter(
             if (now - lastGpsSentAt.current < GPS_THROTTLE_MS) return;
             lastGpsSentAt.current = now;
 
-            void reportOrEnqueue(token, {
-              lat,
-              lng,
-              timestamp: new Date(pos.timestamp).toISOString(),
-              orderId: activeOrderId ?? undefined,
-            });
+            void reportLocationPoint(
+              token,
+              {
+                lat,
+                lng,
+                timestamp: new Date(pos.timestamp).toISOString(),
+              },
+              activeOrderId
+            );
           }
         );
         subRef.current = sub;

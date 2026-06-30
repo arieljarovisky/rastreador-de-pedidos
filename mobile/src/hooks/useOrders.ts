@@ -3,10 +3,12 @@ import { io, Socket } from 'socket.io-client';
 import { api } from '../api';
 import { socketUrl, POLL_INTERVAL_MS } from '../config';
 import { Order, User } from '../types';
+import { mergeRepartidorLocation } from '../utils/repartidorLocation';
 
 interface OrderLocationPayload {
   orderId: string;
   repartidorId: string;
+  repartidorName?: string | null;
   point: { lat: number; lng: number; timestamp: string };
 }
 
@@ -71,23 +73,21 @@ export function useOrders(
         };
       })
     );
-  }, []);
+    if (trackRepartidores) {
+      setRepartidores((prev) =>
+        mergeRepartidorLocation(
+          prev,
+          payload.repartidorId,
+          payload.point,
+          payload.repartidorName
+        )
+      );
+    }
+  }, [trackRepartidores]);
 
   const applyRepartidorLocation = useCallback((payload: RepartidorLocationPayload) => {
     setRepartidores((prev) =>
-      prev.map((rep) =>
-        rep.id === payload.repartidorId
-          ? {
-              ...rep,
-              name: payload.name || rep.name,
-              currentLocation: {
-                lat: payload.location.lat,
-                lng: payload.location.lng,
-                timestamp: payload.location.timestamp,
-              },
-            }
-          : rep
-      )
+      mergeRepartidorLocation(prev, payload.repartidorId, payload.location, payload.name)
     );
   }, []);
 

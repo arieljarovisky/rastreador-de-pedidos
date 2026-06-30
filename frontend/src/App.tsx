@@ -18,6 +18,7 @@ import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl } from './api.ts';
+import { mergeRepartidorLocation } from './utils/repartidorLocation.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 
@@ -254,6 +255,7 @@ export default function App() {
     (payload: {
       orderId: string;
       repartidorId: string;
+      repartidorName?: string | null;
       point: { lat: number; lng: number; timestamp: string };
     }) => {
       setOrders((prev) =>
@@ -270,10 +272,11 @@ export default function App() {
       );
 
       setRepartidores((prev) =>
-        prev.map((rep) =>
-          rep.id === payload.repartidorId
-            ? { ...rep, currentLocation: payload.point }
-            : rep
+        mergeRepartidorLocation(
+          prev,
+          payload.repartidorId,
+          payload.point,
+          payload.repartidorName
         )
       );
       setLastSyncAt(new Date());
@@ -289,10 +292,11 @@ export default function App() {
     onOrderLocation: applyOrderLocation,
     onRepartidorLocation: (payload) => {
       setRepartidores((prev) =>
-        prev.map((rep) =>
-          rep.id === payload.repartidorId
-            ? { ...rep, currentLocation: payload.location }
-            : rep
+        mergeRepartidorLocation(
+          prev,
+          payload.repartidorId,
+          payload.location,
+          payload.name
         )
       );
       setLastSyncAt(new Date());

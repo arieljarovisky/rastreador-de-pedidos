@@ -30,6 +30,18 @@ async function sendPoint(token: string, point: QueuedLocationPoint): Promise<voi
   }
 }
 
+/** Siempre actualiza la flota; además registra ruta del pedido si hay envío en curso. */
+export async function reportLocationPoint(
+  token: string,
+  point: Omit<QueuedLocationPoint, 'orderId'>,
+  orderId?: string | null
+): Promise<void> {
+  await reportOrEnqueue(token, point);
+  if (orderId) {
+    await reportOrEnqueue(token, { ...point, orderId });
+  }
+}
+
 export async function reportOrEnqueue(
   token: string,
   point: QueuedLocationPoint

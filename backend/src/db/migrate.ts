@@ -223,4 +223,19 @@ export async function runMigrations(): Promise<void> {
       `ALTER TABLE agencies ADD COLUMN ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency' AFTER name`
     );
   }
+
+  if (!(await tableExists('repartidor_location_history'))) {
+    await pool.query(`
+      CREATE TABLE repartidor_location_history (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        lat DECIMAL(10, 7) NOT NULL,
+        lng DECIMAL(10, 7) NOT NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_rep_location_user (user_id),
+        INDEX idx_rep_location_user_time (user_id, created_at),
+        CONSTRAINT fk_rep_location_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
 }

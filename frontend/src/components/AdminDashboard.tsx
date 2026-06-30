@@ -371,23 +371,18 @@ export default function AdminDashboard({
     [repartidores, mapRepartidorIds]
   );
 
-  const mapRepartidores = useMemo(() => {
-    if (mapRepartidorIds.size === 0) return [];
-    if (allRepartidoresOnMap) return repartidores;
-    return repartidores.filter((r) => mapRepartidorIds.has(r.id));
-  }, [repartidores, mapRepartidorIds, allRepartidoresOnMap]);
+  const mapRepartidores = repartidores;
 
   const mapOrders = useMemo(() => {
     const visible = orders.filter((o) => !o.archived);
-    if (allRepartidoresOnMap) return visible;
-    if (mapRepartidorIds.size === 0) return [];
+    if (allRepartidoresOnMap || mapRepartidorIds.size === 0) return visible;
     return visible.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
   }, [orders, mapRepartidorIds, allRepartidoresOnMap]);
 
   const mapFilterLabel = useMemo(() => {
     if (repartidores.length === 0) return 'Sin repartidores';
     if (allRepartidoresOnMap) return 'Todos';
-    if (mapRepartidorIds.size === 0) return 'Ninguno';
+    if (mapRepartidorIds.size === 0) return 'Todos los pedidos';
     if (mapRepartidorIds.size === 1) {
       const id = [...mapRepartidorIds][0];
       return repartidores.find((r) => r.id === id)?.name ?? '1 repartidor';
@@ -403,14 +398,6 @@ export default function AdminDashboard({
       return next;
     });
   };
-
-  useEffect(() => {
-    if (allRepartidoresOnMap || !activeOrderId) return;
-    const order = orders.find((o) => o.id === activeOrderId);
-    if (order?.repartidorId && !mapRepartidorIds.has(order.repartidorId)) {
-      onSelectOrder(null);
-    }
-  }, [mapRepartidorIds, allRepartidoresOnMap, activeOrderId, orders, onSelectOrder]);
 
   const selectedOrder = orders.find((o) => o.id === activeOrderId);
 
@@ -1194,7 +1181,12 @@ export default function AdminDashboard({
               {mapFilterOpen && (
                 <div className="absolute top-[calc(100%+0.4rem)] left-0 w-full bg-[var(--surface-panel)]/98 backdrop-blur-md border border-[var(--surface-border)]/80 rounded-[var(--radius-posta)] shadow-2xl overflow-hidden">
                   <div className="px-3 pt-3 pb-2.5 border-b border-[var(--surface-border)]">
-                    <p className="text-[10px] font-semibold text-[var(--color-text-muted)] mb-2">Repartidores en mapa</p>
+                    <p className="text-[10px] font-semibold text-[var(--color-text-muted)] mb-2">
+                      Filtrar pedidos en mapa
+                    </p>
+                    <p className="text-[9px] text-[var(--color-text-faint)] mb-2">
+                      Los repartidores siempre se muestran en el mapa.
+                    </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"

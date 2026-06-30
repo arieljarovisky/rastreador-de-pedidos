@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticate, requireRoles } from '../middleware/auth.js';
 import { UserRole } from '../types/index.js';
-import { getUserById, updateUserLocation } from '../services/users.service.js';
+import { getUserById, updateUserLocation, appendRepartidorLocationHistory } from '../services/users.service.js';
 import { emitRepartidorLocation } from '../realtime/io.js';
 
 const router = Router();
@@ -15,6 +15,7 @@ router.post('/location', authenticate, requireRoles(UserRole.REPARTIDOR), async 
 
   const recordedAt = typeof timestamp === 'string' ? new Date(timestamp) : undefined;
   await updateUserLocation(req.user!.id, Number(lat), Number(lng), recordedAt);
+  await appendRepartidorLocationHistory(req.user!.id, Number(lat), Number(lng), recordedAt);
   const updated = await getUserById(req.user!.id);
   if (updated) {
     emitRepartidorLocation(updated);
