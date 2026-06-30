@@ -286,7 +286,8 @@ header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;poin
 .recibo .rname{display:flex;align-items:center;gap:12px}
 .recibo .rlogo{width:42px;height:42px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:700;font-size:.95rem;flex:0 0 auto}
 .recibo .rlogo img,.recibo .rlogo svg{width:28px;height:28px;display:block;object-fit:contain}
-.recibo.ml .rlogo{background:#FFE600;color:#2D3277}
+.recibo.ml .rlogo img{width:30px;height:auto;max-height:22px}
+.recibo.ml .rlogo{background:#fff;padding:6px}
 .recibo.tn .rlogo{background:#fff;padding:7px}
 .recibo h3{font-size:1.12rem}
 .recibo .rsub{font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-top:2px}
@@ -769,7 +770,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     <div class="integ">
       <div class="recibo ml">
         <div class="rhead">
-          <div class="rname"><div class="rlogo">ML</div><div><h3>Mercado Libre</h3><div class="rsub">Flex</div></div></div>
+          <div class="rname"><div class="rlogo rlogo-ml" aria-hidden="true"><img src="assets/mercadolibre-logo.png" alt="" width="30" height="21" loading="lazy"></div><div><h3>Mercado Libre</h3><div class="rsub">Flex</div></div></div>
           <span class="stamp green">Conectado</span>
         </div>
         <p>Traé los envíos Flex de a uno o en masa. Los webhooks mantienen todo sincronizado, sin que toques nada.</p>
