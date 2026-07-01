@@ -28,7 +28,16 @@ export interface AgencyShippingService {
   description?: string;
 }
 
-/** Zona de cobertura visible en el marketplace. */
+/** Zona comercial declarada por la agencia (lugares, tarifa, pedido mínimo). */
+export interface AgencyCoverageArea {
+  id: string;
+  name: string;
+  places: string[];
+  tariff: number;
+  minimumOrders?: number | null;
+}
+
+/** Zona operativa de reparto (mapa). */
 export interface AgencyCoverageZone {
   id: string;
   name: string;
@@ -45,6 +54,7 @@ export interface MarketplaceAgency {
   instagram?: string | null;
   shippingServices: AgencyShippingService[];
   departurePoint?: LocationPoint;
+  coverageAreas?: AgencyCoverageArea[];
   coverageZones?: AgencyCoverageZone[];
 }
 

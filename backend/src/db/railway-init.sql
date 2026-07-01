@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS agencies (
   city VARCHAR(255) NULL,
   province VARCHAR(255) NULL,
   shipping_services JSON NULL,
+  coverage_areas JSON NULL,
   departure_address VARCHAR(500) NULL,
   departure_lat DECIMAL(10, 7) NULL,
   departure_lng DECIMAL(10, 7) NULL,

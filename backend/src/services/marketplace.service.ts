@@ -56,6 +56,7 @@ export async function getAgencyPublicProfile(agencyId: string): Promise<Marketpl
     website: agency.website,
     instagram: agency.instagram,
     shippingServices: agency.shippingServices,
+    coverageAreas: agency.coverageAreas,
     departurePoint: agency.departurePoint,
   });
 }

@@ -18,8 +18,11 @@ import {
   X,
   ExternalLink,
   Layers,
+  DollarSign,
+  Package,
 } from 'lucide-react';
 import type { AgencyShippingService, MarketplaceAgency } from '../types.js';
+import { formatCoverageTariff } from './CoverageAreasEditor.tsx';
 
 const SERVICE_LABELS: Record<AgencyShippingService['type'], string> = {
   same_day: 'Envío en el día',
@@ -40,8 +43,10 @@ function ServiceIcon({ type, className }: { type: AgencyShippingService['type'];
 
 export function AgencyDetailContent({ agency }: { agency: MarketplaceAgency }) {
   const locationLabel = [agency.city, agency.province].filter(Boolean).join(', ');
+  const hasCoverageAreas = (agency.coverageAreas?.length ?? 0) > 0;
+  const hasOperationalZones = (agency.coverageZones?.length ?? 0) > 0;
   const hasCoverage = Boolean(
-    locationLabel || agency.departurePoint?.address || (agency.coverageZones?.length ?? 0) > 0
+    hasCoverageAreas || locationLabel || agency.departurePoint?.address || hasOperationalZones
   );
 
   return (
@@ -79,7 +84,7 @@ export function AgencyDetailContent({ agency }: { agency: MarketplaceAgency }) {
         <div>
           <p className="text-[9px] font-mono uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5 flex items-center gap-1">
             <MapPin className="w-3 h-3" />
-            Cobertura
+            Cobertura y tarifas
           </p>
           <div className="space-y-1.5 text-[11px] text-[var(--ink-soft)]">
             {locationLabel && (
@@ -96,9 +101,39 @@ export function AgencyDetailContent({ agency }: { agency: MarketplaceAgency }) {
                 Depósito: {agency.departurePoint.address}
               </p>
             )}
-            {agency.coverageZones && agency.coverageZones.length > 0 && (
-              <div className="space-y-1">
-                {agency.coverageZones.map((zone) => (
+            {hasCoverageAreas && (
+              <div className="space-y-1.5">
+                {agency.coverageAreas!.map((area) => (
+                  <div
+                    key={area.id}
+                    className="rounded px-2 py-1.5 bg-[var(--surface-panel)] border border-[var(--surface-border)]"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-[var(--color-text)]">{area.name}</p>
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-[var(--color-accent)] shrink-0">
+                        <DollarSign className="w-3 h-3" />
+                        {formatCoverageTariff(area.tariff)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                      {area.places.join(' · ')}
+                    </p>
+                    {area.minimumOrders != null && area.minimumOrders > 0 && (
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1 inline-flex items-center gap-1">
+                        <Package className="w-3 h-3" />
+                        Pedido mínimo: {area.minimumOrders}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {hasOperationalZones && (
+              <div className="space-y-1 pt-1">
+                <p className="text-[9px] font-mono uppercase tracking-wide text-[var(--color-text-faint)]">
+                  Zonas operativas
+                </p>
+                {agency.coverageZones!.map((zone) => (
                   <div
                     key={zone.id}
                     className="rounded px-2 py-1.5 bg-[var(--surface-panel)] border border-[var(--surface-border)]"
@@ -116,7 +151,7 @@ export function AgencyDetailContent({ agency }: { agency: MarketplaceAgency }) {
                 ))}
               </div>
             )}
-            {!agency.coverageZones?.length && locationLabel && (
+            {!hasCoverageAreas && !hasOperationalZones && locationLabel && (
               <p className="text-[10px] text-[var(--color-text-muted)] pl-4">
                 Consultá con la agencia el alcance exacto en tu zona.
               </p>
@@ -264,6 +299,23 @@ export default function AgencyMarketplacePanel({
                           {svc.type === 'custom' && svc.label ? svc.label : SERVICE_LABELS[svc.type]}
                         </span>
                       ))}
+                    </div>
+                  )}
+                  {agency.coverageAreas && agency.coverageAreas.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {agency.coverageAreas.slice(0, 3).map((area) => (
+                        <span
+                          key={area.id}
+                          className="inline-flex items-center gap-0.5 text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 text-[var(--color-accent)]"
+                        >
+                          {area.name} · {formatCoverageTariff(area.tariff)}
+                        </span>
+                      ))}
+                      {agency.coverageAreas.length > 3 && (
+                        <span className="text-[9px] text-[var(--color-text-muted)] self-center">
+                          +{agency.coverageAreas.length - 3} zonas
+                        </span>
+                      )}
                     </div>
                   )}
 

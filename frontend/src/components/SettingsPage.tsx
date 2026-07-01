@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
-import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode, type MarketplaceAgency, type AgencyMarketplaceProfile, type AgencyShippingService } from '../types.js';
+import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode, type MarketplaceAgency, type AgencyMarketplaceProfile, type AgencyShippingService, type AgencyCoverageArea } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
 import {
@@ -27,6 +27,12 @@ import {
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import AgencyMarketplacePanel from './AgencyMarketplacePanel.tsx';
+import CoverageAreasEditor, {
+  coverageAreasToDrafts,
+  draftsToCoverageAreas,
+  emptyCoverageDraft,
+  type CoverageAreaDraft,
+} from './CoverageAreasEditor.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -156,6 +162,7 @@ interface SettingsPageProps {
   onRefreshAgencyCourierStatus?: () => Promise<void>;
   onUpdateAgencyMlFlexMode?: (mode: MlFlexMode) => Promise<void>;
   onUpdateAgencyMarketplaceProfile?: (profile: AgencyMarketplaceProfile) => Promise<AgencyMarketplaceProfile>;
+  onFetchAgencyMarketplaceProfile?: () => Promise<AgencyMarketplaceProfile>;
   marketplaceAgencies?: MarketplaceAgency[];
   marketplaceAgenciesLoading?: boolean;
   onUpdateSellerPreferredAgency?: (agencyId: string | null) => Promise<void>;
@@ -206,6 +213,7 @@ export default function SettingsPage({
   onRefreshAgencyCourierStatus,
   onUpdateAgencyMlFlexMode,
   onUpdateAgencyMarketplaceProfile,
+  onFetchAgencyMarketplaceProfile,
   marketplaceAgencies = [],
   marketplaceAgenciesLoading = false,
   onUpdateSellerPreferredAgency,
@@ -229,6 +237,8 @@ export default function SettingsPage({
   const [profileSameDay, setProfileSameDay] = useState(false);
   const [profileTurbo, setProfileTurbo] = useState(false);
   const [profileCustomLabel, setProfileCustomLabel] = useState('');
+  const [profileCoverageDrafts, setProfileCoverageDrafts] = useState<CoverageAreaDraft[]>([emptyCoverageDraft()]);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
 
   const [showDepartureForm, setShowDepartureForm] = useState(false);
@@ -303,6 +313,27 @@ export default function SettingsPage({
       setDepartureLng(departurePoint.lng);
     }
   }, [departurePoint]);
+
+  useEffect(() => {
+    if (!agency || !onFetchAgencyMarketplaceProfile) return;
+    setProfileLoading(true);
+    void onFetchAgencyMarketplaceProfile()
+      .then((profile) => {
+        setProfileWebsite(profile.website ?? '');
+        setProfileInstagram(profile.instagram ?? '');
+        setProfileCity(profile.city ?? user.city ?? '');
+        setProfileProvince(profile.province ?? user.province ?? '');
+        setProfileSameDay(profile.shippingServices.some((s) => s.type === 'same_day'));
+        setProfileTurbo(profile.shippingServices.some((s) => s.type === 'turbo'));
+        const custom = profile.shippingServices.find((s) => s.type === 'custom');
+        setProfileCustomLabel(custom?.label ?? '');
+        setProfileCoverageDrafts(coverageAreasToDrafts(profile.coverageAreas ?? []));
+      })
+      .catch(() => {
+        setProfileCoverageDrafts([emptyCoverageDraft()]);
+      })
+      .finally(() => setProfileLoading(false));
+  }, [agency, onFetchAgencyMarketplaceProfile, user.city, user.province]);
 
   const applyDeparturePreset = (preset: (typeof DIRECTORY_PRESETS)[0]) => {
     setDepartureAddress(preset.name);
@@ -1536,6 +1567,15 @@ export default function SettingsPage({
                   className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
                 />
               </div>
+              {profileLoading ? (
+                <p className="text-xs text-[var(--color-text-muted)]">Cargando perfil…</p>
+              ) : (
+                <CoverageAreasEditor
+                  value={profileCoverageDrafts}
+                  onChange={setProfileCoverageDrafts}
+                  disabled={profileSaving}
+                />
+              )}
               <div>
                 <p className="mono-label mb-2">Servicios de envío</p>
                 <div className="flex flex-wrap gap-3">
@@ -1576,6 +1616,7 @@ export default function SettingsPage({
                         city: profileCity.trim() || null,
                         province: profileProvince.trim() || null,
                         shippingServices: services,
+                        coverageAreas: draftsToCoverageAreas(profileCoverageDrafts),
                       });
                       void onRefreshMarketplaceAgencies?.();
                       void showAlert({

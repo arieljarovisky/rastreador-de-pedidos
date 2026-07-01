@@ -9,6 +9,13 @@ import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
 import PaperCard from './ui/PaperCard.tsx';
 import ThemeToggle from './ui/ThemeToggle.tsx';
+import CoverageAreasEditor, {
+  emptyCoverageDraft,
+  coverageDraftsAreValid,
+  draftsToCoverageAreas,
+  type CoverageAreaDraft,
+} from './CoverageAreasEditor.tsx';
+import type { AgencyCoverageArea } from '../types.js';
 import { applyPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
 
 type AuthMode = 'login' | 'register-agency' | 'register-seller';
@@ -19,6 +26,7 @@ interface RegisterData {
   name: string;
   city?: string;
   province?: string;
+  coverageAreas?: AgencyCoverageArea[];
 }
 
 interface LoginScreenProps {
@@ -42,6 +50,7 @@ export default function LoginScreen({
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('');
+  const [coverageDrafts, setCoverageDrafts] = useState<CoverageAreaDraft[]>([emptyCoverageDraft()]);
   const [showPassword, setShowPassword] = useState(false);
   const theme = usePostaTheme();
 
@@ -55,6 +64,7 @@ export default function LoginScreen({
     setName('');
     setCity('');
     setProvince('');
+    setCoverageDrafts([emptyCoverageDraft()]);
   };
 
   const switchMode = (next: AuthMode) => {
@@ -80,13 +90,17 @@ export default function LoginScreen({
       province: province.trim() || undefined,
     };
     if (mode === 'register-agency') {
-      onRegisterAgency(data);
+      onRegisterAgency({
+        ...data,
+        coverageAreas: draftsToCoverageAreas(coverageDrafts),
+      });
     } else {
       onRegisterSeller(data);
     }
   };
 
   const isRegister = mode !== 'login';
+  const agencyCoverageValid = mode !== 'register-agency' || coverageDraftsAreValid(coverageDrafts);
 
   return (
     <div className="app-viewport safe-top safe-bottom min-h-[100dvh] flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 bg-[var(--surface-bg)] relative" id="login-container">
@@ -100,7 +114,7 @@ export default function LoginScreen({
         </p>
       </div>
 
-      <PaperCard className="w-full max-w-sm sm:max-w-md p-4 sm:p-6 relative overflow-hidden">
+      <PaperCard className="w-full max-w-sm sm:max-w-md p-4 sm:p-6 relative overflow-hidden max-h-[min(92dvh,900px)] overflow-y-auto">
         <div className="flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)] mb-4 text-[10px]">
           <button
             type="button"
@@ -140,7 +154,7 @@ export default function LoginScreen({
 
         {mode === 'register-agency' && (
           <p className="text-xs text-[var(--color-text-muted)] mb-3 leading-relaxed">
-            Registrá tu empresa de logística. Podés ofrecer envíos en el día, turbo y servicios personalizados en todo el país.
+            Registrá tu empresa de logística con las zonas que cubrís, tarifas y pedido mínimo por zona (opcional).
           </p>
         )}
 
@@ -208,6 +222,15 @@ export default function LoginScreen({
             </div>
           )}
 
+          {mode === 'register-agency' && (
+            <CoverageAreasEditor
+              value={coverageDrafts}
+              onChange={setCoverageDrafts}
+              disabled={loading}
+              compact
+            />
+          )}
+
           <div>
             <label className="mono-label block mb-1">Usuario</label>
             <div className="relative">
@@ -253,7 +276,7 @@ export default function LoginScreen({
 
           <PostaButton
             type="submit"
-            disabled={loading || !username || !password || (isRegister && !name.trim())}
+            disabled={loading || !username || !password || (isRegister && !name.trim()) || !agencyCoverageValid}
             id="btn-login-submit"
             className="w-full mt-2"
           >

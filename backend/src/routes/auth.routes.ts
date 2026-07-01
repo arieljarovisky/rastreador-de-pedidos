@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { authenticate, signToken } from '../middleware/auth.js';
 import { findUserByUsername, createUser, getUserById } from '../services/users.service.js';
 import { createAgency } from '../services/agencies.service.js';
+import { normalizeCoverageAreas, validateCoverageAreas } from '../services/coverage-areas.service.js';
 import { UserRole } from '../types/index.js';
 
 const router = Router();
@@ -28,6 +29,26 @@ function handleRegisterError(res: Response, err: unknown): boolean {
   }
   if (message === 'NAME_REQUIRED') {
     res.status(400).json({ error: 'El nombre es obligatorio.' });
+    return true;
+  }
+  if (message === 'COVERAGE_REQUIRED') {
+    res.status(400).json({ error: 'Debés cargar al menos una zona de cobertura con tarifa.' });
+    return true;
+  }
+  if (message === 'COVERAGE_NAME_REQUIRED') {
+    res.status(400).json({ error: 'Cada zona debe tener un nombre.' });
+    return true;
+  }
+  if (message === 'COVERAGE_PLACES_REQUIRED') {
+    res.status(400).json({ error: 'Indicá los lugares que abarca cada zona.' });
+    return true;
+  }
+  if (message === 'COVERAGE_TARIFF_INVALID') {
+    res.status(400).json({ error: 'La tarifa de cada zona debe ser un número válido mayor o igual a 0.' });
+    return true;
+  }
+  if (message === 'COVERAGE_MIN_ORDERS_INVALID') {
+    res.status(400).json({ error: 'El pedido mínimo debe ser un entero mayor o igual a 1.' });
     return true;
   }
   return false;
@@ -63,10 +84,18 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 router.post('/register/agency', async (req: Request, res: Response) => {
-  const { username, password, name, city, province } = req.body;
+  const { username, password, name, city, province, coverageAreas: coverageAreasRaw } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: 'Usuario, contraseña y nombre de la agencia son requeridos.' });
     return;
+  }
+
+  const coverageAreas = normalizeCoverageAreas(coverageAreasRaw);
+  try {
+    validateCoverageAreas(coverageAreas);
+  } catch (err) {
+    if (handleRegisterError(res, err)) return;
+    throw err;
   }
 
   try {
@@ -74,6 +103,7 @@ router.post('/register/agency', async (req: Request, res: Response) => {
       name: name.trim(),
       city: city?.trim(),
       province: province?.trim(),
+      coverageAreas,
     });
     const user = await createUser({
       username,

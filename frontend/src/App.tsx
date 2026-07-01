@@ -403,7 +403,14 @@ export default function App() {
 
   const handleRegister = async (
     endpoint: '/api/auth/register/agency' | '/api/auth/register/seller',
-    data: { username: string; password: string; name: string; city?: string; province?: string }
+    data: {
+      username: string;
+      password: string;
+      name: string;
+      city?: string;
+      province?: string;
+      coverageAreas?: import('./types.js').AgencyCoverageArea[];
+    }
   ) => {
     setLoading(true);
     setAuthError(null);
@@ -849,6 +856,16 @@ export default function App() {
     },
     [token]
   );
+
+  const handleFetchAgencyMarketplaceProfile = useCallback(async () => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl('/api/accounts/agency/marketplace-profile'), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudo cargar el perfil');
+    return body as AgencyMarketplaceProfile;
+  }, [token]);
 
   const handleUpdateAgencyMarketplaceProfile = useCallback(
     async (profile: AgencyMarketplaceProfile) => {
@@ -1588,6 +1605,7 @@ export default function App() {
                   onRefreshAgencyCourierStatus={isAgencyAdmin(user.role) ? fetchAgencyCourierStatus : undefined}
                   onUpdateAgencyMlFlexMode={isAgencyAdmin(user.role) ? handleUpdateAgencyMlFlexMode : undefined}
                   onUpdateAgencyMarketplaceProfile={isAgencyAdmin(user.role) ? handleUpdateAgencyMarketplaceProfile : undefined}
+                  onFetchAgencyMarketplaceProfile={isAgencyAdmin(user.role) ? handleFetchAgencyMarketplaceProfile : undefined}
                   marketplaceAgencies={marketplaceAgencies}
                   marketplaceAgenciesLoading={marketplaceAgenciesLoading}
                   onUpdateSellerPreferredAgency={user.isMarketplaceSeller || !user.agencyId ? handleUpdateSellerPreferredAgency : undefined}

@@ -25,9 +25,10 @@ import {
   canManagePickupPoint,
 } from '../services/pickup-points.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
-import { updateAgencyMlFlexMode, updateAgencyMarketplaceProfile } from '../services/agencies.service.js';
+import { updateAgencyMlFlexMode, updateAgencyMarketplaceProfile, getAgencyById } from '../services/agencies.service.js';
+import { normalizeCoverageAreas, validateCoverageAreas } from '../services/coverage-areas.service.js';
 import { updateSellerPreferredAgency } from '../services/marketplace.service.js';
-import type { AgencyShippingService, MlFlexMode } from '../types/index.js';
+import type { AgencyCoverageArea, AgencyShippingService, MlFlexMode } from '../types/index.js';
 
 const router = Router();
 
@@ -292,19 +293,71 @@ router.put('/agency/ml-flex-mode', authenticate, requireAgencyAdmin(), async (re
   }
 });
 
+router.get('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  if (!req.user!.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+  const agency = await getAgencyById(req.user!.agencyId);
+  if (!agency) {
+    res.status(404).json({ error: 'Agencia no encontrada.' });
+    return;
+  }
+  res.json({
+    website: agency.website,
+    instagram: agency.instagram,
+    city: agency.city,
+    province: agency.province,
+    shippingServices: agency.shippingServices,
+    coverageAreas: agency.coverageAreas,
+  });
+});
+
 router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   if (!req.user!.agencyId) {
     res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
     return;
   }
 
-  const { website, instagram, city, province, shippingServices } = req.body as {
+  const { website, instagram, city, province, shippingServices, coverageAreas: coverageAreasRaw } = req.body as {
     website?: string | null;
     instagram?: string | null;
     city?: string | null;
     province?: string | null;
     shippingServices?: AgencyShippingService[];
+    coverageAreas?: AgencyCoverageArea[];
   };
+
+  let coverageAreas: AgencyCoverageArea[] | undefined;
+  if (coverageAreasRaw !== undefined) {
+    coverageAreas = normalizeCoverageAreas(coverageAreasRaw);
+    try {
+      validateCoverageAreas(coverageAreas);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'COVERAGE_REQUIRED') {
+        res.status(400).json({ error: 'Debés cargar al menos una zona de cobertura con tarifa.' });
+        return;
+      }
+      if (message === 'COVERAGE_NAME_REQUIRED') {
+        res.status(400).json({ error: 'Cada zona debe tener un nombre.' });
+        return;
+      }
+      if (message === 'COVERAGE_PLACES_REQUIRED') {
+        res.status(400).json({ error: 'Indicá los lugares que abarca cada zona.' });
+        return;
+      }
+      if (message === 'COVERAGE_TARIFF_INVALID') {
+        res.status(400).json({ error: 'La tarifa de cada zona debe ser un número válido mayor o igual a 0.' });
+        return;
+      }
+      if (message === 'COVERAGE_MIN_ORDERS_INVALID') {
+        res.status(400).json({ error: 'El pedido mínimo debe ser un entero mayor o igual a 1.' });
+        return;
+      }
+      throw err;
+    }
+  }
 
   try {
     const agency = await updateAgencyMarketplaceProfile(req.user!.agencyId, {
@@ -313,6 +366,7 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
       city,
       province,
       shippingServices,
+      coverageAreas,
     });
     res.json({
       website: agency.website,
@@ -320,6 +374,7 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
       city: agency.city,
       province: agency.province,
       shippingServices: agency.shippingServices,
+      coverageAreas: agency.coverageAreas,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : '';

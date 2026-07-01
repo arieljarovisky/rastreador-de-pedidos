@@ -1,7 +1,8 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { LocationPoint } from '../types/index.js';
-import type { AgencyShippingService, MarketplaceAgency, MlFlexMode } from '../types/index.js';
+import type { AgencyCoverageArea, AgencyShippingService, MarketplaceAgency, MlFlexMode } from '../types/index.js';
+import { normalizeCoverageAreas } from './coverage-areas.service.js';
 import { seedDefaultZonesForAgency } from './delivery-zones.service.js';
 
 export interface Agency {
@@ -13,6 +14,7 @@ export interface Agency {
   city?: string | null;
   province?: string | null;
   shippingServices: AgencyShippingService[];
+  coverageAreas: AgencyCoverageArea[];
   departurePoint?: LocationPoint;
 }
 
@@ -25,12 +27,13 @@ interface AgencyRow extends RowDataPacket {
   city: string | null;
   province: string | null;
   shipping_services: AgencyShippingService[] | string | null;
+  coverage_areas: AgencyCoverageArea[] | string | null;
   departure_address: string | null;
   departure_lat: number | null;
   departure_lng: number | null;
 }
 
-const AGENCY_COLUMNS = `id, name, ml_flex_mode, website, instagram, city, province, shipping_services,
+const AGENCY_COLUMNS = `id, name, ml_flex_mode, website, instagram, city, province, shipping_services, coverage_areas,
   departure_address, departure_lat, departure_lng`;
 
 function parseShippingServices(raw: AgencyShippingService[] | string | null): AgencyShippingService[] {
@@ -39,6 +42,16 @@ function parseShippingServices(raw: AgencyShippingService[] | string | null): Ag
   try {
     const parsed = JSON.parse(raw) as AgencyShippingService[];
     return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseCoverageAreas(raw: AgencyCoverageArea[] | string | null): AgencyCoverageArea[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return normalizeCoverageAreas(raw);
+  try {
+    return normalizeCoverageAreas(JSON.parse(raw));
   } catch {
     return [];
   }
@@ -54,6 +67,7 @@ function rowToAgency(row: AgencyRow): Agency {
     city: row.city ?? null,
     province: row.province ?? null,
     shippingServices: parseShippingServices(row.shipping_services),
+    coverageAreas: parseCoverageAreas(row.coverage_areas),
   };
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
     agency.departurePoint = {
@@ -75,6 +89,7 @@ function rowToMarketplaceAgency(row: AgencyRow): MarketplaceAgency {
     website: agency.website,
     instagram: agency.instagram,
     shippingServices: agency.shippingServices,
+    coverageAreas: agency.coverageAreas,
     departurePoint: agency.departurePoint,
   };
 }
@@ -84,17 +99,20 @@ export async function createAgency(data: {
   departurePoint?: LocationPoint;
   city?: string;
   province?: string;
+  coverageAreas?: AgencyCoverageArea[];
 }): Promise<Agency> {
   const id = `ag${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date();
+  const coverageAreas = data.coverageAreas ?? [];
   await pool.query(
-    `INSERT INTO agencies (id, name, city, province, departure_address, departure_lat, departure_lng, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO agencies (id, name, city, province, coverage_areas, departure_address, departure_lat, departure_lng, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       data.name.trim(),
       data.city?.trim() ?? null,
       data.province?.trim() ?? null,
+      JSON.stringify(coverageAreas),
       data.departurePoint?.address ?? null,
       data.departurePoint?.lat ?? null,
       data.departurePoint?.lng ?? null,
@@ -160,6 +178,7 @@ export async function updateAgencyMarketplaceProfile(
     city?: string | null;
     province?: string | null;
     shippingServices?: AgencyShippingService[];
+    coverageAreas?: AgencyCoverageArea[];
   }
 ): Promise<Agency> {
   const agency = await getAgencyById(agencyId);
@@ -171,10 +190,11 @@ export async function updateAgencyMarketplaceProfile(
   const city = data.city !== undefined ? (data.city?.trim() || null) : agency.city ?? null;
   const province = data.province !== undefined ? (data.province?.trim() || null) : agency.province ?? null;
   const shippingServices = data.shippingServices ?? agency.shippingServices;
+  const coverageAreas = data.coverageAreas ?? agency.coverageAreas;
 
   await pool.query(
-    `UPDATE agencies SET website = ?, instagram = ?, city = ?, province = ?, shipping_services = ? WHERE id = ?`,
-    [website, instagram, city, province, JSON.stringify(shippingServices), agencyId]
+    `UPDATE agencies SET website = ?, instagram = ?, city = ?, province = ?, shipping_services = ?, coverage_areas = ? WHERE id = ?`,
+    [website, instagram, city, province, JSON.stringify(shippingServices), JSON.stringify(coverageAreas), agencyId]
   );
 
   const updated = await getAgencyById(agencyId);

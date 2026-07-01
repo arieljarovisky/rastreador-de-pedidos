@@ -90,6 +90,14 @@ function ChevronIcon({ up, size = 14 }: { up?: boolean; size?: number }) {
   );
 }
 
+function formatTariff(tariff: number): string {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(tariff);
+}
+
 function AgencyDetailBody({ agency }: { agency: MarketplaceAgency }) {
   const location = [agency.city, agency.province].filter(Boolean).join(', ');
   return (
@@ -113,12 +121,24 @@ function AgencyDetailBody({ agency }: { agency: MarketplaceAgency }) {
       <View style={styles.detailBlock}>
         <View style={styles.detailHeading}>
           <MapPinIcon />
-          <Text style={styles.detailHeadingText}>Cobertura</Text>
+          <Text style={styles.detailHeadingText}>Cobertura y tarifas</Text>
         </View>
         {location ? <Text style={styles.detailText}>Base: {location}</Text> : null}
         {agency.departurePoint?.address ? (
           <Text style={styles.detailSub}>Depósito: {agency.departurePoint.address}</Text>
         ) : null}
+        {agency.coverageAreas?.map((area) => (
+          <View key={area.id} style={styles.zoneRow}>
+            <View style={styles.tariffRow}>
+              <Text style={styles.zoneName}>{area.name}</Text>
+              <Text style={styles.tariff}>{formatTariff(area.tariff)}</Text>
+            </View>
+            <Text style={styles.detailSub}>{area.places.join(' · ')}</Text>
+            {area.minimumOrders != null && area.minimumOrders > 0 ? (
+              <Text style={styles.detailSub}>Pedido mínimo: {area.minimumOrders}</Text>
+            ) : null}
+          </View>
+        ))}
         {agency.coverageZones?.map((zone) => (
           <View key={zone.id} style={styles.zoneRow}>
             <Text style={styles.zoneName}>{zone.name}</Text>
@@ -195,6 +215,17 @@ export default function AgencyMarketplaceList({ agencies, selectedAgencyId, savi
                       <View key={`${svc.type}-${i}`} style={styles.tag}>
                         <Text style={styles.tagText}>
                           {svc.type === 'custom' && svc.label ? svc.label : SERVICE_LABELS[svc.type]}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {agency.coverageAreas && agency.coverageAreas.length > 0 && (
+                  <View style={styles.tagsRow}>
+                    {agency.coverageAreas.slice(0, 2).map((area) => (
+                      <View key={area.id} style={styles.tagAccent}>
+                        <Text style={styles.tagAccentText}>
+                          {area.name} · {formatTariff(area.tariff)}
                         </Text>
                       </View>
                     ))}
@@ -294,6 +325,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   tagText: { color: colors.textMuted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+  tagAccent: {
+    backgroundColor: colors.accentBg,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  tagAccentText: { color: colors.accent, fontSize: 10, fontWeight: '700' },
+  tariffRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  tariff: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   selectedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
