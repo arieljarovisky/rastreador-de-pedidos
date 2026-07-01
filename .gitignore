@@ -28,4 +28,5 @@ backend/data/
 backend/logs/
 backend/tmp/
 backend/tmp/**
-.vercel
+frontend/public/geo/departamentos-ar.geojson
+frontend/public/geo/provincias-ar.geojson

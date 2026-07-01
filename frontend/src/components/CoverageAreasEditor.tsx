@@ -178,7 +178,6 @@ export default function CoverageAreasEditor({
       )}
 
       <CoveragePreviewMap
-        barrios={barrios}
         mlZones={mlZones}
         selectedMlZoneIds={allSelectedMlZoneIds}
         cordonLabels={cordonLabels}

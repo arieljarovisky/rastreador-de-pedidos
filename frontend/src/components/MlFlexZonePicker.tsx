@@ -131,7 +131,7 @@ export default function MlFlexZonePicker({
         )}
       </div>
       <p className="text-[9px] text-[var(--color-text-muted)] leading-normal">
-        Mismas zonas que Mercado Libre Flex, agrupadas por cordón. Se dibujan en el mapa de cobertura.
+        Mismas zonas que Mercado Libre Flex. El mapa usa los límites oficiales de cada partido (Georef / IGN).
       </p>
     </div>
   );
