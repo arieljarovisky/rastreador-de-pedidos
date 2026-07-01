@@ -410,6 +410,8 @@ export default function App() {
       city?: string;
       province?: string;
       coverageAreas?: import('./types.js').AgencyCoverageArea[];
+      monthlyOrders?: import('./types.js').SellerMonthlyOrders;
+      sellerCategories?: string[];
     }
   ) => {
     setLoading(true);

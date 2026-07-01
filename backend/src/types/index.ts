@@ -19,6 +19,8 @@ export type MlFlexMode = 'agency' | 'repartidor';
 /** Modelo de negocio de la plataforma. */
 export type BusinessModel = 'managed' | 'marketplace';
 
+export type SellerMonthlyOrders = 'under_10' | '10_50' | '51_200' | 'over_200';
+
 export type AgencyShippingServiceType = 'same_day' | 'turbo' | 'custom';
 
 export interface AgencyShippingService {
@@ -97,6 +99,10 @@ export interface User {
   isMarketplaceSeller?: boolean;
   city?: string | null;
   province?: string | null;
+  /** Volumen mensual de pedidos (vendedor marketplace). */
+  monthlyOrders?: SellerMonthlyOrders | null;
+  /** Categorías ML en las que vende. */
+  sellerCategories?: string[];
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];
@@ -175,6 +181,8 @@ export interface DbUserRow {
   departure_lat: number | null;
   departure_lng: number | null;
   delivery_zone: string | null;
+  monthly_orders: string | null;
+  seller_categories: string[] | string | null;
 }
 
 export interface DbOrderRow {

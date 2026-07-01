@@ -19,7 +19,8 @@ import {
   Zap,
   Link2,
   Radio,
-  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
@@ -31,24 +32,41 @@ import CoverageAreasEditor, {
   draftsToCoverageAreas,
   type CoverageAreaDraft,
 } from './CoverageAreasEditor.tsx';
+import RegistrationStepper from './auth/RegistrationStepper.tsx';
+import SellerBusinessStep, { sellerBusinessStepValid } from './auth/SellerBusinessStep.tsx';
+import {
+  AGENCY_REGISTER_STEPS,
+  SELLER_REGISTER_STEPS,
+  type SellerMonthlyOrders,
+} from '../config/sellerRegistration.ts';
 import type { AgencyCoverageArea } from '../types.js';
 import { applyPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
 
 type AuthMode = 'login' | 'register-agency' | 'register-seller';
 
-interface RegisterData {
+interface AgencyRegisterData {
   username: string;
   password: string;
   name: string;
   city?: string;
   province?: string;
-  coverageAreas?: AgencyCoverageArea[];
+  coverageAreas: AgencyCoverageArea[];
+}
+
+interface SellerRegisterData {
+  username: string;
+  password: string;
+  name: string;
+  city?: string;
+  province?: string;
+  monthlyOrders: SellerMonthlyOrders;
+  sellerCategories: string[];
 }
 
 interface LoginScreenProps {
   onLogin: (username: string, password: string) => Promise<void>;
-  onRegisterAgency: (data: RegisterData) => Promise<void>;
-  onRegisterSeller: (data: RegisterData) => Promise<void>;
+  onRegisterAgency: (data: AgencyRegisterData) => Promise<void>;
+  onRegisterSeller: (data: SellerRegisterData) => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -112,7 +130,7 @@ function AuthModeTabs({ mode, onChange }: { mode: AuthMode; onChange: (mode: Aut
 
   return (
     <div
-      className="relative grid grid-cols-3 p-1 rounded-xl bg-[var(--surface-panel-2)] border border-[var(--surface-border)] mb-6"
+      className="relative grid w-full grid-cols-3 gap-0 p-1 rounded-xl bg-[var(--surface-panel-2)] border border-[var(--surface-border)] mb-6 auth-mode-tabs"
       role="tablist"
       aria-label="Tipo de acceso"
     >
@@ -133,7 +151,7 @@ function AuthModeTabs({ mode, onChange }: { mode: AuthMode; onChange: (mode: Aut
             role="tab"
             aria-selected={selected}
             onClick={() => onChange(id)}
-            className={`relative z-10 py-2.5 px-2 sm:px-3 rounded-lg font-mono text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out ${
+            className={`relative z-10 w-full min-w-0 py-2.5 px-1 sm:px-2 rounded-lg font-mono text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-center transition-colors duration-300 ease-out ${
               selected
                 ? 'text-white'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
@@ -161,6 +179,9 @@ export default function LoginScreen({
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('');
   const [coverageDrafts, setCoverageDrafts] = useState<CoverageAreaDraft[]>([emptyCoverageDraft()]);
+  const [registerStep, setRegisterStep] = useState(1);
+  const [monthlyOrders, setMonthlyOrders] = useState<SellerMonthlyOrders | ''>('');
+  const [sellerCategories, setSellerCategories] = useState<string[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const theme = usePostaTheme();
   const meta = MODE_META[mode];
@@ -177,6 +198,9 @@ export default function LoginScreen({
     setCity('');
     setProvince('');
     setCoverageDrafts([emptyCoverageDraft()]);
+    setRegisterStep(1);
+    setMonthlyOrders('');
+    setSellerCategories([]);
   };
 
   const switchMode = (next: AuthMode) => {
@@ -184,38 +208,66 @@ export default function LoginScreen({
     resetForm();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username || !password) return;
+  const isRegister = mode !== 'login';
+  const isAgencyRegister = mode === 'register-agency';
+  const isSellerRegister = mode === 'register-seller';
+  const registerSteps = isAgencyRegister ? AGENCY_REGISTER_STEPS : SELLER_REGISTER_STEPS;
+  const isLastRegisterStep = registerStep === 3;
 
-    if (mode === 'login') {
-      onLogin(username, password);
-      return;
+  const canAdvanceRegisterStep = (): boolean => {
+    if (isAgencyRegister) {
+      if (registerStep === 1) return Boolean(name.trim());
+      if (registerStep === 2) return coverageDraftsAreValid(coverageDrafts);
+      return Boolean(username.trim() && password);
     }
+    if (isSellerRegister) {
+      if (registerStep === 1) return Boolean(name.trim());
+      if (registerStep === 2) return sellerBusinessStepValid(monthlyOrders, sellerCategories);
+      return Boolean(username.trim() && password);
+    }
+    return false;
+  };
 
-    if (!name.trim()) return;
-    const data: RegisterData = {
+  const submitRegistration = () => {
+    const base = {
       username,
       password,
       name: name.trim(),
       city: city.trim() || undefined,
       province: province.trim() || undefined,
     };
-    if (mode === 'register-agency') {
-      onRegisterAgency({
-        ...data,
+    if (isAgencyRegister) {
+      void onRegisterAgency({
+        ...base,
         coverageAreas: draftsToCoverageAreas(coverageDrafts),
       });
-    } else {
-      onRegisterSeller(data);
+    } else if (isSellerRegister && monthlyOrders) {
+      void onRegisterSeller({
+        ...base,
+        monthlyOrders,
+        sellerCategories,
+      });
     }
   };
 
-  const isRegister = mode !== 'login';
-  const isAgencyRegister = mode === 'register-agency';
-  const agencyCoverageValid = !isAgencyRegister || coverageDraftsAreValid(coverageDrafts);
-  const submitDisabled =
-    loading || !username || !password || (isRegister && !name.trim()) || !agencyCoverageValid;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (mode === 'login') {
+      if (!username || !password) return;
+      void onLogin(username, password);
+      return;
+    }
+    if (isLastRegisterStep) {
+      if (!canAdvanceRegisterStep()) return;
+      submitRegistration();
+    } else if (canAdvanceRegisterStep()) {
+      setRegisterStep((s) => Math.min(3, s + 1));
+    }
+  };
+
+  const goBackStep = () => {
+    setRegisterStep((s) => Math.max(1, s - 1));
+  };
 
   const credentialsFields = (
     <>
@@ -264,8 +316,13 @@ export default function LoginScreen({
     </>
   );
 
-  const profileFields = isRegister ? (
+  const profileStepFields = (
     <>
+      <p className="text-xs text-[var(--color-text-muted)] leading-relaxed mb-1">
+        {isAgencyRegister
+          ? 'Empezá con los datos básicos de tu empresa de logística.'
+          : 'Contanos cómo se llama tu tienda y dónde operás.'}
+      </p>
       <div>
         <label className="mono-label block mb-1.5">
           {isAgencyRegister ? 'Nombre de la agencia' : 'Nombre del vendedor / tienda'}
@@ -305,7 +362,57 @@ export default function LoginScreen({
         </div>
       </div>
     </>
-  ) : null;
+  );
+
+  const credentialsStepFields = (
+    <>
+      <p className="text-xs text-[var(--color-text-muted)] leading-relaxed mb-1">
+        Creá el usuario con el que vas a ingresar al panel de Posta.
+      </p>
+      {credentialsFields}
+    </>
+  );
+
+  const renderRegisterStep = () => {
+    if (isAgencyRegister) {
+      if (registerStep === 1) return profileStepFields;
+      if (registerStep === 2) {
+        return (
+          <CoverageAreasEditor
+            value={coverageDrafts}
+            onChange={setCoverageDrafts}
+            disabled={loading}
+          />
+        );
+      }
+      return credentialsStepFields;
+    }
+    if (registerStep === 1) return profileStepFields;
+    if (registerStep === 2) {
+      return (
+        <SellerBusinessStep
+          monthlyOrders={monthlyOrders}
+          categories={sellerCategories}
+          onMonthlyOrdersChange={setMonthlyOrders}
+          onCategoriesChange={setSellerCategories}
+          disabled={loading}
+        />
+      );
+    }
+    return credentialsStepFields;
+  };
+
+  const submitLabel = loading
+    ? 'Procesando...'
+    : mode === 'login'
+      ? 'Ingresar al panel'
+      : isLastRegisterStep
+        ? isAgencyRegister
+          ? 'Crear cuenta de agencia'
+          : 'Crear cuenta de vendedor'
+        : 'Continuar';
+
+  const submitDisabled = loading || (mode === 'login' ? !username || !password : !canAdvanceRegisterStep());
 
   return (
     <div
@@ -328,7 +435,7 @@ export default function LoginScreen({
             <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
           </div>
 
-          <div key={mode} className="flex-1 flex flex-col justify-center max-w-md animate-auth-fade-in">
+          <div key={`${mode}-${isRegister ? registerStep : 0}`} className="flex-1 flex flex-col justify-center max-w-md animate-auth-fade-in">
             <p className="mono-label text-[var(--color-accent)] mb-3">{meta.subtitle}</p>
             <h1 className="font-display text-2xl xl:text-3xl font-semibold tracking-[-0.03em] text-[var(--color-text)] leading-tight mb-4">
               {meta.title}
@@ -372,7 +479,7 @@ export default function LoginScreen({
         <div className="flex-1 flex items-start lg:items-center justify-center px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div
             className={`w-full ${
-              isAgencyRegister ? 'max-w-3xl xl:max-w-6xl' : 'max-w-lg xl:max-w-xl'
+              isRegister ? 'max-w-2xl xl:max-w-3xl' : 'max-w-lg xl:max-w-xl'
             }`}
           >
             {/* Encabezado móvil / tablet */}
@@ -387,14 +494,22 @@ export default function LoginScreen({
             <PaperCard className="p-4 sm:p-6 lg:p-8 shadow-lg lg:shadow-xl border border-[var(--surface-border)]">
               <AuthModeTabs mode={mode} onChange={switchMode} />
 
-              <div key={mode} className="animate-auth-fade-in">
-              <div className="hidden lg:flex items-center gap-2 mb-2">
-                <ModeIcon className="w-4 h-4 text-[var(--color-accent)]" />
-                <h2 className="font-display text-lg font-semibold tracking-[-0.02em] text-[var(--color-text)]">
-                  {meta.title}
-                </h2>
-              </div>
-              <p className="hidden lg:block text-xs text-[var(--color-text-muted)] mb-5">{meta.description}</p>
+              <div key={`${mode}-${registerStep}`} className="animate-auth-fade-in">
+              {!isRegister && (
+                <>
+                  <div className="hidden lg:flex items-center gap-2 mb-2">
+                    <ModeIcon className="w-4 h-4 text-[var(--color-accent)]" />
+                    <h2 className="font-display text-lg font-semibold tracking-[-0.02em] text-[var(--color-text)]">
+                      {meta.title}
+                    </h2>
+                  </div>
+                  <p className="hidden lg:block text-xs text-[var(--color-text-muted)] mb-5">{meta.description}</p>
+                </>
+              )}
+
+              {isRegister && (
+                <RegistrationStepper steps={registerSteps} currentStep={registerStep} />
+              )}
 
               {error && (
                 <div className="bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 text-[var(--color-danger)] text-sm rounded-lg p-3 mb-5 font-medium flex items-start gap-2 animate-shake">
@@ -404,66 +519,44 @@ export default function LoginScreen({
               )}
 
               <form onSubmit={handleSubmit}>
-                {isAgencyRegister ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 pb-2 border-b border-[var(--surface-border)]">
-                        <CheckCircle2 className="w-4 h-4 text-[var(--color-accent)]" />
-                        <p className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                          Datos de la cuenta
-                        </p>
-                      </div>
-                      {profileFields}
-                      {credentialsFields}
-                    </div>
-                    <div className="space-y-3 lg:border-l lg:border-[var(--surface-border)] lg:pl-8">
-                      <div className="flex items-center gap-2 pb-2 border-b border-[var(--surface-border)]">
-                        <MapPin className="w-4 h-4 text-[var(--color-accent)]" />
-                        <p className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                          Cobertura y tarifas
-                        </p>
-                      </div>
-                      <CoverageAreasEditor
-                        value={coverageDrafts}
-                        onChange={setCoverageDrafts}
-                        disabled={loading}
-                        grid
-                        hideHeader
-                      />
-                    </div>
-                    <div className="lg:col-span-2 pt-5 border-t border-[var(--surface-border)]">
-                      <PostaButton
-                        type="submit"
-                        disabled={submitDisabled}
-                        id="btn-login-submit"
-                        className="w-full py-3 text-sm lg:max-w-sm"
-                      >
-                        {loading ? 'Procesando...' : 'Crear cuenta de agencia'}
-                      </PostaButton>
-                    </div>
+                <div
+                  className={`min-h-[min(22rem,52vh)] sm:min-h-[24rem] flex flex-col ${
+                    isRegister && registerStep === 2 && isAgencyRegister
+                      ? 'sm:min-h-[28rem]'
+                      : isRegister && registerStep === 2 && isSellerRegister
+                        ? 'sm:min-h-[26rem]'
+                        : ''
+                  }`}
+                >
+                  <div className="flex-1 space-y-4">
+                    {mode === 'login' ? credentialsFields : renderRegisterStep()}
                   </div>
-                ) : (
-                  <>
-                    <div className="space-y-4 max-w-md lg:max-w-none mx-auto lg:mx-0">
-                      {profileFields}
-                      {credentialsFields}
-                    </div>
-                    <div className="mt-6 pt-5 border-t border-[var(--surface-border)]">
-                      <PostaButton
-                        type="submit"
-                        disabled={submitDisabled}
-                        id="btn-login-submit"
-                        className="w-full py-3 text-sm"
-                      >
-                        {loading
-                          ? 'Procesando...'
-                          : mode === 'login'
-                            ? 'Ingresar al panel'
-                            : 'Crear cuenta de vendedor'}
-                      </PostaButton>
-                    </div>
-                  </>
-                )}
+                </div>
+
+                <div className="mt-6 pt-5 border-t border-[var(--surface-border)] flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+                  {isRegister && registerStep > 1 && (
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={goBackStep}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg border border-[var(--surface-border)] text-xs font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-accent)]/40 transition"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Atrás
+                    </button>
+                  )}
+                  <PostaButton
+                    type="submit"
+                    disabled={submitDisabled}
+                    id="btn-login-submit"
+                    className={`w-full py-3 text-sm sm:flex-1 inline-flex items-center justify-center gap-1.5 ${
+                      isRegister && registerStep > 1 ? '' : 'sm:max-w-none'
+                    }`}
+                  >
+                    {submitLabel}
+                    {isRegister && !isLastRegisterStep && !loading && <ChevronRight className="w-4 h-4" />}
+                  </PostaButton>
+                </div>
               </form>
               </div>
             </PaperCard>

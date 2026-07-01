@@ -6,9 +6,21 @@ import { listPickupPointsForUser } from './pickup-points.service.js';
 import { getAgencyDeparture, getAgencyById, updateAgencyDeparture as updateAgencyDepartureRecord } from './agencies.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { isValidZoneForAgency } from './delivery-zones.service.js';
+import { normalizeSellerCategories, type SellerMonthlyOrders } from '../config/seller-profile.js';
 
 const USER_COLUMNS = `id, username, name, role, agency_id, preferred_agency_id, city, province, password_hash, current_lat, current_lng, location_updated_at,
-  departure_address, departure_lat, departure_lng, delivery_zone`;
+  departure_address, departure_lat, departure_lng, delivery_zone, monthly_orders, seller_categories`;
+
+function parseSellerCategories(raw: string[] | string | null): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return normalizeSellerCategories(parsed);
+  } catch {
+    return [];
+  }
+}
 
 function departureFromRow(row: DbUserRow): LocationPoint | undefined {
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
@@ -32,6 +44,8 @@ function rowToUser(row: DbUserRow): User {
     city: row.city ?? null,
     province: row.province ?? null,
     isMarketplaceSeller: row.role === UserRole.STORE_ADMIN && !row.agency_id,
+    monthlyOrders: (row.monthly_orders as SellerMonthlyOrders | null) ?? null,
+    sellerCategories: parseSellerCategories(row.seller_categories),
   };
   if (row.current_lat != null && row.current_lng != null && row.location_updated_at) {
     user.currentLocation = {
@@ -183,6 +197,8 @@ export async function createUser(data: {
   province?: string | null;
   /** Vendedor independiente del marketplace (sin agencia fija). */
   marketplaceSeller?: boolean;
+  monthlyOrders?: SellerMonthlyOrders | null;
+  sellerCategories?: string[];
 }): Promise<User> {
   const normalizedUsername = data.username.trim().toLowerCase();
   if (normalizedUsername.length < 3) {
@@ -222,7 +238,7 @@ export async function createUser(data: {
   const passwordHash = await bcrypt.hash(data.password, 10);
 
   await pool.query(
-    `INSERT INTO users (id, username, password_hash, name, role, agency_id, city, province, delivery_zone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO users (id, username, password_hash, name, role, agency_id, city, province, delivery_zone, monthly_orders, seller_categories) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       normalizedUsername,
@@ -233,6 +249,8 @@ export async function createUser(data: {
       data.city?.trim() ?? null,
       data.province?.trim() ?? null,
       data.deliveryZone ?? null,
+      data.monthlyOrders ?? null,
+      data.sellerCategories?.length ? JSON.stringify(data.sellerCategories) : null,
     ]
   );
 

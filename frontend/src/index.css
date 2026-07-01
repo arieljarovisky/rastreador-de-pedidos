@@ -437,7 +437,17 @@
 }
 
 .auth-tab-indicator {
-  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.auth-mode-tabs button {
+  width: 100%;
+  min-width: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

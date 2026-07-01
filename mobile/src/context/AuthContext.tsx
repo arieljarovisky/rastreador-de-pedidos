@@ -27,6 +27,8 @@ interface AuthState {
     name: string;
     city?: string;
     province?: string;
+    monthlyOrders: import('./types').SellerMonthlyOrders;
+    sellerCategories: string[];
   }) => Promise<void>;
   updatePreferredAgency: (agencyId: string | null) => Promise<void>;
   logout: () => Promise<void>;
@@ -112,6 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name: string;
       city?: string;
       province?: string;
+      monthlyOrders: import('../types').SellerMonthlyOrders;
+      sellerCategories: string[];
     }) => {
       setError(null);
       setLoading(true);

@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS users (
   departure_lat DECIMAL(10, 7) NULL,
   departure_lng DECIMAL(10, 7) NULL,
   delivery_zone VARCHAR(64) NULL,
+  monthly_orders VARCHAR(32) NULL,
+  seller_categories JSON NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_users_agency (agency_id),
   INDEX idx_users_preferred_agency (preferred_agency_id),

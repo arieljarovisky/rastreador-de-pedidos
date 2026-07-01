@@ -4,6 +4,11 @@ import { authenticate, signToken } from '../middleware/auth.js';
 import { findUserByUsername, createUser, getUserById } from '../services/users.service.js';
 import { createAgency } from '../services/agencies.service.js';
 import { normalizeCoverageAreas, validateCoverageAreas } from '../services/coverage-areas.service.js';
+import {
+  normalizeSellerCategories,
+  validateSellerProfile,
+  type SellerMonthlyOrders,
+} from '../config/seller-profile.js';
 import { UserRole } from '../types/index.js';
 
 const router = Router();
@@ -49,6 +54,14 @@ function handleRegisterError(res: Response, err: unknown): boolean {
   }
   if (message === 'COVERAGE_MIN_ORDERS_INVALID') {
     res.status(400).json({ error: 'El pedido mínimo debe ser un entero mayor o igual a 1.' });
+    return true;
+  }
+  if (message === 'SELLER_ORDERS_INVALID') {
+    res.status(400).json({ error: 'Seleccioná cuántos pedidos enviás por mes.' });
+    return true;
+  }
+  if (message === 'SELLER_CATEGORIES_REQUIRED') {
+    res.status(400).json({ error: 'Seleccioná al menos una categoría de Mercado Libre.' });
     return true;
   }
   return false;
@@ -124,10 +137,18 @@ router.post('/register/agency', async (req: Request, res: Response) => {
 });
 
 router.post('/register/seller', async (req: Request, res: Response) => {
-  const { username, password, name, city, province } = req.body;
+  const { username, password, name, city, province, monthlyOrders, sellerCategories: categoriesRaw } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: 'Usuario, contraseña y nombre del vendedor son requeridos.' });
     return;
+  }
+
+  const sellerCategories = normalizeSellerCategories(categoriesRaw);
+  try {
+    validateSellerProfile(String(monthlyOrders ?? ''), sellerCategories);
+  } catch (err) {
+    if (handleRegisterError(res, err)) return;
+    throw err;
   }
 
   try {
@@ -139,6 +160,8 @@ router.post('/register/seller', async (req: Request, res: Response) => {
       marketplaceSeller: true,
       city: city?.trim(),
       province: province?.trim(),
+      monthlyOrders: monthlyOrders as SellerMonthlyOrders,
+      sellerCategories,
     });
     const fullUser = await getUserById(user.id);
     const token = signToken(user.id, user.role);

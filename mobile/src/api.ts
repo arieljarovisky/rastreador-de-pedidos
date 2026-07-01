@@ -14,6 +14,7 @@ import {
   OrderStatus,
   PickupPoint,
   User,
+  SellerMonthlyOrders,
 } from './types';
 import type { DeliveryZone } from './config/deliveryZones';
 import type { Barrio } from './config/deliveryZones';
@@ -83,6 +84,8 @@ export const api = {
     name: string;
     city?: string;
     province?: string;
+    monthlyOrders: SellerMonthlyOrders;
+    sellerCategories: string[];
   }): Promise<LoginResponse> {
     return request<LoginResponse>('/api/auth/register/seller', {
       method: 'POST',

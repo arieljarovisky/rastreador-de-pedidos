@@ -78,6 +78,8 @@ export interface PickupPoint {
   createdAt: string;
 }
 
+export type SellerMonthlyOrders = 'under_10' | '10_50' | '51_200' | 'over_200';
+
 export interface User {
   id: string;
   username: string;
@@ -91,6 +93,8 @@ export interface User {
   isMarketplaceSeller?: boolean;
   city?: string | null;
   province?: string | null;
+  monthlyOrders?: SellerMonthlyOrders | null;
+  sellerCategories?: string[];
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];

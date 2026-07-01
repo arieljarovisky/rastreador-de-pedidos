@@ -12,4 +12,6 @@ async function addColumnIfMissing(table: string, column: string, definition: str
 
 export async function runMigrations(): Promise<void> {
   await addColumnIfMissing('agencies', 'coverage_areas', 'JSON NULL');
+  await addColumnIfMissing('users', 'monthly_orders', 'VARCHAR(32) NULL');
+  await addColumnIfMissing('users', 'seller_categories', 'JSON NULL');
 }
