@@ -269,8 +269,13 @@ export const api = {
     return request<RepartidorMercadoLibreStatus>('/api/integrations/repartidor/status', { token });
   },
 
-  getIntegrationConnectUrl(token: string, platform: MarketplacePlatform): Promise<{ url: string }> {
-    return request<{ url: string }>(`/api/integrations/${platform}/connect`, { token });
+  getIntegrationConnectUrl(
+    token: string,
+    platform: MarketplacePlatform,
+    client: 'mobile' | 'web' = 'web'
+  ): Promise<{ url: string }> {
+    const qs = client === 'mobile' ? '?client=mobile' : '';
+    return request<{ url: string }>(`/api/integrations/${platform}/connect${qs}`, { token });
   },
 
   disconnectIntegration(token: string, platform: MarketplacePlatform): Promise<void> {

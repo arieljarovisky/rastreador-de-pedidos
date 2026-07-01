@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,6 +18,7 @@ import { RepartidorMercadoLibreStatus } from '../types';
 import { colors, radius, spacing } from '../theme';
 import Button from '../components/Button';
 import { RepartidorStackParamList } from '../navigation/types';
+import { connectMarketplace, oauthErrorMessage } from '../oauth/connectMarketplace';
 
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'RepartidorProfile'>;
 
@@ -56,12 +56,13 @@ export default function RepartidorProfileScreen(_props: Props) {
     if (!token) return;
     setBusy(true);
     try {
-      const { url } = await api.getIntegrationConnectUrl(token, 'mercadolibre');
-      await Linking.openURL(url);
-      Alert.alert(
-        'Continuá en el navegador',
-        'Completá la autorización y volvé acá. Deslizá hacia abajo para actualizar.'
-      );
+      const { result, message } = await connectMarketplace(token, 'mercadolibre');
+      if (result === 'connected') {
+        await load();
+        Alert.alert('Listo', 'Mercado Libre conectado correctamente.');
+      } else if (result === 'error') {
+        Alert.alert('Error', oauthErrorMessage('mercadolibre', message));
+      }
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo abrir la conexión.');
     } finally {

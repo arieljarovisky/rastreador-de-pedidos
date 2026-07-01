@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -21,6 +20,7 @@ import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import { zoneLabel } from '../../config/deliveryZones';
 import { AgencyStackParamList } from '../../navigation/types';
+import { connectMarketplace, oauthErrorMessage } from '../../oauth/connectMarketplace';
 
 type Props = NativeStackScreenProps<AgencyStackParamList, 'AgencySettings'>;
 
@@ -67,12 +67,13 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
     if (!token) return;
     setCourierBusy(true);
     try {
-      const { url } = await api.getIntegrationConnectUrl(token, 'mercadolibre');
-      await Linking.openURL(url);
-      Alert.alert(
-        'Continuá en el navegador',
-        'Completá la autorización con la cuenta de mensajería de Mercado Libre Flex y volvé a esta pantalla. Deslizá hacia abajo para actualizar el estado.'
-      );
+      const { result, message } = await connectMarketplace(token, 'mercadolibre');
+      if (result === 'connected') {
+        await load();
+        Alert.alert('Listo', 'Cuenta de mensajería Mercado Libre conectada.');
+      } else if (result === 'error') {
+        Alert.alert('Error', oauthErrorMessage('mercadolibre', message));
+      }
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo abrir la conexión.');
     } finally {

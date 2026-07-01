@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,6 +18,7 @@ import { IntegrationsStatus, MarketplacePlatform, PickupPoint } from '../../type
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import { SellerStackParamList } from '../../navigation/types';
+import { connectMarketplace, oauthErrorMessage } from '../../oauth/connectMarketplace';
 
 type Props = NativeStackScreenProps<SellerStackParamList, 'SellerSettings'>;
 
@@ -62,12 +62,13 @@ export default function SellerSettingsScreen({ navigation }: Props) {
     if (!token) return;
     setBusyPlatform(platform);
     try {
-      const { url } = await api.getIntegrationConnectUrl(token, platform);
-      await Linking.openURL(url);
-      Alert.alert(
-        'Continuá en el navegador',
-        'Completá la autorización y volvé a esta pantalla. Tocá "Actualizar" para ver el estado.'
-      );
+      const { result, message } = await connectMarketplace(token, platform);
+      if (result === 'connected') {
+        await load();
+        Alert.alert('Listo', `${platformLabel(platform)} conectado correctamente.`);
+      } else if (result === 'error') {
+        Alert.alert('Error', oauthErrorMessage(platform, message));
+      }
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo abrir la conexión.');
     } finally {

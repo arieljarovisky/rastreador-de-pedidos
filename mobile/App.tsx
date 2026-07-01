@@ -23,6 +23,7 @@ import AppUpdateChecker from './src/components/AppUpdateChecker';
 import { colors } from './src/theme';
 
 import './src/location/backgroundLocationTask';
+import './src/oauth/connectMarketplace';
 
 export default function App() {
   const [fontsLoaded] = useFonts({

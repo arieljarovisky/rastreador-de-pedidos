@@ -25,6 +25,9 @@ function isAllowedCorsOrigin(origin: string): boolean {
   try {
     const { protocol, hostname } = new URL(origin);
     if (protocol !== 'https:') return false;
+    if (hostname === 'enviosposta.com.ar' || hostname.endsWith('.enviosposta.com.ar')) {
+      return true;
+    }
     return hostname.endsWith('.vercel.app') && hostname.startsWith('rastreador-de-pedidos');
   } catch {
     return false;
@@ -37,7 +40,7 @@ const corsOptions: CorsOptions = {
       callback(null, true);
       return;
     }
-    callback(new Error(`CORS no permitido para: ${origin}`));
+    callback(null, false);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

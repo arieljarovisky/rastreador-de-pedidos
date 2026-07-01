@@ -46,13 +46,20 @@ import {
 
 const router = Router();
 
+type OAuthClient = 'web' | 'mobile';
+
 interface OAuthStatePayload {
   userId: string;
   platform: IntegrationPlatform;
+  client?: OAuthClient;
 }
 
-function signOAuthState(userId: string, platform: IntegrationPlatform): string {
-  return jwt.sign({ userId, platform } satisfies OAuthStatePayload, env.jwtSecret, {
+function signOAuthState(
+  userId: string,
+  platform: IntegrationPlatform,
+  client: OAuthClient = 'web'
+): string {
+  return jwt.sign({ userId, platform, client } satisfies OAuthStatePayload, env.jwtSecret, {
     expiresIn: '15m',
   });
 }
@@ -71,6 +78,30 @@ function redirectToFrontend(platform: IntegrationPlatform, status: 'connected' |
   });
   if (message) params.set('message', message);
   return `${env.frontendUrl}/app?${params}`;
+}
+
+function redirectToMobile(platform: IntegrationPlatform, status: 'connected' | 'error', message?: string) {
+  const params = new URLSearchParams({
+    integration: platform,
+    status,
+  });
+  if (message) params.set('message', message);
+  return `${env.mobileApp.scheme}://oauth/callback?${params}`;
+}
+
+function redirectAfterOAuth(
+  platform: IntegrationPlatform,
+  status: 'connected' | 'error',
+  client: OAuthClient = 'web',
+  message?: string
+) {
+  return client === 'mobile'
+    ? redirectToMobile(platform, status, message)
+    : redirectToFrontend(platform, status, message);
+}
+
+function parseOAuthClient(value: unknown): OAuthClient {
+  return value === 'mobile' ? 'mobile' : 'web';
 }
 
 router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
@@ -128,23 +159,34 @@ router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_AD
     res.status(503).json({ error: 'Mercado Libre no está configurado en el servidor (ML_APP_ID, ML_APP_SECRET).' });
     return;
   }
-  const state = signOAuthState(req.user!.id, 'mercadolibre');
+  const client = parseOAuthClient(req.query.client);
+  const state = signOAuthState(req.user!.id, 'mercadolibre', client);
   res.json({ url: getMercadoLibreAuthUrl(state) });
 });
 
 router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
   const { code, state, error } = req.query;
+  let client: OAuthClient = 'web';
+  if (typeof state === 'string') {
+    try {
+      client = parseOAuthClient(verifyOAuthState(state).client);
+    } catch {
+      // state inválido o expirado
+    }
+  }
+
   if (error || !code || typeof code !== 'string' || !state || typeof state !== 'string') {
-    res.redirect(redirectToFrontend('mercadolibre', 'error', 'Autorización cancelada'));
+    res.redirect(redirectAfterOAuth('mercadolibre', 'error', client, 'Autorización cancelada'));
     return;
   }
 
   try {
-    const { userId } = verifyOAuthState(state);
-    await exchangeMercadoLibreCode(userId, code);
-    res.redirect(redirectToFrontend('mercadolibre', 'connected'));
+    const payload = verifyOAuthState(state);
+    client = parseOAuthClient(payload.client);
+    await exchangeMercadoLibreCode(payload.userId, code);
+    res.redirect(redirectAfterOAuth('mercadolibre', 'connected', client));
   } catch {
-    res.redirect(redirectToFrontend('mercadolibre', 'error', 'No se pudo conectar Mercado Libre'));
+    res.redirect(redirectAfterOAuth('mercadolibre', 'error', client, 'No se pudo conectar Mercado Libre'));
   }
 });
 
@@ -155,23 +197,34 @@ router.get('/tiendanube/connect', authenticate, requireRoles(UserRole.STORE_ADMI
     });
     return;
   }
-  const state = signOAuthState(req.user!.id, 'tiendanube');
+  const client = parseOAuthClient(req.query.client);
+  const state = signOAuthState(req.user!.id, 'tiendanube', client);
   res.json({ url: getTiendaNubeAuthUrl(state) });
 });
 
 router.get('/tiendanube/callback', async (req: Request, res: Response) => {
   const { code, state, error } = req.query;
+  let client: OAuthClient = 'web';
+  if (typeof state === 'string') {
+    try {
+      client = parseOAuthClient(verifyOAuthState(state).client);
+    } catch {
+      // state inválido o expirado
+    }
+  }
+
   if (error || !code || typeof code !== 'string' || !state || typeof state !== 'string') {
-    res.redirect(redirectToFrontend('tiendanube', 'error', 'Autorización cancelada'));
+    res.redirect(redirectAfterOAuth('tiendanube', 'error', client, 'Autorización cancelada'));
     return;
   }
 
   try {
-    const { userId } = verifyOAuthState(state);
-    await exchangeTiendaNubeCode(userId, code);
-    res.redirect(redirectToFrontend('tiendanube', 'connected'));
+    const payload = verifyOAuthState(state);
+    client = parseOAuthClient(payload.client);
+    await exchangeTiendaNubeCode(payload.userId, code);
+    res.redirect(redirectAfterOAuth('tiendanube', 'connected', client));
   } catch {
-    res.redirect(redirectToFrontend('tiendanube', 'error', 'No se pudo conectar Tienda Nube'));
+    res.redirect(redirectAfterOAuth('tiendanube', 'error', client, 'No se pudo conectar Tienda Nube'));
   }
 });
 

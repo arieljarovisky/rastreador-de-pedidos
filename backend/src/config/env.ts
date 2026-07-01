@@ -47,6 +47,8 @@ export const env = {
   corsOrigins: parseOrigins(
     'http://localhost:5173',
     'https://rastreador-de-pedidos-seven.vercel.app',
+    'https://www.enviosposta.com.ar',
+    'https://enviosposta.com.ar',
     process.env.CORS_ORIGIN,
     process.env.FRONTEND_URL
   ),
@@ -68,6 +70,7 @@ export const env = {
       `${resolvePublicUrl()}/api/integrations/tiendanube/callback`,
   },
   mobileApp: {
+    scheme: (process.env.MOBILE_APP_SCHEME?.trim() || 'lupo').replace(/:\/\//, ''),
     version: process.env.MOBILE_APP_VERSION?.trim() || '1.0.0',
     minVersion:
       process.env.MOBILE_APP_MIN_VERSION?.trim() ||
