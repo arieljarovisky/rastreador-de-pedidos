@@ -73,6 +73,10 @@ interface CoverageAreasEditorProps {
   onChange: (next: CoverageAreaDraft[]) => void;
   disabled?: boolean;
   compact?: boolean;
+  /** En pantallas anchas, muestra las zonas en grilla de 2 columnas. */
+  grid?: boolean;
+  /** Oculta título y descripción (cuando el padre ya los muestra). */
+  hideHeader?: boolean;
 }
 
 export default function CoverageAreasEditor({
@@ -80,6 +84,8 @@ export default function CoverageAreasEditor({
   onChange,
   disabled = false,
   compact = false,
+  grid = false,
+  hideHeader = false,
 }: CoverageAreasEditorProps) {
   const updateRow = (id: string, patch: Partial<CoverageAreaDraft>) => {
     onChange(value.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -91,24 +97,29 @@ export default function CoverageAreasEditor({
   };
 
   const inputClass =
-    'w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded py-2 px-3 text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] transition disabled:opacity-50';
+    'w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg py-2 px-3 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/25 transition disabled:opacity-50';
+
+  const zonesWrapperClass = grid && value.length > 1 ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-3';
 
   return (
     <div className="space-y-3">
-      <div>
-        <p className="text-xs font-semibold text-[var(--color-text)] flex items-center gap-1.5">
-          <MapPin className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-          Zonas de cobertura y tarifas
-        </p>
-        <p className="text-[10px] text-[var(--color-text-muted)] mt-1 leading-relaxed">
-          Indicá cada zona, los lugares que abarca, la tarifa por envío y el pedido mínimo (opcional).
-        </p>
-      </div>
+      {!hideHeader && (
+        <div>
+          <p className="text-xs font-semibold text-[var(--color-text)] flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+            Zonas de cobertura y tarifas
+          </p>
+          <p className="text-[10px] text-[var(--color-text-muted)] mt-1 leading-relaxed">
+            Indicá cada zona, los lugares que abarca, la tarifa por envío y el pedido mínimo (opcional).
+          </p>
+        </div>
+      )}
 
+      <div className={zonesWrapperClass}>
       {value.map((row, index) => (
         <div
           key={row.id}
-          className={`rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] ${compact ? 'p-2.5' : 'p-3'} space-y-2`}
+          className={`rounded-lg border border-[var(--surface-border)] bg-[var(--surface-panel-2)] ${compact ? 'p-2.5' : 'p-3.5'} space-y-2.5 h-fit`}
         >
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-text-muted)]">
@@ -190,6 +201,7 @@ export default function CoverageAreasEditor({
           </div>
         </div>
       ))}
+      </div>
 
       <button
         type="button"
