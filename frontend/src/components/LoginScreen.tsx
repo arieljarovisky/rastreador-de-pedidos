@@ -98,30 +98,52 @@ const MODE_META: Record<
   },
 };
 
+const AUTH_TABS: { id: AuthMode; label: string }[] = [
+  { id: 'login', label: 'Ingresar' },
+  { id: 'register-agency', label: 'Agencia' },
+  { id: 'register-seller', label: 'Vendedor' },
+];
+
 const inputClass =
   'w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg py-2.5 px-3 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/25 transition disabled:opacity-50';
 
-function ModeTab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function AuthModeTabs({ mode, onChange }: { mode: AuthMode; onChange: (mode: AuthMode) => void }) {
+  const activeIndex = AUTH_TABS.findIndex((tab) => tab.id === mode);
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex-1 lg:flex-none lg:min-w-[7.5rem] py-2.5 px-4 rounded-lg font-mono text-[11px] font-bold uppercase tracking-wider transition ${
-        active
-          ? 'bg-[var(--color-accent)] text-white shadow-md shadow-[var(--color-accent)]/20'
-          : 'bg-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel-2)]'
-      }`}
+    <div
+      className="relative grid grid-cols-3 p-1 rounded-xl bg-[var(--surface-panel-2)] border border-[var(--surface-border)] mb-6"
+      role="tablist"
+      aria-label="Tipo de acceso"
     >
-      {children}
-    </button>
+      <span
+        aria-hidden
+        className="absolute top-1 bottom-1 rounded-lg bg-[var(--color-accent)] shadow-md shadow-[var(--color-accent)]/25 pointer-events-none auth-tab-indicator"
+        style={{
+          width: 'calc((100% - 8px) / 3)',
+          left: `calc(4px + ${activeIndex} * ((100% - 8px) / 3))`,
+        }}
+      />
+      {AUTH_TABS.map(({ id, label }) => {
+        const selected = mode === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(id)}
+            className={`relative z-10 py-2.5 px-2 sm:px-3 rounded-lg font-mono text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-colors duration-300 ease-out ${
+              selected
+                ? 'text-white'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -306,7 +328,7 @@ export default function LoginScreen({
             <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
           </div>
 
-          <div className="flex-1 flex flex-col justify-center max-w-md">
+          <div key={mode} className="flex-1 flex flex-col justify-center max-w-md animate-auth-fade-in">
             <p className="mono-label text-[var(--color-accent)] mb-3">{meta.subtitle}</p>
             <h1 className="font-display text-2xl xl:text-3xl font-semibold tracking-[-0.03em] text-[var(--color-text)] leading-tight mb-4">
               {meta.title}
@@ -354,7 +376,7 @@ export default function LoginScreen({
             }`}
           >
             {/* Encabezado móvil / tablet */}
-            <div className="lg:hidden mb-4 sm:mb-5">
+            <div className="lg:hidden mb-4 sm:mb-5 animate-auth-fade-in" key={`mobile-${mode}`}>
               <div className="flex items-center gap-2 mb-2">
                 <ModeIcon className="w-4 h-4 text-[var(--color-accent)]" />
                 <h1 className="font-display text-lg font-semibold text-[var(--color-text)]">{meta.title}</h1>
@@ -363,19 +385,9 @@ export default function LoginScreen({
             </div>
 
             <PaperCard className="p-4 sm:p-6 lg:p-8 shadow-lg lg:shadow-xl border border-[var(--surface-border)]">
-              {/* Tabs */}
-              <div className="flex flex-wrap gap-1.5 sm:gap-2 p-1 rounded-xl bg-[var(--surface-panel-2)] border border-[var(--surface-border)] mb-6">
-                <ModeTab active={mode === 'login'} onClick={() => switchMode('login')}>
-                  Ingresar
-                </ModeTab>
-                <ModeTab active={mode === 'register-agency'} onClick={() => switchMode('register-agency')}>
-                  Agencia
-                </ModeTab>
-                <ModeTab active={mode === 'register-seller'} onClick={() => switchMode('register-seller')}>
-                  Vendedor
-                </ModeTab>
-              </div>
+              <AuthModeTabs mode={mode} onChange={switchMode} />
 
+              <div key={mode} className="animate-auth-fade-in">
               <div className="hidden lg:flex items-center gap-2 mb-2">
                 <ModeIcon className="w-4 h-4 text-[var(--color-accent)]" />
                 <h2 className="font-display text-lg font-semibold tracking-[-0.02em] text-[var(--color-text)]">
@@ -453,6 +465,7 @@ export default function LoginScreen({
                   </>
                 )}
               </form>
+              </div>
             </PaperCard>
 
             <a
