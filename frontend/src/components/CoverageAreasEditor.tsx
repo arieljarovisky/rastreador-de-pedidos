@@ -100,9 +100,7 @@ export default function CoverageAreasEditor({
     'w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg py-2 px-3 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/25 transition disabled:opacity-50';
 
   const zonesWrapperClass =
-    grid && value.length > 1
-      ? 'grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch auto-rows-fr'
-      : 'space-y-3';
+    grid && value.length > 1 ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-3';
 
   return (
     <div className="space-y-3">
@@ -122,7 +120,7 @@ export default function CoverageAreasEditor({
       {value.map((row, index) => (
         <div
           key={row.id}
-          className={`rounded-lg border border-[var(--surface-border)] bg-[var(--surface-panel-2)] ${compact ? 'p-2.5' : 'p-3.5'} space-y-2.5 h-full flex flex-col`}
+          className={`rounded-lg border border-[var(--surface-border)] bg-[var(--surface-panel-2)] ${compact ? 'p-2.5' : 'p-3.5'} space-y-2.5`}
         >
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] font-mono uppercase tracking-wide text-[var(--color-text-muted)]">

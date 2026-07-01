@@ -65,7 +65,7 @@ export default function SellerBusinessStep({
                 type="button"
                 disabled={disabled}
                 onClick={() => onMonthlyOrdersChange(opt.value)}
-                className={`h-full min-h-[3.25rem] flex items-center text-left rounded-lg border px-3 py-2.5 text-xs transition ${
+                className={`text-left rounded-lg border px-3 py-2.5 text-xs transition ${
                   selected
                     ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)] ring-1 ring-[var(--color-accent)]/30'
                     : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)]/40'

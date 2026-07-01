@@ -130,7 +130,7 @@ function AuthModeTabs({ mode, onChange }: { mode: AuthMode; onChange: (mode: Aut
 
   return (
     <div
-      className="relative grid w-full grid-cols-3 gap-0 p-1 rounded-xl bg-[var(--surface-panel-2)] border border-[var(--surface-border)] mb-6 auth-mode-tabs"
+      className="relative grid w-full grid-cols-3 gap-0 p-1 rounded-xl bg-[var(--surface-panel-2)] border border-[var(--surface-border)] mb-4 auth-mode-tabs"
       role="tablist"
       aria-label="Tipo de acceso"
     >
@@ -503,7 +503,7 @@ export default function LoginScreen({
                       {meta.title}
                     </h2>
                   </div>
-                  <p className="hidden lg:block text-xs text-[var(--color-text-muted)] mb-5">{meta.description}</p>
+                  <p className="hidden lg:block text-xs text-[var(--color-text-muted)] mb-4">{meta.description}</p>
                 </>
               )}
 
@@ -519,21 +519,11 @@ export default function LoginScreen({
               )}
 
               <form onSubmit={handleSubmit}>
-                <div
-                  className={`min-h-[min(22rem,52vh)] sm:min-h-[24rem] flex flex-col ${
-                    isRegister && registerStep === 2 && isAgencyRegister
-                      ? 'sm:min-h-[28rem]'
-                      : isRegister && registerStep === 2 && isSellerRegister
-                        ? 'sm:min-h-[26rem]'
-                        : ''
-                  }`}
-                >
-                  <div className="flex-1 space-y-4">
-                    {mode === 'login' ? credentialsFields : renderRegisterStep()}
-                  </div>
+                <div className="space-y-4">
+                  {mode === 'login' ? credentialsFields : renderRegisterStep()}
                 </div>
 
-                <div className="mt-6 pt-5 border-t border-[var(--surface-border)] flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+                <div className="mt-4 pt-4 border-t border-[var(--surface-border)] flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
                   {isRegister && registerStep > 1 && (
                     <button
                       type="button"

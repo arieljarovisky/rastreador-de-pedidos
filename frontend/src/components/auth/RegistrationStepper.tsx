@@ -21,7 +21,7 @@ export default function RegistrationStepper({ steps, currentStep }: Registration
     steps.length <= 1 ? 100 : ((currentStep - 1) / (steps.length - 1)) * 100;
 
   return (
-    <div className="mb-6">
+    <div className="mb-4">
       <div className="grid grid-cols-3 w-full gap-2">
         {steps.map((step) => {
           const done = currentStep > step.id;
@@ -58,7 +58,7 @@ export default function RegistrationStepper({ steps, currentStep }: Registration
         })}
       </div>
 
-      <div className="mt-4 h-1 rounded-full bg-[var(--surface-border)] overflow-hidden mx-1">
+      <div className="mt-3 h-1 rounded-full bg-[var(--surface-border)] overflow-hidden mx-1">
         <div
           className="h-full rounded-full bg-[var(--color-accent)] auth-tab-indicator transition-[width]"
           style={{ width: `${progressPct}%` }}
@@ -66,7 +66,7 @@ export default function RegistrationStepper({ steps, currentStep }: Registration
       </div>
 
       <p
-        className="mt-4 text-sm font-display font-semibold text-[var(--color-text)] text-center sm:text-left animate-auth-fade-in"
+        className="mt-3 text-sm font-display font-semibold text-[var(--color-text)] text-center sm:text-left animate-auth-fade-in"
         key={currentStep}
       >
         {steps.find((s) => s.id === currentStep)?.title}
