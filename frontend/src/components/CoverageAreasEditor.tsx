@@ -155,7 +155,7 @@ export default function CoverageAreasEditor({
   const usedMlZoneIds = (excludeRowId: string) =>
     value.filter((row) => row.id !== excludeRowId).flatMap((row) => row.mlZoneIds);
 
-  const allSelectedBarrioIds = value.flatMap((row) => draftBarrioIds(row, mlZones));
+  const allSelectedMlZoneIds = value.flatMap((row) => row.mlZoneIds);
 
   const inputClass =
     'w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded-lg py-2 px-3 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]/25 transition disabled:opacity-50';
@@ -177,7 +177,13 @@ export default function CoverageAreasEditor({
         </div>
       )}
 
-      <CoveragePreviewMap barrios={barrios} selectedBarrioIds={allSelectedBarrioIds} className="mb-1" />
+      <CoveragePreviewMap
+        barrios={barrios}
+        mlZones={mlZones}
+        selectedMlZoneIds={allSelectedMlZoneIds}
+        cordonLabels={cordonLabels}
+        className="mb-1"
+      />
 
       <div className={zonesWrapperClass}>
         {value.map((row, index) => (
@@ -234,13 +240,6 @@ export default function CoverageAreasEditor({
                 compact={compact}
               />
             </div>
-
-            <CoveragePreviewMap
-              barrios={barrios}
-              selectedBarrioIds={draftBarrioIds(row, mlZones)}
-              highlightCordon={row.cordon}
-              className="!h-32"
-            />
 
             <div className="grid grid-cols-2 gap-2">
               <div>

@@ -49,6 +49,30 @@ export function defaultMlZoneIdsForCordon(cordon: MlFlexCordon, mlZones: MlFlexZ
   return mlZonesForCordon(cordon, mlZones).map((z) => z.id);
 }
 
+export interface GeoBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+export function boundsForBarrioIds(barrioIds: string[], barrioCatalog: Barrio[]): GeoBounds | null {
+  const barrios = barrioIds
+    .map((id) => barrioCatalog.find((b) => b.id === id))
+    .filter((b): b is Barrio => Boolean(b));
+  if (barrios.length === 0) return null;
+  return {
+    south: Math.min(...barrios.map((b) => b.south)),
+    west: Math.min(...barrios.map((b) => b.west)),
+    north: Math.max(...barrios.map((b) => b.north)),
+    east: Math.max(...barrios.map((b) => b.east)),
+  };
+}
+
+export function boundsForMlZone(zone: MlFlexZone, barrioCatalog: Barrio[]): GeoBounds | null {
+  return boundsForBarrioIds(zone.barrioIds, barrioCatalog);
+}
+
 export const ML_FLEX_CORDON_COLORS: Record<MlFlexCordon, string> = {
   caba: '#3b82f6',
   cordon_1: '#10b981',
