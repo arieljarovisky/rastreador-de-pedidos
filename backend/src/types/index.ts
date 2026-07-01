@@ -34,6 +34,8 @@ export interface AgencyShippingService {
 export interface AgencyCoverageArea {
   id: string;
   name: string;
+  /** Zonas Flex MLA seleccionadas (partidos / CABA). */
+  mlZoneIds?: string[];
   /** IDs del catálogo de barrios (CABA/GBA) para mapas. */
   barrios: string[];
   /** Nombres legibles derivados de barrios (compatibilidad y listados). */

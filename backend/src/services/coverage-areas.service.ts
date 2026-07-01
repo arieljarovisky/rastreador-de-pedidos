@@ -1,4 +1,5 @@
 import { getBarrioById, resolveBarriosToBounds } from '../config/barrios.js';
+import { getMlFlexZoneById, mlZoneIdsToBarrioIds } from '../config/ml-flex-zones.js';
 import type { AgencyCoverageArea } from '../types/index.js';
 
 export function parsePlacesInput(text: string): string[] {
@@ -15,6 +16,13 @@ function resolveBarrioIds(raw: unknown): string[] {
     .filter((id) => Boolean(getBarrioById(id)));
 }
 
+function resolveMlZoneIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((id) => String(id).trim())
+    .filter((id) => Boolean(getMlFlexZoneById(id)));
+}
+
 function barrioNamesFromIds(ids: string[]): string[] {
   return ids.map((id) => getBarrioById(id)?.name ?? id);
 }
@@ -25,7 +33,9 @@ export function normalizeCoverageAreas(raw: unknown): AgencyCoverageArea[] {
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
     const row = item as Record<string, unknown>;
-    const barrios = resolveBarrioIds(row.barrios);
+    const mlZoneIds = resolveMlZoneIds(row.mlZoneIds);
+    const barriosFromMl = mlZoneIds.length > 0 ? mlZoneIdsToBarrioIds(mlZoneIds) : [];
+    const barrios = barriosFromMl.length > 0 ? barriosFromMl : resolveBarrioIds(row.barrios);
     const placesRaw = row.places;
     const legacyPlaces = Array.isArray(placesRaw)
       ? placesRaw.map((p) => String(p).trim()).filter(Boolean)
@@ -56,6 +66,7 @@ export function normalizeCoverageAreas(raw: unknown): AgencyCoverageArea[] {
     result.push({
       id,
       name,
+      mlZoneIds,
       barrios,
       places,
       tariff: Math.round(tariff * 100) / 100,

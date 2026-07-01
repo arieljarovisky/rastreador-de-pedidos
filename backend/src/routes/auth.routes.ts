@@ -10,12 +10,18 @@ import {
   type SellerMonthlyOrders,
 } from '../config/seller-profile.js';
 import { listBarrios } from '../config/barrios.js';
+import { listMlFlexZones, ML_FLEX_CORDON_LABELS, ML_FLEX_CORDON_ORDER } from '../config/ml-flex-zones.js';
 import { UserRole } from '../types/index.js';
 
 const router = Router();
 
 router.get('/barrios', (_req: Request, res: Response) => {
-  res.json(listBarrios());
+  res.json({
+    barrios: listBarrios(),
+    mlZones: listMlFlexZones(),
+    cordonLabels: ML_FLEX_CORDON_LABELS,
+    cordonOrder: ML_FLEX_CORDON_ORDER,
+  });
 });
 
 function userResponse(user: Awaited<ReturnType<typeof getUserById>>) {

@@ -221,8 +221,10 @@ export const api = {
     return request<DeliveryZone[]>('/api/delivery-zones', { token });
   },
 
-  getBarrios(token: string): Promise<Barrio[]> {
-    return request<Barrio[]>('/api/delivery-zones/barrios', { token });
+  async getBarrios(token: string): Promise<Barrio[]> {
+    const data = await request<Barrio[] | { barrios: Barrio[] }>('/api/delivery-zones/barrios', { token });
+    if (Array.isArray(data)) return data;
+    return data.barrios ?? [];
   },
 
   assignOrderSeller(token: string, orderId: string, sellerId: string): Promise<Order> {

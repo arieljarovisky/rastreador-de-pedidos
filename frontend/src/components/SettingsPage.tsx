@@ -29,10 +29,11 @@ import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import AgencyMarketplacePanel from './AgencyMarketplacePanel.tsx';
 import CoverageAreasEditor, {
   coverageAreasToDrafts,
+  defaultCoverageDrafts,
   draftsToCoverageAreas,
-  emptyCoverageDraft,
   type CoverageAreaDraft,
 } from './CoverageAreasEditor.tsx';
+import type { MlFlexCordon, MlFlexZone } from '../config/mlFlexZones.js';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -100,6 +101,9 @@ interface SettingsPageProps {
   pickupPoints?: PickupPoint[];
   deliveryZones?: DeliveryZone[];
   barrios?: Barrio[];
+  mlZones?: MlFlexZone[];
+  cordonLabels?: Record<MlFlexCordon, string>;
+  cordonOrder?: MlFlexCordon[];
   onCreateDeliveryZone?: (data: {
     name?: string;
     color?: string;
@@ -185,6 +189,14 @@ export default function SettingsPage({
   pickupPoints = [],
   deliveryZones = [],
   barrios = [],
+  mlZones = [],
+  cordonLabels = {
+    caba: 'CABA',
+    cordon_1: '1.er cordón GBA',
+    cordon_2: '2.º cordón GBA',
+    cordon_3: '3.er cordón GBA',
+  },
+  cordonOrder = ['caba', 'cordon_1', 'cordon_2', 'cordon_3'] as MlFlexCordon[],
   onCreateDeliveryZone,
   onUpdateDeliveryZone,
   onDeleteDeliveryZone,
@@ -237,7 +249,7 @@ export default function SettingsPage({
   const [profileSameDay, setProfileSameDay] = useState(false);
   const [profileTurbo, setProfileTurbo] = useState(false);
   const [profileCustomLabel, setProfileCustomLabel] = useState('');
-  const [profileCoverageDrafts, setProfileCoverageDrafts] = useState<CoverageAreaDraft[]>([emptyCoverageDraft()]);
+  const [profileCoverageDrafts, setProfileCoverageDrafts] = useState<CoverageAreaDraft[]>([]);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
 
@@ -327,13 +339,22 @@ export default function SettingsPage({
         setProfileTurbo(profile.shippingServices.some((s) => s.type === 'turbo'));
         const custom = profile.shippingServices.find((s) => s.type === 'custom');
         setProfileCustomLabel(custom?.label ?? '');
-        setProfileCoverageDrafts(coverageAreasToDrafts(profile.coverageAreas ?? []));
+        const drafts = coverageAreasToDrafts(profile.coverageAreas ?? []);
+        setProfileCoverageDrafts(
+          drafts.length > 0
+            ? drafts
+            : mlZones.length > 0
+              ? defaultCoverageDrafts(mlZones, cordonLabels, cordonOrder)
+              : []
+        );
       })
       .catch(() => {
-        setProfileCoverageDrafts([emptyCoverageDraft()]);
+        setProfileCoverageDrafts(
+          mlZones.length > 0 ? defaultCoverageDrafts(mlZones, cordonLabels, cordonOrder) : []
+        );
       })
       .finally(() => setProfileLoading(false));
-  }, [agency, onFetchAgencyMarketplaceProfile, user.city, user.province]);
+  }, [agency, onFetchAgencyMarketplaceProfile, user.city, user.province, mlZones, cordonLabels, cordonOrder]);
 
   const applyDeparturePreset = (preset: (typeof DIRECTORY_PRESETS)[0]) => {
     setDepartureAddress(preset.name);
@@ -1574,6 +1595,9 @@ export default function SettingsPage({
                   value={profileCoverageDrafts}
                   onChange={setProfileCoverageDrafts}
                   barrios={barrios}
+                  mlZones={mlZones}
+                  cordonLabels={cordonLabels}
+                  cordonOrder={cordonOrder}
                   disabled={profileSaving}
                 />
               )}
@@ -1617,7 +1641,7 @@ export default function SettingsPage({
                         city: profileCity.trim() || null,
                         province: profileProvince.trim() || null,
                         shippingServices: services,
-                        coverageAreas: draftsToCoverageAreas(profileCoverageDrafts, barrios),
+                        coverageAreas: draftsToCoverageAreas(profileCoverageDrafts, barrios, mlZones),
                       });
                       void onRefreshMarketplaceAgencies?.();
                       void showAlert({

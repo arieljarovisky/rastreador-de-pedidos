@@ -27,7 +27,7 @@ import PostaButton from './ui/PostaButton.tsx';
 import PaperCard from './ui/PaperCard.tsx';
 import ThemeToggle from './ui/ThemeToggle.tsx';
 import CoverageAreasEditor, {
-  emptyCoverageDraft,
+  defaultCoverageDrafts,
   coverageDraftsAreValid,
   draftsToCoverageAreas,
   type CoverageAreaDraft,
@@ -36,6 +36,11 @@ import RegistrationStepper from './auth/RegistrationStepper.tsx';
 import SellerBusinessStep, { sellerBusinessStepValid } from './auth/SellerBusinessStep.tsx';
 import { apiUrl } from '../api.js';
 import type { Barrio } from '../config/deliveryZones.js';
+import {
+  isGeoCatalog,
+  type MlFlexCordon,
+  type MlFlexZone,
+} from '../config/mlFlexZones.js';
 import {
   AGENCY_REGISTER_STEPS,
   SELLER_REGISTER_STEPS,
@@ -180,8 +185,22 @@ export default function LoginScreen({
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('');
-  const [coverageDrafts, setCoverageDrafts] = useState<CoverageAreaDraft[]>([emptyCoverageDraft()]);
+  const [coverageDrafts, setCoverageDrafts] = useState<CoverageAreaDraft[]>([]);
   const [barrioCatalog, setBarrioCatalog] = useState<Barrio[]>([]);
+  const [mlZones, setMlZones] = useState<MlFlexZone[]>([]);
+  const [cordonLabels, setCordonLabels] = useState<Record<MlFlexCordon, string>>({
+    caba: 'CABA',
+    cordon_1: '1.er cordón GBA',
+    cordon_2: '2.º cordón GBA',
+    cordon_3: '3.er cordón GBA',
+  });
+  const [cordonOrder, setCordonOrder] = useState<MlFlexCordon[]>([
+    'caba',
+    'cordon_1',
+    'cordon_2',
+    'cordon_3',
+  ]);
+  const [geoCatalogReady, setGeoCatalogReady] = useState(false);
   const [registerStep, setRegisterStep] = useState(1);
   const [monthlyOrders, setMonthlyOrders] = useState<SellerMonthlyOrders | ''>('');
   const [sellerCategories, setSellerCategories] = useState<string[]>([]);
@@ -197,9 +216,15 @@ export default function LoginScreen({
   useEffect(() => {
     let cancelled = false;
     void fetch(apiUrl('/api/auth/barrios'))
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: Barrio[]) => {
-        if (!cancelled && Array.isArray(data)) setBarrioCatalog(data);
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: unknown) => {
+        if (cancelled || !isGeoCatalog(data)) return;
+        setBarrioCatalog(data.barrios);
+        setMlZones(data.mlZones);
+        setCordonLabels(data.cordonLabels);
+        setCordonOrder(data.cordonOrder);
+        setCoverageDrafts(defaultCoverageDrafts(data.mlZones, data.cordonLabels, data.cordonOrder));
+        setGeoCatalogReady(true);
       })
       .catch(() => {});
     return () => {
@@ -213,7 +238,11 @@ export default function LoginScreen({
     setName('');
     setCity('');
     setProvince('');
-    setCoverageDrafts([emptyCoverageDraft()]);
+    setCoverageDrafts(
+      geoCatalogReady && mlZones.length > 0
+        ? defaultCoverageDrafts(mlZones, cordonLabels, cordonOrder)
+        : []
+    );
     setRegisterStep(1);
     setMonthlyOrders('');
     setSellerCategories([]);
@@ -255,7 +284,7 @@ export default function LoginScreen({
     if (isAgencyRegister) {
       void onRegisterAgency({
         ...base,
-        coverageAreas: draftsToCoverageAreas(coverageDrafts, barrioCatalog),
+        coverageAreas: draftsToCoverageAreas(coverageDrafts, barrioCatalog, mlZones),
       });
     } else if (isSellerRegister && monthlyOrders) {
       void onRegisterSeller({
@@ -393,10 +422,10 @@ export default function LoginScreen({
     if (isAgencyRegister) {
       if (registerStep === 1) return profileStepFields;
       if (registerStep === 2) {
-        if (barrioCatalog.length === 0) {
+        if (barrioCatalog.length === 0 || mlZones.length === 0) {
           return (
             <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">
-              Cargando catálogo de barrios…
+              Cargando zonas Flex de Mercado Libre…
             </p>
           );
         }
@@ -405,6 +434,9 @@ export default function LoginScreen({
             value={coverageDrafts}
             onChange={setCoverageDrafts}
             barrios={barrioCatalog}
+            mlZones={mlZones}
+            cordonLabels={cordonLabels}
+            cordonOrder={cordonOrder}
             disabled={loading}
           />
         );

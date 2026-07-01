@@ -40,6 +40,7 @@ export interface AgencyShippingService {
 export interface AgencyCoverageArea {
   id: string;
   name: string;
+  mlZoneIds?: string[];
   barrios: string[];
   places: string[];
   tariff: number;

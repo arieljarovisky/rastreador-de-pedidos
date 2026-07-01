@@ -6,6 +6,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyIntegrationsStatus, RepartidorMercadoLibreStatus, type MlFlexMode, type MarketplaceAgency, type AgencyMarketplaceProfile, type AgencyShippingService } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
+import type { MlFlexCordon, MlFlexZone } from './config/mlFlexZones.js';
+import { isGeoCatalog } from './config/mlFlexZones.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -53,6 +55,19 @@ export default function App() {
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [barrios, setBarrios] = useState<Barrio[]>([]);
+  const [mlZones, setMlZones] = useState<MlFlexZone[]>([]);
+  const [cordonLabels, setCordonLabels] = useState<Record<MlFlexCordon, string>>({
+    caba: 'CABA',
+    cordon_1: '1.er cordón GBA',
+    cordon_2: '2.º cordón GBA',
+    cordon_3: '3.er cordón GBA',
+  });
+  const [cordonOrder, setCordonOrder] = useState<MlFlexCordon[]>([
+    'caba',
+    'cordon_1',
+    'cordon_2',
+    'cordon_3',
+  ]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
@@ -226,7 +241,15 @@ export default function App() {
           setDeliveryZones(await zonesRes.json());
         }
         if (barriosRes.ok) {
-          setBarrios(await barriosRes.json());
+          const geo = await barriosRes.json();
+          if (isGeoCatalog(geo)) {
+            setBarrios(geo.barrios);
+            setMlZones(geo.mlZones);
+            setCordonLabels(geo.cordonLabels);
+            setCordonOrder(geo.cordonOrder);
+          } else if (Array.isArray(geo)) {
+            setBarrios(geo);
+          }
         }
       }
 
@@ -1579,6 +1602,9 @@ export default function App() {
                   pickupPoints={pickupPoints}
                   deliveryZones={deliveryZones}
                   barrios={barrios}
+                  mlZones={mlZones}
+                  cordonLabels={cordonLabels}
+                  cordonOrder={cordonOrder}
                   onCreateDeliveryZone={isAgencyAdmin(user.role) ? handleCreateDeliveryZone : undefined}
                   onUpdateDeliveryZone={isAgencyAdmin(user.role) ? handleUpdateDeliveryZone : undefined}
                   onDeleteDeliveryZone={isAgencyAdmin(user.role) ? handleDeleteDeliveryZone : undefined}

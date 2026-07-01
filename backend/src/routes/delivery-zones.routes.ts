@@ -7,6 +7,7 @@ import {
   deleteZone,
 } from '../services/delivery-zones.service.js';
 import { listBarrios } from '../config/barrios.js';
+import { listMlFlexZones, ML_FLEX_CORDON_LABELS, ML_FLEX_CORDON_ORDER } from '../config/ml-flex-zones.js';
 
 const router = Router();
 
@@ -19,7 +20,12 @@ function requireAgencyId(req: Request, res: Response): string | null {
 }
 
 router.get('/barrios', authenticate, (_req: Request, res: Response) => {
-  res.json(listBarrios());
+  res.json({
+    barrios: listBarrios(),
+    mlZones: listMlFlexZones(),
+    cordonLabels: ML_FLEX_CORDON_LABELS,
+    cordonOrder: ML_FLEX_CORDON_ORDER,
+  });
 });
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
