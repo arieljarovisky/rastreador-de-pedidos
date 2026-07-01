@@ -9,9 +9,14 @@ import {
   validateSellerProfile,
   type SellerMonthlyOrders,
 } from '../config/seller-profile.js';
+import { listBarrios } from '../config/barrios.js';
 import { UserRole } from '../types/index.js';
 
 const router = Router();
+
+router.get('/barrios', (_req: Request, res: Response) => {
+  res.json(listBarrios());
+});
 
 function userResponse(user: Awaited<ReturnType<typeof getUserById>>) {
   if (!user) return null;
@@ -44,8 +49,8 @@ function handleRegisterError(res: Response, err: unknown): boolean {
     res.status(400).json({ error: 'Cada zona debe tener un nombre.' });
     return true;
   }
-  if (message === 'COVERAGE_PLACES_REQUIRED') {
-    res.status(400).json({ error: 'Indicá los lugares que abarca cada zona.' });
+  if (message === 'COVERAGE_PLACES_REQUIRED' || message === 'COVERAGE_BARRIOS_REQUIRED') {
+    res.status(400).json({ error: 'Seleccioná al menos un barrio por cada zona de cobertura.' });
     return true;
   }
   if (message === 'COVERAGE_TARIFF_INVALID') {

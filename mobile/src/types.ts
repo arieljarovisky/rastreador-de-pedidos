@@ -31,6 +31,7 @@ export interface AgencyShippingService {
 export interface AgencyCoverageArea {
   id: string;
   name: string;
+  barrios: string[];
   places: string[];
   tariff: number;
   minimumOrders?: number | null;

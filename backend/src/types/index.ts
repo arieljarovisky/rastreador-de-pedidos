@@ -30,10 +30,13 @@ export interface AgencyShippingService {
   description?: string;
 }
 
-/** Zona comercial declarada por la agencia (lugares, tarifa, pedido mínimo). */
+/** Zona comercial declarada por la agencia (barrios del catálogo, tarifa, pedido mínimo). */
 export interface AgencyCoverageArea {
   id: string;
   name: string;
+  /** IDs del catálogo de barrios (CABA/GBA) para mapas. */
+  barrios: string[];
+  /** Nombres legibles derivados de barrios (compatibilidad y listados). */
   places: string[];
   tariff: number;
   minimumOrders?: number | null;

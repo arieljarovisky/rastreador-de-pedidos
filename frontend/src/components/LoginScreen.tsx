@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Shield,
   Key,
@@ -34,6 +34,8 @@ import CoverageAreasEditor, {
 } from './CoverageAreasEditor.tsx';
 import RegistrationStepper from './auth/RegistrationStepper.tsx';
 import SellerBusinessStep, { sellerBusinessStepValid } from './auth/SellerBusinessStep.tsx';
+import { apiUrl } from '../api.js';
+import type { Barrio } from '../config/deliveryZones.js';
 import {
   AGENCY_REGISTER_STEPS,
   SELLER_REGISTER_STEPS,
@@ -179,6 +181,7 @@ export default function LoginScreen({
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('');
   const [coverageDrafts, setCoverageDrafts] = useState<CoverageAreaDraft[]>([emptyCoverageDraft()]);
+  const [barrioCatalog, setBarrioCatalog] = useState<Barrio[]>([]);
   const [registerStep, setRegisterStep] = useState(1);
   const [monthlyOrders, setMonthlyOrders] = useState<SellerMonthlyOrders | ''>('');
   const [sellerCategories, setSellerCategories] = useState<string[]>([]);
@@ -190,6 +193,19 @@ export default function LoginScreen({
   const toggleTheme = () => {
     applyPostaTheme(theme === 'dark' ? 'paper' : 'dark');
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(apiUrl('/api/auth/barrios'))
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: Barrio[]) => {
+        if (!cancelled && Array.isArray(data)) setBarrioCatalog(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const resetForm = () => {
     setUsername('');
@@ -239,7 +255,7 @@ export default function LoginScreen({
     if (isAgencyRegister) {
       void onRegisterAgency({
         ...base,
-        coverageAreas: draftsToCoverageAreas(coverageDrafts),
+        coverageAreas: draftsToCoverageAreas(coverageDrafts, barrioCatalog),
       });
     } else if (isSellerRegister && monthlyOrders) {
       void onRegisterSeller({
@@ -377,10 +393,18 @@ export default function LoginScreen({
     if (isAgencyRegister) {
       if (registerStep === 1) return profileStepFields;
       if (registerStep === 2) {
+        if (barrioCatalog.length === 0) {
+          return (
+            <p className="text-sm text-[var(--color-text-muted)] py-4 text-center">
+              Cargando catálogo de barrios…
+            </p>
+          );
+        }
         return (
           <CoverageAreasEditor
             value={coverageDrafts}
             onChange={setCoverageDrafts}
+            barrios={barrioCatalog}
             disabled={loading}
           />
         );

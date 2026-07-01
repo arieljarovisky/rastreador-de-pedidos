@@ -1573,6 +1573,7 @@ export default function SettingsPage({
                 <CoverageAreasEditor
                   value={profileCoverageDrafts}
                   onChange={setProfileCoverageDrafts}
+                  barrios={barrios}
                   disabled={profileSaving}
                 />
               )}
@@ -1616,7 +1617,7 @@ export default function SettingsPage({
                         city: profileCity.trim() || null,
                         province: profileProvince.trim() || null,
                         shippingServices: services,
-                        coverageAreas: draftsToCoverageAreas(profileCoverageDrafts),
+                        coverageAreas: draftsToCoverageAreas(profileCoverageDrafts, barrios),
                       });
                       void onRefreshMarketplaceAgencies?.();
                       void showAlert({

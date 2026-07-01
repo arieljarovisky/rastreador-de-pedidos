@@ -343,8 +343,8 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
         res.status(400).json({ error: 'Cada zona debe tener un nombre.' });
         return;
       }
-      if (message === 'COVERAGE_PLACES_REQUIRED') {
-        res.status(400).json({ error: 'Indicá los lugares que abarca cada zona.' });
+      if (message === 'COVERAGE_PLACES_REQUIRED' || message === 'COVERAGE_BARRIOS_REQUIRED') {
+        res.status(400).json({ error: 'Seleccioná al menos un barrio por cada zona de cobertura.' });
         return;
       }
       if (message === 'COVERAGE_TARIFF_INVALID') {
