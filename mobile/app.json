@@ -18,7 +18,7 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.lupoenvios.repartidor",
+      "bundleIdentifier": "com.postaenvios.repartidor",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Posta requiere tu ubicación para que puedas usar la app como repartidor y compartir tu posición con logística.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Posta requiere tu ubicación todo el tiempo para el seguimiento en vivo de la flota, con o sin envío activo.",
@@ -30,7 +30,7 @@
     },
     "android": {
       "versionCode": 2,
-      "package": "com.lupoenvios.repartidor",
+      "package": "com.postaenvios.repartidor",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#141210"
