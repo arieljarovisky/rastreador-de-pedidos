@@ -20,6 +20,7 @@ function parseArgs(argv) {
   const positional = [];
   let minVersion;
   let message;
+  let artifactUrl;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--min-version') {
@@ -28,14 +29,17 @@ function parseArgs(argv) {
     } else if (arg === '--message') {
       message = argv[i + 1];
       i += 1;
+    } else if (arg === '--url') {
+      artifactUrl = argv[i + 1];
+      i += 1;
     } else if (!arg.startsWith('--')) {
       positional.push(arg);
     }
   }
-  return { buildId: positional[0], minVersion, message };
+  return { buildId: positional[0], minVersion, message, artifactUrl };
 }
 
-const { buildId, minVersion: minVersionArg, message: messageArg } = parseArgs(
+const { buildId, minVersion: minVersionArg, message: messageArg, artifactUrl } = parseArgs(
   process.argv.slice(2)
 );
 
@@ -44,21 +48,26 @@ function run(cmd) {
 }
 
 let id = buildId;
-if (!id) {
-  const list = JSON.parse(
-    run('npx eas-cli build:list --platform android --limit 1 --json --non-interactive')
-  );
-  const latest = list?.[0];
-  if (!latest?.id) throw new Error('No hay builds de Android en EAS.');
-  if (latest.status !== 'FINISHED') {
-    throw new Error(`El último build (${latest.id}) no terminó: ${latest.status}`);
+let url = artifactUrl;
+
+if (!url) {
+  if (!id) {
+    const list = JSON.parse(
+      run('npx eas-cli build:list --platform android --limit 1 --json --non-interactive')
+    );
+    const latest = list?.[0];
+    if (!latest?.id) throw new Error('No hay builds de Android en EAS.');
+    if (latest.status !== 'FINISHED') {
+      throw new Error(`El último build (${latest.id}) no terminó: ${latest.status}`);
+    }
+    id = latest.id;
   }
-  id = latest.id;
+
+  const view = JSON.parse(run(`npx eas-cli build:view ${id} --json`));
+  url = view?.artifacts?.applicationArchiveUrl ?? view?.artifacts?.buildUrl;
 }
 
-const view = JSON.parse(run(`npx eas-cli build:view ${id} --json`));
-const url = view?.artifacts?.applicationArchiveUrl ?? view?.artifacts?.buildUrl;
-if (!url) throw new Error(`Build ${id} sin URL de artefacto.`);
+if (!url) throw new Error(`Build ${id ?? '(direct)'} sin URL de artefacto.`);
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 run(`curl -fsSL "${url}" -o "${outPath}"`);
@@ -79,4 +88,4 @@ const sizeMb = (fs.statSync(outPath).size / (1024 * 1024)).toFixed(1);
 console.log(`APK guardado: ${outPath} (${sizeMb} MB)`);
 console.log(`Versión publicada: ${versionPayload.version} (mínima: ${versionPayload.minVersion})`);
 console.log(`Metadata: ${versionPath}`);
-console.log(`Build EAS: ${id}`);
+console.log(`Build EAS: ${id ?? 'url-directa'}`);
