@@ -12,6 +12,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
+import { useAuth } from '../../context/AuthContext';
+import { useTrackOrder } from '../../hooks/useTrackOrder';
+import { getLiveDriverPosition } from '../../utils/driverPosition';
 import { findZoneForPoint, zoneLabel } from '../../config/deliveryZones';
 import { OrderStatus } from '../../types';
 import { colors, radius, spacing } from '../../theme';
@@ -25,6 +28,7 @@ type Props = NativeStackScreenProps<AgencyStackParamList, 'AgencyOrderDetail'>;
 export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
   const { orderId } = route.params;
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
   const {
     getOrder,
     repartidores,
@@ -40,6 +44,8 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
     archiveOrder,
   } = useAgencyOrdersContext();
   const [busy, setBusy] = useState(false);
+
+  useTrackOrder(token, orderId);
 
   const order = getOrder(orderId);
 
@@ -67,11 +73,7 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const trail = order.locationHistory.map((p) => ({
-    latitude: p.lat,
-    longitude: p.lng,
-  }));
-  const lastDriver = trail[trail.length - 1] ?? null;
+  const liveDriver = order ? getLiveDriverPosition(order, repartidores) : null;
   const isOpen =
     order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED;
 
@@ -145,13 +147,10 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
           destination={{ lat: order.lat, lng: order.lng, label: order.clientName }}
           trail={order.locationHistory.map((p) => ({ lat: p.lat, lng: p.lng }))}
           driver={
-            lastDriver &&
-            order.repartidorId &&
-            (order.status === OrderStatus.DELIVERING ||
-              order.status === OrderStatus.ASSIGNED)
+            liveDriver
               ? {
-                  lat: lastDriver.latitude,
-                  lng: lastDriver.longitude,
+                  lat: liveDriver.lat,
+                  lng: liveDriver.lng,
                   label: order.repartidorName ?? 'Repartidor',
                 }
               : null

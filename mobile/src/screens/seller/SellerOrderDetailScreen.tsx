@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { useSellerOrdersContext } from '../../context/SellerOrdersContext';
+import { useTrackOrder } from '../../hooks/useTrackOrder';
+import { getLiveDriverPosition } from '../../utils/driverPosition';
 import { OrderStatus, STATUS_LABEL } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
@@ -26,8 +28,11 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
   const { orderId } = route.params;
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
-  const { getOrder, cancelOrder, deleteOrder, archiveOrder } = useSellerOrdersContext();
+  const { getOrder, cancelOrder, deleteOrder, archiveOrder, repartidores } =
+    useSellerOrdersContext();
   const [busy, setBusy] = useState(false);
+
+  useTrackOrder(token, orderId);
 
   const order = getOrder(orderId);
 
@@ -45,11 +50,7 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const trail = order.locationHistory.map((p) => ({
-    latitude: p.lat,
-    longitude: p.lng,
-  }));
-  const lastDriver = trail[trail.length - 1] ?? null;
+  const liveDriver = order ? getLiveDriverPosition(order, repartidores) : null;
   const isActive =
     order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED;
 
@@ -144,12 +145,10 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
           }}
           trail={order.locationHistory.map((p) => ({ lat: p.lat, lng: p.lng }))}
           driver={
-            lastDriver &&
-            order.repartidorId &&
-            (order.status === OrderStatus.DELIVERING || order.status === OrderStatus.ASSIGNED)
+            liveDriver
               ? {
-                  lat: lastDriver.latitude,
-                  lng: lastDriver.longitude,
+                  lat: liveDriver.lat,
+                  lng: liveDriver.lng,
                   label: order.repartidorName ?? 'Repartidor',
                 }
               : null

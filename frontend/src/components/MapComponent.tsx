@@ -51,6 +51,34 @@ function upsertPolyline(
   }
 }
 
+const MARKER_ANIM_MS = 1800;
+
+function animateMarkerTo(
+  marker: L.Marker,
+  to: [number, number],
+  animStore: { [key: string]: number },
+  key: string,
+  duration = MARKER_ANIM_MS
+) {
+  const from = marker.getLatLng();
+  if (Math.abs(from.lat - to[0]) < 1e-6 && Math.abs(from.lng - to[1]) < 1e-6) return;
+
+  if (animStore[key]) cancelAnimationFrame(animStore[key]);
+
+  const start = performance.now();
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / duration);
+    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    marker.setLatLng([
+      from.lat + (to[0] - from.lat) * ease,
+      from.lng + (to[1] - from.lng) * ease,
+    ]);
+    if (t < 1) animStore[key] = requestAnimationFrame(step);
+    else delete animStore[key];
+  };
+  animStore[key] = requestAnimationFrame(step);
+}
+
 interface MapComponentProps {
   orders: Order[];
   repartidores?: User[];
@@ -137,6 +165,8 @@ export default function MapComponent({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markersRef = useRef<{ [key: string]: L.Marker }>({});
   const polylinesRef = useRef<{ [key: string]: L.Polyline }>({});
+  const markerAnimRef = useRef<Record<string, number>>({});
+  const lastRouteFetchRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const zoneLayersRef = useRef<L.Rectangle[]>([]);
   const hubMarkerRef = useRef<L.Marker | null>(null);
   const initialFitDoneRef = useRef(false);
@@ -352,6 +382,13 @@ export default function MapComponent({
       ) {
         activePolylineKeys.add(`${order.id}__route`);
       }
+      if (
+        order.id === activeOrderId &&
+        order.status === OrderStatus.DELIVERING &&
+        order.locationHistory.length > 1
+      ) {
+        activePolylineKeys.add(`${order.id}__trail`);
+      }
     });
     Object.keys(polylinesRef.current).forEach((key) => {
       if (!activePolylineKeys.has(key)) {
@@ -431,6 +468,22 @@ export default function MapComponent({
 
         markersRef.current[order.id] = marker;
       }
+
+      if (
+        order.id === activeOrderId &&
+        order.status === OrderStatus.DELIVERING &&
+        order.locationHistory.length > 1
+      ) {
+        const trailCoords = order.locationHistory.map(
+          (p) => [p.lat, p.lng] as [number, number]
+        );
+        upsertPolyline(map, polylinesRef.current, `${order.id}__trail`, trailCoords, {
+          color: mapColors.route,
+          weight: 3,
+          opacity: 0.7,
+          dashArray: '6, 8',
+        });
+      }
     });
 
     // --- 2b. PUNTOS DE COLECTA ---
@@ -489,7 +542,12 @@ export default function MapComponent({
           `;
 
       if (markersRef.current[markerId]) {
-        markersRef.current[markerId].setLatLng([rep.currentLocation.lat, rep.currentLocation.lng]);
+        animateMarkerTo(
+          markersRef.current[markerId],
+          [rep.currentLocation.lat, rep.currentLocation.lng],
+          markerAnimRef.current,
+          markerId
+        );
         markersRef.current[markerId].setIcon(icon);
         markersRef.current[markerId].setPopupContent(repPopup);
       } else {
@@ -530,6 +588,19 @@ export default function MapComponent({
       }
       return;
     }
+
+    const now = Date.now();
+    const last = lastRouteFetchRef.current;
+    const movedKm =
+      last == null
+        ? Infinity
+        : Math.hypot(repPos[0] - last.lat, repPos[1] - last.lng) * 111;
+    const shouldRefetch =
+      !last || now - last.at > 15000 || movedKm > 0.08;
+
+    if (!shouldRefetch) return;
+
+    lastRouteFetchRef.current = { at: now, lat: repPos[0], lng: repPos[1] };
 
     let cancelled = false;
 
@@ -609,7 +680,8 @@ export default function MapComponent({
         🛰️ MAPA REALTIME POSTA
       </div>
       <div className="absolute bottom-3 left-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1.5 rounded-[5px] text-[8px] font-mono border border-[var(--surface-border)] text-[var(--color-text-faint)]">
-        <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta al próximo destino</div>
+        <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta estimada al destino</div>
+        <div><span className="inline-block w-3 h-0.5 border-t border-dashed border-[var(--color-accent)] mr-1 align-middle" /> Recorrido GPS en vivo</div>
       </div>
       <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
     </div>

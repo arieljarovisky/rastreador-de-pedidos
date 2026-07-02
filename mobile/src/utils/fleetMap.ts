@@ -18,10 +18,12 @@ export function buildSellerFleetMarkers(
   for (const rep of repartidores) {
     if (!rep.currentLocation) continue;
     markers.push({
+      id: `rep_${rep.id}`,
       lat: rep.currentLocation.lat,
       lng: rep.currentLocation.lng,
       color: COLORS.repartidor,
       label: `🏍️ ${rep.name}`,
+      animated: true,
     });
   }
 
@@ -40,6 +42,7 @@ export function buildSellerFleetMarkers(
           ? COLORS.assigned
           : COLORS.pending;
     markers.push({
+      id: `order_${order.id}`,
       lat: order.lat,
       lng: order.lng,
       color,

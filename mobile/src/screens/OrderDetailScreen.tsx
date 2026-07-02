@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
+import { useTrackOrder } from '../hooks/useTrackOrder';
 import { OrderStatus, STATUS_LABEL } from '../types';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
@@ -26,10 +27,12 @@ type Props = NativeStackScreenProps<RepartidorStackParamList, 'OrderDetail'>;
 export default function OrderDetailScreen({ route, navigation }: Props) {
   const { orderId } = route.params;
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { getOrder, updateStatus, coords, permissionDenied, deliveringOrder } =
     useOrdersContext();
   const [busy, setBusy] = useState(false);
+
+  useTrackOrder(token, orderId);
 
   const order = getOrder(orderId);
 
@@ -48,13 +51,14 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   }
 
   const isMine = order.repartidorId === user?.id;
-  const trail = order.locationHistory.map((p) => ({
-    latitude: p.lat,
-    longitude: p.lng,
-  }));
   const driver = coords
     ? { latitude: coords.lat, longitude: coords.lng }
-    : trail[trail.length - 1] ?? null;
+    : order.locationHistory.length > 0
+      ? {
+          latitude: order.locationHistory[order.locationHistory.length - 1].lat,
+          longitude: order.locationHistory[order.locationHistory.length - 1].lng,
+        }
+      : null;
 
   const run = async (
     status: OrderStatus,
@@ -133,6 +137,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           }}
           trail={order.locationHistory.map((p) => ({ lat: p.lat, lng: p.lng }))}
           driver={driverPoint}
+          followDriver={isMine && order.status === OrderStatus.DELIVERING}
         />
       </View>
 

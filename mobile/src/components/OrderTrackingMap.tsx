@@ -13,13 +13,22 @@ interface Props {
   trail?: MapPoint[];
   driver?: MapPoint | null;
   style?: StyleProp<ViewStyle>;
+  /** Centra el mapa en el repartidor mientras se mueve (estilo Uber/Rappi). */
+  followDriver?: boolean;
 }
 
-/** Mapa de seguimiento de un pedido (destino + repartidor + ruta). */
-export default function OrderTrackingMap({ destination, trail = [], driver, style }: Props) {
+/** Mapa de seguimiento de un pedido (destino + repartidor animado + ruta recorrida). */
+export default function OrderTrackingMap({
+  destination,
+  trail = [],
+  driver,
+  style,
+  followDriver = true,
+}: Props) {
   const markers = useMemo(() => {
     const list: MapMarker[] = [
       {
+        id: 'destination',
         lat: destination.lat,
         lng: destination.lng,
         label: destination.label ?? 'Destino',
@@ -28,10 +37,12 @@ export default function OrderTrackingMap({ destination, trail = [], driver, styl
     ];
     if (driver) {
       list.push({
+        id: 'driver',
         lat: driver.lat,
         lng: driver.lng,
         label: driver.label ?? 'Repartidor',
         color: MAP_COLORS.driver,
+        animated: true,
       });
     }
     return list;
@@ -40,7 +51,7 @@ export default function OrderTrackingMap({ destination, trail = [], driver, styl
   const polylines = useMemo(
     () =>
       trail.length > 1
-        ? [{ points: trail, color: MAP_COLORS.route }]
+        ? [{ id: 'trail', points: trail, color: MAP_COLORS.route }]
         : [],
     [trail]
   );
@@ -50,6 +61,7 @@ export default function OrderTrackingMap({ destination, trail = [], driver, styl
       markers={markers}
       polylines={polylines}
       style={style}
+      followDriver={followDriver && Boolean(driver)}
       emptyLabel="Sin coordenadas de entrega."
     />
   );
