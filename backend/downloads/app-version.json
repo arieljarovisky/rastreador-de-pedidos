@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "minVersion": "1.1.0",
-  "message": "Nueva versión de Posta: ubicación obligatoria para repartidores, seguimiento de flota siempre activo y mejoras en el mapa. Actualizá para continuar."
+  "message": "Corrección para conectar Mercado Libre desde la app de repartidor. Actualizá para instalar la mejora."
 }

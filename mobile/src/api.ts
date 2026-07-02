@@ -280,9 +280,13 @@ export const api = {
   getIntegrationConnectUrl(
     token: string,
     platform: MarketplacePlatform,
-    client: 'mobile' | 'web' = 'web'
+    client: 'mobile' | 'web' = 'web',
+    redirectUri?: string
   ): Promise<{ url: string }> {
-    const qs = client === 'mobile' ? '?client=mobile' : '';
+    const params = new URLSearchParams();
+    if (client === 'mobile') params.set('client', 'mobile');
+    if (redirectUri) params.set('redirect_uri', redirectUri);
+    const qs = params.toString() ? `?${params}` : '';
     return request<{ url: string }>(`/api/integrations/${platform}/connect${qs}`, { token });
   },
 

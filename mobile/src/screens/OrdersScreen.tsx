@@ -15,6 +15,7 @@ import { useOrdersContext } from '../context/OrdersContext';
 import { Order, OrderStatus } from '../types';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import OrderCard from '../components/OrderCard';
+import RepartidorMlConnectBar from '../components/RepartidorMlConnectBar';
 import ConnectionBadge from '../components/ui/ConnectionBadge';
 import MonoLabel from '../components/ui/MonoLabel';
 import { RepartidorStackParamList } from '../navigation/types';
@@ -82,6 +83,8 @@ export default function OrdersScreen({ navigation }: Props) {
         </View>
         <Text style={styles.scanChevron}>›</Text>
       </Pressable>
+
+      <RepartidorMlConnectBar />
 
       <View style={styles.tabs}>
         <TabButton

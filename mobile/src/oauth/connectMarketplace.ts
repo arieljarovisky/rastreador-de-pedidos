@@ -2,10 +2,9 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { api } from '../api';
 import { MarketplacePlatform } from '../types';
+import { getOAuthRedirectUri } from './redirectUri';
 
 WebBrowser.maybeCompleteAuthSession();
-
-export const OAUTH_REDIRECT_URI = Linking.createURL('oauth/callback');
 
 export type OAuthResult = 'connected' | 'cancelled' | 'error';
 
@@ -23,16 +22,21 @@ export async function connectMarketplace(
   token: string,
   platform: MarketplacePlatform
 ): Promise<{ result: OAuthResult; message?: string }> {
-  const { url } = await api.getIntegrationConnectUrl(token, platform, 'mobile');
+  const redirectUri = getOAuthRedirectUri();
+  const { url } = await api.getIntegrationConnectUrl(token, platform, 'mobile', redirectUri);
 
-  const session = await WebBrowser.openAuthSessionAsync(url, OAUTH_REDIRECT_URI);
+  const session = await WebBrowser.openAuthSessionAsync(url, redirectUri);
 
   if (session.type === 'cancel' || session.type === 'dismiss') {
     return { result: 'cancelled' };
   }
 
   if (session.type !== 'success' || !session.url) {
-    return { result: 'error' };
+    return {
+      result: 'error',
+      message:
+        'No se pudo volver a la app después de autorizar. Verificá que tenés la última versión de Posta instalada.',
+    };
   }
 
   const parsed = Linking.parse(session.url);
