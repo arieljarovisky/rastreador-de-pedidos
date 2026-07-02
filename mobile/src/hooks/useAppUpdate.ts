@@ -1,33 +1,53 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Alert, AppState, Linking, Platform } from 'react-native';
-import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../api';
+import { canTrustAppVersion, getCurrentAppVersion } from '../utils/appVersion';
 import { compareVersions } from '../utils/compareVersions';
 
 const DISMISSED_VERSION_KEY = 'posta_dismissed_app_version';
+const CHECK_COOLDOWN_MS = 60_000;
 
 export function useAppUpdate() {
   const checking = useRef(false);
-  const currentVersion = Constants.expoConfig?.version ?? '0.0.0';
+  const lastCheckAt = useRef(0);
+  const promptedKeyRef = useRef<string | null>(null);
+  const currentVersion = getCurrentAppVersion();
 
   const check = useCallback(async () => {
     if (Platform.OS !== 'android') return;
     if (checking.current) return;
+    if (!canTrustAppVersion(currentVersion)) return;
+
+    const now = Date.now();
+    if (now - lastCheckAt.current < CHECK_COOLDOWN_MS) return;
 
     checking.current = true;
+    lastCheckAt.current = now;
+
     try {
       const info = await api.getAppVersion();
-      const updateRequired = compareVersions(currentVersion, info.minVersion) < 0;
-      const updateAvailable =
-        !updateRequired && compareVersions(currentVersion, info.version) < 0;
+      const remoteVersion = info.version.trim();
+      const minVersion = info.minVersion.trim();
 
-      if (!updateRequired && !updateAvailable) return;
+      const updateRequired = compareVersions(currentVersion, minVersion) < 0;
+      const updateAvailable =
+        !updateRequired && compareVersions(currentVersion, remoteVersion) < 0;
+
+      if (!updateRequired && !updateAvailable) {
+        promptedKeyRef.current = null;
+        return;
+      }
+
+      const promptKey = `${remoteVersion}:${updateRequired ? 'required' : 'optional'}`;
+      if (promptedKeyRef.current === promptKey) return;
 
       if (updateAvailable) {
         const dismissed = await AsyncStorage.getItem(DISMISSED_VERSION_KEY);
-        if (dismissed === info.version) return;
+        if (dismissed === remoteVersion) return;
       }
+
+      promptedKeyRef.current = promptKey;
 
       const openUpdate = () => {
         void Linking.openURL(info.downloadUrl);
@@ -36,8 +56,8 @@ export function useAppUpdate() {
       const message =
         info.message ??
         (updateRequired
-          ? `Tu versión (${currentVersion}) ya no es compatible. Instalá la versión ${info.version} para seguir usando Posta.`
-          : `Hay una nueva versión (${info.version}). Te recomendamos instalarla para tener las últimas mejoras.`);
+          ? `Tu versión (${currentVersion}) ya no es compatible. Instalá la versión ${remoteVersion} para seguir usando Posta.`
+          : `Hay una nueva versión (${remoteVersion}). Te recomendamos instalarla para tener las últimas mejoras.`);
 
       if (updateRequired) {
         Alert.alert(
@@ -54,7 +74,7 @@ export function useAppUpdate() {
           text: 'Más tarde',
           style: 'cancel',
           onPress: () => {
-            void AsyncStorage.setItem(DISMISSED_VERSION_KEY, info.version);
+            void AsyncStorage.setItem(DISMISSED_VERSION_KEY, remoteVersion);
           },
         },
         { text: 'Actualizar', onPress: openUpdate },

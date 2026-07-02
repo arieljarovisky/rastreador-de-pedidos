@@ -26,7 +26,7 @@ type Tab = 'assigned' | 'available';
 export default function OrdersScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
-  const { orders, loading, refreshing, connected, refresh } = useOrdersContext();
+  const { orders, loading, refreshing, connected, error, refresh } = useOrdersContext();
   const [tab, setTab] = useState<Tab>('assigned');
 
   const myAssigned = useMemo(
@@ -100,6 +100,15 @@ export default function OrdersScreen({ navigation }: Props) {
           onPress={() => setTab('available')}
         />
       </View>
+
+      {error && !loading ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable onPress={() => void refresh()} hitSlop={8}>
+            <Text style={styles.retryLink}>Reintentar</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.center}>
@@ -219,6 +228,23 @@ const styles = StyleSheet.create({
   tabLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
   list: { padding: spacing.xl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  errorBox: {
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.redBg,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.red,
+    gap: spacing.xs,
+  },
+  errorText: { color: colors.red, fontSize: 13, lineHeight: 18 },
+  retryLink: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '700',
+    alignSelf: 'flex-start',
+  },
   empty: { paddingTop: 80, paddingHorizontal: spacing.xl },
   emptyText: {
     color: colors.textFaint,

@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { api } from '../api';
 import { socketUrl, POLL_INTERVAL_MS } from '../config';
 import { Order, User } from '../types';
+import { normalizeOrder, normalizeOrders } from '../utils/normalizeOrder';
 import { mergeRepartidorLocation } from '../utils/repartidorLocation';
 
 interface OrderLocationPayload {
@@ -45,13 +46,15 @@ export function useOrders(
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const initialLoadDoneRef = useRef(false);
 
   const mergeOrder = useCallback((order: Order) => {
+    const normalized = normalizeOrder(order);
     setOrders((prev) => {
-      const i = prev.findIndex((o) => o.id === order.id);
-      if (i === -1) return [order, ...prev];
+      const i = prev.findIndex((o) => o.id === normalized.id);
+      if (i === -1) return [normalized, ...prev];
       const next = [...prev];
-      next[i] = order;
+      next[i] = normalized;
       return next;
     });
   }, []);
@@ -64,11 +67,12 @@ export function useOrders(
     setOrders((prev) =>
       prev.map((order) => {
         if (order.id !== payload.orderId) return order;
-        const last = order.locationHistory[order.locationHistory.length - 1];
+        const history = order.locationHistory ?? [];
+        const last = history[history.length - 1];
         if (last?.timestamp === payload.point.timestamp) return order;
         return {
           ...order,
-          locationHistory: [...order.locationHistory, payload.point],
+          locationHistory: [...history, payload.point],
           updatedAt: payload.point.timestamp,
         };
       })
@@ -99,7 +103,7 @@ export function useOrders(
         trackRepartidores ? api.getRepartidores(token) : Promise.resolve(null),
       ];
       const [ordersData, repsData] = await Promise.all(requests);
-      setOrders(ordersData);
+      setOrders(normalizeOrders(ordersData));
       if (repsData) setRepartidores(repsData);
       setError(null);
     } catch (err) {
@@ -114,9 +118,22 @@ export function useOrders(
   }, [load]);
 
   useEffect(() => {
-    if (!token) return;
-    setLoading(true);
-    load().finally(() => setLoading(false));
+    if (!token) {
+      initialLoadDoneRef.current = false;
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+
+    const isInitial = !initialLoadDoneRef.current;
+    if (isInitial) setLoading(true);
+
+    load()
+      .catch(() => undefined)
+      .finally(() => {
+        setLoading(false);
+        initialLoadDoneRef.current = true;
+      });
   }, [token, load]);
 
   useEffect(() => {
@@ -157,7 +174,7 @@ export function useOrders(
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(() => {
-      load();
+      void load();
     }, connected ? POLL_INTERVAL_MS * 5 : POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [token, connected, load]);

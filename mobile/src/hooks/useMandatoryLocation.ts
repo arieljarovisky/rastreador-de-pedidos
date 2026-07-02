@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, Linking } from 'react-native';
 import * as Location from 'expo-location';
 
@@ -38,18 +38,44 @@ async function evaluateRepartidorLocationAccess(): Promise<{
 export function useMandatoryLocation(): MandatoryLocationState {
   const [status, setStatus] = useState<MandatoryLocationStatus>('checking');
   const [canAskAgain, setCanAskAgain] = useState(true);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
+  const applyResult = useCallback((result: { granted: boolean; canAskAgain: boolean }) => {
+    setCanAskAgain(result.canAskAgain);
+    setStatus(result.granted ? 'granted' : 'denied');
+  }, []);
 
   const retry = useCallback(async () => {
     setStatus('checking');
     try {
-      const result = await evaluateRepartidorLocationAccess();
-      setCanAskAgain(result.canAskAgain);
-      setStatus(result.granted ? 'granted' : 'denied');
+      applyResult(await evaluateRepartidorLocationAccess());
     } catch {
       setCanAskAgain(false);
       setStatus('denied');
     }
-  }, []);
+  }, [applyResult]);
+
+  /** Revalida permisos sin desmontar la app (evita parpadeos al volver del background). */
+  const recheckSilently = useCallback(async () => {
+    try {
+      const fg = await Location.getForegroundPermissionsAsync();
+      const bg = await Location.getBackgroundPermissionsAsync();
+      const granted = fg.status === 'granted' && bg.status === 'granted';
+      if (granted) {
+        if (statusRef.current !== 'granted') {
+          applyResult({ granted: true, canAskAgain: true });
+        }
+        return;
+      }
+      applyResult({
+        granted: false,
+        canAskAgain: fg.canAskAgain !== false && bg.canAskAgain !== false,
+      });
+    } catch {
+      // Mantener el estado actual si la revalidación falla transitoriamente.
+    }
+  }, [applyResult]);
 
   useEffect(() => {
     void retry();
@@ -58,12 +84,12 @@ export function useMandatoryLocation(): MandatoryLocationState {
   useEffect(() => {
     const handleAppState = (state: AppStateStatus) => {
       if (state === 'active') {
-        void retry();
+        void recheckSilently();
       }
     };
     const sub = AppState.addEventListener('change', handleAppState);
     return () => sub.remove();
-  }, [retry]);
+  }, [recheckSilently]);
 
   const openSettings = useCallback(() => {
     void Linking.openSettings();

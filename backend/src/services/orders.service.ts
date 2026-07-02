@@ -172,8 +172,8 @@ export async function listOrdersForUser(user: User): Promise<Order[]> {
     );
   } else {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id = ?)) AND o.archived = 0 ORDER BY o.created_at DESC`,
-      [user.id, OrderStatus.PENDING, user.agencyId]
+      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id <=> ?)) AND o.archived = 0 ORDER BY o.created_at DESC`,
+      [user.id, OrderStatus.PENDING, user.agencyId ?? null]
     );
   }
 

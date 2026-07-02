@@ -39,6 +39,8 @@ export function useLocationReporter(
   const [error, setError] = useState<string | null>(null);
   const subRef = useRef<Location.LocationSubscription | null>(null);
   const lastGpsSentAt = useRef(0);
+  const activeOrderIdRef = useRef(activeOrderId);
+  activeOrderIdRef.current = activeOrderId;
 
   useEffect(() => {
     void setActiveOrderId(activeOrderId);
@@ -109,7 +111,7 @@ export function useLocationReporter(
                 lng,
                 timestamp: new Date(pos.timestamp).toISOString(),
               },
-              activeOrderId
+              activeOrderIdRef.current
             );
           }
         );
@@ -124,7 +126,7 @@ export function useLocationReporter(
       subRef.current?.remove();
       subRef.current = null;
     };
-  }, [token, activeOrderId, enabled]);
+  }, [token, enabled]);
 
   return { coords, permissionDenied, error };
 }
