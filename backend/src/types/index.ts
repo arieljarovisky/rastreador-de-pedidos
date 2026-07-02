@@ -107,6 +107,8 @@ export interface AppNotification {
 export interface JwtPayload {
   userId: string;
   role: UserRole;
+  /** Identificador de sesión activa (solo repartidores). */
+  sessionId?: string;
 }
 
 export interface DbUserRow {
@@ -123,6 +125,7 @@ export interface DbUserRow {
   departure_lat: number | null;
   departure_lng: number | null;
   delivery_zone: string | null;
+  session_token: string | null;
 }
 
 export interface DbOrderRow {

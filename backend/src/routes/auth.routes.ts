@@ -1,7 +1,14 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { authenticate, signToken } from '../middleware/auth.js';
-import { findUserByUsername, createUser, getUserById } from '../services/users.service.js';
+import {
+  findUserByUsername,
+  createUser,
+  getUserById,
+  hasRepartidorActiveSession,
+  createRepartidorSession,
+  clearRepartidorSession,
+} from '../services/users.service.js';
 import { createAgency } from '../services/agencies.service.js';
 import { UserRole } from '../types/index.js';
 
@@ -58,8 +65,32 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
+  if (user.role === UserRole.REPARTIDOR) {
+    const hasSession = await hasRepartidorActiveSession(user.id);
+    if (hasSession) {
+      res.status(409).json({
+        error:
+          'Ya tenés una sesión activa en otro dispositivo. Cerrá sesión allí antes de ingresar.',
+        code: 'SESSION_ALREADY_ACTIVE',
+      });
+      return;
+    }
+
+    const sessionId = await createRepartidorSession(user.id);
+    const token = signToken(user.id, user.role, sessionId);
+    res.json({ user, token });
+    return;
+  }
+
   const token = signToken(user.id, user.role);
   res.json({ user, token });
+});
+
+router.post('/logout', authenticate, async (req: Request, res: Response) => {
+  if (req.user?.role === UserRole.REPARTIDOR) {
+    await clearRepartidorSession(req.user.id);
+  }
+  res.status(204).send();
 });
 
 router.post('/register/agency', async (req: Request, res: Response) => {

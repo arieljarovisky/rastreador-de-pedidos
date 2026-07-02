@@ -7,10 +7,10 @@ import React, {
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { clearQueue } from '../location/locationQueue';
 import { stopBackgroundLocation } from '../location/backgroundLocationTask';
-import { User, MOBILE_APP_ROLES } from '../types';
+import { User, MOBILE_APP_ROLES, UserRole } from '../types';
 
 const TOKEN_KEY = 'lupo_token';
 const USER_KEY = 'lupo_user';
@@ -56,11 +56,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUser(fresh);
               AsyncStorage.setItem(USER_KEY, JSON.stringify(fresh));
             })
-            .catch(() => {
-              // Token inválido/expirado -> cerrar sesión
+            .catch((err) => {
+              // Token inválido o sesión cerrada en otro dispositivo
               setToken(null);
               setUser(null);
               AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+              if (err instanceof ApiError && err.code === 'SESSION_INVALID') {
+                setError('Tu sesión ya no es válida. Volvé a iniciar sesión.');
+              }
             });
         }
       } finally {
@@ -94,13 +97,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    let currentToken = token;
+    let currentUser = user;
+
+    if (!currentToken || !currentUser) {
+      const [savedToken, savedUserRaw] = await Promise.all([
+        AsyncStorage.getItem(TOKEN_KEY),
+        AsyncStorage.getItem(USER_KEY),
+      ]);
+      currentToken = currentToken ?? savedToken;
+      if (!currentUser && savedUserRaw) {
+        try {
+          currentUser = JSON.parse(savedUserRaw) as User;
+        } catch {
+          // ignorar JSON inválido
+        }
+      }
+    }
+
+    if (currentToken && currentUser?.role === UserRole.REPARTIDOR) {
+      try {
+        await api.logout(currentToken);
+      } catch {
+        // Si falla la red, igual limpiamos la sesión local
+      }
+    }
+
     await stopBackgroundLocation();
     await clearQueue();
     await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
     setToken(null);
     setUser(null);
     setError(null);
-  }, []);
+  }, [token, user]);
 
   const value = useMemo<AuthState>(
     () => ({ user, token, loading, error, login, logout }),

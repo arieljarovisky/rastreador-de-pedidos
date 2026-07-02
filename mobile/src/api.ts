@@ -31,9 +31,11 @@ export interface AppVersionInfo {
 
 class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -55,13 +57,15 @@ async function request<T>(
 
   if (!res.ok) {
     let message = 'Error de servidor';
+    let code: string | undefined;
     try {
       const data = await res.json();
       message = data.error || message;
+      code = data.code;
     } catch {
       // respuesta no-JSON
     }
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, code);
   }
 
   if (res.status === 204) return undefined as T;
@@ -78,6 +82,10 @@ export const api = {
 
   me(token: string): Promise<User> {
     return request<User>('/api/auth/me', { token });
+  },
+
+  logout(token: string): Promise<void> {
+    return request<void>('/api/auth/logout', { method: 'POST', token });
   },
 
   getAppVersion(): Promise<AppVersionInfo> {

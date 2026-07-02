@@ -2,12 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { JwtPayload, User, UserRole } from '../types/index.js';
-import { getUserById } from '../services/users.service.js';
+import { getUserById, getRepartidorSessionToken } from '../services/users.service.js';
 import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 
-export function signToken(userId: string, role: UserRole): string {
+export function signToken(userId: string, role: UserRole, sessionId?: string): string {
+  const payload: JwtPayload = { userId, role };
+  if (sessionId) {
+    payload.sessionId = sessionId;
+  }
   // Sin expiresIn: la sesión no vence por tiempo (solo al cerrar sesión o cambiar credenciales).
-  return jwt.sign({ userId, role } satisfies JwtPayload, env.jwtSecret);
+  return jwt.sign(payload, env.jwtSecret);
 }
 
 export function verifyToken(token: string): JwtPayload | null {
@@ -16,6 +20,15 @@ export function verifyToken(token: string): JwtPayload | null {
   } catch {
     return null;
   }
+}
+
+export async function validateRepartidorSession(
+  userId: string,
+  sessionId: string | undefined
+): Promise<boolean> {
+  const activeSession = await getRepartidorSessionToken(userId);
+  if (!activeSession) return false;
+  return sessionId === activeSession;
 }
 
 export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -35,6 +48,17 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   if (!user || user.role !== payload.role) {
     res.status(401).json({ error: 'No autorizado.' });
     return;
+  }
+
+  if (user.role === UserRole.REPARTIDOR) {
+    const valid = await validateRepartidorSession(user.id, payload.sessionId);
+    if (!valid) {
+      res.status(401).json({
+        error: 'Tu sesión ya no es válida. Volvé a iniciar sesión.',
+        code: 'SESSION_INVALID',
+      });
+      return;
+    }
   }
 
   req.user = user;

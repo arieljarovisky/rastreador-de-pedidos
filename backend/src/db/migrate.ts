@@ -224,6 +224,10 @@ export async function runMigrations(): Promise<void> {
     );
   }
 
+  if (!(await columnExists('users', 'session_token'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN session_token VARCHAR(64) NULL AFTER delivery_zone');
+  }
+
   if (!(await tableExists('repartidor_location_history'))) {
     await pool.query(`
       CREATE TABLE repartidor_location_history (

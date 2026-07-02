@@ -1,5 +1,6 @@
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { pool } from '../config/database.js';
 import { DbUserRow, LocationPoint, PickupPoint, User, UserRole, OrderStatus } from '../types/index.js';
 import { listPickupPointsForUser } from './pickup-points.service.js';
@@ -439,4 +440,34 @@ export async function deleteRepartidor(id: string): Promise<{ finalizedOrders: n
 
 export function userToApiResponse(user: User): User {
   return user;
+}
+
+export async function getRepartidorSessionToken(userId: string): Promise<string | null> {
+  const [rows] = await pool.query<Array<{ session_token: string | null } & RowDataPacket>>(
+    'SELECT session_token FROM users WHERE id = ? AND role = ?',
+    [userId, UserRole.REPARTIDOR]
+  );
+  return rows[0]?.session_token ?? null;
+}
+
+export async function hasRepartidorActiveSession(userId: string): Promise<boolean> {
+  const token = await getRepartidorSessionToken(userId);
+  return token != null;
+}
+
+export async function createRepartidorSession(userId: string): Promise<string> {
+  const sessionId = crypto.randomUUID();
+  await pool.query('UPDATE users SET session_token = ? WHERE id = ? AND role = ?', [
+    sessionId,
+    userId,
+    UserRole.REPARTIDOR,
+  ]);
+  return sessionId;
+}
+
+export async function clearRepartidorSession(userId: string): Promise<void> {
+  await pool.query('UPDATE users SET session_token = NULL WHERE id = ? AND role = ?', [
+    userId,
+    UserRole.REPARTIDOR,
+  ]);
 }

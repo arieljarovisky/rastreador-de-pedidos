@@ -783,7 +783,18 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (token && user?.role === UserRole.REPARTIDOR) {
+      try {
+        await fetch(apiUrl('/api/auth/logout'), {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        // Si falla la red, igual limpiamos la sesión local
+      }
+    }
+
     localStorage.removeItem('lupo_token');
     localStorage.removeItem('lupo_user');
     localStorage.removeItem(ACTIVE_TAB_KEY);

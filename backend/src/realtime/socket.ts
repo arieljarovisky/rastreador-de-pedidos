@@ -1,9 +1,10 @@
 import { Server } from 'socket.io';
 import type { Server as HttpServer } from 'http';
 import { env } from '../config/env.js';
-import { verifyToken } from '../middleware/auth.js';
+import { verifyToken, validateRepartidorSession } from '../middleware/auth.js';
 import { getUserById } from '../services/users.service.js';
 import { initIO, joinUserRooms } from './io.js';
+import { UserRole } from '../types/index.js';
 
 export function setupSocket(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
@@ -34,6 +35,14 @@ export function setupSocket(httpServer: HttpServer): Server {
       if (!user || user.role !== payload.role) {
         next(new Error('Usuario no válido'));
         return;
+      }
+
+      if (user.role === UserRole.REPARTIDOR) {
+        const valid = await validateRepartidorSession(user.id, payload.sessionId);
+        if (!valid) {
+          next(new Error('Sesión inválida'));
+          return;
+        }
       }
 
       socket.data.user = user;

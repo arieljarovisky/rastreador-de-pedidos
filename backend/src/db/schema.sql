@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   departure_lat DECIMAL(10, 7) NULL,
   departure_lng DECIMAL(10, 7) NULL,
   delivery_zone VARCHAR(64) NULL,
+  session_token VARCHAR(64) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_users_agency (agency_id),
   CONSTRAINT fk_users_agency FOREIGN KEY (agency_id) REFERENCES agencies(id)
