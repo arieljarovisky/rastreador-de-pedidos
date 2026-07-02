@@ -1,0 +1,29 @@
+# EAS sube el repo git completo; excluimos todo lo que no necesita la app mobile.
+# Rutas relativas a la raíz del repositorio git.
+
+# Otros paquetes del monorepo
+/backend/
+/frontend/
+/docs/
+/assets/
+
+# Artefactos de builds anteriores (APK/AAB locales)
+/mobile/build-output/
+/backend/downloads/
+**/*.aab
+**/*.apk
+
+# Dependencias — EAS ejecuta npm install en la nube
+**/node_modules/
+
+# Cachés, IDE, logs
+**/.expo/
+**/.idea/
+**/.git/
+**/dist/
+**/coverage/
+**/*.log
+.DS_Store
+
+# Geojson del panel web (no usa la app repartidor)
+/frontend/public/geo/

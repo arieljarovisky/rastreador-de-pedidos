@@ -2,6 +2,9 @@ node_modules/
 .expo/
 dist/
 web-build/
+build-output/
+*.aab
+*.apk
 *.log
 .DS_Store
 .env
