@@ -7,6 +7,8 @@ import {
   computeDeliverySummaryFromOrders,
   formatMinutesUntilDeadline,
   DELIVERY_DEADLINE_HOUR,
+  DELIVERY_TIMEZONE_LABEL,
+  formatArTime,
 } from '../utils/deliverySummary';
 
 interface Props {
@@ -42,11 +44,14 @@ export default function DeliverySummaryCard({ orders }: Props) {
           <PostaIcon name="live" size={14} color={urgency === 'overdue' ? colors.red : colors.accent} />
           <Text style={styles.title}>Control del día</Text>
         </View>
+        <View style={styles.headerRight}>
         <Text style={[styles.deadline, urgency === 'overdue' && styles.deadlineOverdue]}>
           {summary.isPastDeadline
             ? 'Corte vencido'
             : `${formatMinutesUntilDeadline(summary.minutesUntilDeadline)} · ${DELIVERY_DEADLINE_HOUR}:00`}
         </Text>
+        <Text style={styles.arNow}>{DELIVERY_TIMEZONE_LABEL} · {formatArTime()} hs</Text>
+        </View>
       </View>
 
       <View style={styles.stats}>
@@ -102,9 +107,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.sm,
   },
+  headerRight: { alignItems: 'flex-end' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -126,6 +132,12 @@ const styles = StyleSheet.create({
   deadlineOverdue: {
     color: colors.red,
     fontWeight: '700',
+  },
+  arNow: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    color: colors.textFaint,
+    marginTop: 2,
   },
   stats: {
     flexDirection: 'row',

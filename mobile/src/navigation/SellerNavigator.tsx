@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SellerOrdersProvider } from '../context/SellerOrdersContext';
 import SellerOrdersScreen from '../screens/seller/SellerOrdersScreen';
+import SellerDashboardScreen from '../screens/seller/SellerDashboardScreen';
 import SellerOrderDetailScreen from '../screens/seller/SellerOrderDetailScreen';
 import CreateOrderScreen from '../screens/seller/CreateOrderScreen';
 import SellerSettingsScreen from '../screens/seller/SellerSettingsScreen';
@@ -34,6 +35,11 @@ const stackScreenOptions = {
 function SellerHomeNavigator() {
   return (
     <HomeStack.Navigator screenOptions={stackScreenOptions}>
+      <HomeStack.Screen
+        name="SellerDashboard"
+        component={SellerDashboardScreen}
+        options={{ headerShown: false }}
+      />
       <HomeStack.Screen
         name="SellerOrders"
         component={SellerOrdersScreen}
@@ -78,7 +84,7 @@ function SellerTabs() {
           centerIcon="plus"
           centerLabel="Nuevo"
           tabs={{
-            Home: { icon: 'package', label: 'Envíos' },
+            Home: { icon: 'live', label: 'Panel' },
             Create: { icon: 'plus', label: 'Nuevo' },
             Settings: { icon: 'settings', label: 'Ajustes' },
           }}

@@ -9,6 +9,7 @@ import { getDeliveryZone, type DeliveryZone } from '../config/deliveryZones.js';
 import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
 import { dedupeRepartidores } from '../utils/repartidorLocation.js';
+import { spreadOverlappingMarkers } from '../utils/markerSpread.js';
 import { getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 import * as L from 'leaflet';
@@ -549,9 +550,20 @@ export default function MapComponent({
       }
     });
 
-    fleetRepartidores.forEach((rep) => {
+    const repsWithLocation = fleetRepartidores
+      .filter((rep) => rep.currentLocation)
+      .map((rep) => ({
+        rep,
+        lat: rep.currentLocation!.lat,
+        lng: rep.currentLocation!.lng,
+      }));
+
+    const spreadReps = spreadOverlappingMarkers(repsWithLocation);
+
+    spreadReps.forEach(({ rep, displayLat, displayLng }) => {
       if (!rep.currentLocation) return;
       const markerId = `rep_${rep.id}`;
+      const displayPos: [number, number] = [displayLat, displayLng];
       const stale = isStaleLocation(rep.currentLocation.timestamp);
       const icon = createRepartidorIcon(rep.name, mapColors, stale);
       const reportLabel = formatLastReport(rep.currentLocation.timestamp);
@@ -566,14 +578,14 @@ export default function MapComponent({
       if (markersRef.current[markerId]) {
         animateMarkerTo(
           markersRef.current[markerId],
-          [rep.currentLocation.lat, rep.currentLocation.lng],
+          displayPos,
           markerAnimRef.current,
           markerId
         );
         markersRef.current[markerId].setIcon(icon);
         markersRef.current[markerId].setPopupContent(repPopup);
       } else {
-        const marker = L.marker([rep.currentLocation.lat, rep.currentLocation.lng], { icon })
+        const marker = L.marker(displayPos, { icon })
           .addTo(map)
           .bindPopup(repPopup);
         markersRef.current[markerId] = marker;

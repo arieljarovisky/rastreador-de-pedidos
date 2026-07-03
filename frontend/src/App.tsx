@@ -8,6 +8,7 @@ import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, Pic
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
+import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
@@ -23,7 +24,9 @@ import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 
 type AppTab = 'dashboard' | 'notifications' | 'settings';
+type AdminSubview = 'panel' | 'operations';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
+const ADMIN_SUBVIEW_KEY = 'lupo_admin_subview';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
 
 function readSavedTab(): AppTab {
@@ -32,6 +35,11 @@ function readSavedTab(): AppTab {
     return saved;
   }
   return 'dashboard';
+}
+
+function readAdminSubview(): AdminSubview {
+  const saved = localStorage.getItem(ADMIN_SUBVIEW_KEY);
+  return saved === 'operations' ? 'operations' : 'panel';
 }
 
 function readNotifsSidebarOpen(): boolean {
@@ -56,6 +64,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
+  const [adminSubview, setAdminSubviewState] = useState<AdminSubview>(readAdminSubview);
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
@@ -67,6 +76,11 @@ export default function App() {
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
+  }, []);
+
+  const setAdminSubview = useCallback((view: AdminSubview) => {
+    setAdminSubviewState(view);
+    localStorage.setItem(ADMIN_SUBVIEW_KEY, view);
   }, []);
 
   useEffect(() => {
@@ -1461,29 +1475,69 @@ export default function App() {
           >
             {mobileTab !== 'settings' && (
               <div
-                className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
+                className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out flex flex-col ${
                   mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
                 }`}
               >
-                <AdminDashboard
-                  orders={orders}
-                  repartidores={repartidores}
-                  sellers={sellers}
-                  departurePoint={departurePoint}
-                  pickupPoints={pickupPoints}
-                  deliveryZones={deliveryZones}
-                  barrios={barrios}
-                  activeOrderId={activeOrderId}
-                  onSelectOrder={setActiveOrderId}
-                  onCreateOrder={handleCreateOrder}
-                  onUpdateOrderStatus={handleUpdateOrderStatus}
-                  onAssignOrderSeller={handleAssignOrderSeller}
-                  onDeleteOrder={handleDeleteOrder}
-                  onArchiveOrder={handleArchiveOrder}
-                  userRole={user.role}
-                  onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
-                  onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
-                />
+                <div className="shrink-0 flex gap-1 p-1 mb-2 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[var(--radius-posta)]">
+                  <button
+                    type="button"
+                    onClick={() => setAdminSubview('panel')}
+                    className={`flex-1 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[var(--radius-posta)] transition ${
+                      adminSubview === 'panel'
+                        ? 'posta-tab-active shadow-md'
+                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                    }`}
+                  >
+                    📊 Dashboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminSubview('operations')}
+                    className={`flex-1 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[var(--radius-posta)] transition ${
+                      adminSubview === 'operations'
+                        ? 'posta-tab-active shadow-md'
+                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                    }`}
+                  >
+                    🗺️ Mapa y pedidos
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  {adminSubview === 'panel' ? (
+                    <OperationsDashboard
+                      orders={orders}
+                      repartidores={repartidores}
+                      sellers={sellers}
+                      userRole={user.role}
+                      onSelectOrder={(orderId) => {
+                        setActiveOrderId(orderId);
+                        setAdminSubview('operations');
+                      }}
+                      onGoToOperations={() => setAdminSubview('operations')}
+                    />
+                  ) : (
+                    <AdminDashboard
+                      orders={orders}
+                      repartidores={repartidores}
+                      sellers={sellers}
+                      departurePoint={departurePoint}
+                      pickupPoints={pickupPoints}
+                      deliveryZones={deliveryZones}
+                      barrios={barrios}
+                      activeOrderId={activeOrderId}
+                      onSelectOrder={setActiveOrderId}
+                      onCreateOrder={handleCreateOrder}
+                      onUpdateOrderStatus={handleUpdateOrderStatus}
+                      onAssignOrderSeller={handleAssignOrderSeller}
+                      onDeleteOrder={handleDeleteOrder}
+                      onArchiveOrder={handleArchiveOrder}
+                      userRole={user.role}
+                      onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
+                      onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
+                    />
+                  )}
+                </div>
               </div>
             )}
 

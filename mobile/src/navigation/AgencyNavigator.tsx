@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AgencyOrdersProvider } from '../context/AgencyOrdersContext';
 import AgencyOrdersScreen from '../screens/agency/AgencyOrdersScreen';
+import AgencyDashboardScreen from '../screens/agency/AgencyDashboardScreen';
 import AgencyOrderDetailScreen from '../screens/agency/AgencyOrderDetailScreen';
 import AgencyScanScreen from '../screens/agency/AgencyScanScreen';
 import AgencySettingsScreen from '../screens/agency/AgencySettingsScreen';
@@ -33,6 +34,11 @@ const stackScreenOptions = {
 function AgencyHomeNavigator() {
   return (
     <HomeStack.Navigator screenOptions={stackScreenOptions}>
+      <HomeStack.Screen
+        name="AgencyDashboard"
+        component={AgencyDashboardScreen}
+        options={{ headerShown: false }}
+      />
       <HomeStack.Screen
         name="AgencyOrders"
         component={AgencyOrdersScreen}
@@ -77,7 +83,7 @@ function AgencyTabs() {
           centerIcon="scan"
           centerLabel="Escanear"
           tabs={{
-            Home: { icon: 'motorcycle', label: 'Flota' },
+            Home: { icon: 'live', label: 'Panel' },
             Scan: { icon: 'scan', label: 'Escanear' },
             Settings: { icon: 'settings', label: 'Agencia' },
           }}

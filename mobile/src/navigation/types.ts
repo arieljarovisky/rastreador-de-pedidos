@@ -25,6 +25,7 @@ export type RepartidorStackParamList = {
 };
 
 export type SellerHomeStackParamList = {
+  SellerDashboard: undefined;
   SellerOrders: undefined;
 };
 
@@ -50,6 +51,7 @@ export type SellerStackParamList = {
 };
 
 export type AgencyHomeStackParamList = {
+  AgencyDashboard: undefined;
   AgencyOrders: undefined;
 };
 

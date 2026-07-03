@@ -23,7 +23,6 @@ import EmptyState from '../../components/ui/EmptyState';
 import ListTabButton from '../../components/ui/ListTabButton';
 import MapLegendItem from '../../components/ui/MapLegendItem';
 import PostaMap from '../../components/PostaMap';
-import DeliverySummaryCard from '../../components/DeliverySummaryCard';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { SellerHomeStackParamList, SellerStackParamList } from '../../navigation/types';
@@ -108,7 +107,9 @@ export default function SellerOrdersScreen({ navigation }: Props) {
         onLogout={logout}
       />
 
-      <DeliverySummaryCard orders={orders} />
+      <Pressable style={styles.backPanel} onPress={() => navigation.navigate('SellerDashboard')}>
+        <Text style={styles.backPanelText}>← Volver al panel</Text>
+      </Pressable>
 
       {tab === 'active' && (
         <View style={[styles.mapSection, !mapExpanded && styles.mapSectionCollapsed]}>
@@ -229,6 +230,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     backgroundColor: colors.surface,
+  },
+  backPanel: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  backPanelText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 13,
+    color: colors.stamp,
   },
   mapSectionCollapsed: { marginBottom: spacing.sm },
   mapHeader: {

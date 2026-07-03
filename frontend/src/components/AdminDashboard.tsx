@@ -13,7 +13,6 @@ import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge from './ui/StatusBadge.tsx';
 import MapComponent from './MapComponent.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
-import DeliveryControlPanel from './DeliveryControlPanel.tsx';
 import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 
 interface AdminDashboardProps {
@@ -651,8 +650,6 @@ export default function AdminDashboard({
 
           {!ordersHeaderCollapsed && (
           <>
-          <DeliveryControlPanel orders={orders} />
-
           {/* Estadísticas en barra compacta */}
           <div className="flex items-stretch gap-1 text-center">
             <div className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 px-1.5 py-1 rounded">

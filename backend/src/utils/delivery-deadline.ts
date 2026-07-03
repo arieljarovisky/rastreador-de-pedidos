@@ -1,5 +1,6 @@
 export const DELIVERY_DEADLINE_HOUR = 21;
 export const DELIVERY_TIMEZONE = 'America/Argentina/Buenos_Aires';
+export const DELIVERY_TIMEZONE_LABEL = 'Argentina (ART)';
 
 interface ArDateParts {
   year: number;

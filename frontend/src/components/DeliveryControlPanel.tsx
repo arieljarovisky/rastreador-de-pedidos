@@ -10,6 +10,8 @@ import {
   computeDeliverySummaryFromOrders,
   formatMinutesUntilDeadline,
   DELIVERY_DEADLINE_HOUR,
+  DELIVERY_TIMEZONE_LABEL,
+  formatArTime,
 } from '../utils/deliverySummary.js';
 
 interface DeliveryControlPanelProps {
@@ -52,7 +54,7 @@ export default function DeliveryControlPanel({ orders }: DeliveryControlPanelPro
             }`}
           />
           <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] truncate">
-            Control del día · corte {DELIVERY_DEADLINE_HOUR}:00
+            Control del día · corte {DELIVERY_DEADLINE_HOUR}:00 {DELIVERY_TIMEZONE_LABEL}
           </span>
         </div>
         <span
