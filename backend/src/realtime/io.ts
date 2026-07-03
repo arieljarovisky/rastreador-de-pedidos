@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import { Order, User, LocationHistoryPoint } from '../types/index.js';
 import { UserRole } from '../types/index.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
 
 let io: Server | null = null;
 
@@ -54,6 +55,11 @@ export function emitOrderLocation(
 
 export function emitRepartidorLocation(repartidor: User): void {
   if (!io || !repartidor.currentLocation) return;
+  logRepartidorGps('socket_emit', repartidor, {
+    lat: repartidor.currentLocation.lat,
+    lng: repartidor.currentLocation.lng,
+    savedAt: repartidor.currentLocation.timestamp,
+  });
   io.to('tracking').emit('repartidor:location', {
     repartidorId: repartidor.id,
     name: repartidor.name,

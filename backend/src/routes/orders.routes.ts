@@ -17,6 +17,7 @@ import {
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf } from '../services/mercadolibre.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
+import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
 
 function mercadoLibreLabelErrorMessage(code: string): string {
   switch (code) {
@@ -309,15 +310,20 @@ router.put('/:id/archive', authenticate, async (req: Request, res: Response) => 
 
 router.post('/:id/location', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   const { lat, lng, timestamp } = req.body;
+  const user = req.user!;
+  const orderId = req.params.id;
+  const clientTs = typeof timestamp === 'string' ? timestamp : null;
+
   if (lat === undefined || lng === undefined) {
+    logRepartidorGps('order_rejected', user, { orderId, reason: 'missing_coords' });
     res.status(400).json({ error: 'Latitud y longitud son requeridas.' });
     return;
   }
 
   try {
     const result = await reportOrderLocation(
-      req.user!,
-      req.params.id,
+      user,
+      orderId,
       Number(lat),
       Number(lng),
       typeof timestamp === 'string' ? timestamp : undefined
@@ -326,19 +332,35 @@ router.post('/:id/location', authenticate, requireRoles(UserRole.REPARTIDOR), as
     emitOrderLocation({
       orderId: result.orderId,
       sellerId: result.sellerId,
-      repartidorId: req.user!.id,
-      repartidorName: req.user!.name,
+      repartidorId: user.id,
+      repartidorName: user.name,
       point: result.point,
     });
 
     emitRepartidorLocation({
-      ...req.user!,
+      ...user,
       currentLocation: result.point,
+    });
+
+    logRepartidorGps('order_ok', user, {
+      orderId: result.orderId,
+      orderStatus: result.orderStatus,
+      lat: Number(lat),
+      lng: Number(lng),
+      clientTimestamp: clientTs,
+      savedAt: result.point.timestamp,
     });
 
     res.json({ success: result.success, orderStatus: result.orderStatus });
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
+    logRepartidorGps('order_error', user, {
+      orderId,
+      lat: Number(lat),
+      lng: Number(lng),
+      clientTimestamp: clientTs,
+      error: message || String(err),
+    });
     if (message === 'NOT_FOUND') {
       res.status(404).json({ error: 'Pedido no encontrado.' });
       return;
@@ -353,7 +375,11 @@ router.post('/:id/location', authenticate, requireRoles(UserRole.REPARTIDOR), as
 
 router.post('/:id/locations/batch', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   const { points } = req.body;
+  const user = req.user!;
+  const orderId = req.params.id;
+
   if (!Array.isArray(points) || points.length === 0) {
+    logRepartidorGps('batch_rejected', user, { orderId, reason: 'empty_points' });
     res.status(400).json({ error: 'Se requiere un arreglo de puntos.' });
     return;
   }
@@ -375,24 +401,35 @@ router.post('/:id/locations/batch', authenticate, requireRoles(UserRole.REPARTID
     }));
 
   if (normalized.length === 0) {
+    logRepartidorGps('batch_rejected', user, { orderId, reason: 'invalid_points' });
     res.status(400).json({ error: 'Ningún punto válido en el lote.' });
     return;
   }
 
   try {
-    const result = await reportOrderLocationsBatch(req.user!, req.params.id, normalized);
+    const result = await reportOrderLocationsBatch(user, orderId, normalized);
 
     emitOrderLocation({
       orderId: result.orderId,
       sellerId: result.sellerId,
-      repartidorId: req.user!.id,
-      repartidorName: req.user!.name,
+      repartidorId: user.id,
+      repartidorName: user.name,
       point: result.point,
     });
 
     emitRepartidorLocation({
-      ...req.user!,
+      ...user,
       currentLocation: result.point,
+    });
+
+    logRepartidorGps('batch_ok', user, {
+      orderId: result.orderId,
+      orderStatus: result.orderStatus,
+      pointsReceived: points.length,
+      pointsSynced: result.points.length,
+      lastLat: result.point.lat,
+      lastLng: result.point.lng,
+      savedAt: result.point.timestamp,
     });
 
     res.json({
@@ -402,16 +439,17 @@ router.post('/:id/locations/batch', authenticate, requireRoles(UserRole.REPARTID
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
+    logRepartidorGps('batch_error', user, {
+      orderId,
+      pointsReceived: points.length,
+      error: message || String(err),
+    });
     if (message === 'NOT_FOUND') {
       res.status(404).json({ error: 'Pedido no encontrado.' });
       return;
     }
     if (message === 'FORBIDDEN') {
       res.status(403).json({ error: 'Este pedido no está asignado a ti.' });
-      return;
-    }
-    if (message === 'EMPTY') {
-      res.status(400).json({ error: 'El lote está vacío.' });
       return;
     }
     throw err;
