@@ -41,7 +41,7 @@ function handleRegisterError(res: Response, err: unknown): boolean {
 }
 
 router.post('/login', async (req: Request, res: Response) => {
-  const { username, password } = req.body;
+  const { username, password, replaceSession } = req.body;
   if (!username || !password) {
     res.status(400).json({ error: 'Usuario y contraseña son requeridos.' });
     return;
@@ -67,13 +67,19 @@ router.post('/login', async (req: Request, res: Response) => {
 
   if (user.role === UserRole.REPARTIDOR) {
     const hasSession = await hasRepartidorActiveSession(user.id);
-    if (hasSession) {
+    const forceReplace = replaceSession === true;
+
+    if (hasSession && !forceReplace) {
       res.status(409).json({
         error:
-          'Ya tenés una sesión activa en otro dispositivo. Cerrá sesión allí antes de ingresar.',
+          'Ya tenés una sesión activa en otro dispositivo. Podés cerrarla desde acá para ingresar en este celular.',
         code: 'SESSION_ALREADY_ACTIVE',
       });
       return;
+    }
+
+    if (hasSession && forceReplace) {
+      await clearRepartidorSession(user.id);
     }
 
     const sessionId = await createRepartidorSession(user.id);

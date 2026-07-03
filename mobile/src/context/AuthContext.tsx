@@ -20,7 +20,12 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   error: string | null;
-  login: (username: string, password: string) => Promise<void>;
+  errorCode: string | null;
+  login: (
+    username: string,
+    password: string,
+    options?: { replaceSession?: boolean }
+  ) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -31,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   // Restaurar sesión guardada al iniciar
   useEffect(() => {
@@ -80,29 +86,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
-    setError(null);
-    setLoading(true);
-    try {
-      const data = await api.login(username, password);
-      if (!MOBILE_APP_ROLES.includes(data.user.role)) {
-        throw new Error(
-          'Tu cuenta no tiene acceso a la app móvil. Contactá a soporte de Posta.'
-        );
+  const login = useCallback(
+    async (username: string, password: string, options?: { replaceSession?: boolean }) => {
+      setError(null);
+      setErrorCode(null);
+      setLoading(true);
+      try {
+        const data = await api.login(username, password, options);
+        if (!MOBILE_APP_ROLES.includes(data.user.role)) {
+          throw new Error(
+            'Tu cuenta no tiene acceso a la app móvil. Contactá a soporte de Posta.'
+          );
+        }
+        await AsyncStorage.multiSet([
+          [TOKEN_KEY, data.token],
+          [USER_KEY, JSON.stringify(data.user)],
+        ]);
+        setToken(data.token);
+        setUser(data.user);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setError(err.message);
+          setErrorCode(err.code ?? null);
+        } else {
+          setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
+          setErrorCode(null);
+        }
+        throw err;
+      } finally {
+        setLoading(false);
       }
-      await AsyncStorage.multiSet([
-        [TOKEN_KEY, data.token],
-        [USER_KEY, JSON.stringify(data.user)],
-      ]);
-      setToken(data.token);
-      setUser(data.user);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   const logout = useCallback(async () => {
     let currentToken = token;
@@ -137,11 +153,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     setError(null);
+    setErrorCode(null);
   }, [token, user]);
 
   const value = useMemo<AuthState>(
-    () => ({ user, token, loading, error, login, logout }),
-    [user, token, loading, error, login, logout]
+    () => ({ user, token, loading, error, errorCode, login, logout }),
+    [user, token, loading, error, errorCode, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

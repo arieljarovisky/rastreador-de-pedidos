@@ -18,17 +18,19 @@ import MonoLabel from '../components/ui/MonoLabel';
 import PostaInput from '../components/ui/PostaInput';
 
 export default function LoginScreen() {
-  const { login, error, loading } = useAuth();
+  const { login, error, errorCode, loading } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const insets = useSafeAreaInsets();
 
-  const handleSubmit = async () => {
+  const sessionConflict = errorCode === 'SESSION_ALREADY_ACTIVE';
+
+  const handleSubmit = async (replaceSession = false) => {
     if (!username.trim() || !password) return;
     setSubmitting(true);
     try {
-      await login(username.trim(), password);
+      await login(username.trim(), password, replaceSession ? { replaceSession: true } : undefined);
     } catch {
       // el error se muestra desde el contexto
     } finally {
@@ -87,19 +89,31 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             placeholder="••••••••"
             secureTextEntry
-            onSubmitEditing={handleSubmit}
+            onSubmitEditing={() => void handleSubmit()}
           />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <Button
             label="Ingresar"
-            onPress={handleSubmit}
+            onPress={() => void handleSubmit()}
             loading={submitting || loading}
             disabled={!username.trim() || !password}
             paperTheme
             style={{ marginTop: spacing.xl }}
           />
+
+          {sessionConflict ? (
+            <Button
+              label="Cerrar sesión en el otro dispositivo e ingresar"
+              onPress={() => void handleSubmit(true)}
+              variant="secondary"
+              loading={submitting || loading}
+              disabled={!username.trim() || !password}
+              paperTheme
+              style={{ marginTop: spacing.md }}
+            />
+          ) : null}
         </PaperCard>
 
         <Text style={[typography.body(12, paper.faint), styles.footerHint]}>

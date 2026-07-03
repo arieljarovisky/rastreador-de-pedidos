@@ -75,10 +75,14 @@ async function request<T>(
 }
 
 export const api = {
-  login(username: string, password: string): Promise<LoginResponse> {
+  login(
+    username: string,
+    password: string,
+    options?: { replaceSession?: boolean }
+  ): Promise<LoginResponse> {
     return request<LoginResponse>('/api/auth/login', {
       method: 'POST',
-      body: { username, password },
+      body: { username, password, replaceSession: options?.replaceSession === true },
     });
   },
 
