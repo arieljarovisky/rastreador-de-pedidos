@@ -15,8 +15,10 @@ import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
 import { Order, OrderStatus } from '../../types';
 import { colors, fonts, radius, spacing, typography } from '../../theme';
 import OrderCard from '../../components/OrderCard';
-import ConnectionBadge from '../../components/ui/ConnectionBadge';
-import MonoLabel from '../../components/ui/MonoLabel';
+import PostaIcon from '../../components/icons/PostaIcons';
+import DashboardHeader from '../../components/ui/DashboardHeader';
+import EmptyState from '../../components/ui/EmptyState';
+import ListTabButton from '../../components/ui/ListTabButton';
 import PostaMap from '../../components/PostaMap';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
 import { AgencyStackParamList } from '../../navigation/types';
@@ -80,49 +82,47 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <MonoLabel color={colors.blue}>Posta Agencia</MonoLabel>
-          <Text style={typography.displayTitle(22)}>{user?.agencyName ?? user?.name}</Text>
-          <Text style={typography.body(12, colors.textMuted)}>
-            {repartidores.length} repartidores · {enRouteCount} en ruta
-          </Text>
-        </View>
-        <View style={styles.headerRight}>
-          <Pressable
-            onPress={() => navigation.navigate('AgencyNotifications')}
-            hitSlop={8}
-            style={styles.iconBtn}
-          >
-            <Text style={styles.iconBtnText}>🔔</Text>
-          </Pressable>
-          <ConnectionBadge connected={connected} />
-          <Pressable onPress={logout} hitSlop={8}>
-            <Text style={styles.logout}>Salir</Text>
-          </Pressable>
-        </View>
-      </View>
+      <DashboardHeader
+        eyebrow="Posta Agencia"
+        title={user?.agencyName ?? user?.name ?? 'Agencia'}
+        subtitle={`${repartidores.length} repartidores · ${enRouteCount} en ruta`}
+        connected={connected}
+        accentColor={colors.blue}
+        onNotifications={() => navigation.navigate('AgencyNotifications')}
+        onLogout={logout}
+      />
 
       <View style={styles.actionsRow}>
         <Pressable
-          style={styles.primaryAction}
+          style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
           onPress={() => navigation.navigate('AgencyScan')}
         >
+          <PostaIcon name="scan" size={16} color="#F6F0E4" strokeWidth={2} />
           <Text style={typography.buttonLabel('#F6F0E4')}>Escanear ML</Text>
         </Pressable>
         <Pressable
-          style={styles.secondaryAction}
+          style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
           onPress={() => navigation.navigate('AgencySettings')}
         >
-          <MonoLabel color={colors.textMuted}>Agencia</MonoLabel>
+          <PostaIcon name="settings" size={18} color={colors.textMuted} />
         </Pressable>
       </View>
 
       {tab !== 'done' && (
         <View style={[styles.mapSection, !mapExpanded && styles.mapSectionCollapsed]}>
           <Pressable style={styles.mapHeader} onPress={() => setMapExpanded((v) => !v)}>
-            <MonoLabel color={colors.textMuted}>Mapa de flota</MonoLabel>
-            <Text style={styles.mapToggle}>{mapExpanded ? 'Ocultar ▲' : 'Mostrar ▼'}</Text>
+            <View style={styles.mapTitleRow}>
+              <PostaIcon name="live" size={14} color={colors.green} />
+              <Text style={styles.mapTitle}>Mapa de flota</Text>
+            </View>
+            <View style={styles.mapToggleRow}>
+              <Text style={styles.mapToggle}>{mapExpanded ? 'Ocultar' : 'Mostrar'}</Text>
+              <PostaIcon
+                name={mapExpanded ? 'chevronUp' : 'chevronDown'}
+                size={14}
+                color={colors.accent}
+              />
+            </View>
           </Pressable>
           {mapExpanded && (
             <PostaMap
@@ -135,21 +135,27 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
       )}
 
       <View style={styles.tabs}>
-        <TabButton
+        <ListTabButton
           active={tab === 'active'}
-          label={`Activos (${activeCount})`}
+          icon="motorcycle"
+          label="Activos"
+          count={activeCount}
           color={colors.accent}
           onPress={() => setTab('active')}
         />
-        <TabButton
+        <ListTabButton
           active={tab === 'pending'}
-          label={`Despacho (${pendingCount})`}
+          icon="package"
+          label="Despacho"
+          count={pendingCount}
           color={colors.blue}
           onPress={() => setTab('pending')}
         />
-        <TabButton
+        <ListTabButton
           active={tab === 'done'}
-          label={`Cerrados (${doneCount})`}
+          icon="checkCircle"
+          label="Cerrados"
+          count={doneCount}
           color={colors.green}
           onPress={() => setTab('done')}
         />
@@ -166,6 +172,7 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
           renderItem={renderItem}
           contentContainerStyle={[
             styles.list,
+            data.length === 0 && styles.listEmpty,
             { paddingBottom: insets.bottom + spacing.xl },
           ]}
           refreshControl={
@@ -176,15 +183,25 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
             />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>
-                {tab === 'active'
-                  ? 'No hay envíos activos en este momento.'
-                  : tab === 'pending'
-                    ? 'No hay envíos pendientes de despacho.'
-                    : 'No hay envíos cerrados todavía.'}
-              </Text>
-            </View>
+            tab === 'active' ? (
+              <EmptyState
+                icon="motorcycle"
+                title="Sin envíos activos"
+                message="Cuando haya pedidos en curso los vas a ver acá con seguimiento en vivo."
+              />
+            ) : tab === 'pending' ? (
+              <EmptyState
+                icon="package"
+                title="Sin pendientes de despacho"
+                message="Los pedidos por asignar o listos para salir aparecen en esta pestaña."
+              />
+            ) : (
+              <EmptyState
+                icon="checkCircle"
+                title="Sin envíos cerrados"
+                message="Entregas y cancelaciones finalizadas se listan acá."
+              />
+            )
           }
         />
       )}
@@ -192,85 +209,78 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
   );
 }
 
-function TabButton({
-  active,
-  label,
-  color,
-  onPress,
-}: {
-  active: boolean;
-  label: string;
-  color: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.tabBtn, active && { borderBottomColor: color, borderBottomWidth: 2 }]}
-    >
-      <Text style={[styles.tabLabel, active && { color, fontFamily: fonts.bodySemiBold }]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-  },
-  headerLeft: { flex: 1, gap: 2 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  iconBtn: { padding: 4 },
-  iconBtnText: { fontSize: 18 },
-  logout: { fontFamily: fonts.mono, fontSize: 11, color: colors.textMuted, letterSpacing: 0.5 },
   actionsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     marginBottom: spacing.md,
   },
   primaryAction: {
     flex: 1,
-    backgroundColor: colors.stamp,
-    borderRadius: radius.md,
-    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.stamp,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
   },
   secondaryAction: {
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    width: 48,
+    alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
   },
-  mapSection: { marginHorizontal: spacing.xl, marginBottom: spacing.md },
+  pressed: { opacity: 0.88 },
+  mapSection: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+  },
   mapSectionCollapsed: { marginBottom: spacing.sm },
   mapHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
   },
-  mapToggle: { fontFamily: fonts.mono, fontSize: 10, color: colors.textMuted },
-  fleetMap: { height: 200, borderRadius: radius.lg },
+  mapTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  mapTitle: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+  },
+  mapToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  mapToggle: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    color: colors.accent,
+  },
+  fleetMap: { height: 200 },
   tabs: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    marginHorizontal: spacing.xl,
-    marginBottom: spacing.sm,
+    borderBottomWidth: 1,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.xs,
   },
-  tabBtn: { flex: 1, paddingVertical: spacing.md, alignItems: 'center' },
-  tabLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
-  list: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm },
+  list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  listEmpty: { flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  empty: { paddingTop: 48, paddingHorizontal: spacing.lg },
-  emptyText: { color: colors.textFaint, textAlign: 'center', fontSize: 14, lineHeight: 20 },
 });

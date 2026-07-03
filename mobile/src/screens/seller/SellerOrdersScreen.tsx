@@ -15,8 +15,11 @@ import { useSellerOrdersContext } from '../../context/SellerOrdersContext';
 import { Order, OrderStatus } from '../../types';
 import { colors, fonts, radius, spacing, typography } from '../../theme';
 import OrderCard from '../../components/OrderCard';
-import ConnectionBadge from '../../components/ui/ConnectionBadge';
-import MonoLabel from '../../components/ui/MonoLabel';
+import PostaIcon from '../../components/icons/PostaIcons';
+import DashboardHeader from '../../components/ui/DashboardHeader';
+import EmptyState from '../../components/ui/EmptyState';
+import ListTabButton from '../../components/ui/ListTabButton';
+import MapLegendItem from '../../components/ui/MapLegendItem';
 import PostaMap from '../../components/PostaMap';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
 import { SellerStackParamList } from '../../navigation/types';
@@ -69,83 +72,87 @@ export default function SellerOrdersScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <MonoLabel color={colors.stamp}>Posta Ventas</MonoLabel>
-          <Text style={typography.displayTitle(22)}>{user?.name ?? 'Vendedor'}</Text>
-          {user?.agencyName ? (
-            <Text style={typography.body(12, colors.textMuted)}>{user.agencyName}</Text>
-          ) : null}
-        </View>
-        <View style={styles.headerRight}>
-          <Pressable
-            onPress={() => navigation.navigate('Notifications')}
-            hitSlop={8}
-            style={styles.iconBtn}
-          >
-            <Text style={styles.iconBtnText}>🔔</Text>
-          </Pressable>
-          <ConnectionBadge connected={connected} />
-          <Pressable onPress={logout} hitSlop={8}>
-            <Text style={styles.logout}>Salir</Text>
-          </Pressable>
-        </View>
-      </View>
+      <DashboardHeader
+        eyebrow="Posta Ventas"
+        title={user?.name ?? 'Vendedor'}
+        subtitle={user?.agencyName ?? undefined}
+        connected={connected}
+        accentColor={colors.stamp}
+        onNotifications={() => navigation.navigate('Notifications')}
+        onLogout={logout}
+      />
 
       <View style={styles.actionsRow}>
         <Pressable
-          style={styles.primaryAction}
+          style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
           onPress={() => navigation.navigate('CreateOrder')}
         >
+          <PostaIcon name="plus" size={16} color="#F6F0E4" strokeWidth={2} />
           <Text style={typography.buttonLabel('#F6F0E4')}>Nuevo envío</Text>
         </Pressable>
         <Pressable
-          style={styles.secondaryAction}
+          style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
           onPress={() => navigation.navigate('SellerSettings')}
         >
-          <MonoLabel color={colors.textMuted}>Config</MonoLabel>
+          <PostaIcon name="settings" size={18} color={colors.textMuted} />
         </Pressable>
       </View>
 
       {tab === 'active' && (
         <View style={[styles.mapSection, !mapExpanded && styles.mapSectionCollapsed]}>
           <Pressable style={styles.mapHeader} onPress={() => setMapExpanded((v) => !v)}>
-            <MonoLabel color={colors.textMuted}>Mapa en vivo</MonoLabel>
-            <Text style={styles.mapToggle}>{mapExpanded ? 'Ocultar ▲' : 'Mostrar ▼'}</Text>
+            <View style={styles.mapTitleRow}>
+              <PostaIcon name="live" size={14} color={colors.green} />
+              <Text style={styles.mapTitle}>Mapa en vivo</Text>
+            </View>
+            <View style={styles.mapToggleRow}>
+              <Text style={styles.mapToggle}>{mapExpanded ? 'Ocultar' : 'Mostrar'}</Text>
+              <PostaIcon
+                name={mapExpanded ? 'chevronUp' : 'chevronDown'}
+                size={14}
+                color={colors.accent}
+              />
+            </View>
           </Pressable>
           {mapExpanded && (
             <PostaMap
               markers={fleetMarkers}
               style={styles.fleetMap}
-              emptyLabel="Los repartidores aparecen acá cuando reportan GPS. Los puntos rojos/ámbar son tus envíos activos."
+              emptyLabel="Los repartidores aparecen acá cuando reportan GPS. Los puntos de color son tus envíos activos."
             />
           )}
           {mapExpanded && (
             <View style={styles.legend}>
-              <Text style={styles.legendItem}>🔵 Repartidor</Text>
-              <Text style={styles.legendItem}>🟠 En viaje</Text>
-              <Text style={styles.legendItem}>🔴 Destino</Text>
+              <MapLegendItem color={colors.blue} label="Repartidor" />
+              <MapLegendItem color={colors.amber} label="En viaje" />
+              <MapLegendItem color={colors.stamp} label="Destino" />
             </View>
           )}
         </View>
       )}
 
       <View style={styles.tabs}>
-        <TabButton
+        <ListTabButton
           active={tab === 'active'}
-          label={`Activos (${activeCount})`}
+          icon="package"
+          label="Activos"
+          count={activeCount}
           color={colors.accent}
           onPress={() => setTab('active')}
         />
-        <TabButton
+        <ListTabButton
           active={tab === 'done'}
-          label={`Finalizados (${doneCount})`}
+          icon="checkCircle"
+          label="Finalizados"
+          count={doneCount}
           color={colors.green}
           onPress={() => setTab('done')}
         />
-        <TabButton
+        <ListTabButton
           active={tab === 'archived'}
-          label={`Archivados (${archivedCount})`}
+          icon="inbox"
+          label="Archivados"
+          count={archivedCount}
           color={colors.textMuted}
           onPress={() => setTab('archived')}
         />
@@ -162,6 +169,7 @@ export default function SellerOrdersScreen({ navigation }: Props) {
           renderItem={renderItem}
           contentContainerStyle={[
             styles.list,
+            data.length === 0 && styles.listEmpty,
             { paddingBottom: insets.bottom + spacing.xl },
           ]}
           refreshControl={
@@ -172,15 +180,25 @@ export default function SellerOrdersScreen({ navigation }: Props) {
             />
           }
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>
-                {tab === 'active'
-                  ? 'No tenés envíos activos. Creá uno o importá desde Mercado Libre.'
-                  : tab === 'done'
-                    ? 'Todavía no hay envíos finalizados.'
-                    : 'No hay envíos archivados.'}
-              </Text>
-            </View>
+            tab === 'active' ? (
+              <EmptyState
+                icon="package"
+                title="Sin envíos activos"
+                message="Creá un envío manual o importá desde Mercado Libre / Tienda Nube."
+              />
+            ) : tab === 'done' ? (
+              <EmptyState
+                icon="checkCircle"
+                title="Sin envíos finalizados"
+                message="Los pedidos entregados o cancelados van a aparecer acá."
+              />
+            ) : (
+              <EmptyState
+                icon="inbox"
+                title="Sin archivados"
+                message="Archivá envíos cerrados para mantener la lista ordenada."
+              />
+            )
           }
         />
       )}
@@ -188,60 +206,12 @@ export default function SellerOrdersScreen({ navigation }: Props) {
   );
 }
 
-function TabButton({
-  active,
-  label,
-  color,
-  onPress,
-}: {
-  active: boolean;
-  label: string;
-  color: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.tab, active && { borderBottomColor: color, borderBottomWidth: 2 }]}
-    >
-      <Text
-        style={[
-          styles.tabLabel,
-          {
-            color: active ? color : colors.textFaint,
-            fontFamily: active ? fonts.mono : fonts.bodyMedium,
-          },
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  headerLeft: { flex: 1, minWidth: 0 },
-  headerRight: { alignItems: 'flex-end', gap: 8 },
-  iconBtn: { padding: 4 },
-  iconBtnText: { fontSize: 18 },
-  logout: {
-    fontFamily: fonts.bodySemiBold,
-    color: colors.red,
-    fontSize: 13,
-  },
   actionsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     marginBottom: spacing.md,
   },
   primaryAction: {
@@ -249,30 +219,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.stamp,
-    borderRadius: radius.posta,
+    borderRadius: radius.lg,
     paddingVertical: spacing.md,
   },
   secondaryAction: {
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: radius.posta,
-    paddingHorizontal: spacing.lg,
-    justifyContent: 'center',
+    borderRadius: radius.lg,
   },
+  pressed: { opacity: 0.88 },
   mapSection: {
-    marginHorizontal: spacing.xl,
+    marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: radius.posta,
+    borderRadius: radius.lg,
     overflow: 'hidden',
     backgroundColor: colors.surface,
   },
-  mapSectionCollapsed: {
-    marginBottom: spacing.sm,
-  },
+  mapSectionCollapsed: { marginBottom: spacing.sm },
   mapHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -282,14 +253,22 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     borderBottomWidth: 1,
   },
+  mapTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  mapTitle: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+  },
+  mapToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   mapToggle: {
-    ...typography.body(11, colors.accent),
     fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    color: colors.accent,
   },
-  fleetMap: {
-    height: 220,
-    flex: undefined,
-  },
+  fleetMap: { height: 220, flex: undefined },
   legend: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -299,24 +278,14 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     borderTopWidth: 1,
   },
-  legendItem: {
-    ...typography.body(10, colors.textMuted),
-  },
   tabs: {
     flexDirection: 'row',
     borderBottomColor: colors.border,
     borderBottomWidth: 1,
     backgroundColor: colors.surface,
+    paddingHorizontal: spacing.xs,
   },
-  tab: { flex: 1, paddingVertical: spacing.md, alignItems: 'center' },
-  tabLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
-  list: { padding: spacing.xl },
+  list: { padding: spacing.lg },
+  listEmpty: { flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  empty: { paddingTop: 80, paddingHorizontal: spacing.xl },
-  emptyText: {
-    color: colors.textFaint,
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 21,
-  },
 });

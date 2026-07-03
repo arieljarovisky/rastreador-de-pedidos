@@ -1,5 +1,5 @@
 {
-  "version": "1.1.1",
-  "minVersion": "1.1.1",
-  "message": "Mapa en tiempo real, fix de envíos del repartidor y corrección del aviso de actualización."
+  "version": "1.1.2",
+  "minVersion": "1.1.2",
+  "message": "Nueva interfaz con iconos SVG en vendedor y agencia, mapa en vivo y correcciones del repartidor."
 }

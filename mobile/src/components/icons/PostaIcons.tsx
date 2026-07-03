@@ -19,7 +19,14 @@ export type PostaIconName =
   | 'logOut'
   | 'inbox'
   | 'scan'
-  | 'live';
+  | 'live'
+  | 'bell'
+  | 'plus'
+  | 'settings'
+  | 'chevronUp'
+  | 'chevronDown'
+  | 'tag'
+  | 'circle';
 
 interface Props {
   name: PostaIconName;
@@ -182,6 +189,57 @@ export default function PostaIcon({
           <Circle cx={12} cy={12} r={2.5} fill={color} />
           <Circle cx={12} cy={12} r={6} stroke={color} strokeWidth={strokeWidth} opacity={0.45} />
           <Circle cx={12} cy={12} r={9} stroke={color} strokeWidth={strokeWidth} opacity={0.2} />
+        </Svg>
+      );
+    case 'bell':
+      return (
+        <Svg {...common}>
+          <Path d="M6 17h12M10 17v1a2 2 0 004 0v-1" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Path d="M5 14.5V11a7 7 0 0114 0v3.5l1.5 2.5H3.5L5 14.5z" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'plus':
+      return (
+        <Svg {...common}>
+          <Line x1={12} y1={5} x2={12} y2={19} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+          <Line x1={5} y1={12} x2={19} y2={12} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'settings':
+      return (
+        <Svg {...common}>
+          <Circle cx={12} cy={12} r={3} stroke={color} strokeWidth={strokeWidth} />
+          <Path
+            d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'chevronUp':
+      return (
+        <Svg {...common}>
+          <Polyline points="6 14 12 8 18 14" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'chevronDown':
+      return (
+        <Svg {...common}>
+          <Polyline points="6 10 12 16 18 10" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'tag':
+      return (
+        <Svg {...common}>
+          <Path d="M4 12V5a1 1 0 011-1h7l8 8-7 7-8-8z" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+          <Circle cx={8.5} cy={8.5} r={1.25} fill={color} />
+        </Svg>
+      );
+    case 'circle':
+      return (
+        <Svg {...common}>
+          <Circle cx={12} cy={12} r={8} stroke={color} strokeWidth={strokeWidth} />
         </Svg>
       );
     default:

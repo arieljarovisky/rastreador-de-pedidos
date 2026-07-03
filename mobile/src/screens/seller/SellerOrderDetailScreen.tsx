@@ -19,6 +19,8 @@ import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
 import OrderTrackingMap from '../../components/OrderTrackingMap';
+import IconActionChip from '../../components/ui/IconActionChip';
+import IconLabelRow from '../../components/ui/IconLabelRow';
 import { SellerStackParamList } from '../../navigation/types';
 import { api } from '../../api';
 
@@ -174,7 +176,13 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
         {order.repartidorName ? (
           <View style={styles.repBox}>
             <Text style={styles.repLabel}>Repartidor</Text>
-            <Text style={styles.repName}>🏍️ {order.repartidorName}</Text>
+            <IconLabelRow
+              icon="motorcycle"
+              label={order.repartidorName}
+              color={colors.accent}
+              iconBg={colors.accentBg}
+              style={{ marginTop: 4 }}
+            />
           </View>
         ) : isActive ? (
           <View style={styles.repBox}>
@@ -211,11 +219,22 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
         )}
 
         <View style={styles.actions}>
-          <Button label="🧭 Ver en mapas" variant="ghost" onPress={openInMaps} />
-
-          {order.externalSource === 'mercadolibre' && (
-            <Button label="🏷️ Etiqueta ML" variant="ghost" onPress={openMlLabel} />
-          )}
+          <View style={styles.actionRow}>
+            <IconActionChip
+              icon="navigation"
+              label="Ver en mapas"
+              onPress={openInMaps}
+              style={styles.half}
+            />
+            {order.externalSource === 'mercadolibre' && (
+              <IconActionChip
+                icon="tag"
+                label="Etiqueta ML"
+                onPress={openMlLabel}
+                style={styles.half}
+              />
+            )}
+          </View>
 
           {order.status === OrderStatus.PENDING && (
             <>
@@ -325,8 +344,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 4,
   },
-  repName: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   repPending: { color: colors.textMuted, fontSize: 13 },
+  actionRow: { flexDirection: 'row', gap: spacing.md },
+  half: { flex: 1 },
   notesBox: {
     backgroundColor: colors.bg,
     borderColor: colors.border,

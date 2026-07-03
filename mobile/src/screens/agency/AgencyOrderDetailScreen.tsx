@@ -21,6 +21,7 @@ import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
 import OrderTrackingMap from '../../components/OrderTrackingMap';
+import IconLabelRow from '../../components/ui/IconLabelRow';
 import { AgencyStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<AgencyStackParamList, 'AgencyOrderDetail'>;
@@ -96,7 +97,7 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
     const buttons = [
       ...repartidores.map((rep) => ({
         text: `${rep.name}${rep.deliveryZone ? ` (${zoneLabel(deliveryZones, rep.deliveryZone)})` : ''}${
-          suggestedRep?.id === rep.id ? ' ★' : ''
+          suggestedRep?.id === rep.id ? ' · sugerido' : ''
         }`,
         onPress: () => {
           void run(async () => {
@@ -176,7 +177,12 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
         {order.sellerName ? (
           <View style={styles.metaBox}>
             <Text style={styles.metaLabel}>Vendedor</Text>
-            <Text style={styles.metaValue}>🏪 {order.sellerName}</Text>
+            <IconLabelRow
+              icon="store"
+              label={order.sellerName}
+              color={colors.text}
+              style={{ marginTop: 4 }}
+            />
           </View>
         ) : isOpen ? (
           <View style={styles.metaBox}>
@@ -194,7 +200,13 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
         {order.repartidorName ? (
           <View style={styles.metaBox}>
             <Text style={styles.metaLabel}>Repartidor</Text>
-            <Text style={styles.metaValue}>🏍️ {order.repartidorName}</Text>
+            <IconLabelRow
+              icon="motorcycle"
+              label={order.repartidorName}
+              color={colors.accent}
+              iconBg={colors.accentBg}
+              style={{ marginTop: 4 }}
+            />
             {order.status === OrderStatus.ASSIGNED && (
               <Button
                 label="Cambiar repartidor"

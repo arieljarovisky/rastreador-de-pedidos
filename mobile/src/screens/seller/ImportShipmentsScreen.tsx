@@ -17,6 +17,8 @@ import { api } from '../../api';
 import { MarketplaceShipmentPreview } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
+import PostaIcon from '../../components/icons/PostaIcons';
+import EmptyState from '../../components/ui/EmptyState';
 import { SellerStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<SellerStackParamList, 'ImportShipments'>;
@@ -117,9 +119,11 @@ export default function ImportShipmentsScreen({ route, navigation }: Props) {
         keyExtractor={(item) => item.externalId}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <Text style={styles.empty}>
-            No hay envíos pendientes de importar. Verificá que tu cuenta esté conectada.
-          </Text>
+          <EmptyState
+            icon="package"
+            title="Sin envíos para importar"
+            message="No hay envíos pendientes. Verificá que tu cuenta esté conectada."
+          />
         }
         renderItem={({ item }) => {
           const isSelected = selected.has(item.externalId);
@@ -137,9 +141,12 @@ export default function ImportShipmentsScreen({ route, navigation }: Props) {
                 {item.alreadyImported ? (
                   <Text style={styles.importedTag}>Ya importado</Text>
                 ) : (
-                  <Text style={isSelected ? styles.checkOn : styles.checkOff}>
-                    {isSelected ? '✓' : '○'}
-                  </Text>
+                  <PostaIcon
+                    name={isSelected ? 'checkCircle' : 'circle'}
+                    size={20}
+                    color={isSelected ? colors.accent : colors.textFaint}
+                    strokeWidth={isSelected ? 2 : 1.5}
+                  />
                 )}
               </View>
               <Text style={styles.client}>{item.clientName}</Text>
@@ -178,7 +185,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   list: { padding: spacing.xl, paddingTop: 0, flexGrow: 1 },
-  empty: { color: colors.textFaint, textAlign: 'center', marginTop: 40, lineHeight: 20 },
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -197,8 +203,6 @@ const styles = StyleSheet.create({
   },
   cardId: { color: colors.textFaint, fontSize: 12, fontWeight: '700' },
   importedTag: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
-  checkOn: { color: colors.accent, fontSize: 18, fontWeight: '700' },
-  checkOff: { color: colors.textFaint, fontSize: 18 },
   client: { color: colors.text, fontSize: 15, fontWeight: '700' },
   address: { color: colors.textMuted, fontSize: 13, marginTop: 2, lineHeight: 18 },
   footer: {

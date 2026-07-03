@@ -18,6 +18,7 @@ import { api } from '../../api';
 import { AgencyMercadoLibreCourierStatus, MlFlexMode, OrderStatus } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
+import IconLabelRow from '../../components/ui/IconLabelRow';
 import { zoneLabel } from '../../config/deliveryZones';
 import { AgencyStackParamList } from '../../navigation/types';
 import { connectMarketplace, oauthErrorMessage } from '../../oauth/connectMarketplace';
@@ -225,7 +226,7 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
         ) : (
           repartidores.map((rep) => (
             <View key={rep.id} style={styles.row}>
-              <Text style={styles.rowName}>🏍️ {rep.name}</Text>
+              <IconLabelRow icon="motorcycle" label={rep.name} color={colors.text} />
               <Text style={styles.rowMeta}>
                 {rep.deliveryZone ? zoneLabel(deliveryZones, rep.deliveryZone) : 'Sin zona'}
                 {rep.currentLocation ? ' · GPS activo' : ''}
@@ -242,7 +243,7 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
         ) : (
           sellers.map((seller) => (
             <View key={seller.id} style={styles.row}>
-              <Text style={styles.rowName}>🏪 {seller.name}</Text>
+              <IconLabelRow icon="store" label={seller.name} color={colors.text} />
               <Text style={styles.rowMeta}>@{seller.username}</Text>
             </View>
           ))
