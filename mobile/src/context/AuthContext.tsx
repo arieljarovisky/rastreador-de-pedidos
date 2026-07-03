@@ -41,8 +41,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(USER_KEY),
         ]);
         if (savedToken && savedUser) {
-          setToken(savedToken);
-          setUser(JSON.parse(savedUser) as User);
+          let parsedUser: User | null = null;
+          try {
+            parsedUser = JSON.parse(savedUser) as User;
+          } catch {
+            await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+          }
+          if (parsedUser) {
+            setToken(savedToken);
+            setUser(parsedUser);
           // Validar el token contra el backend en segundo plano
           api
             .me(savedToken)
@@ -65,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setError('Tu sesión ya no es válida. Volvé a iniciar sesión.');
               }
             });
+          }
         }
       } finally {
         setLoading(false);

@@ -9,6 +9,13 @@
         "buildType": "app-bundle"
       }
     },
+    "release-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "preview": {
       "extends": "production",
       "distribution": "internal",

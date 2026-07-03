@@ -6,15 +6,21 @@ import Constants from 'expo-constants';
 import { api } from '../api';
 import { AppNotification } from '../types';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+let notificationHandlerReady = false;
+
+function ensureNotificationHandler(): void {
+  if (notificationHandlerReady) return;
+  notificationHandlerReady = true;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
@@ -43,7 +49,9 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
     return null;
   }
 
-  await ensureAndroidChannel();
+  try {
+    ensureNotificationHandler();
+    await ensureAndroidChannel();
 
   const permissions = await Notifications.getPermissionsAsync();
   let granted = isNotificationsGranted(permissions);
@@ -66,6 +74,10 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 
   const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
   return tokenData.data;
+  } catch (err) {
+    console.warn('[push] No se pudo registrar notificaciones:', err);
+    return null;
+  }
 }
 
 interface UsePushNotificationsOptions {
