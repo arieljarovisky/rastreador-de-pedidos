@@ -23,23 +23,18 @@ import { mergeRepartidorLocation, mergeRepartidoresFromServer } from './utils/re
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 
-type AppTab = 'dashboard' | 'notifications' | 'settings';
-type AdminSubview = 'panel' | 'operations';
+type AppTab = 'panel' | 'dashboard' | 'notifications' | 'settings';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
-const ADMIN_SUBVIEW_KEY = 'lupo_admin_subview';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
 
 function readSavedTab(): AppTab {
   const saved = localStorage.getItem(ACTIVE_TAB_KEY);
-  if (saved === 'dashboard' || saved === 'notifications' || saved === 'settings') {
+  if (saved === 'panel' || saved === 'dashboard' || saved === 'notifications' || saved === 'settings') {
     return saved;
   }
-  return 'dashboard';
-}
-
-function readAdminSubview(): AdminSubview {
-  const saved = localStorage.getItem(ADMIN_SUBVIEW_KEY);
-  return saved === 'operations' ? 'operations' : 'panel';
+  // Compat: pestaña "Panel" antigua guardaba "dashboard"
+  if (saved === 'operations') return 'dashboard';
+  return 'panel';
 }
 
 function readNotifsSidebarOpen(): boolean {
@@ -64,7 +59,6 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
-  const [adminSubview, setAdminSubviewState] = useState<AdminSubview>(readAdminSubview);
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
@@ -76,11 +70,6 @@ export default function App() {
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
-  }, []);
-
-  const setAdminSubview = useCallback((view: AdminSubview) => {
-    setAdminSubviewState(view);
-    localStorage.setItem(ADMIN_SUBVIEW_KEY, view);
   }, []);
 
   useEffect(() => {
@@ -1246,6 +1235,9 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     if (mobileTab === 'settings' && !showSettings) {
+      setMobileTab('panel');
+    }
+    if (user.role === UserRole.REPARTIDOR && mobileTab === 'panel') {
       setMobileTab('dashboard');
     }
   }, [user, mobileTab, showSettings, setMobileTab]);
@@ -1350,15 +1342,27 @@ export default function App() {
                 <>
                   <button
                     type="button"
-                    onClick={() => setMobileTab('dashboard')}
-                    title="Panel principal y mapa"
+                    onClick={() => setMobileTab('panel')}
+                    title="Panel de control de entregas"
                     className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                      mobileTab !== 'settings'
+                      mobileTab === 'panel'
                         ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
                         : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
-                    <LayoutDashboard className="w-3.5 h-3.5" /> Panel
+                    <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab('dashboard')}
+                    title="Mapa y pedidos en vivo"
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                      mobileTab === 'dashboard'
+                        ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
+                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                    }`}
+                  >
+                    🗺️ Mapa
                   </button>
                   <button
                     type="button"
@@ -1416,17 +1420,44 @@ export default function App() {
       
       {/* Selector de pestañas para vista mobile/tablet */}
       <div className="xl:hidden scroll-tabs bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex shrink-0 min-h-[2.5rem] z-40">
-        <button
-          onClick={() => setMobileTab('dashboard')}
-          className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-            mobileTab === 'dashboard'
-              ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-          }`}
-        >
-          <span className="hidden sm:inline">📊 </span>
-          <span>Panel</span>
-        </button>
+        {showSettings && (
+          <>
+            <button
+              onClick={() => setMobileTab('panel')}
+              className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+                mobileTab === 'panel'
+                  ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              <span className="hidden sm:inline">📊 </span>
+              <span>Dashboard</span>
+            </button>
+            <button
+              onClick={() => setMobileTab('dashboard')}
+              className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+                mobileTab === 'dashboard'
+                  ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              <span className="hidden sm:inline">🗺️ </span>
+              <span>Mapa</span>
+            </button>
+          </>
+        )}
+        {!showSettings && (
+          <button
+            onClick={() => setMobileTab('dashboard')}
+            className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+              mobileTab === 'dashboard'
+                ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            <span>Flota</span>
+          </button>
+        )}
         {showSettings && (
           <button
             onClick={() => setMobileTab('settings')}
@@ -1473,79 +1504,58 @@ export default function App() {
               mobileTab === 'settings' ? 'w-full' : 'xl:flex-row h-full overflow-hidden'
             } ${mobileTab !== 'settings' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
-            {mobileTab !== 'settings' && (
-              <div
-                className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out flex flex-col ${
-                  mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
-                }`}
-              >
-                <div className="shrink-0 flex gap-1 p-1 mb-2 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[var(--radius-posta)]">
-                  <button
-                    type="button"
-                    onClick={() => setAdminSubview('panel')}
-                    className={`flex-1 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[var(--radius-posta)] transition ${
-                      adminSubview === 'panel'
-                        ? 'posta-tab-active shadow-md'
-                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    📊 Dashboard
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAdminSubview('operations')}
-                    className={`flex-1 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-[var(--radius-posta)] transition ${
-                      adminSubview === 'operations'
-                        ? 'posta-tab-active shadow-md'
-                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    🗺️ Mapa y pedidos
-                  </button>
+            {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
+              <>
+                <div
+                  className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
+                    mobileTab !== 'panel' ? 'hidden' : 'flex flex-col'
+                  }`}
+                >
+                  <OperationsDashboard
+                    orders={orders}
+                    repartidores={repartidores}
+                    sellers={sellers}
+                    userRole={user.role}
+                    onSelectOrder={(orderId) => {
+                      setActiveOrderId(orderId);
+                      setMobileTab('dashboard');
+                    }}
+                    onGoToOperations={() => setMobileTab('dashboard')}
+                  />
                 </div>
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  {adminSubview === 'panel' ? (
-                    <OperationsDashboard
-                      orders={orders}
-                      repartidores={repartidores}
-                      sellers={sellers}
-                      userRole={user.role}
-                      onSelectOrder={(orderId) => {
-                        setActiveOrderId(orderId);
-                        setAdminSubview('operations');
-                      }}
-                      onGoToOperations={() => setAdminSubview('operations')}
-                    />
-                  ) : (
-                    <AdminDashboard
-                      orders={orders}
-                      repartidores={repartidores}
-                      sellers={sellers}
-                      departurePoint={departurePoint}
-                      pickupPoints={pickupPoints}
-                      deliveryZones={deliveryZones}
-                      barrios={barrios}
-                      activeOrderId={activeOrderId}
-                      onSelectOrder={setActiveOrderId}
-                      onCreateOrder={handleCreateOrder}
-                      onUpdateOrderStatus={handleUpdateOrderStatus}
-                      onAssignOrderSeller={handleAssignOrderSeller}
-                      onDeleteOrder={handleDeleteOrder}
-                      onArchiveOrder={handleArchiveOrder}
-                      userRole={user.role}
-                      onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
-                      onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
-                    />
-                  )}
+                <div
+                  className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
+                    mobileTab !== 'dashboard' ? 'hidden' : 'flex flex-col'
+                  }`}
+                >
+                  <AdminDashboard
+                    orders={orders}
+                    repartidores={repartidores}
+                    sellers={sellers}
+                    departurePoint={departurePoint}
+                    pickupPoints={pickupPoints}
+                    deliveryZones={deliveryZones}
+                    barrios={barrios}
+                    activeOrderId={activeOrderId}
+                    onSelectOrder={setActiveOrderId}
+                    onCreateOrder={handleCreateOrder}
+                    onUpdateOrderStatus={handleUpdateOrderStatus}
+                    onAssignOrderSeller={handleAssignOrderSeller}
+                    onDeleteOrder={handleDeleteOrder}
+                    onArchiveOrder={handleArchiveOrder}
+                    userRole={user.role}
+                    onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
+                    onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
+                  />
                 </div>
-              </div>
+              </>
             )}
 
             {mobileTab === 'settings' && (
               <div className="flex-1 min-w-0 w-full">
                 <SettingsPage
                   user={user}
-                  onBack={() => setMobileTab('dashboard')}
+                  onBack={() => setMobileTab('panel')}
                   departurePoint={departurePoint}
                   repartidores={repartidores}
                   sellers={sellers}
@@ -1586,7 +1596,7 @@ export default function App() {
               </div>
             )}
 
-            {mobileTab !== 'settings' && (
+            {(mobileTab === 'panel' || mobileTab === 'dashboard' || mobileTab === 'notifications') && (
               <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
                 <NotificationHub
                   notifications={notifications}

@@ -72,6 +72,7 @@ export function spreadOverlappingMarkers<T extends LatLng>(items: T[]): Array<T 
     }
 
     const centerLat = group.reduce((sum, item) => sum + item.lat, 0) / group.length;
+    const centerLng = group.reduce((sum, item) => sum + item.lng, 0) / group.length;
     const count = group.length;
     const radius = SPREAD_RADIUS_METERS * (1 + Math.max(0, count - 3) * 0.12);
 
