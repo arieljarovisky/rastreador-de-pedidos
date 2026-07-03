@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { Satellite } from 'lucide-react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { getDeliveryZone, type DeliveryZone } from '../config/deliveryZones.js';
 import { fetchDrivingRoute } from '../utils/route.js';
@@ -15,6 +16,14 @@ import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 import * as L from 'leaflet';
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
+
+const MAP_SVG = {
+  pin: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  bike: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`,
+  package: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></svg>`,
+  store: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg>`,
+  warn: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`,
+} as const;
 
 function getRepartidorPosition(
   order: Order,
@@ -131,7 +140,7 @@ const createRepartidorIcon = (
       <div class="relative w-9 h-9 flex items-center justify-center filter drop-shadow-[0_2px_5px_rgba(0,0,0,0.25)]">
         ${ping}
         <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-xs font-mono" style="background:var(--panel);border-color:${color};color:${color};${stale ? 'opacity:0.75;' : ''}">
-          🏍️
+          ${MAP_SVG.bike}
         </div>
         <div class="absolute -bottom-6 border font-mono font-medium text-[9px] px-1 rounded shadow-md whitespace-nowrap" style="background:var(--panel);border-color:var(--line);color:var(--text)">
           ${name.split(' ')[0]}
@@ -284,7 +293,7 @@ export default function MapComponent({
       .bindPopup(`
         <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
           <h4 class="font-bold text-xs" style="color:var(--accent)">Punto de salida</h4>
-          <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">📍 ${departurePoint.address}</p>
+          <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">${MAP_SVG.pin} ${departurePoint.address}</p>
         </div>
       `);
   }, [departurePoint, showDepartureHub, mapColors]);
@@ -325,7 +334,7 @@ export default function MapComponent({
         }
       )
         .addTo(map)
-        .bindTooltip(`<strong>${zone.name}</strong><br/>🏍️ ${names.join(', ')}`, {
+        .bindTooltip(`<strong>${zone.name}</strong><br/>${MAP_SVG.bike} ${names.join(', ')}`, {
           sticky: true,
           direction: 'center',
           className: 'zone-map-tooltip',
@@ -431,14 +440,14 @@ export default function MapComponent({
       const popupHtml = `
             <div class="font-sans p-1 text-[11px] max-w-[200px]" style="color:var(--text)">
               <div class="flex items-center gap-1 font-bold border-b pb-1 mb-1" style="color:var(--text-muted);border-color:var(--line)">
-                <span>📦 ${order.id}</span>
+                <span>${MAP_SVG.package} ${order.id}</span>
                 <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] text-white font-bold uppercase tracking-wider font-mono" style="background-color:${color}">
                   ${order.status.toUpperCase()}
                 </span>
               </div>
               <p class="font-bold mt-1" style="color:var(--text)">${order.clientName}</p>
-              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">📍 ${order.address}</p>
-              ${order.repartidorName ? `<p class="mt-1.5 font-bold text-[10px] font-mono" style="color:var(--accent)">🏍️ REPARTIDOR: ${order.repartidorName.toUpperCase()}</p>` : ''}
+              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">${MAP_SVG.pin} ${order.address}</p>
+              ${order.repartidorName ? `<p class="mt-1.5 font-bold text-[10px] font-mono flex items-center gap-1" style="color:var(--accent)">${MAP_SVG.bike} REPARTIDOR: ${order.repartidorName.toUpperCase()}</p>` : ''}
               <button id="btn-map-select-${order.id}" class="mt-2 w-full text-center py-1 text-white rounded text-[9px] font-bold uppercase tracking-wider transition cursor-pointer font-mono" style="background:${mapColors.destination}">
                 Ver Detalles
               </button>
@@ -509,9 +518,9 @@ export default function MapComponent({
           .addTo(map)
           .bindPopup(`
             <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
-              <h4 class="font-bold" style="color:var(--ok)">🛒 ${point.label}</h4>
+              <h4 class="font-bold" style="color:var(--ok)">${MAP_SVG.store} ${point.label}</h4>
               ${point.sellerName ? `<p class="text-[10px]" style="color:var(--accent)">${point.sellerName}</p>` : ''}
-              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">📍 ${point.address}</p>
+              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">${MAP_SVG.pin} ${point.address}</p>
             </div>
           `);
         markersRef.current[markerId] = marker;
@@ -569,8 +578,8 @@ export default function MapComponent({
       const reportLabel = formatLastReport(rep.currentLocation.timestamp);
       const repPopup = `
             <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
-              <h4 class="font-bold uppercase tracking-wider font-mono" style="color:${stale ? 'var(--text-muted)' : 'var(--accent)'}">🏍️ ${rep.name}</h4>
-              <p class="text-[10px] mt-0.5" style="color:${stale ? 'var(--warn)' : 'var(--text-muted)'}">${stale ? '⚠️ GPS desactualizado · ' : ''}${reportLabel}</p>
+              <h4 class="font-bold uppercase tracking-wider font-mono flex items-center gap-1" style="color:${stale ? 'var(--text-muted)' : 'var(--accent)'}">${MAP_SVG.bike} ${rep.name}</h4>
+              <p class="text-[10px] mt-0.5" style="color:${stale ? 'var(--warn)' : 'var(--text-muted)'}">${stale ? `${MAP_SVG.warn} GPS desactualizado · ` : ''}${reportLabel}</p>
               ${stale ? '<p class="text-[9px] mt-1" style="color:var(--text-muted)">El repartidor debe tener la app abierta con ubicación activa.</p>' : ''}
             </div>
           `;
@@ -710,8 +719,9 @@ export default function MapComponent({
 
   return (
     <div className="relative w-full h-full rounded-lg overflow-hidden border border-[var(--surface-border)] shadow-2xl">
-      <div className="absolute top-3 left-12 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1 rounded-[5px] text-[9px] font-mono border border-[var(--surface-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-bold">
-        🛰️ MAPA REALTIME POSTA
+      <div className="absolute top-3 left-12 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1 rounded-[5px] text-[9px] font-mono border border-[var(--surface-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-bold flex items-center gap-1">
+        <Satellite className="w-3 h-3 shrink-0" />
+        MAPA REALTIME POSTA
       </div>
       <div className="absolute bottom-3 left-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1.5 rounded-[5px] text-[8px] font-mono border border-[var(--surface-border)] text-[var(--color-text-faint)]">
         <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta estimada al destino</div>

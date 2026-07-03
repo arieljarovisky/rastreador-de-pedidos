@@ -13,6 +13,7 @@ import {
   Users,
   MapPin,
   ChevronRight,
+  Bike,
 } from 'lucide-react';
 import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
@@ -96,7 +97,7 @@ export default function OperationsDashboard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-              {isAgency ? 'Posta Agencia' : 'Posta Ventas'} · Panel del día
+              {isAgency ? 'Posta Agencia' : 'Posta Envios'} · Panel del día
             </p>
             <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5">
               Control de entregas
@@ -286,7 +287,10 @@ function OrderListSection({
                   <p className="text-[10px] text-[var(--color-accent)] mt-0.5">{order.sellerName}</p>
                 )}
                 {order.repartidorName && (
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">🏍️ {order.repartidorName}</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 flex items-center gap-1">
+                    <Bike className="w-3 h-3 shrink-0" />
+                    {order.repartidorName}
+                  </p>
                 )}
               </button>
             </li>

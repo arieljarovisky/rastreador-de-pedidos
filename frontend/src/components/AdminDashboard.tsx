@@ -5,7 +5,11 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
-import { Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users, ChevronDown, ChevronUp, Layers } from 'lucide-react';
+import {
+  Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
+  ChevronDown, ChevronUp, Layers, Package, Crown, Settings, ClipboardList, Map,
+  Store, Bike, AlertTriangle, Check,
+} from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
@@ -415,7 +419,7 @@ export default function AdminDashboard({
     const items: ContextMenuItem[] = [
       {
         id: 'view',
-        label: '📍 Ver en mapa',
+        label: 'Ver en mapa',
         onClick: () => {
           onSelectOrder(order.id);
           setAdminMobileTab('map');
@@ -423,12 +427,12 @@ export default function AdminDashboard({
       },
       {
         id: 'copy-id',
-        label: '📋 Copiar ID',
+        label: 'Copiar ID',
         onClick: () => void navigator.clipboard.writeText(order.id),
       },
       {
         id: 'copy-address',
-        label: '📫 Copiar dirección',
+        label: 'Copiar dirección',
         onClick: () => void navigator.clipboard.writeText(order.address),
       },
     ];
@@ -436,7 +440,7 @@ export default function AdminDashboard({
     if (agency && order.status === OrderStatus.PENDING && onAssignOrderSeller) {
       items.push({
         id: 'assign-seller',
-        label: '🛒 Asignar vendedor',
+        label: 'Asignar vendedor',
         onClick: () => {
           onSelectOrder(order.id);
           setAssigningOrderId(order.id);
@@ -448,7 +452,7 @@ export default function AdminDashboard({
     if (agency && order.status === OrderStatus.ASSIGNED && order.repartidorId) {
       items.push({
         id: 'unassign-repartidor',
-        label: '🏍️ Desasignar repartidor',
+        label: 'Desasignar repartidor',
         onClick: () => {
           void confirm({
             title: 'Desasignar repartidor',
@@ -472,7 +476,7 @@ export default function AdminDashboard({
     if (agency && (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)) {
       items.push({
         id: 'mark-delivered',
-        label: '✓ Marcar como entregado',
+        label: 'Marcar como entregado',
         onClick: () =>
           void onUpdateOrderStatus(order.id, OrderStatus.DELIVERED, undefined, 'Marcado como entregado desde menú'),
       });
@@ -501,7 +505,7 @@ export default function AdminDashboard({
       items.push({ id: 'sep-delete', label: '', separator: true, onClick: () => {} });
       items.push({
         id: 'delete',
-        label: '🗑️ Eliminar pedido',
+        label: 'Eliminar pedido',
         danger: true,
         onClick: () => {
           void confirm({
@@ -527,7 +531,7 @@ export default function AdminDashboard({
     if (canArchive) {
       items.push({
         id: 'archive',
-        label: '📦 Archivar pedido',
+        label: 'Archivar pedido',
         onClick: () => {
           void confirm({
             title: 'Archivar pedido',
@@ -546,7 +550,7 @@ export default function AdminDashboard({
     if (onArchiveOrder && order.archived && (agency || isSeller)) {
       items.push({
         id: 'unarchive',
-        label: '↩️ Restaurar pedido',
+        label: 'Restaurar pedido',
         onClick: () => {
           void onArchiveOrder(order.id, false);
         },
@@ -580,23 +584,25 @@ export default function AdminDashboard({
       <div className="lg:hidden flex bg-[var(--surface-panel-2)] p-1 border border-[var(--surface-border)] rounded shrink-0 gap-1">
         <button
           onClick={() => setAdminMobileTab('orders')}
-          className={`flex-1 py-1.5 text-center text-[10px] font-mono font-bold uppercase tracking-wider transition rounded-[var(--radius-posta)] ${
+          className={`flex-1 py-1.5 text-center text-[10px] font-mono font-bold uppercase tracking-wider transition rounded-[var(--radius-posta)] flex items-center justify-center gap-1 ${
             adminMobileTab === 'orders'
               ? 'posta-tab-active shadow-md'
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel)]'
           }`}
         >
-          📋 Pedidos ({filteredOrders.length})
+          <ClipboardList className="w-3 h-3 shrink-0" />
+          Pedidos ({filteredOrders.length})
         </button>
         <button
           onClick={() => setAdminMobileTab('map')}
-          className={`flex-1 py-1.5 text-center text-[10px] font-mono font-bold uppercase tracking-wider transition rounded-[var(--radius-posta)] ${
+          className={`flex-1 py-1.5 text-center text-[10px] font-mono font-bold uppercase tracking-wider transition rounded-[var(--radius-posta)] flex items-center justify-center gap-1 ${
             adminMobileTab === 'map'
               ? 'posta-tab-active shadow-md'
               : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel)]'
           }`}
         >
-          🗺️ Monitoreo GPS
+          <Map className="w-3 h-3 shrink-0" />
+          Monitoreo GPS
         </button>
       </div>
 
@@ -623,7 +629,24 @@ export default function AdminDashboard({
                 )}
               </button>
               <h2 className="text-sm font-display font-semibold text-[var(--color-text)] flex items-center gap-1.5 truncate">
-                {userRole === UserRole.STORE_ADMIN ? '🛒 Posta Ventas' : userRole === UserRole.SUPER_ADMIN ? '👑 Posta Agencia' : '⚙️ Posta Logística'}
+                {userRole === UserRole.STORE_ADMIN && (
+                  <>
+                    <Package className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" />
+                    Posta Envios
+                  </>
+                )}
+                {userRole === UserRole.SUPER_ADMIN && (
+                  <>
+                    <Crown className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" />
+                    Posta Agencia
+                  </>
+                )}
+                {userRole === UserRole.LOGISTICS_ADMIN && (
+                  <>
+                    <Settings className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" />
+                    Posta Logística
+                  </>
+                )}
               </h2>
               {ordersHeaderCollapsed && (
                 <span className="text-[10px] font-mono text-[var(--color-text-muted)] shrink-0">
@@ -857,9 +880,10 @@ export default function AdminDashboard({
                       key={index}
                       type="button"
                       onClick={() => applyPreset(preset)}
-                      className="text-[9px] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] hover:border-[var(--color-accent)] hover:text-white text-[var(--color-text-muted)] rounded px-1.5 py-0.5 transition font-mono"
+                      className="text-[9px] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] hover:border-[var(--color-accent)] hover:text-white text-[var(--color-text-muted)] rounded px-1.5 py-0.5 transition font-mono inline-flex items-center gap-1"
                     >
-                      📍 {preset.name.split(' (')[0]}
+                      <MapPin className="w-2.5 h-2.5 shrink-0" />
+                      {preset.name.split(' (')[0]}
                     </button>
                   ))}
                 </div>
@@ -896,11 +920,15 @@ export default function AdminDashboard({
                 </div>
                 {geocodeMessage && (
                   <p
-                    className={`mt-1 text-[10px] font-mono ${
+                    className={`mt-1 text-[10px] font-mono flex items-center gap-1 ${
                       coordsConfirmed ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'
                     }`}
                   >
-                    {coordsConfirmed ? '✓ ' : '⚠ '}
+                    {coordsConfirmed ? (
+                      <Check className="w-3 h-3 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                    )}
                     {geocodeMessage}
                   </p>
                 )}
@@ -953,11 +981,11 @@ export default function AdminDashboard({
 
               const statusLabel =
                 order.status === 'delivering'
-                  ? '🚲 En Viaje'
+                  ? 'En Viaje'
                   : order.status === 'assigned'
-                    ? '✓ Asignado'
+                    ? 'Asignado'
                     : order.status === 'delivered'
-                      ? '✓ Entregado'
+                      ? 'Entregado'
                       : 'En Almacén';
 
               // Deterministic fake stats for telemetry based on order ID
@@ -987,24 +1015,32 @@ export default function AdminDashboard({
                   <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-white transition truncate">
                     {order.clientName}
                   </h4>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate leading-snug">
-                    📍 {order.address}
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate leading-snug flex items-start gap-1">
+                    <MapPin className="w-3 h-3 shrink-0 mt-0.5 text-[var(--color-text-muted)]" />
+                    <span className="truncate">{order.address}</span>
                   </p>
                   {isAgencyAdmin(userRole) && (() => {
                     const orderZone = findZoneForPoint(deliveryZones, order.lat, order.lng, barrios);
                     if (!orderZone) return null;
                     return (
-                      <p className="text-[9px] mt-1 font-mono font-bold uppercase tracking-wider" style={{ color: orderZone.color }}>
-                        🗺️ {orderZone.name}
+                      <p className="text-[9px] mt-1 font-mono font-bold uppercase tracking-wider flex items-center gap-1" style={{ color: orderZone.color }}>
+                        <Map className="w-3 h-3 shrink-0" />
+                        {orderZone.name}
                       </p>
                     );
                   })()}
                   {isAgencyAdmin(userRole) && (
                     <p className="text-[10px] mt-1 font-mono">
                       {order.sellerName ? (
-                        <span className="text-[var(--route-2,var(--color-accent))]">🛒 {order.sellerName}</span>
+                        <span className="text-[var(--route-2,var(--color-accent))] inline-flex items-center gap-1">
+                          <Store className="w-3 h-3 shrink-0" />
+                          {order.sellerName}
+                        </span>
                       ) : (
-                        <span className="text-[var(--color-warn)] font-bold">⚠️ Sin vendedor asignado</span>
+                        <span className="text-[var(--color-warn)] font-bold inline-flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 shrink-0" />
+                          Sin vendedor asignado
+                        </span>
                       )}
                     </p>
                   )}
@@ -1047,12 +1083,14 @@ export default function AdminDashboard({
                           Gestionar
                         </button>
                       ) : order.repartidorName ? (
-                        <span className="text-[var(--color-accent)] font-semibold uppercase tracking-wider text-[8px] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 px-1 py-0.5 rounded truncate max-w-[7rem]">
-                          🏍️ {order.repartidorName.split(' ')[0]}
+                        <span className="text-[var(--color-accent)] font-semibold uppercase tracking-wider text-[8px] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 px-1 py-0.5 rounded truncate max-w-[7rem] inline-flex items-center gap-0.5">
+                          <Bike className="w-2.5 h-2.5 shrink-0" />
+                          {order.repartidorName.split(' ')[0]}
                         </span>
                       ) : (
-                        <span className="text-[var(--color-warn)] font-semibold text-[8px] shrink-0">
-                          ⚠️ SIN ASIGNAR
+                        <span className="text-[var(--color-warn)] font-semibold text-[8px] shrink-0 inline-flex items-center gap-0.5">
+                          <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                          SIN ASIGNAR
                         </span>
                       )}
                     </div>
@@ -1113,23 +1151,32 @@ export default function AdminDashboard({
                 </p>
               )}
               {isAgencyAdmin(userRole) && selectedOrder.sellerName && (
-                <p className="text-[10px] font-mono text-[var(--color-accent)]">🛒 {selectedOrder.sellerName}</p>
+                <p className="text-[10px] font-mono text-[var(--color-accent)] flex items-center gap-1">
+                  <Store className="w-3 h-3 shrink-0" />
+                  {selectedOrder.sellerName}
+                </p>
               )}
               {selectedOrder.repartidorName ? (
-                <p className="text-[10px] font-mono text-[var(--color-accent)]">🏍️ {selectedOrder.repartidorName}</p>
+                <p className="text-[10px] font-mono text-[var(--color-accent)] flex items-center gap-1">
+                  <Bike className="w-3 h-3 shrink-0" />
+                  {selectedOrder.repartidorName}
+                </p>
               ) : selectedOrder.status === OrderStatus.PENDING ? (
-                <p className="text-[10px] font-mono text-[var(--color-warn)]">⚠️ Sin repartidor asignado</p>
+                <p className="text-[10px] font-mono text-[var(--color-warn)] flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  Sin repartidor asignado
+                </p>
               ) : null}
               <div className="pt-1">
                 <StatusBadge
                   status={selectedOrder.status}
                   label={
                     selectedOrder.status === OrderStatus.DELIVERING
-                      ? '🚲 En Viaje'
+                      ? 'En Viaje'
                       : selectedOrder.status === OrderStatus.ASSIGNED
-                        ? '✓ Asignado'
+                        ? 'Asignado'
                         : selectedOrder.status === OrderStatus.DELIVERED
-                          ? '✓ Entregado'
+                          ? 'Entregado'
                           : 'En Almacén'
                   }
                 />
@@ -1319,8 +1366,9 @@ export default function AdminDashboard({
                     <div className="flex items-center gap-2 text-[11px]">
                       <span className="font-semibold text-[var(--color-text-muted)]">Vendedor / tienda:</span>
                       {selectedOrder.sellerName ? (
-                        <span className="bg-[var(--color-accent)]/10 text-[var(--route-2,var(--color-accent))] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
-                          🛒 {selectedOrder.sellerName}
+                        <span className="bg-[var(--color-accent)]/10 text-[var(--route-2,var(--color-accent))] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider inline-flex items-center gap-1">
+                          <Store className="w-3 h-3 shrink-0" />
+                          {selectedOrder.sellerName}
                         </span>
                       ) : (
                         <span className="text-[var(--color-warn)] font-bold font-mono text-[10px] uppercase tracking-wider bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/10 px-1.5 py-0.5 rounded">
@@ -1333,8 +1381,9 @@ export default function AdminDashboard({
                   <div className="flex items-center gap-2 text-[11px]">
                     <span className="font-semibold text-[var(--color-text-muted)]">Repartidor asignado:</span>
                     {selectedOrder.repartidorName ? (
-                      <span className="bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider">
-                        🏍️ {selectedOrder.repartidorName}
+                      <span className="bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 font-bold px-2 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider inline-flex items-center gap-1">
+                        <Bike className="w-3 h-3 shrink-0" />
+                        {selectedOrder.repartidorName}
                       </span>
                     ) : (
                       <span className="text-[var(--color-warn)] font-bold font-mono text-[10px] uppercase tracking-wider bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/10 px-1.5 py-0.5 rounded">SIN ASIGNAR</span>
@@ -1448,7 +1497,8 @@ export default function AdminDashboard({
                     userRole === UserRole.STORE_ADMIN ? (
                       <div className="posta-chip-accent border border-[var(--color-accent)]/25 p-2.5 rounded space-y-1">
                         <p className="text-[10px] font-bold text-[var(--color-accent)] flex items-center gap-1 uppercase font-mono">
-                          ⚙️ Coordinado por Logística
+                          <Settings className="w-3 h-3 shrink-0" />
+                          Coordinado por Logística
                         </p>
                         <p className="text-[9px] text-[var(--color-text-muted)] leading-normal font-sans">
                           La asignación de repartidores y el ruteo están a cargo de la administración de logística de envíos.
@@ -1537,10 +1587,11 @@ export default function AdminDashboard({
                                 href={`https://www.google.com/maps?q=${event.lat},${event.lng}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-[var(--color-accent)] hover:underline"
+                                className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-1"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                📍 Ubicación del escaneo
+                                <MapPin className="w-3 h-3 shrink-0" />
+                                Ubicación del escaneo
                               </a>
                             </>
                           )}

@@ -38,7 +38,7 @@ export default function SellerDashboardScreen({ navigation }: Props) {
 
   return (
     <DeliveryDashboardPanel
-      eyebrow="Posta Ventas"
+      eyebrow="Posta Envios"
       title="Panel del día"
       subtitle={user?.name}
       connected={connected}

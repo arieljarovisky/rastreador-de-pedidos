@@ -13,7 +13,7 @@ import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
-import { LogOut, Bell, Settings, LayoutDashboard } from 'lucide-react';
+import { LogOut, Bell, Settings, LayoutDashboard, Map } from 'lucide-react';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
@@ -1362,7 +1362,7 @@ export default function App() {
                         : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
-                    🗺️ Mapa
+                    <Map className="w-3.5 h-3.5" /> Mapa
                   </button>
                   <button
                     type="button"
@@ -1424,24 +1424,24 @@ export default function App() {
           <>
             <button
               onClick={() => setMobileTab('panel')}
-              className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+              className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
                 mobileTab === 'panel'
                   ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
               }`}
             >
-              <span className="hidden sm:inline">📊 </span>
+              <LayoutDashboard className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
               <span>Dashboard</span>
             </button>
             <button
               onClick={() => setMobileTab('dashboard')}
-              className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+              className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
                 mobileTab === 'dashboard'
                   ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
               }`}
             >
-              <span className="hidden sm:inline">🗺️ </span>
+              <Map className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
               <span>Mapa</span>
             </button>
           </>
@@ -1461,13 +1461,13 @@ export default function App() {
         {showSettings && (
           <button
             onClick={() => setMobileTab('settings')}
-            className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+            className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
               mobileTab === 'settings'
                 ? 'text-[var(--color-text)] border-b-2 border-[var(--color-text-muted)] bg-[var(--surface-panel)]/50'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
             }`}
           >
-            <span className="hidden sm:inline">⚙️ </span>
+            <Settings className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
             <span>Config</span>
           </button>
         )}

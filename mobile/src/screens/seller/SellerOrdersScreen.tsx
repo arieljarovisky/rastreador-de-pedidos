@@ -97,7 +97,7 @@ export default function SellerOrdersScreen({ navigation }: Props) {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <DashboardHeader
-        eyebrow="Posta Ventas"
+        eyebrow="Posta Envios"
         title={user?.name ?? 'Vendedor'}
         subtitle={user?.agencyName ?? undefined}
         connected={connected}
