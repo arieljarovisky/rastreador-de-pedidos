@@ -8,6 +8,7 @@ import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.j
 import { getDeliveryZone, type DeliveryZone } from '../config/deliveryZones.js';
 import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
+import { dedupeRepartidores } from '../utils/repartidorLocation.js';
 import { getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 import * as L from 'leaflet';
@@ -517,8 +518,30 @@ export default function MapComponent({
     });
 
     // --- 3. PROCESAR REPARTIDORES ---
-    // Limpiar repartidores existentes en marcadores temporales
-    const activeRepartidorIds = new Set(repartidores.filter(r => r.currentLocation).map(r => `rep_${r.id}`));
+    const activeOrder = activeOrderId
+      ? orders.find((o) => o.id === activeOrderId)
+      : null;
+
+    let fleetRepartidores = dedupeRepartidores(repartidores);
+
+    if (liveRepartidorLocation && activeOrder?.repartidorId) {
+      fleetRepartidores = fleetRepartidores.map((rep) =>
+        rep.id === activeOrder.repartidorId
+          ? {
+              ...rep,
+              currentLocation: {
+                lat: liveRepartidorLocation.lat,
+                lng: liveRepartidorLocation.lng,
+                timestamp: new Date().toISOString(),
+              },
+            }
+          : rep
+      );
+    }
+
+    const activeRepartidorIds = new Set(
+      fleetRepartidores.filter((r) => r.currentLocation).map((r) => `rep_${r.id}`)
+    );
     Object.keys(markersRef.current).forEach((id) => {
       if (id.startsWith('rep_') && !activeRepartidorIds.has(id)) {
         markersRef.current[id].remove();
@@ -526,8 +549,7 @@ export default function MapComponent({
       }
     });
 
-    // Dibujar repartidores activos
-    repartidores.forEach((rep) => {
+    fleetRepartidores.forEach((rep) => {
       if (!rep.currentLocation) return;
       const markerId = `rep_${rep.id}`;
       const stale = isStaleLocation(rep.currentLocation.timestamp);

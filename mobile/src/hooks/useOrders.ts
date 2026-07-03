@@ -4,7 +4,7 @@ import { api } from '../api';
 import { socketUrl, POLL_INTERVAL_MS } from '../config';
 import { Order, User } from '../types';
 import { normalizeOrder, normalizeOrders } from '../utils/normalizeOrder';
-import { mergeRepartidorLocation } from '../utils/repartidorLocation';
+import { mergeRepartidorLocation, mergeRepartidoresFromServer } from '../utils/repartidorLocation';
 
 interface OrderLocationPayload {
   orderId: string;
@@ -104,7 +104,7 @@ export function useOrders(
       ];
       const [ordersData, repsData] = await Promise.all(requests);
       setOrders(normalizeOrders(ordersData));
-      if (repsData) setRepartidores(repsData);
+      if (repsData) setRepartidores((prev) => mergeRepartidoresFromServer(prev, repsData));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los pedidos.');

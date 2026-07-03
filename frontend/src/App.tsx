@@ -18,7 +18,7 @@ import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl } from './api.ts';
-import { mergeRepartidorLocation } from './utils/repartidorLocation.ts';
+import { mergeRepartidorLocation, mergeRepartidoresFromServer } from './utils/repartidorLocation.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 
@@ -184,7 +184,7 @@ export default function App() {
         const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
         if (repsRes.ok) {
           const data = await repsRes.json();
-          setRepartidores(data);
+          setRepartidores((prev) => mergeRepartidoresFromServer(prev, data));
         }
       }
 
@@ -331,7 +331,8 @@ export default function App() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
-          setRepartidores(await res.json());
+          const data = await res.json();
+          setRepartidores((prev) => mergeRepartidoresFromServer(prev, data));
         }
       } catch {
         // ignore

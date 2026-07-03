@@ -1,5 +1,6 @@
 import { Order, OrderStatus, User } from '../types';
 import { MapMarker } from '../components/PostaMap';
+import { dedupeRepartidores } from './repartidorLocation';
 
 const COLORS = {
   repartidor: '#5C87EB',
@@ -15,7 +16,7 @@ export function buildSellerFleetMarkers(
 ): MapMarker[] {
   const markers: MapMarker[] = [];
 
-  for (const rep of repartidores) {
+  for (const rep of dedupeRepartidores(repartidores)) {
     if (!rep.currentLocation) continue;
     markers.push({
       id: `rep_${rep.id}`,
