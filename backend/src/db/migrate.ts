@@ -1,6 +1,7 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { syncMensajeriaGrAgency } from './sync-agency-bindings.js';
+import { computeDeliveryDeadline } from '../utils/delivery-deadline.js';
 
 async function columnExists(table: string, column: string): Promise<boolean> {
   const [rows] = await pool.query<Array<{ COLUMN_NAME: string } & import('mysql2').RowDataPacket>>(
@@ -239,6 +240,52 @@ export async function runMigrations(): Promise<void> {
         INDEX idx_rep_location_user (user_id),
         INDEX idx_rep_location_user_time (user_id, created_at),
         CONSTRAINT fk_rep_location_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await columnExists('orders', 'delivery_deadline'))) {
+    await pool.query(
+      'ALTER TABLE orders ADD COLUMN delivery_deadline DATETIME(3) NULL AFTER updated_at'
+    );
+    await pool.query('CREATE INDEX idx_orders_delivery_deadline ON orders (delivery_deadline)');
+
+    const [orderRows] = await pool.query<
+      Array<{ id: string; created_at: Date } & import('mysql2').RowDataPacket>
+    >('SELECT id, created_at FROM orders WHERE delivery_deadline IS NULL');
+    for (const row of orderRows) {
+      const deadline = computeDeliveryDeadline(new Date(row.created_at));
+      await pool.query('UPDATE orders SET delivery_deadline = ? WHERE id = ?', [deadline, row.id]);
+    }
+  }
+
+  const [notifTypeCol] = await pool.query<
+    Array<{ COLUMN_TYPE: string } & import('mysql2').RowDataPacket>
+  >(
+    `SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'type'`
+  );
+  const notifType = notifTypeCol[0]?.COLUMN_TYPE ?? '';
+  if (notifType && !notifType.includes('deadline_urgent')) {
+    await pool.query(
+      `ALTER TABLE notifications MODIFY COLUMN type
+       ENUM('order_assigned', 'order_delivered', 'location_update', 'info', 'deadline_warning', 'deadline_urgent', 'deadline_missed')
+       NOT NULL DEFAULT 'info'`
+    );
+  }
+
+  if (!(await tableExists('push_tokens'))) {
+    await pool.query(`
+      CREATE TABLE push_tokens (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        expo_push_token VARCHAR(255) NOT NULL,
+        platform VARCHAR(16) NULL,
+        created_at DATETIME(3) NOT NULL,
+        updated_at DATETIME(3) NOT NULL,
+        UNIQUE KEY uk_push_token (expo_push_token),
+        INDEX idx_push_user (user_id),
+        CONSTRAINT fk_push_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }

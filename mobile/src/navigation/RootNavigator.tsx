@@ -7,6 +7,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RepartidorNavigator from './RepartidorNavigator';
 import SellerNavigator from './SellerNavigator';
 import AgencyNavigator from './AgencyNavigator';
+import PushNotificationsBridge from '../components/PushNotificationsBridge';
 import { isAgencyAdminRole, isRepartidorRole, isSellerRole } from '../types';
 import { colors } from '../theme';
 
@@ -44,6 +45,7 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer theme={navTheme}>
+      {token && user ? <PushNotificationsBridge /> : null}
       {!token || !user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />

@@ -14,6 +14,7 @@ import {
   deleteOrder,
   setOrderArchived,
 } from '../services/orders.service.js';
+import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf } from '../services/mercadolibre.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
@@ -35,6 +36,16 @@ function mercadoLibreLabelErrorMessage(code: string): string {
 }
 
 const router = Router();
+
+router.get('/delivery-summary', authenticate, requireRoles(
+  UserRole.STORE_ADMIN,
+  UserRole.SUPER_ADMIN,
+  UserRole.LOGISTICS_ADMIN
+), async (req: Request, res: Response) => {
+  const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+  const summary = await getDeliverySummaryForUser(req.user!, date);
+  res.json(summary);
+});
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
   const orders = await listOrdersForUser(req.user!);

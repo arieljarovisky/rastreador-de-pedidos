@@ -12,6 +12,7 @@ import {
 } from '../types/index.js';
 import { getRepartidorById, getUserById, updateUserLocation, assertSellerInAgency } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import { computeDeliveryDeadline } from '../utils/delivery-deadline.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -108,6 +109,9 @@ function rowToOrder(
     repartidorName: row.repartidor_name,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
+    deliveryDeadline: row.delivery_deadline
+      ? new Date(row.delivery_deadline).toISOString()
+      : undefined,
     notes: row.notes ?? undefined,
     externalSource: row.external_source ?? null,
     externalOrderId: row.external_order_id ?? null,
@@ -120,7 +124,7 @@ function rowToOrder(
 const ORDER_SELECT = `
   SELECT o.id, o.agency_id, o.seller_id, o.external_source, o.external_order_id, o.shipping_type,
          o.client_name, o.client_phone, o.address, o.lat, o.lng,
-         o.status, o.archived, o.repartidor_id, o.notes, o.created_at, o.updated_at,
+         o.status, o.archived, o.repartidor_id, o.notes, o.created_at, o.updated_at, o.delivery_deadline,
          r.name AS repartidor_name,
          s.name AS seller_name
   FROM orders o
@@ -229,6 +233,7 @@ export async function createOrder(
 ): Promise<Order> {
   const newId = await generateNextOrderId();
   const now = new Date();
+  const deliveryDeadline = computeDeliveryDeadline(now);
 
   let sellerId: string | null = null;
   let agencyId: string | null = null;
@@ -268,8 +273,8 @@ export async function createOrder(
 
   await pool.query(
     `INSERT INTO orders (id, agency_id, seller_id, external_source, external_order_id, shipping_type,
-       client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+       client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at, delivery_deadline)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
     [
       newId,
       agencyId,
@@ -286,6 +291,7 @@ export async function createOrder(
       data.notes ?? '',
       now,
       now,
+      deliveryDeadline,
     ]
   );
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Order, User, LocationHistoryPoint } from './types.js';
+import { Order, User, LocationHistoryPoint, AppNotification } from './types.js';
 import { socketUrl } from './api.ts';
 
 interface OrderLocationPayload {
@@ -25,6 +25,7 @@ interface UseRealtimeSocketOptions {
   onOrderLocation: (payload: OrderLocationPayload) => void;
   onRepartidorLocation: (payload: RepartidorLocationPayload) => void;
   onConnectionChange: (connected: boolean) => void;
+  onNotificationCreated?: (notification: AppNotification) => void;
 }
 
 export function useRealtimeSocket({
@@ -35,6 +36,7 @@ export function useRealtimeSocket({
   onOrderLocation,
   onRepartidorLocation,
   onConnectionChange,
+  onNotificationCreated,
 }: UseRealtimeSocketOptions): void {
   const socketRef = useRef<Socket | null>(null);
   const trackedOrderRef = useRef<string | null>(null);
@@ -45,6 +47,7 @@ export function useRealtimeSocket({
     onOrderLocation,
     onRepartidorLocation,
     onConnectionChange,
+    onNotificationCreated,
   });
 
   callbacksRef.current = {
@@ -53,6 +56,7 @@ export function useRealtimeSocket({
     onOrderLocation,
     onRepartidorLocation,
     onConnectionChange,
+    onNotificationCreated,
   };
 
   useEffect(() => {
@@ -87,6 +91,9 @@ export function useRealtimeSocket({
     socket.on('repartidor:location', (payload: RepartidorLocationPayload) =>
       callbacksRef.current.onRepartidorLocation(payload)
     );
+    socket.on('notification:created', (notification: AppNotification) => {
+      callbacksRef.current.onNotificationCreated?.(notification);
+    });
 
     if (socket.connected) handleConnect();
 

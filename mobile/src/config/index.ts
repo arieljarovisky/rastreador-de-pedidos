@@ -26,8 +26,11 @@ export function socketUrl(): string {
   return API_BASE;
 }
 
-/** Frecuencia mínima entre reportes de GPS (ms), igual que la web. */
+/** Frecuencia mínima entre reportes rápidos al moverse (ms). */
 export const GPS_THROTTLE_MS = 2000;
+
+/** Heartbeat GPS aunque el repartidor esté parado (ms). Debe ser < umbral "stale" del mapa web (~90s). */
+export const GPS_HEARTBEAT_MS = 30_000;
 
 /** Cada cuánto se refrescan los pedidos por polling de respaldo (ms). */
 export const POLL_INTERVAL_MS = 8000;

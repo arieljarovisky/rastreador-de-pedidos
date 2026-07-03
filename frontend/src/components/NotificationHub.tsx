@@ -143,7 +143,15 @@ export default function NotificationHub({
                 exit={{ opacity: 0, y: -12, scale: 0.96 }}
                 id="notification-banner-alert"
                 role="alert"
-                className="fixed z-[10050] top-[7.25rem] lg:top-20 right-4 left-4 sm:left-auto sm:w-full sm:max-w-sm pointer-events-auto bg-[var(--surface-panel)] border border-[var(--color-warn)]/40 text-[var(--color-text)] rounded-[var(--radius-posta)] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md flex items-start gap-3"
+                className="fixed z-[10050] top-[7.25rem] lg:top-20 right-4 left-4 sm:left-auto sm:w-full sm:max-w-sm pointer-events-auto bg-[var(--surface-panel)] border text-[var(--color-text)] rounded-[var(--radius-posta)] p-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md flex items-start gap-3 ${
+                  activeBanner.type === 'deadline_missed'
+                    ? 'border-[var(--color-danger)]/40'
+                    : activeBanner.type === 'deadline_warning'
+                      ? 'border-[var(--color-warn)]/40'
+                      : activeBanner.type === 'deadline_urgent'
+                        ? 'border-orange-500/40'
+                        : 'border-[var(--color-warn)]/40'
+                }"
               >
                 <div className="w-10 h-10 rounded-full bg-[var(--color-warn)]/15 flex items-center justify-center text-[var(--color-warn)] shrink-0 border border-[var(--color-warn)]/25">
                   <Bell className="w-5 h-5" />
@@ -290,7 +298,17 @@ export default function NotificationHub({
                 >
                   <div className="flex items-center gap-1.5 font-semibold text-[10px]">
                     <span className={notif.read ? 'text-[var(--color-text-faint)]' : 'text-[var(--color-accent)]'}>
-                      {notif.type === 'order_assigned' ? '🏍️ Asignación' : notif.type === 'order_delivered' ? '✓ Entregado' : '📢 Info'}
+                      {notif.type === 'order_assigned'
+                        ? '🏍️ Asignación'
+                        : notif.type === 'order_delivered'
+                          ? '✓ Entregado'
+                          : notif.type === 'deadline_warning'
+                            ? '⏰ Corte'
+                            : notif.type === 'deadline_urgent'
+                              ? '⚠️ Urgente'
+                              : notif.type === 'deadline_missed'
+                              ? '🚨 Fuera de plazo'
+                              : '📢 Info'}
                     </span>
                     <span className="text-[9px] text-[var(--color-text-muted)] ml-auto font-mono">
                       {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

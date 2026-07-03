@@ -16,6 +16,7 @@ interface Props {
   subtitle?: string;
   connected: boolean;
   onNotifications?: () => void;
+  notificationCount?: number;
   onLogout: () => void;
   accentColor?: string;
   style?: ViewStyle;
@@ -27,6 +28,7 @@ export default function DashboardHeader({
   subtitle,
   connected,
   onNotifications,
+  notificationCount = 0,
   onLogout,
   accentColor = colors.accent,
   style,
@@ -58,6 +60,13 @@ export default function DashboardHeader({
             accessibilityLabel="Notificaciones"
           >
             <PostaIcon name="bell" size={18} color={colors.textMuted} />
+            {notificationCount > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         ) : null}
         <View style={styles.liveBadge}>
@@ -145,6 +154,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.red,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    fontFamily: fonts.mono,
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#fff',
   },
   pressed: { opacity: 0.85 },
   liveBadge: {

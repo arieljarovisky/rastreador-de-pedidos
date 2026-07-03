@@ -1,5 +1,5 @@
 import { Server } from 'socket.io';
-import { Order, User, LocationHistoryPoint } from '../types/index.js';
+import { Order, User, LocationHistoryPoint, AppNotification } from '../types/index.js';
 import { UserRole } from '../types/index.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
@@ -65,6 +65,15 @@ export function emitRepartidorLocation(repartidor: User): void {
     name: repartidor.name,
     location: repartidor.currentLocation,
   });
+}
+
+export function emitNotificationCreated(notification: AppNotification): void {
+  if (!io) return;
+  if (notification.userId === 'all') {
+    io.to('tracking').emit('notification:created', notification);
+    return;
+  }
+  io.to(`user:${notification.userId}`).emit('notification:created', notification);
 }
 
 export function joinUserRooms(socketId: string, user: { id: string; role: UserRole }): void {

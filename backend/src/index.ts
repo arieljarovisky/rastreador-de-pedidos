@@ -4,6 +4,7 @@ import { env } from './config/env.js';
 import { resetDatabase } from './db/reset-database.js';
 import { runMigrations } from './db/migrate.js';
 import { setupSocket } from './realtime/socket.js';
+import { startDeliveryScheduler } from './services/delivery-scheduler.js';
 
 async function start(): Promise<void> {
   if (process.env.DB_RESET_ON_START === 'true') {
@@ -16,6 +17,7 @@ async function start(): Promise<void> {
 
   const server = http.createServer(app);
   setupSocket(server);
+  startDeliveryScheduler();
 
   server.listen(env.port, '0.0.0.0', () => {
     console.log(`Backend LupoEnvios corriendo en http://localhost:${env.port} (HTTP + WebSocket)`);

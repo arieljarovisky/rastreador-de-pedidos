@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { api } from '../api';
 import { socketUrl, POLL_INTERVAL_MS } from '../config';
-import { Order, User } from '../types';
+import { Order, User, AppNotification } from '../types';
 import { normalizeOrder, normalizeOrders } from '../utils/normalizeOrder';
 import { mergeRepartidorLocation, mergeRepartidoresFromServer } from '../utils/repartidorLocation';
+import { showLocalNotification } from './usePushNotifications';
 
 interface OrderLocationPayload {
   orderId: string;
@@ -22,6 +23,7 @@ interface RepartidorLocationPayload {
 interface UseOrdersOptions {
   /** Vendedor: cargar repartidores y escuchar GPS en vivo */
   trackRepartidores?: boolean;
+  onNotificationCreated?: (notification: AppNotification) => void;
 }
 
 interface UseOrdersResult {
@@ -38,7 +40,7 @@ export function useOrders(
   token: string | null,
   options: UseOrdersOptions = {}
 ): UseOrdersResult {
-  const { trackRepartidores = false } = options;
+  const { trackRepartidores = false, onNotificationCreated } = options;
   const [orders, setOrders] = useState<Order[]>([]);
   const [repartidores, setRepartidores] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +49,9 @@ export function useOrders(
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const initialLoadDoneRef = useRef(false);
+
+  const onNotificationRef = useRef(onNotificationCreated);
+  onNotificationRef.current = onNotificationCreated;
 
   const mergeOrder = useCallback((order: Order) => {
     const normalized = normalizeOrder(order);
@@ -156,6 +161,14 @@ export function useOrders(
         applyRepartidorLocation(p)
       );
     }
+    socket.on('notification:created', (notification: AppNotification) => {
+      onNotificationRef.current?.(notification);
+      void showLocalNotification(notification.title, notification.body, {
+        notificationId: notification.id,
+        type: notification.type,
+        ...(notification.orderId ? { orderId: notification.orderId } : {}),
+      });
+    });
 
     return () => {
       socket.disconnect();

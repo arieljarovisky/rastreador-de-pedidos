@@ -1,9 +1,10 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GPS_THROTTLE_MS } from '../config';
+import { GPS_HEARTBEAT_MS } from '../config';
 import { getActiveOrderId } from './locationQueue';
 import { flushLocationQueue, reportLocationPoint } from './locationSync';
+import { backgroundLocationOptions } from './locationTrackingOptions';
 
 export const BACKGROUND_LOCATION_TASK = 'posta-background-location';
 
@@ -24,7 +25,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   const now = Date.now();
   const lastSentRaw = await AsyncStorage.getItem(LAST_SENT_KEY);
   const lastSent = lastSentRaw ? Number(lastSentRaw) : 0;
-  if (now - lastSent < GPS_THROTTLE_MS) return;
+  if (now - lastSent < GPS_HEARTBEAT_MS - 2000) return;
   await AsyncStorage.setItem(LAST_SENT_KEY, String(now));
 
   const activeOrderId = await getActiveOrderId();
@@ -48,19 +49,11 @@ export async function startBackgroundLocation(): Promise<boolean> {
   await Location.requestBackgroundPermissionsAsync();
 
   const started = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
-  if (started) return true;
+  if (started) {
+    await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+  }
 
-  await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-    accuracy: Location.Accuracy.High,
-    distanceInterval: 8,
-    timeInterval: 3000,
-    showsBackgroundLocationIndicator: true,
-    foregroundService: {
-      notificationTitle: 'Posta Repartidor',
-      notificationBody: 'Compartiendo tu ubicación para el seguimiento del envío.',
-      notificationColor: '#3B82F6',
-    },
-  });
+  await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, backgroundLocationOptions);
 
   return true;
 }

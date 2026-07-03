@@ -85,6 +85,8 @@ export interface Order {
   repartidorName: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Corte de entrega (21:00 AR del día operativo). */
+  deliveryDeadline?: string;
   history: OrderHistoryEvent[];
   locationHistory: LocationHistoryPoint[];
   notes?: string;
@@ -100,7 +102,14 @@ export interface AppNotification {
   body: string;
   createdAt: string;
   read: boolean;
-  type: 'order_assigned' | 'order_delivered' | 'location_update' | 'info';
+  type:
+    | 'order_assigned'
+    | 'order_delivered'
+    | 'location_update'
+    | 'info'
+    | 'deadline_warning'
+    | 'deadline_urgent'
+    | 'deadline_missed';
   orderId?: string;
 }
 
@@ -147,4 +156,18 @@ export interface DbOrderRow {
   notes: string | null;
   created_at: Date;
   updated_at: Date;
+  delivery_deadline: Date | null;
+}
+
+export interface DeliveryDailySummary {
+  date: string;
+  deadlineHour: number;
+  deadlineAt: string;
+  total: number;
+  delivered: number;
+  undelivered: number;
+  overdue: number;
+  cancelled: number;
+  minutesUntilDeadline: number;
+  isPastDeadline: boolean;
 }

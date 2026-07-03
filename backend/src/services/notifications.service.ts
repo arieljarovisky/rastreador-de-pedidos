@@ -1,6 +1,8 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { AppNotification } from '../types/index.js';
+import { emitNotificationCreated } from '../realtime/io.js';
+import { sendPushNotification } from './push.service.js';
 
 interface NotificationRow extends RowDataPacket {
   id: string;
@@ -76,11 +78,28 @@ export async function createNotification(data: {
   body: string;
   type: AppNotification['type'];
   orderId?: string;
-}): Promise<void> {
+}): Promise<AppNotification> {
   const now = new Date();
   await pool.query(
     `INSERT INTO notifications (id, user_id, title, body, type, order_id, is_read, created_at)
      VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
     [data.id, data.userId, data.title, data.body, data.type, data.orderId ?? null, now]
   );
+  const notification: AppNotification = {
+    id: data.id,
+    userId: data.userId,
+    title: data.title,
+    body: data.body,
+    createdAt: now.toISOString(),
+    read: false,
+    type: data.type,
+    orderId: data.orderId,
+  };
+  emitNotificationCreated(notification);
+  void sendPushNotification(data.userId, data.title, data.body, {
+    notificationId: data.id,
+    type: data.type,
+    ...(data.orderId ? { orderId: data.orderId } : {}),
+  }).catch((err) => console.warn('[push] Error enviando notificación:', err));
+  return notification;
 }

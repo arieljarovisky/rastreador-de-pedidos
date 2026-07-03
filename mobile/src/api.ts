@@ -171,6 +171,22 @@ export const api = {
     return request<void>('/api/notifications/read', { method: 'POST', token });
   },
 
+  registerPushToken(token: string, expoPushToken: string, platform?: string): Promise<void> {
+    return request<void>('/api/notifications/push-token', {
+      method: 'POST',
+      token,
+      body: { expoPushToken, platform },
+    });
+  },
+
+  unregisterPushToken(token: string, expoPushToken: string): Promise<void> {
+    return request<void>('/api/notifications/push-token', {
+      method: 'DELETE',
+      token,
+      body: { expoPushToken },
+    });
+  },
+
   /** Escaneo de etiqueta Mercado Libre Flex (colecta / re-escaneo). */
   scanMercadoLibreLabel(
     token: string,

@@ -302,6 +302,13 @@ export default function App() {
       setLastSyncAt(new Date());
     },
     onConnectionChange: setWsConnected,
+    onNotificationCreated: (notification) => {
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notification.id)) return prev;
+        return [notification, ...prev];
+      });
+      playNotificationSound();
+    },
   });
 
   // Sincronización inicial + respaldo si WebSocket cae

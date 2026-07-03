@@ -73,12 +73,14 @@ CREATE TABLE IF NOT EXISTS orders (
   notes TEXT NULL,
   created_at DATETIME(3) NOT NULL,
   updated_at DATETIME(3) NOT NULL,
+  delivery_deadline DATETIME(3) NULL,
   INDEX idx_orders_status (status),
   INDEX idx_orders_archived (archived),
   INDEX idx_orders_agency (agency_id),
   INDEX idx_orders_seller (seller_id),
   INDEX idx_orders_external (seller_id, external_source, external_order_id),
   INDEX idx_orders_repartidor (repartidor_id),
+  INDEX idx_orders_delivery_deadline (delivery_deadline),
   CONSTRAINT fk_orders_agency FOREIGN KEY (agency_id) REFERENCES agencies(id),
   CONSTRAINT fk_orders_seller FOREIGN KEY (seller_id) REFERENCES users(id),
   CONSTRAINT fk_orders_repartidor FOREIGN KEY (repartidor_id) REFERENCES users(id)
@@ -140,7 +142,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   user_id VARCHAR(36) NOT NULL,
   title VARCHAR(255) NOT NULL,
   body TEXT NOT NULL,
-  type ENUM('order_assigned', 'order_delivered', 'location_update', 'info') NOT NULL DEFAULT 'info',
+  type ENUM('order_assigned', 'order_delivered', 'location_update', 'info', 'deadline_warning', 'deadline_urgent', 'deadline_missed') NOT NULL DEFAULT 'info',
   order_id VARCHAR(36) NULL,
   is_read TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME(3) NOT NULL,
@@ -154,4 +156,16 @@ CREATE TABLE IF NOT EXISTS notification_dismissals (
   dismissed_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (user_id, notification_id),
   INDEX idx_dismissals_notification (notification_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS push_tokens (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  expo_push_token VARCHAR(255) NOT NULL,
+  platform VARCHAR(16) NULL,
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  UNIQUE KEY uk_push_token (expo_push_token),
+  INDEX idx_push_user (user_id),
+  CONSTRAINT fk_push_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

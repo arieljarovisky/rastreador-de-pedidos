@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -22,9 +23,11 @@ import EmptyState from '../../components/ui/EmptyState';
 import ListTabButton from '../../components/ui/ListTabButton';
 import MapLegendItem from '../../components/ui/MapLegendItem';
 import PostaMap from '../../components/PostaMap';
+import DeliverySummaryCard from '../../components/DeliverySummaryCard';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { SellerHomeStackParamList, SellerStackParamList } from '../../navigation/types';
+import { api } from '../../api';
 
 type Props = CompositeScreenProps<
   NativeStackScreenProps<SellerHomeStackParamList, 'SellerOrders'>,
@@ -51,11 +54,28 @@ function filterOrders(orders: Order[], tab: Tab): Order[] {
 
 export default function SellerOrdersScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
   const { orders, repartidores, loading, refreshing, connected, refresh } =
     useSellerOrdersContext();
   const [tab, setTab] = useState<Tab>('active');
   const [mapExpanded, setMapExpanded] = useState(true);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
+
+  const loadNotifs = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.getNotifications(token);
+      setUnreadNotifs(data.filter((n) => !n.read).length);
+    } catch {
+      // ignore
+    }
+  }, [token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadNotifs();
+    }, [loadNotifs])
+  );
 
   const fleetMarkers = useMemo(
     () => buildSellerFleetMarkers(orders, repartidores),
@@ -84,8 +104,11 @@ export default function SellerOrdersScreen({ navigation }: Props) {
         connected={connected}
         accentColor={colors.stamp}
         onNotifications={() => navigation.navigate('Notifications')}
+        notificationCount={unreadNotifs}
         onLogout={logout}
       />
+
+      <DeliverySummaryCard orders={orders} />
 
       {tab === 'active' && (
         <View style={[styles.mapSection, !mapExpanded && styles.mapSectionCollapsed]}>
