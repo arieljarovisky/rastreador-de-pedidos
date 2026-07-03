@@ -84,11 +84,14 @@ export function useAppUpdate() {
         void Linking.openURL(info.downloadUrl);
       };
 
+      const installHint =
+        ' Si Android dice "conflicto de paquete", desinstalá Posta desde Configuración → Apps y volvé a instalar.';
       const message =
-        info.message ??
-        (updateRequired
-          ? `Tu versión (${currentVersion}) ya no es compatible. Instalá la versión ${remoteVersion} para seguir usando Posta.`
-          : `Hay una nueva versión (${remoteVersion}). Te recomendamos instalarla para tener las últimas mejoras.`);
+        (info.message ??
+          (updateRequired
+            ? `Tu versión (${currentVersion}) ya no es compatible. Instalá la versión ${remoteVersion} para seguir usando Posta.`
+            : `Hay una nueva versión (${remoteVersion}). Te recomendamos instalarla para tener las últimas mejoras.`)) +
+        installHint;
 
       if (updateRequired) {
         Alert.alert(

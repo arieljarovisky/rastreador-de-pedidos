@@ -19,7 +19,7 @@ import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl } from './api.ts';
-import { mergeRepartidorLocation, mergeRepartidoresFromServer } from './utils/repartidorLocation.ts';
+import { mergeRepartidorLocation, mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 
@@ -559,7 +559,7 @@ export default function App() {
       throw new Error(err.error || 'No se pudo crear el repartidor');
     }
     const created = await res.json();
-    setRepartidores((prev) => [...prev, created]);
+    setRepartidores((prev) => dedupeRepartidores([...prev, created]));
   };
 
   const handleUpdateRepartidorZone = async (repartidorId: string, deliveryZone: string | null) => {

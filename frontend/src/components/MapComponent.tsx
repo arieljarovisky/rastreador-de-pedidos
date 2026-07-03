@@ -9,7 +9,7 @@ import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.j
 import { getDeliveryZone, type DeliveryZone } from '../config/deliveryZones.js';
 import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
-import { dedupeRepartidores } from '../utils/repartidorLocation.js';
+import { dedupeRepartidores, repartidorIdentityMatches, repartidorMarkerKey } from '../utils/repartidorLocation.js';
 import { spreadOverlappingMarkers } from '../utils/markerSpread.js';
 import { getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
@@ -30,7 +30,12 @@ function getRepartidorPosition(
   repartidores: User[],
   liveLocation?: { lat: number; lng: number } | null
 ): [number, number] | null {
-  const rep = repartidores.find((r) => r.id === order.repartidorId);
+  const rep = repartidores.find(
+    (r) =>
+      r.id === order.repartidorId ||
+      r.username === order.repartidorId ||
+      repartidorIdentityMatches(r, order.repartidorId ?? '')
+  );
   if (liveLocation) return [liveLocation.lat, liveLocation.lng];
   if (rep?.currentLocation) return [rep.currentLocation.lat, rep.currentLocation.lng];
   if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 0) {
@@ -242,6 +247,16 @@ export default function MapComponent({
 
     // Cleanup al desmontar
     return () => {
+      Object.values(markersRef.current).forEach((marker) => marker.remove());
+      markersRef.current = {};
+      Object.values(polylinesRef.current).forEach((line) => line.remove());
+      polylinesRef.current = {};
+      zoneLayersRef.current.forEach((layer) => layer.remove());
+      zoneLayersRef.current = [];
+      if (hubMarkerRef.current) {
+        hubMarkerRef.current.remove();
+        hubMarkerRef.current = null;
+      }
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -536,7 +551,7 @@ export default function MapComponent({
 
     if (liveRepartidorLocation && activeOrder?.repartidorId) {
       fleetRepartidores = fleetRepartidores.map((rep) =>
-        rep.id === activeOrder.repartidorId
+        repartidorIdentityMatches(rep, activeOrder.repartidorId!)
           ? {
               ...rep,
               currentLocation: {
@@ -549,11 +564,16 @@ export default function MapComponent({
       );
     }
 
-    const activeRepartidorIds = new Set(
-      fleetRepartidores.filter((r) => r.currentLocation).map((r) => `rep_${r.id}`)
+    const activeRepartidorKeys = new Set(
+      fleetRepartidores
+        .filter((r) => r.currentLocation)
+        .flatMap((r) => [r.id, r.username].map((value) => value.trim().toLowerCase()))
     );
+
     Object.keys(markersRef.current).forEach((id) => {
-      if (id.startsWith('rep_') && !activeRepartidorIds.has(id)) {
+      if (!id.startsWith('rep_')) return;
+      const suffix = id.slice(4).toLowerCase();
+      if (!activeRepartidorKeys.has(suffix)) {
         markersRef.current[id].remove();
         delete markersRef.current[id];
       }
@@ -571,7 +591,7 @@ export default function MapComponent({
 
     spreadReps.forEach(({ rep, displayLat, displayLng }) => {
       if (!rep.currentLocation) return;
-      const markerId = `rep_${rep.id}`;
+      const markerId = `rep_${repartidorMarkerKey(rep)}`;
       const displayPos: [number, number] = [displayLat, displayLng];
       const stale = isStaleLocation(rep.currentLocation.timestamp);
       const icon = createRepartidorIcon(rep.name, mapColors, stale);
@@ -583,6 +603,16 @@ export default function MapComponent({
               ${stale ? '<p class="text-[9px] mt-1" style="color:var(--text-muted)">El repartidor debe tener la app abierta con ubicación activa.</p>' : ''}
             </div>
           `;
+
+      // Eliminar marcadores alias (p. ej. id viejo vs uuid) del mismo repartidor
+      Object.keys(markersRef.current).forEach((id) => {
+        if (!id.startsWith('rep_') || id === markerId) return;
+        const suffix = id.slice(4);
+        if (repartidorIdentityMatches(rep, suffix)) {
+          markersRef.current[id].remove();
+          delete markersRef.current[id];
+        }
+      });
 
       if (markersRef.current[markerId]) {
         animateMarkerTo(
@@ -678,7 +708,11 @@ export default function MapComponent({
       userInteractedRef.current = false;
     }
 
-    const rep = repartidoresRef.current.find((r) => r.id === activeOrder.repartidorId);
+    const rep = repartidoresRef.current.find(
+      (r) =>
+        r.id === activeOrder.repartidorId ||
+        repartidorIdentityMatches(r, activeOrder.repartidorId ?? '')
+    );
     const repPos = getRepartidorPosition(activeOrder, repartidoresRef.current, liveRepartidorLocation);
     const dest: [number, number] = [activeOrder.lat, activeOrder.lng];
 

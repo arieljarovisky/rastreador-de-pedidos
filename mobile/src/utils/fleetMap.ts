@@ -1,6 +1,6 @@
 import { Order, OrderStatus, User } from '../types';
 import { MapMarker } from '../components/PostaMap';
-import { dedupeRepartidores } from './repartidorLocation';
+import { dedupeRepartidores, repartidorMarkerKey } from './repartidorLocation';
 import { spreadOverlappingMarkers } from './markerSpread';
 
 const COLORS = {
@@ -27,7 +27,7 @@ export function buildSellerFleetMarkers(
 
   for (const { rep, displayLat, displayLng } of spreadOverlappingMarkers(repsWithLocation)) {
     markers.push({
-      id: `rep_${rep.id}`,
+      id: `rep_${repartidorMarkerKey(rep)}`,
       lat: displayLat,
       lng: displayLng,
       color: COLORS.repartidor,
