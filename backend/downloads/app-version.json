@@ -1,7 +1,7 @@
 {
-  "version": "1.1.7",
-  "minVersion": "1.1.7",
-  "versionCode": 9,
-  "minVersionCode": 9,
-  "message": "Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras."
+  "version": "1.1.8",
+  "minVersion": "1.1.8",
+  "versionCode": 10,
+  "minVersionCode": 10,
+  "message": "Cerrá la sesión del otro dispositivo desde el login. Mejoras de estabilidad."
 }
