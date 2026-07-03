@@ -81,10 +81,12 @@ if (isLocalFile) {
 
 const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
 const version = appJson?.expo?.version ?? '1.0.0';
+const versionCode = appJson?.expo?.android?.versionCode;
 
 const versionPayload = {
   version,
   minVersion: minVersionArg ?? version,
+  ...(typeof versionCode === 'number' ? { versionCode, minVersionCode: versionCode } : {}),
   message:
     messageArg ??
     'Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras.',

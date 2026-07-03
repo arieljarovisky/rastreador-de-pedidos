@@ -1,6 +1,14 @@
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
 
+/** versionCode nativo de Android (más confiable que versionName si Gradle quedó desincronizado). */
+export function getCurrentBuildVersion(): number {
+  const raw = Application.nativeBuildVersion?.trim();
+  if (!raw) return 0;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 /** Versión instalada en el dispositivo (manifest nativo en builds de producción). */
 export function getCurrentAppVersion(): string {
   const native = Application.nativeApplicationVersion?.trim();

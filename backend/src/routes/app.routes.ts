@@ -11,6 +11,8 @@ const versionFile = path.join(__dirname, '..', '..', 'downloads', 'app-version.j
 interface AppVersionConfig {
   version: string;
   minVersion: string;
+  versionCode?: number;
+  minVersionCode?: number;
   message?: string;
 }
 
@@ -26,6 +28,8 @@ function readVersionConfig(): AppVersionConfig {
       return {
         version: raw.version ?? defaults.version,
         minVersion: raw.minVersion ?? defaults.minVersion,
+        versionCode: raw.versionCode,
+        minVersionCode: raw.minVersionCode,
         message: raw.message,
       };
     }
@@ -41,6 +45,8 @@ router.get('/version', (_req, res) => {
   res.json({
     version: cfg.version,
     minVersion: cfg.minVersion,
+    versionCode: cfg.versionCode,
+    minVersionCode: cfg.minVersionCode,
     message: cfg.message,
     downloadUrl: `${env.publicUrl}/downloads/posta-repartidor.apk`,
   });

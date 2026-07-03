@@ -29,6 +29,14 @@ $env:ANDROID_HOME = $androidHome
 $env:NODE_ENV = "production"
 $env:PATH = "$javaHome\bin;$androidHome\platform-tools;$env:PATH"
 
+Write-Host ">> Sincronizando version nativa desde app.json (expo prebuild)..."
+Push-Location $shortRoot
+try {
+  npx expo prebuild --platform android --no-install
+} finally {
+  Pop-Location
+}
+
 Push-Location (Join-Path $shortRoot "android")
 try {
   Write-Host ">> Compilando APK release (5-10 min la primera vez)..."

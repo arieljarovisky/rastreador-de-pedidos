@@ -25,6 +25,8 @@ export interface LoginResponse {
 export interface AppVersionInfo {
   version: string;
   minVersion: string;
+  versionCode?: number;
+  minVersionCode?: number;
   downloadUrl: string;
   message?: string;
 }

@@ -2,11 +2,35 @@ import { useCallback, useEffect, useRef } from 'react';
 import { Alert, AppState, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../api';
-import { canTrustAppVersion, getCurrentAppVersion } from '../utils/appVersion';
+import { canTrustAppVersion, getCurrentAppVersion, getCurrentBuildVersion } from '../utils/appVersion';
 import { compareVersions } from '../utils/compareVersions';
 
 const DISMISSED_VERSION_KEY = 'posta_dismissed_app_version';
 const CHECK_COOLDOWN_MS = 60_000;
+
+function isBelowMinVersion(
+  currentVersion: string,
+  minVersion: string,
+  currentBuild: number,
+  minBuild?: number
+): boolean {
+  if (minBuild != null && minBuild > 0 && currentBuild > 0) {
+    return currentBuild < minBuild;
+  }
+  return compareVersions(currentVersion, minVersion) < 0;
+}
+
+function isBelowRemoteVersion(
+  currentVersion: string,
+  remoteVersion: string,
+  currentBuild: number,
+  remoteBuild?: number
+): boolean {
+  if (remoteBuild != null && remoteBuild > 0 && currentBuild > 0) {
+    return currentBuild < remoteBuild;
+  }
+  return compareVersions(currentVersion, remoteVersion) < 0;
+}
 
 export function useAppUpdate() {
   const checking = useRef(false);
@@ -29,22 +53,29 @@ export function useAppUpdate() {
       const info = await api.getAppVersion();
       const remoteVersion = info.version.trim();
       const minVersion = info.minVersion.trim();
+      const currentBuild = getCurrentBuildVersion();
 
-      const updateRequired = compareVersions(currentVersion, minVersion) < 0;
+      const updateRequired = isBelowMinVersion(
+        currentVersion,
+        minVersion,
+        currentBuild,
+        info.minVersionCode
+      );
       const updateAvailable =
-        !updateRequired && compareVersions(currentVersion, remoteVersion) < 0;
+        !updateRequired &&
+        isBelowRemoteVersion(currentVersion, remoteVersion, currentBuild, info.versionCode);
 
       if (!updateRequired && !updateAvailable) {
         promptedKeyRef.current = null;
         return;
       }
 
-      const promptKey = `${remoteVersion}:${updateRequired ? 'required' : 'optional'}`;
+      const promptKey = `${remoteVersion}:${info.versionCode ?? 0}:${updateRequired ? 'required' : 'optional'}`;
       if (promptedKeyRef.current === promptKey) return;
 
       if (updateAvailable) {
         const dismissed = await AsyncStorage.getItem(DISMISSED_VERSION_KEY);
-        if (dismissed === remoteVersion) return;
+        if (dismissed === promptKey) return;
       }
 
       promptedKeyRef.current = promptKey;
@@ -74,7 +105,7 @@ export function useAppUpdate() {
           text: 'Más tarde',
           style: 'cancel',
           onPress: () => {
-            void AsyncStorage.setItem(DISMISSED_VERSION_KEY, remoteVersion);
+            void AsyncStorage.setItem(DISMISSED_VERSION_KEY, promptKey);
           },
         },
         { text: 'Actualizar', onPress: openUpdate },
