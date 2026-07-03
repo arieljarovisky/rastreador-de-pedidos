@@ -17,10 +17,11 @@ import { api } from '../api';
 import { RepartidorMercadoLibreStatus } from '../types';
 import { colors, radius, spacing } from '../theme';
 import Button from '../components/Button';
-import { RepartidorStackParamList } from '../navigation/types';
+import { RepartidorProfileStackParamList } from '../navigation/types';
+import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import { connectMarketplace, oauthErrorMessage } from '../oauth/connectMarketplace';
 
-type Props = NativeStackScreenProps<RepartidorStackParamList, 'RepartidorProfile'>;
+type Props = NativeStackScreenProps<RepartidorProfileStackParamList, 'RepartidorProfile'>;
 
 export default function RepartidorProfileScreen(_props: Props) {
   const insets = useSafeAreaInsets();
@@ -105,7 +106,10 @@ export default function RepartidorProfileScreen(_props: Props) {
 
   return (
     <ScrollView
-      contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + spacing.xl }]}
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + spacing.lg, paddingBottom: TAB_BAR_CLEARANCE + spacing.xl },
+      ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />
       }

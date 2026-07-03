@@ -1,5 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { OrdersProvider } from '../context/OrdersContext';
 import { useMandatoryLocation } from '../hooks/useMandatoryLocation';
@@ -8,40 +9,102 @@ import OrderDetailScreen from '../screens/OrderDetailScreen';
 import ScanLabelScreen from '../screens/ScanLabelScreen';
 import RepartidorProfileScreen from '../screens/RepartidorProfileScreen';
 import LocationRequiredScreen from '../screens/LocationRequiredScreen';
-import { RepartidorStackParamList } from './types';
+import PostaBottomTabBar from '../components/navigation/PostaBottomTabBar';
+import {
+  RepartidorHomeStackParamList,
+  RepartidorProfileStackParamList,
+  RepartidorScanStackParamList,
+  RepartidorStackParamList,
+  RepartidorTabParamList,
+} from './types';
 import { colors, fonts } from '../theme';
 
+const Tab = createBottomTabNavigator<RepartidorTabParamList>();
 const Stack = createNativeStackNavigator<RepartidorStackParamList>();
+const HomeStack = createNativeStackNavigator<RepartidorHomeStackParamList>();
+const ScanStack = createNativeStackNavigator<RepartidorScanStackParamList>();
+const ProfileStack = createNativeStackNavigator<RepartidorProfileStackParamList>();
+
+const stackScreenOptions = {
+  headerStyle: { backgroundColor: colors.surface },
+  headerTintColor: colors.text,
+  headerTitleStyle: { fontWeight: '600' as const, fontFamily: fonts.displaySemi },
+  contentStyle: { backgroundColor: colors.bg },
+};
+
+function RepartidorHomeNavigator() {
+  return (
+    <HomeStack.Navigator screenOptions={stackScreenOptions}>
+      <HomeStack.Screen
+        name="Orders"
+        component={OrdersScreen}
+        options={{ headerShown: false }}
+      />
+    </HomeStack.Navigator>
+  );
+}
+
+function RepartidorScanNavigator() {
+  return (
+    <ScanStack.Navigator screenOptions={stackScreenOptions}>
+      <ScanStack.Screen
+        name="ScanLabel"
+        component={ScanLabelScreen}
+        options={{ headerShown: false }}
+      />
+    </ScanStack.Navigator>
+  );
+}
+
+function RepartidorProfileNavigator() {
+  return (
+    <ProfileStack.Navigator screenOptions={stackScreenOptions}>
+      <ProfileStack.Screen
+        name="RepartidorProfile"
+        component={RepartidorProfileScreen}
+        options={{ headerShown: false }}
+      />
+    </ProfileStack.Navigator>
+  );
+}
+
+function RepartidorTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => (
+        <PostaBottomTabBar
+          {...props}
+          centerIndex={1}
+          centerIcon="scan"
+          centerLabel="Escanear"
+          tabs={{
+            Home: { icon: 'package', label: 'Envíos' },
+            Scan: { icon: 'scan', label: 'Escanear' },
+            Profile: { icon: 'user', label: 'Perfil' },
+          }}
+        />
+      )}
+    >
+      <Tab.Screen name="Home" component={RepartidorHomeNavigator} />
+      <Tab.Screen name="Scan" component={RepartidorScanNavigator} />
+      <Tab.Screen name="Profile" component={RepartidorProfileNavigator} />
+    </Tab.Navigator>
+  );
+}
 
 function RepartidorAppStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '600', fontFamily: fonts.displaySemi },
-        contentStyle: { backgroundColor: colors.bg },
-      }}
-    >
+    <Stack.Navigator screenOptions={stackScreenOptions}>
       <Stack.Screen
-        name="Orders"
-        component={OrdersScreen}
+        name="MainTabs"
+        component={RepartidorTabs}
         options={{ headerShown: false }}
       />
       <Stack.Screen
         name="OrderDetail"
         component={OrderDetailScreen}
         options={{ title: 'Detalle del envío' }}
-      />
-      <Stack.Screen
-        name="ScanLabel"
-        component={ScanLabelScreen}
-        options={{ title: 'Escanear etiqueta ML' }}
-      />
-      <Stack.Screen
-        name="RepartidorProfile"
-        component={RepartidorProfileScreen}
-        options={{ title: 'Mi perfil' }}
       />
     </Stack.Navigator>
   );

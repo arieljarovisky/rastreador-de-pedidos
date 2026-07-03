@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -17,10 +18,14 @@ import { api } from '../../api';
 import { IntegrationsStatus, MarketplacePlatform, PickupPoint } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
-import { SellerStackParamList } from '../../navigation/types';
+import { TAB_BAR_CLEARANCE } from '../../constants/layout';
+import { SellerSettingsStackParamList, SellerStackParamList } from '../../navigation/types';
 import { connectMarketplace, oauthErrorMessage } from '../../oauth/connectMarketplace';
 
-type Props = NativeStackScreenProps<SellerStackParamList, 'SellerSettings'>;
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<SellerSettingsStackParamList, 'SellerSettings'>,
+  NativeStackScreenProps<SellerStackParamList>
+>;
 
 export default function SellerSettingsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -110,7 +115,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
     <ScrollView
       contentContainerStyle={[
         styles.container,
-        { paddingBottom: insets.bottom + spacing.xl },
+        { paddingTop: insets.top + spacing.lg, paddingBottom: TAB_BAR_CLEARANCE + spacing.xl },
       ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />

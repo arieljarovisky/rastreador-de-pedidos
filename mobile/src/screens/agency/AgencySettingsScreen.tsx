@@ -20,10 +20,11 @@ import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import IconLabelRow from '../../components/ui/IconLabelRow';
 import { zoneLabel } from '../../config/deliveryZones';
-import { AgencyStackParamList } from '../../navigation/types';
+import { AgencySettingsStackParamList } from '../../navigation/types';
 import { connectMarketplace, oauthErrorMessage } from '../../oauth/connectMarketplace';
+import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 
-type Props = NativeStackScreenProps<AgencyStackParamList, 'AgencySettings'>;
+type Props = NativeStackScreenProps<AgencySettingsStackParamList, 'AgencySettings'>;
 
 export default function AgencySettingsScreen({ navigation: _navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -128,7 +129,10 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}
+      contentContainerStyle={{
+        paddingTop: insets.top + spacing.lg,
+        paddingBottom: TAB_BAR_CLEARANCE + spacing.xl,
+      }}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />
       }

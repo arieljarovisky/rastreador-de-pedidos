@@ -12,13 +12,18 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOrdersContext } from '../context/OrdersContext';
-import { RootStackParamList } from '../navigation/types';
+import { RepartidorScanStackParamList, RepartidorStackParamList } from '../navigation/types';
 import { colors, radius, spacing } from '../theme';
+import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import Button from '../components/Button';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ScanLabel'>;
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<RepartidorScanStackParamList, 'ScanLabel'>,
+  NativeStackScreenProps<RepartidorStackParamList>
+>;
 
 type ScanMode = 'camera' | 'manual';
 
@@ -181,7 +186,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      <Text style={[styles.footerNote, { paddingBottom: insets.bottom + spacing.md }]}>
+      <Text style={[styles.footerNote, { paddingBottom: TAB_BAR_CLEARANCE + spacing.md }]}>
         Cada escaneo queda en la bitácora del pedido con tu nombre y ubicación.
       </Text>
     </KeyboardAvoidingView>

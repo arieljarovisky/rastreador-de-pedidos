@@ -9,17 +9,22 @@ import {
   View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSellerOrdersContext } from '../../context/SellerOrdersContext';
 import { colors, radius, spacing, typography } from '../../theme';
 import Button from '../../components/Button';
 import MonoLabel from '../../components/ui/MonoLabel';
 import PostaInput from '../../components/ui/PostaInput';
-import { SellerStackParamList } from '../../navigation/types';
+import { TAB_BAR_CLEARANCE } from '../../constants/layout';
+import { SellerCreateStackParamList, SellerStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api';
 
-type Props = NativeStackScreenProps<SellerStackParamList, 'CreateOrder'>;
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<SellerCreateStackParamList, 'CreateOrder'>,
+  NativeStackScreenProps<SellerStackParamList>
+>;
 
 export default function CreateOrderScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -88,10 +93,11 @@ export default function CreateOrderScreen({ navigation }: Props) {
       <ScrollView
         contentContainerStyle={[
           styles.container,
-          { paddingBottom: insets.bottom + spacing.xl },
+          { paddingTop: insets.top + spacing.md, paddingBottom: TAB_BAR_CLEARANCE + spacing.xl },
         ]}
         keyboardShouldPersistTaps="handled"
       >
+        <Text style={typography.displayTitle(20)}>Nuevo envío</Text>
         <Text style={[typography.body(13, colors.textMuted), styles.hint]}>
           Cargá un envío manual. La agencia lo asignará a un repartidor cuando esté listo.
         </Text>

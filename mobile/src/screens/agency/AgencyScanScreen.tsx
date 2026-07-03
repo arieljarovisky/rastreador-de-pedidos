@@ -13,13 +13,18 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
-import { AgencyStackParamList } from '../../navigation/types';
+import { AgencyScanStackParamList, AgencyStackParamList } from '../../navigation/types';
 import { colors, radius, spacing } from '../../theme';
+import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import Button from '../../components/Button';
 
-type Props = NativeStackScreenProps<AgencyStackParamList, 'AgencyScan'>;
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<AgencyScanStackParamList, 'AgencyScan'>,
+  NativeStackScreenProps<AgencyStackParamList>
+>;
 type ScanMode = 'camera' | 'manual';
 
 export default function AgencyScanScreen({ navigation }: Props) {
@@ -116,7 +121,7 @@ export default function AgencyScanScreen({ navigation }: Props) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.sellerBar}>
+      <View style={[styles.sellerBar, { paddingTop: insets.top + spacing.sm }]}>
         <Text style={styles.sellerLabel}>Vendedor</Text>
         <Pressable onPress={pickSeller} style={styles.sellerPick}>
           <Text style={styles.sellerName}>

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
 import { Order, OrderStatus } from '../types';
@@ -19,9 +20,13 @@ import RepartidorMlConnectBar from '../components/RepartidorMlConnectBar';
 import PostaIcon from '../components/icons/PostaIcons';
 import ConnectionBadge from '../components/ui/ConnectionBadge';
 import MonoLabel from '../components/ui/MonoLabel';
-import { RepartidorStackParamList } from '../navigation/types';
+import { TAB_BAR_CLEARANCE } from '../constants/layout';
+import { RepartidorHomeStackParamList, RepartidorStackParamList } from '../navigation/types';
 
-type Props = NativeStackScreenProps<RepartidorStackParamList, 'Orders'>;
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<RepartidorHomeStackParamList, 'Orders'>,
+  NativeStackScreenProps<RepartidorStackParamList>
+>;
 type Tab = 'assigned' | 'available';
 
 function initials(name: string): string {
@@ -33,7 +38,7 @@ function initials(name: string): string {
 
 export default function OrdersScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { orders, loading, refreshing, connected, error, refresh } = useOrdersContext();
   const [tab, setTab] = useState<Tab>('assigned');
 
@@ -79,40 +84,8 @@ export default function OrdersScreen({ navigation }: Props) {
         </View>
         <View style={styles.headerRight}>
           <ConnectionBadge connected={connected} />
-          <Pressable
-            onPress={() => navigation.navigate('RepartidorProfile')}
-            hitSlop={8}
-            style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
-            accessibilityLabel="Perfil"
-          >
-            <PostaIcon name="user" size={18} color={colors.accent} />
-          </Pressable>
-          <Pressable
-            onPress={logout}
-            hitSlop={8}
-            style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
-            accessibilityLabel="Salir"
-          >
-            <PostaIcon name="logOut" size={18} color={colors.red} />
-          </Pressable>
         </View>
       </View>
-
-      <Pressable
-        style={({ pressed }) => [styles.scanBar, pressed && styles.scanBarPressed]}
-        onPress={() => navigation.navigate('ScanLabel')}
-      >
-        <View style={styles.scanIconWrap}>
-          <PostaIcon name="scan" size={22} color={colors.stamp} />
-        </View>
-        <View style={styles.scanBarTextWrap}>
-          <Text style={typography.displaySection(15, colors.text)}>Escanear etiqueta ML</Text>
-          <Text style={typography.body(12, colors.textMuted)}>
-            Colecta o re-escaneo · queda en bitácora
-          </Text>
-        </View>
-        <PostaIcon name="chevronRight" size={20} color={colors.stamp} />
-      </Pressable>
 
       <RepartidorMlConnectBar />
 
@@ -156,7 +129,7 @@ export default function OrdersScreen({ navigation }: Props) {
           contentContainerStyle={[
             styles.list,
             data.length === 0 && styles.listEmpty,
-            { paddingBottom: insets.bottom + spacing.xl },
+            { paddingBottom: TAB_BAR_CLEARANCE + spacing.lg },
           ]}
           refreshControl={
             <RefreshControl
@@ -285,41 +258,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.posta,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBtnPressed: { opacity: 0.8 },
-  scanBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    gap: spacing.md,
-  },
-  scanBarPressed: { opacity: 0.9, backgroundColor: colors.surfaceAlt },
-  scanIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.stampBg,
-    borderWidth: 1,
-    borderColor: 'rgba(232, 67, 31, 0.28)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scanBarTextWrap: { flex: 1, minWidth: 0 },
   tabs: {
     flexDirection: 'row',
     borderBottomColor: colors.border,

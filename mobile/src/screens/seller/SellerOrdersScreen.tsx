@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useSellerOrdersContext } from '../../context/SellerOrdersContext';
 import { Order, OrderStatus } from '../../types';
-import { colors, fonts, radius, spacing, typography } from '../../theme';
+import { colors, fonts, radius, spacing } from '../../theme';
 import OrderCard from '../../components/OrderCard';
 import PostaIcon from '../../components/icons/PostaIcons';
 import DashboardHeader from '../../components/ui/DashboardHeader';
@@ -22,9 +23,13 @@ import ListTabButton from '../../components/ui/ListTabButton';
 import MapLegendItem from '../../components/ui/MapLegendItem';
 import PostaMap from '../../components/PostaMap';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
-import { SellerStackParamList } from '../../navigation/types';
+import { TAB_BAR_CLEARANCE } from '../../constants/layout';
+import { SellerHomeStackParamList, SellerStackParamList } from '../../navigation/types';
 
-type Props = NativeStackScreenProps<SellerStackParamList, 'SellerOrders'>;
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<SellerHomeStackParamList, 'SellerOrders'>,
+  NativeStackScreenProps<SellerStackParamList>
+>;
 type Tab = 'active' | 'done' | 'archived';
 
 function filterOrders(orders: Order[], tab: Tab): Order[] {
@@ -81,22 +86,6 @@ export default function SellerOrdersScreen({ navigation }: Props) {
         onNotifications={() => navigation.navigate('Notifications')}
         onLogout={logout}
       />
-
-      <View style={styles.actionsRow}>
-        <Pressable
-          style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
-          onPress={() => navigation.navigate('CreateOrder')}
-        >
-          <PostaIcon name="plus" size={16} color="#F6F0E4" strokeWidth={2} />
-          <Text style={typography.buttonLabel('#F6F0E4')}>Nuevo envío</Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
-          onPress={() => navigation.navigate('SellerSettings')}
-        >
-          <PostaIcon name="settings" size={18} color={colors.textMuted} />
-        </Pressable>
-      </View>
 
       {tab === 'active' && (
         <View style={[styles.mapSection, !mapExpanded && styles.mapSectionCollapsed]}>
@@ -170,7 +159,7 @@ export default function SellerOrdersScreen({ navigation }: Props) {
           contentContainerStyle={[
             styles.list,
             data.length === 0 && styles.listEmpty,
-            { paddingBottom: insets.bottom + spacing.xl },
+            { paddingBottom: TAB_BAR_CLEARANCE + spacing.lg },
           ]}
           refreshControl={
             <RefreshControl
@@ -208,31 +197,6 @@ export default function SellerOrdersScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  primaryAction: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.stamp,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-  },
-  secondaryAction: {
-    width: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.lg,
-  },
   pressed: { opacity: 0.88 },
   mapSection: {
     marginHorizontal: spacing.lg,

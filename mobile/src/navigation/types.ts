@@ -1,28 +1,77 @@
 import { MarketplacePlatform } from '../types';
+import { NavigatorScreenParams } from '@react-navigation/native';
 
-export type RepartidorStackParamList = {
+export type RepartidorHomeStackParamList = {
   Orders: undefined;
-  OrderDetail: { orderId: string };
+};
+
+export type RepartidorScanStackParamList = {
   ScanLabel: undefined;
+};
+
+export type RepartidorProfileStackParamList = {
   RepartidorProfile: undefined;
 };
 
-export type SellerStackParamList = {
+export type RepartidorTabParamList = {
+  Home: NavigatorScreenParams<RepartidorHomeStackParamList>;
+  Scan: NavigatorScreenParams<RepartidorScanStackParamList>;
+  Profile: NavigatorScreenParams<RepartidorProfileStackParamList>;
+};
+
+export type RepartidorStackParamList = {
+  MainTabs: NavigatorScreenParams<RepartidorTabParamList>;
+  OrderDetail: { orderId: string };
+};
+
+export type SellerHomeStackParamList = {
   SellerOrders: undefined;
-  SellerOrderDetail: { orderId: string };
+};
+
+export type SellerCreateStackParamList = {
   CreateOrder: undefined;
+};
+
+export type SellerSettingsStackParamList = {
   SellerSettings: undefined;
+};
+
+export type SellerTabParamList = {
+  Home: NavigatorScreenParams<SellerHomeStackParamList>;
+  Create: NavigatorScreenParams<SellerCreateStackParamList>;
+  Settings: NavigatorScreenParams<SellerSettingsStackParamList>;
+};
+
+export type SellerStackParamList = {
+  MainTabs: NavigatorScreenParams<SellerTabParamList>;
+  SellerOrderDetail: { orderId: string };
   ImportShipments: { platform: MarketplacePlatform };
   Notifications: undefined;
 };
 
-export type AgencyStackParamList = {
+export type AgencyHomeStackParamList = {
   AgencyOrders: undefined;
-  AgencyOrderDetail: { orderId: string };
+};
+
+export type AgencyScanStackParamList = {
   AgencyScan: undefined;
+};
+
+export type AgencySettingsStackParamList = {
   AgencySettings: undefined;
+};
+
+export type AgencyTabParamList = {
+  Home: NavigatorScreenParams<AgencyHomeStackParamList>;
+  Scan: NavigatorScreenParams<AgencyScanStackParamList>;
+  Settings: NavigatorScreenParams<AgencySettingsStackParamList>;
+};
+
+export type AgencyStackParamList = {
+  MainTabs: NavigatorScreenParams<AgencyTabParamList>;
+  AgencyOrderDetail: { orderId: string };
   AgencyNotifications: undefined;
 };
 
-/** @deprecated Usar RepartidorStackParamList, SellerStackParamList o AgencyStackParamList */
-export type RootStackParamList = RepartidorStackParamList;
+/** @deprecated Usar RepartidorScanStackParamList */
+export type RootStackParamList = RepartidorScanStackParamList;
