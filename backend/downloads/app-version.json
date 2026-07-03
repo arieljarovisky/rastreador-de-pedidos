@@ -1,5 +1,5 @@
 {
   "version": "1.1.1",
-  "minVersion": "1.1.0",
-  "message": "Corrección para conectar Mercado Libre desde la app de repartidor. Actualizá para instalar la mejora."
+  "minVersion": "1.1.1",
+  "message": "Mapa en tiempo real, fix de envíos del repartidor y corrección del aviso de actualización."
 }

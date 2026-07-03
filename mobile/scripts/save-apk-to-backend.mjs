@@ -70,7 +70,14 @@ if (!url) {
 if (!url) throw new Error(`Build ${id ?? '(direct)'} sin URL de artefacto.`);
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
-run(`curl -fsSL "${url}" -o "${outPath}"`);
+
+const isLocalFile = /^([a-zA-Z]:\\|\/)/.test(url) && !url.startsWith('http');
+if (isLocalFile) {
+  if (!fs.existsSync(url)) throw new Error(`No existe el archivo local: ${url}`);
+  fs.copyFileSync(url, outPath);
+} else {
+  run(`curl -fsSL "${url}" -o "${outPath}"`);
+}
 
 const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
 const version = appJson?.expo?.version ?? '1.0.0';
