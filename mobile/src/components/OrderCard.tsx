@@ -2,7 +2,9 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Order } from '../types';
 import { colors, fonts, radius, spacing, typography } from '../theme';
+import PostaIcon from './icons/PostaIcons';
 import StatusBadge from './StatusBadge';
+import IconLabelRow from './ui/IconLabelRow';
 import MonoLabel from './ui/MonoLabel';
 
 interface Props {
@@ -31,15 +33,21 @@ export default function OrderCard({ order, onPress, showRepartidor, showSeller }
       </Text>
 
       {showSeller && order.sellerName ? (
-        <Text style={styles.seller} numberOfLines={1}>
-          🏪 {order.sellerName}
-        </Text>
+        <IconLabelRow
+          icon="store"
+          label={order.sellerName}
+          color={colors.blue}
+          iconBg={colors.accentBg}
+        />
       ) : null}
 
       {showRepartidor && order.repartidorName ? (
-        <Text style={styles.repartidor} numberOfLines={1}>
-          🏍️ {order.repartidorName}
-        </Text>
+        <IconLabelRow
+          icon="motorcycle"
+          label={order.repartidorName}
+          color={colors.accent}
+          iconBg={colors.accentBg}
+        />
       ) : null}
 
       <View style={styles.footerRow}>
@@ -48,7 +56,10 @@ export default function OrderCard({ order, onPress, showRepartidor, showSeller }
         ) : (
           <View />
         )}
-        <Text style={styles.chevron}>Ver detalle ›</Text>
+        <View style={styles.detailLink}>
+          <Text style={styles.detailText}>Ver detalle</Text>
+          <PostaIcon name="chevronRight" size={14} color={colors.accent} />
+        </View>
       </View>
     </Pressable>
   );
@@ -59,11 +70,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: radius.posta,
+    borderRadius: radius.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
-  pressed: { opacity: 0.88 },
+  pressed: { opacity: 0.88, transform: [{ scale: 0.995 }] },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -78,25 +89,21 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 2,
   },
-  repartidor: {
-    fontFamily: fonts.bodyMedium,
-    color: colors.accent,
-    fontSize: 12,
-    marginTop: 4,
-  },
-  seller: {
-    fontFamily: fonts.bodyMedium,
-    color: colors.blue,
-    fontSize: 12,
-    marginTop: 4,
-  },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  chevron: {
+  detailLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  detailText: {
     fontFamily: fonts.bodySemiBold,
     color: colors.accent,
     fontSize: 13,

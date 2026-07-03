@@ -20,6 +20,9 @@ import Button from '../components/Button';
 import StatusBadge from '../components/StatusBadge';
 import MonoLabel from '../components/ui/MonoLabel';
 import OrderTrackingMap from '../components/OrderTrackingMap';
+import PostaIcon from '../components/icons/PostaIcons';
+import IconActionChip from '../components/ui/IconActionChip';
+import IconLabelRow from '../components/ui/IconLabelRow';
 import { RepartidorStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'OrderDetail'>;
@@ -174,7 +177,13 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         {order.sellerName ? (
           <View style={styles.sellerRow}>
             <MonoLabel color={colors.textFaint}>Vendedor</MonoLabel>
-            <Text style={styles.sellerName}>🛒 {order.sellerName}</Text>
+            <IconLabelRow
+              icon="cart"
+              label={order.sellerName}
+              color={colors.accent}
+              iconBg={colors.accentBg}
+              style={{ marginTop: spacing.xs }}
+            />
           </View>
         ) : null}
 
@@ -202,8 +211,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                         `https://www.google.com/maps?q=${event.lat},${event.lng}`
                       )
                     }
+                    style={styles.historyMapLinkRow}
                   >
-                    <Text style={styles.historyMapLink}>📍 Ver ubicación del escaneo</Text>
+                    <PostaIcon name="mapPin" size={13} color={colors.accent} />
+                    <Text style={styles.historyMapLink}>Ver ubicación del escaneo</Text>
                   </Pressable>
                 )}
               </View>
@@ -224,16 +235,16 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.actions}>
           <View style={styles.row}>
-            <Button
-              label="📞 Llamar"
-              variant="ghost"
+            <IconActionChip
+              icon="phone"
+              label="Llamar"
               onPress={callClient}
               disabled={!order.clientPhone}
               style={styles.half}
             />
-            <Button
-              label="🧭 Cómo llegar"
-              variant="ghost"
+            <IconActionChip
+              icon="navigation"
+              label="Cómo llegar"
               onPress={openInMaps}
               style={styles.half}
             />
@@ -262,7 +273,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           )}
 
           {order.status === OrderStatus.DELIVERED && (
-            <Text style={styles.doneText}>✓ Pedido entregado</Text>
+            <View style={styles.doneRow}>
+              <PostaIcon name="checkCircle" size={20} color={colors.green} />
+              <Text style={styles.doneText}>Pedido entregado</Text>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -420,11 +434,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 4,
   },
+  historyMapLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+  },
   historyMapLink: {
     color: colors.accent,
     fontSize: 11,
     fontWeight: '600',
-    marginTop: 6,
   },
   gpsBanner: {
     flexDirection: 'row',
@@ -440,11 +459,16 @@ const styles = StyleSheet.create({
   actions: { marginTop: spacing.xl, gap: spacing.md },
   row: { flexDirection: 'row', gap: spacing.md },
   half: { flex: 1 },
+  doneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
   doneText: {
     color: colors.green,
     fontSize: 15,
     fontWeight: '700',
-    textAlign: 'center',
-    paddingVertical: spacing.md,
   },
 });

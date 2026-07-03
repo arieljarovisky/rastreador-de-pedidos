@@ -22,7 +22,7 @@ export function buildSellerFleetMarkers(
       lat: rep.currentLocation.lat,
       lng: rep.currentLocation.lng,
       color: COLORS.repartidor,
-      label: `🏍️ ${rep.name}`,
+      label: rep.name,
       animated: true,
     });
   }
