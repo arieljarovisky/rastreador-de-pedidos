@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, MapPin, Globe, Instagram, Truck, ArrowLeft, Search, ChevronRight } from 'lucide-react';
+import { Building2, MapPin, Globe, Instagram, Truck, ArrowLeft, Search, ChevronRight, Check } from 'lucide-react';
 import { apiUrl } from '../api.js';
 import type { MarketplaceAgency, AgencyShippingService } from '../types.js';
 import AgencyProfilePage from './AgencyProfilePage.tsx';
@@ -7,6 +7,8 @@ import AgencyProfilePage from './AgencyProfilePage.tsx';
 interface AgenciesPageProps {
   token: string;
   onBack: () => void;
+  preferredAgencyId?: string | null;
+  onSelectAgency?: (agencyId: string | null) => Promise<void>;
 }
 
 function serviceLabel(service: AgencyShippingService): string {
@@ -17,11 +19,15 @@ function serviceLabel(service: AgencyShippingService): string {
   }
 }
 
-function AgencyCard({ agency, onClick }: { agency: MarketplaceAgency; onClick: () => void; key?: string }) {
+function AgencyCard({ agency, onClick, isContracted }: { agency: MarketplaceAgency; onClick: () => void; isContracted?: boolean; key?: string }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-[var(--surface-panel)] border border-[var(--surface-border)] rounded-lg p-4 hover:border-[var(--color-accent)]/50 hover:shadow-md transition-all group"
+      className={`w-full text-left bg-[var(--surface-panel)] border rounded-lg p-4 hover:shadow-md transition-all group ${
+        isContracted
+          ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+          : 'border-[var(--surface-border)] hover:border-[var(--color-accent)]/50'
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -36,9 +42,17 @@ function AgencyCard({ agency, onClick }: { agency: MarketplaceAgency; onClick: (
               )}
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-[var(--color-text)] truncate group-hover:text-[var(--color-accent)] transition">
-                {agency.name}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-[var(--color-text)] truncate group-hover:text-[var(--color-accent)] transition">
+                  {agency.name}
+                </h3>
+                {isContracted && (
+                  <span className="inline-flex items-center gap-0.5 text-[8px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--color-accent)]/15 text-[var(--color-accent)] shrink-0">
+                    <Check className="w-2.5 h-2.5" />
+                    Contratada
+                  </span>
+                )}
+              </div>
               {(agency.city || agency.province) && (
                 <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
                   <MapPin className="w-3 h-3" />
@@ -93,7 +107,7 @@ function AgencyCard({ agency, onClick }: { agency: MarketplaceAgency; onClick: (
   );
 }
 
-export default function AgenciesPage({ token, onBack }: AgenciesPageProps) {
+export default function AgenciesPage({ token, onBack, preferredAgencyId, onSelectAgency }: AgenciesPageProps) {
   const [agencies, setAgencies] = useState<MarketplaceAgency[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +154,8 @@ export default function AgenciesPage({ token, onBack }: AgenciesPageProps) {
         <AgencyProfilePage
           agency={agency}
           token={token}
+          preferredAgencyId={preferredAgencyId}
+          onSelectAgency={onSelectAgency}
           onBack={() => setSelectedAgencyId(null)}
         />
       );
@@ -210,6 +226,7 @@ export default function AgenciesPage({ token, onBack }: AgenciesPageProps) {
               <AgencyCard
                 key={agency.id}
                 agency={agency}
+                isContracted={agency.id === preferredAgencyId}
                 onClick={() => setSelectedAgencyId(agency.id)}
               />
             ))}

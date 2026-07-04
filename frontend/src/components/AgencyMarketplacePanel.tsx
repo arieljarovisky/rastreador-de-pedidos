@@ -193,6 +193,106 @@ export function AgencyDetailContent({ agency }: { agency: MarketplaceAgency }) {
   );
 }
 
+interface ContractedAgencySectionProps {
+  agency?: MarketplaceAgency;
+  loading?: boolean;
+  onBrowseAgencies: () => void;
+  onRemoveAgency?: () => Promise<void>;
+}
+
+export function ContractedAgencySection({
+  agency,
+  loading = false,
+  onBrowseAgencies,
+  onRemoveAgency,
+}: ContractedAgencySectionProps) {
+  const [removing, setRemoving] = useState(false);
+
+  if (loading) {
+    return <p className="text-xs text-[var(--color-text-muted)]">Cargando agencia contratada…</p>;
+  }
+
+  if (!agency) {
+    return (
+      <div className="rounded-lg border border-dashed border-[var(--surface-border)] bg-[var(--surface-panel-2)] p-4 text-center">
+        <Building2 className="w-8 h-8 text-[var(--color-text-muted)] opacity-50 mx-auto mb-2" />
+        <p className="text-xs font-semibold text-[var(--color-text)] mb-1">Sin agencia contratada</p>
+        <p className="text-[10px] text-[var(--color-text-muted)] mb-3 leading-relaxed">
+          Explorá las agencias disponibles y elegí quién despachará tus pedidos.
+        </p>
+        <button
+          type="button"
+          onClick={onBrowseAgencies}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-accent)] text-white text-[11px] font-bold hover:bg-[var(--color-accent)]/90 transition"
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          Explorar agencias
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 overflow-hidden">
+      <div className="flex items-start gap-3 p-3 border-b border-[var(--color-accent)]/20">
+        <div className="w-10 h-10 rounded-lg overflow-hidden border border-[var(--color-accent)]/30 flex items-center justify-center shrink-0">
+          {agency.logoUrl ? (
+            <img src={agency.logoUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-[var(--color-accent)]/10 flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[var(--color-text)]">{agency.name}</p>
+              {(agency.city || agency.province) && (
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 flex items-center gap-1">
+                  <MapPin className="w-2.5 h-2.5 shrink-0" />
+                  {[agency.city, agency.province].filter(Boolean).join(', ')}
+                </p>
+              )}
+            </div>
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-mono uppercase text-[var(--color-accent)] shrink-0">
+              <Check className="w-3 h-3" />
+              Contratada
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-3">
+        <AgencyDetailContent agency={agency} />
+      </div>
+
+      <div className="flex border-t border-[var(--color-accent)]/20 divide-x divide-[var(--color-accent)]/20">
+        <button
+          type="button"
+          onClick={onBrowseAgencies}
+          className="flex-1 py-2.5 text-[10px] font-mono uppercase tracking-wide text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 transition"
+        >
+          Cambiar agencia
+        </button>
+        {onRemoveAgency && (
+          <button
+            type="button"
+            disabled={removing}
+            onClick={() => {
+              setRemoving(true);
+              void onRemoveAgency().finally(() => setRemoving(false));
+            }}
+            className="flex-1 py-2.5 text-[10px] font-mono uppercase tracking-wide text-[var(--color-danger)] hover:bg-[var(--color-danger)]/5 transition disabled:opacity-50"
+          >
+            {removing ? 'Quitando…' : 'Quitar agencia'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface AgencyMarketplacePanelProps {
   agencies: MarketplaceAgency[];
   selectedAgencyId?: string | null;

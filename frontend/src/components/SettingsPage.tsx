@@ -26,7 +26,7 @@ import {
   Package,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
-import AgencyMarketplacePanel from './AgencyMarketplacePanel.tsx';
+import { ContractedAgencySection } from './AgencyMarketplacePanel.tsx';
 import CoverageAreasEditor, {
   coverageAreasToDrafts,
   defaultCoverageDrafts,
@@ -97,6 +97,7 @@ interface SettingsPageProps {
   token?: string;
   onBack?: () => void;
   onOpenProfile?: () => void;
+  onBrowseAgencies?: () => void;
   departurePoint?: LocationPoint | null;
   repartidores: User[];
   sellers?: User[];
@@ -187,6 +188,7 @@ export default function SettingsPage({
   token,
   onBack,
   onOpenProfile,
+  onBrowseAgencies,
   departurePoint = null,
   repartidores,
   sellers = [],
@@ -1705,18 +1707,23 @@ export default function SettingsPage({
           <section className={sectionClass}>
             <SettingsSectionHeader
               icon={<Building2 className="w-4 h-4 text-[var(--color-accent)]" />}
-              title="Elegir agencia de logística"
+              title="Agencia de logística"
               meta={
                 user.preferredAgencyName
-                  ? `Agencia actual: ${user.preferredAgencyName}`
-                  : 'Seleccioná quién enviará tus pedidos'
+                  ? `Contratada: ${user.preferredAgencyName}`
+                  : 'Elegí una agencia en la sección Agencias'
               }
             />
-            <AgencyMarketplacePanel
-              agencies={marketplaceAgencies}
-              selectedAgencyId={user.preferredAgencyId}
+            <ContractedAgencySection
+              agency={
+                marketplaceAgencies.find((a) => a.id === user.preferredAgencyId) ??
+                (user.preferredAgencyId && user.preferredAgencyName
+                  ? { id: user.preferredAgencyId, name: user.preferredAgencyName, shippingServices: [] }
+                  : undefined)
+              }
               loading={marketplaceAgenciesLoading}
-              onSelectAgency={onUpdateSellerPreferredAgency}
+              onBrowseAgencies={onBrowseAgencies ?? (() => {})}
+              onRemoveAgency={() => onUpdateSellerPreferredAgency(null)}
             />
           </section>
         )}

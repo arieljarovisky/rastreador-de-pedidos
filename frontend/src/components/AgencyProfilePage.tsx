@@ -1,10 +1,13 @@
-import { Building2, MapPin, Globe, Instagram, Truck, ArrowLeft, Map, DollarSign, Package, Shield, Phone, Mail } from 'lucide-react';
+import { Building2, MapPin, Globe, Instagram, Truck, ArrowLeft, Map, DollarSign, Package, Shield, Phone, Mail, Check, X } from 'lucide-react';
+import { useState } from 'react';
 import type { MarketplaceAgency, AgencyShippingService, AgencyCoverageArea } from '../types.js';
 
 interface AgencyProfilePageProps {
   agency: MarketplaceAgency;
   token: string;
   onBack: () => void;
+  preferredAgencyId?: string | null;
+  onSelectAgency?: (agencyId: string | null) => Promise<void>;
 }
 
 function serviceLabel(service: AgencyShippingService): string {
@@ -68,7 +71,20 @@ function CoverageAreaCard({ area }: { area: AgencyCoverageArea; key?: string }) 
   );
 }
 
-export default function AgencyProfilePage({ agency, onBack }: AgencyProfilePageProps) {
+export default function AgencyProfilePage({ agency, onBack, preferredAgencyId, onSelectAgency }: AgencyProfilePageProps) {
+  const [saving, setSaving] = useState(false);
+  const isContracted = agency.id === preferredAgencyId;
+
+  const handleSelect = async () => {
+    if (!onSelectAgency) return;
+    setSaving(true);
+    try {
+      await onSelectAgency(isContracted ? null : agency.id);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
@@ -82,7 +98,31 @@ export default function AgencyProfilePage({ agency, onBack }: AgencyProfilePageP
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
-          <h2 className="text-sm font-bold text-[var(--color-text)] truncate">{agency.name}</h2>
+          <h2 className="text-sm font-bold text-[var(--color-text)] truncate flex-1">{agency.name}</h2>
+          {onSelectAgency && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleSelect()}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition disabled:opacity-50 ${
+                isContracted
+                  ? 'border border-[var(--color-danger)]/40 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10'
+                  : 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/90'
+              }`}
+            >
+              {saving ? (
+                'Guardando…'
+              ) : isContracted ? (
+                <>
+                  <X className="w-3 h-3" /> Quitar
+                </>
+              ) : (
+                <>
+                  <Check className="w-3 h-3" /> Contratar
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -102,6 +142,12 @@ export default function AgencyProfilePage({ agency, onBack }: AgencyProfilePageP
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text)] mb-1">{agency.name}</h1>
+              {isContracted && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wide px-2 py-0.5 rounded bg-[var(--color-accent)]/15 text-[var(--color-accent)] mb-2">
+                  <Check className="w-3 h-3" />
+                  Tu agencia contratada
+                </span>
+              )}
               {(agency.city || agency.province) && (
                 <div className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] mb-3">
                   <MapPin className="w-4 h-4" />

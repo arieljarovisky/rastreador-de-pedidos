@@ -1663,6 +1663,7 @@ export default function App() {
                   token={token!}
                   onBack={() => setMobileTab('dashboard')}
                   onOpenProfile={() => setMobileTab('agency-profile')}
+                  onBrowseAgencies={() => setMobileTab('agencies')}
                   departurePoint={departurePoint}
                   repartidores={repartidores}
                   sellers={sellers}
@@ -1754,7 +1755,12 @@ export default function App() {
 
             {mobileTab === 'agencies' && (
               <div className="flex-1 min-w-0 h-full overflow-hidden">
-                <AgenciesPage token={token!} onBack={() => setMobileTab('dashboard')} />
+                <AgenciesPage
+                  token={token!}
+                  onBack={() => setMobileTab('dashboard')}
+                  preferredAgencyId={user.preferredAgencyId}
+                  onSelectAgency={handleUpdateSellerPreferredAgency}
+                />
               </div>
             )}
 
