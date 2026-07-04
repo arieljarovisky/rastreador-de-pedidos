@@ -1331,6 +1331,8 @@ export default function App() {
   const showSettings =
     user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false);
 
+  const showAgencies = user?.role === UserRole.STORE_ADMIN && (!user.agencyId || user.isMarketplaceSeller);
+
   useEffect(() => {
     if (!user) return;
     if (mobileTab === 'settings' && !showSettings) {
@@ -1339,7 +1341,10 @@ export default function App() {
     if (mobileTab === 'reports' && !showSettings) {
       setMobileTab('dashboard');
     }
-  }, [user, mobileTab, showSettings, setMobileTab]);
+    if (mobileTab === 'agencies' && !showAgencies) {
+      setMobileTab('dashboard');
+    }
+  }, [user, mobileTab, showSettings, showAgencies, setMobileTab]);
 
   if (loading && !user) {
     return (
@@ -1477,18 +1482,20 @@ export default function App() {
                   >
                     <BarChart3 className="w-3.5 h-3.5" /> Reportes
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setMobileTab('agencies')}
-                    title="Agencias de envío"
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                      mobileTab === 'agencies'
-                        ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    <Building2 className="w-3.5 h-3.5" /> Agencias
-                  </button>
+                  {showAgencies && (
+                    <button
+                      type="button"
+                      onClick={() => setMobileTab('agencies')}
+                      title="Agencias de envío"
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                        mobileTab === 'agencies'
+                          ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
+                          : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" /> Agencias
+                    </button>
+                  )}
                 </>
               )}
               <button
@@ -1570,17 +1577,19 @@ export default function App() {
             <span>Reportes</span>
           </button>
         )}
-        <button
-          onClick={() => setMobileTab('agencies')}
-          className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-            mobileTab === 'agencies'
-              ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-          }`}
-        >
-          <span className="hidden sm:inline">🏢 </span>
-          <span>Agencias</span>
-        </button>
+        {showAgencies && (
+          <button
+            onClick={() => setMobileTab('agencies')}
+            className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+              mobileTab === 'agencies'
+                ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            <span className="hidden sm:inline">🏢 </span>
+            <span>Agencias</span>
+          </button>
+        )}
         <button
           onClick={() => setMobileTab('notifications')}
           className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1 px-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all relative ${
