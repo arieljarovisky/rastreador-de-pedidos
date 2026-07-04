@@ -15,4 +15,7 @@ export async function runMigrations(): Promise<void> {
   await addColumnIfMissing('users', 'monthly_orders', 'VARCHAR(32) NULL');
   await addColumnIfMissing('users', 'seller_categories', 'JSON NULL');
   await addColumnIfMissing('agencies', 'logo_url', 'TEXT NULL');
+  await addColumnIfMissing('agencies', 'description', 'TEXT NULL');
+  await addColumnIfMissing('agencies', 'cutoff_time', 'VARCHAR(10) NULL');
+  await addColumnIfMissing('agencies', 'repartidores_count', 'INT NULL');
 }

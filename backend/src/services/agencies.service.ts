@@ -14,6 +14,9 @@ export interface Agency {
   city?: string | null;
   province?: string | null;
   logoUrl?: string | null;
+  description?: string | null;
+  cutoffTime?: string | null;
+  repartidoresCount?: number | null;
   shippingServices: AgencyShippingService[];
   coverageAreas: AgencyCoverageArea[];
   departurePoint?: LocationPoint;
@@ -28,6 +31,9 @@ interface AgencyRow extends RowDataPacket {
   city: string | null;
   province: string | null;
   logo_url: string | null;
+  description: string | null;
+  cutoff_time: string | null;
+  repartidores_count: number | null;
   shipping_services: AgencyShippingService[] | string | null;
   coverage_areas: AgencyCoverageArea[] | string | null;
   departure_address: string | null;
@@ -35,7 +41,7 @@ interface AgencyRow extends RowDataPacket {
   departure_lng: number | null;
 }
 
-const AGENCY_COLUMNS = `id, name, ml_flex_mode, website, instagram, city, province, logo_url, shipping_services, coverage_areas,
+const AGENCY_COLUMNS = `id, name, ml_flex_mode, website, instagram, city, province, logo_url, description, cutoff_time, repartidores_count, shipping_services, coverage_areas,
   departure_address, departure_lat, departure_lng`;
 
 function parseShippingServices(raw: AgencyShippingService[] | string | null): AgencyShippingService[] {
@@ -69,6 +75,9 @@ function rowToAgency(row: AgencyRow): Agency {
     city: row.city ?? null,
     province: row.province ?? null,
     logoUrl: row.logo_url ?? null,
+    description: row.description ?? null,
+    cutoffTime: row.cutoff_time ?? null,
+    repartidoresCount: row.repartidores_count ?? null,
     shippingServices: parseShippingServices(row.shipping_services),
     coverageAreas: parseCoverageAreas(row.coverage_areas),
   };
@@ -92,6 +101,9 @@ function rowToMarketplaceAgency(row: AgencyRow): MarketplaceAgency {
     website: agency.website,
     instagram: agency.instagram,
     logoUrl: agency.logoUrl,
+    description: agency.description,
+    cutoffTime: agency.cutoffTime,
+    repartidoresCount: agency.repartidoresCount,
     shippingServices: agency.shippingServices,
     coverageAreas: agency.coverageAreas,
     departurePoint: agency.departurePoint,
@@ -181,6 +193,9 @@ export async function updateAgencyMarketplaceProfile(
     instagram?: string | null;
     city?: string | null;
     province?: string | null;
+    description?: string | null;
+    cutoffTime?: string | null;
+    repartidoresCount?: number | null;
     shippingServices?: AgencyShippingService[];
     coverageAreas?: AgencyCoverageArea[];
   }
@@ -193,12 +208,15 @@ export async function updateAgencyMarketplaceProfile(
     data.instagram !== undefined ? (data.instagram?.trim().replace(/^@/, '') || null) : agency.instagram ?? null;
   const city = data.city !== undefined ? (data.city?.trim() || null) : agency.city ?? null;
   const province = data.province !== undefined ? (data.province?.trim() || null) : agency.province ?? null;
+  const description = data.description !== undefined ? (data.description?.trim() || null) : agency.description ?? null;
+  const cutoffTime = data.cutoffTime !== undefined ? (data.cutoffTime?.trim() || null) : agency.cutoffTime ?? null;
+  const repartidoresCount = data.repartidoresCount !== undefined ? (data.repartidoresCount ?? null) : agency.repartidoresCount ?? null;
   const shippingServices = data.shippingServices ?? agency.shippingServices;
   const coverageAreas = data.coverageAreas ?? agency.coverageAreas;
 
   await pool.query(
-    `UPDATE agencies SET website = ?, instagram = ?, city = ?, province = ?, shipping_services = ?, coverage_areas = ? WHERE id = ?`,
-    [website, instagram, city, province, JSON.stringify(shippingServices), JSON.stringify(coverageAreas), agencyId]
+    `UPDATE agencies SET website = ?, instagram = ?, city = ?, province = ?, description = ?, cutoff_time = ?, repartidores_count = ?, shipping_services = ?, coverage_areas = ? WHERE id = ?`,
+    [website, instagram, city, province, description, cutoffTime, repartidoresCount, JSON.stringify(shippingServices), JSON.stringify(coverageAreas), agencyId]
   );
 
   const updated = await getAgencyById(agencyId);

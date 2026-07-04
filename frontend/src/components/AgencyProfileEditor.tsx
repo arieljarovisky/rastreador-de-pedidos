@@ -267,13 +267,17 @@ export default function AgencyProfileEditor({ agencyName, profile: initialProfil
               <Shield className="w-4 h-4 text-[var(--color-accent)]" />
               Acerca de
             </h3>
-            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-              {agencyName} es una agencia de logística
-              {profile.city ? ` con base en ${profile.city}` : ''}
-              {profile.province && !profile.city ? ` en ${profile.province}` : ''}
-              {hasServices ? ` que ofrece ${profile.shippingServices.map(s => serviceLabel(s).toLowerCase()).join(', ')}` : ''}
-              {hasCoverage ? `. Cubrimos ${profile.coverageAreas.length} zona${profile.coverageAreas.length > 1 ? 's' : ''} de entrega` : ''}
-              .
+            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed whitespace-pre-line">
+              {profile.description || (
+                <>
+                  {agencyName} es una agencia de logística
+                  {profile.city ? ` con base en ${profile.city}` : ''}
+                  {profile.province && !profile.city ? ` en ${profile.province}` : ''}
+                  {hasServices ? ` que ofrece ${profile.shippingServices.map(s => serviceLabel(s).toLowerCase()).join(', ')}` : ''}
+                  {hasCoverage ? `. Cubrimos ${profile.coverageAreas.length} zona${profile.coverageAreas.length > 1 ? 's' : ''} de entrega` : ''}
+                  .
+                </>
+              )}
             </p>
             <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-[var(--surface-border)]">
               <div className="text-center">
@@ -284,6 +288,18 @@ export default function AgencyProfileEditor({ agencyName, profile: initialProfil
                 <span className="text-lg font-bold font-mono text-[var(--color-text)] block">{profile.coverageAreas.length}</span>
                 <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)]">Zonas</span>
               </div>
+              {profile.repartidoresCount != null && profile.repartidoresCount > 0 && (
+                <div className="text-center">
+                  <span className="text-lg font-bold font-mono text-[var(--color-text)] block">{profile.repartidoresCount}</span>
+                  <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)]">Repartidores</span>
+                </div>
+              )}
+              {profile.cutoffTime && (
+                <div className="text-center">
+                  <span className="text-lg font-bold font-mono text-[var(--color-accent)] block">{profile.cutoffTime}hs</span>
+                  <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)]">Horario de corte</span>
+                </div>
+              )}
               {hasCoverage && (
                 <div className="text-center">
                   <span className="text-lg font-bold font-mono text-[var(--color-ok)] block">

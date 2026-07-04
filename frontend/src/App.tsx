@@ -1618,11 +1618,11 @@ export default function App() {
             : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
       >
-        <div className={`app-shell ${mobileTab === 'settings' ? '' : 'h-full'}`}>
+        <div className={`app-shell ${mobileTab === 'settings' || mobileTab === 'agency-profile' ? '' : 'h-full'}`}>
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col ${
-              mobileTab === 'settings' ? 'w-full' : 'xl:flex-row h-full overflow-hidden'
+              mobileTab === 'settings' || mobileTab === 'agency-profile' ? 'w-full h-full' : 'xl:flex-row h-full overflow-hidden'
             } ${mobileTab !== 'settings' && mobileTab !== 'reports' && mobileTab !== 'agencies' && mobileTab !== 'agency-profile' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {mobileTab !== 'settings' && mobileTab !== 'reports' && mobileTab !== 'agencies' && mobileTab !== 'agency-profile' && (
@@ -1712,20 +1712,8 @@ export default function App() {
               </div>
             )}
 
-            {mobileTab === 'reports' && (
-              <div className="flex-1 min-w-0 h-full overflow-hidden">
-                <ReportsDashboard token={token!} onBack={() => setMobileTab('dashboard')} />
-              </div>
-            )}
-
-            {mobileTab === 'agencies' && (
-              <div className="flex-1 min-w-0 h-full overflow-hidden">
-                <AgenciesPage token={token!} onBack={() => setMobileTab('dashboard')} />
-              </div>
-            )}
-
             {mobileTab === 'agency-profile' && (
-              <div className="flex-1 min-w-0 h-full overflow-hidden">
+              <div className="flex-1 min-w-0 w-full h-full overflow-hidden">
                 <AgencyProfileEditor
                   agencyName={user.agencyName || user.name}
                   profile={{
@@ -1755,6 +1743,18 @@ export default function App() {
                     />
                   }
                 />
+              </div>
+            )}
+
+            {mobileTab === 'reports' && (
+              <div className="flex-1 min-w-0 h-full overflow-hidden">
+                <ReportsDashboard token={token!} onBack={() => setMobileTab('dashboard')} />
+              </div>
+            )}
+
+            {mobileTab === 'agencies' && (
+              <div className="flex-1 min-w-0 h-full overflow-hidden">
+                <AgenciesPage token={token!} onBack={() => setMobileTab('dashboard')} />
               </div>
             )}
 

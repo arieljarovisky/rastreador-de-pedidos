@@ -38,6 +38,9 @@ export default function AgencyEditForm({
   const [profileInstagram, setProfileInstagram] = useState('');
   const [profileCity, setProfileCity] = useState(city);
   const [profileProvince, setProfileProvince] = useState(province);
+  const [profileDescription, setProfileDescription] = useState('');
+  const [profileCutoffTime, setProfileCutoffTime] = useState('');
+  const [profileRepartidoresCount, setProfileRepartidoresCount] = useState('');
   const [profileSameDay, setProfileSameDay] = useState(false);
   const [profileTurbo, setProfileTurbo] = useState(false);
   const [profileCustomLabel, setProfileCustomLabel] = useState('');
@@ -55,6 +58,9 @@ export default function AgencyEditForm({
         setProfileInstagram(profile.instagram ?? '');
         setProfileCity(profile.city ?? city);
         setProfileProvince(profile.province ?? province);
+        setProfileDescription(profile.description ?? '');
+        setProfileCutoffTime(profile.cutoffTime ?? '');
+        setProfileRepartidoresCount(profile.repartidoresCount != null ? String(profile.repartidoresCount) : '');
         setProfileSameDay(profile.shippingServices.some((s) => s.type === 'same_day'));
         setProfileTurbo(profile.shippingServices.some((s) => s.type === 'turbo'));
         const custom = profile.shippingServices.find((s) => s.type === 'custom');
@@ -91,6 +97,9 @@ export default function AgencyEditForm({
         instagram: profileInstagram.trim() || null,
         city: profileCity.trim() || null,
         province: profileProvince.trim() || null,
+        description: profileDescription.trim() || null,
+        cutoffTime: profileCutoffTime.trim() || null,
+        repartidoresCount: profileRepartidoresCount.trim() ? parseInt(profileRepartidoresCount, 10) : null,
         shippingServices: services,
         coverageAreas: draftsToCoverageAreas(profileCoverageDrafts, barrios, mlZones),
       });
@@ -159,6 +168,41 @@ export default function AgencyEditForm({
           placeholder="@tuagencia"
           className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none transition"
         />
+      </div>
+
+      <div>
+        <label className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-text-muted)] block mb-1.5">Descripción</label>
+        <textarea
+          value={profileDescription}
+          onChange={(e) => setProfileDescription(e.target.value)}
+          placeholder="Contá sobre tu agencia: qué hacen, historia, diferencial..."
+          rows={4}
+          className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none transition resize-none"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-text-muted)] block mb-1.5">Horario de corte</label>
+          <input
+            type="time"
+            value={profileCutoffTime}
+            onChange={(e) => setProfileCutoffTime(e.target.value)}
+            className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none transition"
+          />
+          <p className="text-[9px] text-[var(--color-text-muted)] mt-1">Hora límite para recibir pedidos del día</p>
+        </div>
+        <div>
+          <label className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-text-muted)] block mb-1.5">Cantidad de repartidores</label>
+          <input
+            type="number"
+            min="0"
+            value={profileRepartidoresCount}
+            onChange={(e) => setProfileRepartidoresCount(e.target.value)}
+            placeholder="Ej: 12"
+            className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none transition"
+          />
+        </div>
       </div>
 
       <div>

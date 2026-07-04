@@ -309,6 +309,9 @@ router.get('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
     city: agency.city,
     province: agency.province,
     logoUrl: agency.logoUrl,
+    description: agency.description,
+    cutoffTime: agency.cutoffTime,
+    repartidoresCount: agency.repartidoresCount,
     shippingServices: agency.shippingServices,
     coverageAreas: agency.coverageAreas,
   });
@@ -320,11 +323,14 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
     return;
   }
 
-  const { website, instagram, city, province, shippingServices, coverageAreas: coverageAreasRaw } = req.body as {
+  const { website, instagram, city, province, description, cutoffTime, repartidoresCount, shippingServices, coverageAreas: coverageAreasRaw } = req.body as {
     website?: string | null;
     instagram?: string | null;
     city?: string | null;
     province?: string | null;
+    description?: string | null;
+    cutoffTime?: string | null;
+    repartidoresCount?: number | null;
     shippingServices?: AgencyShippingService[];
     coverageAreas?: AgencyCoverageArea[];
   };
@@ -366,6 +372,9 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
       instagram,
       city,
       province,
+      description,
+      cutoffTime,
+      repartidoresCount,
       shippingServices,
       coverageAreas,
     });
@@ -374,6 +383,9 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
       instagram: agency.instagram,
       city: agency.city,
       province: agency.province,
+      description: agency.description,
+      cutoffTime: agency.cutoffTime,
+      repartidoresCount: agency.repartidoresCount,
       shippingServices: agency.shippingServices,
       coverageAreas: agency.coverageAreas,
     });
