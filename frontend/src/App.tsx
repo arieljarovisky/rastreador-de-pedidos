@@ -1613,7 +1613,7 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
         className={`flex-1 min-h-0 relative ${
-          mobileTab === 'settings'
+          mobileTab === 'settings' || mobileTab === 'agency-profile'
             ? 'overflow-y-auto scrollbar-thin px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
             : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
@@ -1713,7 +1713,7 @@ export default function App() {
             )}
 
             {mobileTab === 'agency-profile' && (
-              <div className="flex-1 min-w-0 w-full h-full overflow-hidden">
+              <div className="flex-1 min-w-0 w-full h-full overflow-y-auto">
                 <AgencyProfileEditor
                   agencyName={user.agencyName || user.name}
                   profile={{

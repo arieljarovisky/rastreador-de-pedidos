@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
-import { Building2, MapPin, Globe, Instagram, Truck, Pencil, Camera, X, ArrowLeft, Map, Package, Shield, Briefcase } from 'lucide-react';
+import { Building2, MapPin, Globe, Instagram, Truck, Pencil, Camera, X, ArrowLeft, Map, Package, Shield, Briefcase, Zap, Target } from 'lucide-react';
 import type { AgencyMarketplaceProfile, AgencyShippingService, AgencyCoverageArea } from '../types.js';
 import { apiUrl } from '../api.js';
 
@@ -30,11 +30,11 @@ function serviceColor(type: AgencyShippingService['type']): string {
   }
 }
 
-function serviceIcon(type: AgencyShippingService['type']): string {
+function ServiceIcon({ type }: { type: AgencyShippingService['type'] }) {
   switch (type) {
-    case 'same_day': return '📦';
-    case 'turbo': return '⚡';
-    case 'custom': return '🎯';
+    case 'same_day': return <Package className="w-5 h-5" style={{ color: serviceColor(type) }} />;
+    case 'turbo': return <Zap className="w-5 h-5" style={{ color: serviceColor(type) }} />;
+    case 'custom': return <Target className="w-5 h-5" style={{ color: serviceColor(type) }} />;
   }
 }
 
@@ -322,10 +322,10 @@ export default function AgencyProfileEditor({ agencyName, profile: initialProfil
                 {profile.shippingServices.map((s, i) => (
                   <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[var(--surface-panel-2)] border border-[var(--surface-border)]">
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0"
+                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                       style={{ backgroundColor: `${serviceColor(s.type)}15` }}
                     >
-                      {serviceIcon(s.type)}
+                      <ServiceIcon type={s.type} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-xs font-bold text-[var(--color-text)]">{serviceLabel(s)}</h4>
