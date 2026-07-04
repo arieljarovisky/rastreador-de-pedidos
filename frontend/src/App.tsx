@@ -1356,6 +1356,7 @@ export default function App() {
         onRegisterSeller={(data) => handleRegister('/api/auth/register/seller', data)}
         loading={loading}
         error={authError}
+        onClearError={() => setAuthError(null)}
       />
     );
   }

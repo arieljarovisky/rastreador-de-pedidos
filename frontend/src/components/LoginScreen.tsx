@@ -76,6 +76,7 @@ interface LoginScreenProps {
   onRegisterSeller: (data: SellerRegisterData) => Promise<void>;
   loading: boolean;
   error: string | null;
+  onClearError?: () => void;
 }
 
 const MODE_META: Record<
@@ -178,6 +179,7 @@ export default function LoginScreen({
   onRegisterSeller,
   loading,
   error,
+  onClearError,
 }: LoginScreenProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [username, setUsername] = useState('');
@@ -251,6 +253,7 @@ export default function LoginScreen({
   const switchMode = (next: AuthMode) => {
     setMode(next);
     resetForm();
+    onClearError?.();
   };
 
   const isRegister = mode !== 'login';
@@ -306,11 +309,13 @@ export default function LoginScreen({
       if (!canAdvanceRegisterStep()) return;
       submitRegistration();
     } else if (canAdvanceRegisterStep()) {
+      onClearError?.();
       setRegisterStep((s) => Math.min(3, s + 1));
     }
   };
 
   const goBackStep = () => {
+    onClearError?.();
     setRegisterStep((s) => Math.max(1, s - 1));
   };
 
@@ -567,7 +572,7 @@ export default function LoginScreen({
                 <RegistrationStepper steps={registerSteps} currentStep={registerStep} />
               )}
 
-              {error && (
+              {error && (!isRegister || isLastRegisterStep) && (
                 <div className="bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 text-[var(--color-danger)] text-sm rounded-lg p-3 mb-5 font-medium flex items-start gap-2 animate-shake">
                   <Shield className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{error}</span>
