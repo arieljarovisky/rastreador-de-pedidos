@@ -56,7 +56,8 @@ export default function AgencyProfileEditor({ agencyName, profile: initialProfil
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [onFetchProfile]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogoUpload = useCallback(async (file: File) => {
     if (file.size > 500_000) {

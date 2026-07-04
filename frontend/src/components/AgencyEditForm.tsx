@@ -80,7 +80,8 @@ export default function AgencyEditForm({
         );
       })
       .finally(() => setLoading(false));
-  }, [onFetchProfile, city, province, mlZones, cordonLabels, cordonOrder]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
