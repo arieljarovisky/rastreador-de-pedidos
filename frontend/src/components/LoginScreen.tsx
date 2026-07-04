@@ -531,7 +531,7 @@ export default function LoginScreen({
       </aside>
 
       {/* Panel principal — formulario */}
-      <main className="flex flex-col min-h-[100dvh] relative overflow-y-auto">
+      <main className="flex flex-col h-[100dvh] relative overflow-y-auto">
         <div className="lg:hidden flex items-center justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
           <PostaLogo variant={theme === 'paper' ? 'paper' : 'dark'} size={36} />
           <ThemeToggle theme={theme} onToggle={toggleTheme} compact />

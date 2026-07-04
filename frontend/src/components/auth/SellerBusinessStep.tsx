@@ -97,7 +97,7 @@ export default function SellerBusinessStep({
             className={`${inputClass} pl-10`}
           />
         </div>
-        <div className="max-h-[min(16rem,40vh)] lg:max-h-64 overflow-y-auto rounded-lg border border-[var(--surface-border)] p-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 scrollbar-thin">
+        <div className="max-h-[min(12rem,28vh)] overflow-y-auto rounded-lg border border-[var(--surface-border)] p-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 scrollbar-thin">
           {filteredCategories.map((category) => {
             const checked = categories.includes(category);
             return (
