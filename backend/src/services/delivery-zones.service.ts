@@ -105,10 +105,11 @@ export async function seedDefaultZonesForAgency(agencyId: string): Promise<void>
 
   const now = new Date();
   for (const zone of DEFAULT_DELIVERY_ZONES) {
+    const uniqueId = `${zone.id}_${agencyId}`;
     await pool.query(
-      `INSERT INTO delivery_zones (id, agency_id, name, color, south, west, north, east, created_at)
+      `INSERT IGNORE INTO delivery_zones (id, agency_id, name, color, south, west, north, east, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [zone.id, agencyId, zone.name, zone.color, zone.south, zone.west, zone.north, zone.east, now]
+      [uniqueId, agencyId, zone.name, zone.color, zone.south, zone.west, zone.north, zone.east, now]
     );
   }
 }
