@@ -20,6 +20,13 @@ export function isMarketplaceSeller(user: User): boolean {
   return user.role === UserRole.STORE_ADMIN && !user.agencyId;
 }
 
+export function sellerNeedsOnboarding(user: User): boolean {
+  return (
+    isMarketplaceSeller(user) &&
+    (!user.monthlyOrders || !user.sellerCategories?.length)
+  );
+}
+
 export async function resolveAgencyIdForSeller(
   seller: User,
   agencyId?: string | null

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,6 +11,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api';
 import {
   ML_SELLER_CATEGORIES,
   SELLER_MONTHLY_ORDER_OPTIONS,
@@ -27,7 +28,7 @@ import PostaInput from '../components/ui/PostaInput';
 type AuthMode = 'login' | 'register';
 
 export default function LoginScreen() {
-  const { login, registerSeller, error, loading } = useAuth();
+  const { login, loginWithMercadoLibre, registerSeller, error, loading } = useAuth();
   const [mode, setMode] = useState<AuthMode>('login');
   const [registerStep, setRegisterStep] = useState(1);
   const [username, setUsername] = useState('');
@@ -38,7 +39,22 @@ export default function LoginScreen() {
   const [monthlyOrders, setMonthlyOrders] = useState<SellerMonthlyOrders | ''>('');
   const [sellerCategories, setSellerCategories] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [mlLoginAvailable, setMlLoginAvailable] = useState(false);
+  const [mlLoginLoading, setMlLoginLoading] = useState(false);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getMercadoLibreLoginStatus()
+      .then((data) => {
+        if (!cancelled && data.configured) setMlLoginAvailable(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const resetRegister = () => {
     setRegisterStep(1);
@@ -306,6 +322,28 @@ export default function LoginScreen() {
               style={{ flex: 2, marginTop: spacing.xl }}
             />
           </View>
+
+          {mode === 'login' && mlLoginAvailable && (
+            <View style={styles.mlSection}>
+              <Text style={styles.mlDivider}>o</Text>
+              <Button
+                label={mlLoginLoading ? 'Redirigiendo…' : 'Entrar con Mercado Libre'}
+                variant="amber"
+                onPress={() => {
+                  setMlLoginLoading(true);
+                  void loginWithMercadoLibre()
+                    .catch(() => {})
+                    .finally(() => setMlLoginLoading(false));
+                }}
+                loading={mlLoginLoading}
+                disabled={submitting || loading || mlLoginLoading}
+                paperTheme
+              />
+              <Text style={styles.mlHint}>
+                Si es tu primera vez, se crea tu perfil y te pedimos completar unos datos.
+              </Text>
+            </View>
+          )}
         </PaperCard>
 
         <Text style={[typography.body(12, paper.faint), styles.footerHint]}>
@@ -407,6 +445,23 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: 12, color: paper.muted },
   categoryTextSelected: { color: paper.ink, fontWeight: '600' },
   actionsRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-end' },
+  mlSection: { marginTop: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: paper.edge },
+  mlDivider: {
+    textAlign: 'center',
+    color: paper.faint,
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: spacing.md,
+  },
+  mlHint: {
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    color: paper.faint,
+    fontSize: 11,
+    lineHeight: 16,
+  },
   error: {
     color: paper.danger,
     fontSize: 13,

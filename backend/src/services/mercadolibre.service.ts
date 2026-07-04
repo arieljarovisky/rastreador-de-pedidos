@@ -63,25 +63,41 @@ interface MlShipment {
 }
 
 export function getMercadoLibreAuthUrl(state: string): string {
+  return buildMercadoLibreAuthUrl(state, env.mercadolibre.redirectUri);
+}
+
+export function getMercadoLibreLoginAuthUrl(state: string): string {
+  return buildMercadoLibreAuthUrl(state, env.mercadolibre.loginRedirectUri);
+}
+
+function buildMercadoLibreAuthUrl(state: string, redirectUri: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: env.mercadolibre.appId,
-    redirect_uri: env.mercadolibre.redirectUri,
+    redirect_uri: redirectUri,
     state,
   });
   return `https://auth.mercadolibre.com.ar/authorization?${params}`;
 }
 
-export async function exchangeMercadoLibreCode(
-  userId: string,
-  code: string
-): Promise<StoreIntegration> {
+export interface MercadoLibreOAuthTokens {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: Date | null;
+  mlUserId: string;
+  nickname: string;
+}
+
+export async function exchangeMercadoLibreOAuthCode(
+  code: string,
+  redirectUri: string
+): Promise<MercadoLibreOAuthTokens> {
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     client_id: env.mercadolibre.appId,
     client_secret: env.mercadolibre.appSecret,
     code,
-    redirect_uri: env.mercadolibre.redirectUri,
+    redirect_uri: redirectUri,
   });
 
   const res = await fetch(`${ML_API}/oauth/token`, {
@@ -108,14 +124,29 @@ export async function exchangeMercadoLibreCode(
   const expiresAt =
     token.expires_in != null ? new Date(Date.now() + token.expires_in * 1000) : null;
 
+  return {
+    accessToken: token.access_token,
+    refreshToken: token.refresh_token ?? null,
+    expiresAt,
+    mlUserId,
+    nickname,
+  };
+}
+
+export async function exchangeMercadoLibreCode(
+  userId: string,
+  code: string
+): Promise<StoreIntegration> {
+  const oauth = await exchangeMercadoLibreOAuthCode(code, env.mercadolibre.redirectUri);
+
   return upsertIntegration({
     userId,
     platform: 'mercadolibre',
-    externalUserId: mlUserId,
-    accessToken: token.access_token,
-    refreshToken: token.refresh_token ?? null,
-    tokenExpiresAt: expiresAt,
-    metadata: { nickname },
+    externalUserId: oauth.mlUserId,
+    accessToken: oauth.accessToken,
+    refreshToken: oauth.refreshToken,
+    tokenExpiresAt: oauth.expiresAt,
+    metadata: { nickname: oauth.nickname },
   });
 }
 
@@ -446,6 +477,12 @@ export async function listMercadoLibreFlexShipments(userId: string): Promise<Mer
 
 export function isMercadoLibreConfigured(): boolean {
   return Boolean(env.mercadolibre.appId && env.mercadolibre.appSecret && env.mercadolibre.redirectUri);
+}
+
+export function isMercadoLibreLoginConfigured(): boolean {
+  return Boolean(
+    env.mercadolibre.appId && env.mercadolibre.appSecret && env.mercadolibre.loginRedirectUri
+  );
 }
 
 export type MercadoLibreCourierRegisterResult =

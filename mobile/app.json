@@ -68,7 +68,8 @@
           "isIosBackgroundLocationEnabled": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "apiBaseUrl": "https://envios-erp.up.railway.app",

@@ -108,6 +108,25 @@ export const api = {
     });
   },
 
+  updateSellerProfile(
+    token: string,
+    data: { monthlyOrders: SellerMonthlyOrders; sellerCategories: string[] }
+  ): Promise<User> {
+    return request<User>('/api/accounts/seller/profile', {
+      method: 'PUT',
+      token,
+      body: data,
+    });
+  },
+
+  getMercadoLibreLoginStatus(): Promise<{ configured: boolean }> {
+    return request<{ configured: boolean }>('/api/auth/mercadolibre/status');
+  },
+
+  getMercadoLibreLoginUrl(): Promise<{ url: string }> {
+    return request<{ url: string }>('/api/auth/mercadolibre/connect?platform=mobile');
+  },
+
   me(token: string): Promise<User> {
     return request<User>('/api/auth/me', { token });
   },

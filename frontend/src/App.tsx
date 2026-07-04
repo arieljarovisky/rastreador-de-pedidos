@@ -9,6 +9,7 @@ import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import type { MlFlexCordon, MlFlexZone } from './config/mlFlexZones.js';
 import { isGeoCatalog } from './config/mlFlexZones.js';
 import LoginScreen from './components/LoginScreen.tsx';
+import SellerOnboardingScreen from './components/auth/SellerOnboardingScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
@@ -137,16 +138,58 @@ export default function App() {
   const [wsConnected, setWsConnected] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<Date>(new Date());
 
-  // Al iniciar, verificar sesión guardada en LocalStorage
+  // Al iniciar, verificar callback OAuth ML o sesión guardada en LocalStorage
   useEffect(() => {
-    const savedToken = localStorage.getItem('lupo_token');
-    const savedUser = localStorage.getItem('lupo_user');
+    const bootstrap = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const mlLogin = params.get('ml_login');
 
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+      if (mlLogin) {
+        window.history.replaceState({}, '', window.location.pathname);
+        if (mlLogin === 'success') {
+          const oauthToken = params.get('token');
+          if (!oauthToken) {
+            setAuthError('Respuesta incompleta de Mercado Libre.');
+            setLoading(false);
+            return;
+          }
+          try {
+            const meRes = await fetch(apiUrl('/api/auth/me'), {
+              headers: { Authorization: `Bearer ${oauthToken}` },
+            });
+            if (!meRes.ok) throw new Error('Token inválido');
+            const currentUser = await meRes.json();
+            localStorage.setItem('lupo_token', oauthToken);
+            localStorage.setItem('lupo_user', JSON.stringify(currentUser));
+            setToken(oauthToken);
+            setUser(currentUser);
+            if (currentUser.departurePoint) {
+              setDeparturePoint(currentUser.departurePoint);
+            }
+            if (currentUser.pickupPoints) {
+              setPickupPoints(currentUser.pickupPoints);
+            }
+          } catch {
+            setAuthError('No se pudo completar el inicio de sesión con Mercado Libre.');
+          }
+        } else {
+          setAuthError(params.get('message') || 'No se pudo iniciar sesión con Mercado Libre.');
+        }
+        setLoading(false);
+        return;
+      }
+
+      const savedToken = localStorage.getItem('lupo_token');
+      const savedUser = localStorage.getItem('lupo_user');
+
+      if (savedToken && savedUser) {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      }
+      setLoading(false);
+    };
+
+    void bootstrap();
 
     // Escuchar cambios de conectividad de red
     const handleOnline = () => setIsOnline(true);
@@ -425,6 +468,23 @@ export default function App() {
       setAuthError(err.message || 'Error en la conexión con el servidor.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMercadoLibreLogin = async () => {
+    setAuthError(null);
+    try {
+      const res = await fetch(apiUrl('/api/auth/mercadolibre/connect'));
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'No se pudo iniciar la autorización con Mercado Libre.');
+      }
+      window.location.href = data.url;
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'No se pudo iniciar la autorización con Mercado Libre.';
+      setAuthError(message);
+      throw err;
     }
   };
 
@@ -918,7 +978,15 @@ export default function App() {
     if (user?.isMarketplaceSeller || (user?.role === UserRole.STORE_ADMIN && !user.agencyId)) {
       void fetchMarketplaceAgencies();
     }
-  }, [user?.id, user?.isMarketplaceSeller, user?.agencyId, user?.role, fetchMarketplaceAgencies]);
+    if (
+      user?.needsOnboarding ||
+      (user?.role === UserRole.STORE_ADMIN &&
+        user?.isMarketplaceSeller &&
+        (!user.monthlyOrders || !user.sellerCategories?.length))
+    ) {
+      void fetchMarketplaceAgencies();
+    }
+  }, [user?.id, user?.needsOnboarding, user?.monthlyOrders, user?.sellerCategories, user?.isMarketplaceSeller, user?.agencyId, user?.role, fetchMarketplaceAgencies]);
 
   const handleCreateOrder = async (orderData: Partial<Order> & { agencyId?: string }) => {
     if (!token) return;
@@ -1366,9 +1434,33 @@ export default function App() {
         onLogin={handleLogin}
         onRegisterAgency={(data) => handleRegister('/api/auth/register/agency', data)}
         onRegisterSeller={(data) => handleRegister('/api/auth/register/seller', data)}
+        onMercadoLibreLogin={handleMercadoLibreLogin}
         loading={loading}
         error={authError}
         onClearError={() => setAuthError(null)}
+      />
+    );
+  }
+
+  const showSellerOnboarding = Boolean(
+    user.needsOnboarding ||
+      (user.role === UserRole.STORE_ADMIN &&
+        user.isMarketplaceSeller &&
+        (!user.monthlyOrders || !user.sellerCategories?.length))
+  );
+
+  if (showSellerOnboarding && token) {
+    return (
+      <SellerOnboardingScreen
+        token={token}
+        userName={user.name}
+        marketplaceAgencies={marketplaceAgencies}
+        agenciesLoading={marketplaceAgenciesLoading}
+        onComplete={(updatedUser) => {
+          setUser(updatedUser);
+          localStorage.setItem('lupo_user', JSON.stringify(updatedUser));
+        }}
+        onSelectAgency={handleUpdateSellerPreferredAgency}
       />
     );
   }

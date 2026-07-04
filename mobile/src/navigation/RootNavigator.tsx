@@ -2,8 +2,9 @@ import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, sellerNeedsOnboarding } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
+import SellerOnboardingScreen from '../screens/SellerOnboardingScreen';
 import RepartidorNavigator from './RepartidorNavigator';
 import SellerNavigator from './SellerNavigator';
 import AgencyNavigator from './AgencyNavigator';
@@ -51,7 +52,13 @@ export default function RootNavigator() {
       ) : isAgencyAdminRole(user.role) ? (
         <AgencyNavigator />
       ) : isSellerRole(user.role) ? (
-        <SellerNavigator />
+        sellerNeedsOnboarding(user) ? (
+          <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+            <AuthStack.Screen name="SellerOnboarding" component={SellerOnboardingScreen} />
+          </AuthStack.Navigator>
+        ) : (
+          <SellerNavigator />
+        )
       ) : isRepartidorRole(user.role) ? (
         <RepartidorNavigator />
       ) : null}

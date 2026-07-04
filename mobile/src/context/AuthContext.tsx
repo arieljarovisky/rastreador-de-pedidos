@@ -7,13 +7,17 @@ import React, {
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as WebBrowser from 'expo-web-browser';
 import { api } from '../api';
 import { clearQueue } from '../location/locationQueue';
 import { stopBackgroundLocation } from '../location/backgroundLocationTask';
-import { User, MOBILE_APP_ROLES } from '../types';
+import { User, MOBILE_APP_ROLES, SellerMonthlyOrders } from '../types';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const TOKEN_KEY = 'lupo_token';
 const USER_KEY = 'lupo_user';
+const ML_AUTH_REDIRECT = 'lupo://auth/mercadolibre';
 
 interface AuthState {
   user: User | null;
@@ -21,26 +25,55 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   login: (username: string, password: string) => Promise<void>;
+  loginWithMercadoLibre: () => Promise<void>;
   registerSeller: (data: {
     username: string;
     password: string;
     name: string;
     city?: string;
     province?: string;
-    monthlyOrders: import('./types').SellerMonthlyOrders;
+    monthlyOrders: SellerMonthlyOrders;
     sellerCategories: string[];
   }) => Promise<void>;
+  completeSellerProfile: (data: {
+    monthlyOrders: SellerMonthlyOrders;
+    sellerCategories: string[];
+  }) => Promise<void>;
+  refreshUser: () => Promise<void>;
   updatePreferredAgency: (agencyId: string | null) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+function parseMercadoLibreAuthResult(resultUrl: string): { token?: string; error?: string } {
+  const queryStart = resultUrl.indexOf('?');
+  const query = queryStart >= 0 ? resultUrl.slice(queryStart + 1) : '';
+  const params = new URLSearchParams(query);
+  const mlLogin = params.get('ml_login');
+  if (mlLogin === 'success') {
+    return { token: params.get('token') ?? undefined };
+  }
+  if (mlLogin === 'error') {
+    return { error: params.get('message') ?? 'No se pudo iniciar sesión con Mercado Libre.' };
+  }
+  return { error: 'Respuesta de autorización inválida.' };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const persistSession = useCallback(async (data: { token: string; user: User }) => {
+    await AsyncStorage.multiSet([
+      [TOKEN_KEY, data.token],
+      [USER_KEY, JSON.stringify(data.user)],
+    ]);
+    setToken(data.token);
+    setUser(data.user);
+  }, []);
 
   // Restaurar sesión guardada al iniciar
   useEffect(() => {
@@ -53,7 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (savedToken && savedUser) {
           setToken(savedToken);
           setUser(JSON.parse(savedUser) as User);
-          // Validar el token contra el backend en segundo plano
           api
             .me(savedToken)
             .then((fresh) => {
@@ -67,7 +99,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               AsyncStorage.setItem(USER_KEY, JSON.stringify(fresh));
             })
             .catch(() => {
-              // Token inválido/expirado -> cerrar sesión
               setToken(null);
               setUser(null);
               AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
@@ -77,15 +108,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     })();
-  }, []);
-
-  const persistSession = useCallback(async (data: { token: string; user: User }) => {
-    await AsyncStorage.multiSet([
-      [TOKEN_KEY, data.token],
-      [USER_KEY, JSON.stringify(data.user)],
-    ]);
-    setToken(data.token);
-    setUser(data.user);
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
@@ -107,6 +129,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [persistSession]);
 
+  const loginWithMercadoLibre = useCallback(async () => {
+    setError(null);
+    const { url } = await api.getMercadoLibreLoginUrl();
+    const result = await WebBrowser.openAuthSessionAsync(url, ML_AUTH_REDIRECT);
+    if (result.type !== 'success' || !result.url) {
+      throw new Error('Autorización cancelada.');
+    }
+    const parsed = parseMercadoLibreAuthResult(result.url);
+    if (parsed.error || !parsed.token) {
+      throw new Error(parsed.error || 'No se pudo completar el inicio de sesión.');
+    }
+    const fresh = await api.me(parsed.token);
+    if (fresh.role !== 'store_admin') {
+      throw new Error('El inicio con Mercado Libre está disponible solo para vendedores.');
+    }
+    await persistSession({ token: parsed.token, user: fresh });
+  }, [persistSession]);
+
   const registerSeller = useCallback(
     async (data: {
       username: string;
@@ -114,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name: string;
       city?: string;
       province?: string;
-      monthlyOrders: import('../types').SellerMonthlyOrders;
+      monthlyOrders: SellerMonthlyOrders;
       sellerCategories: string[];
     }) => {
       setError(null);
@@ -134,6 +174,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [persistSession]
   );
+
+  const completeSellerProfile = useCallback(
+    async (data: { monthlyOrders: SellerMonthlyOrders; sellerCategories: string[] }) => {
+      if (!token) throw new Error('Sin sesión');
+      const updated = await api.updateSellerProfile(token, data);
+      setUser(updated);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(updated));
+    },
+    [token]
+  );
+
+  const refreshUser = useCallback(async () => {
+    if (!token) return;
+    const fresh = await api.me(token);
+    setUser(fresh);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(fresh));
+  }, [token]);
 
   const updatePreferredAgency = useCallback(
     async (agencyId: string | null) => {
@@ -163,8 +220,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, token, loading, error, login, registerSeller, updatePreferredAgency, logout }),
-    [user, token, loading, error, login, registerSeller, updatePreferredAgency, logout]
+    () => ({
+      user,
+      token,
+      loading,
+      error,
+      login,
+      loginWithMercadoLibre,
+      registerSeller,
+      completeSellerProfile,
+      refreshUser,
+      updatePreferredAgency,
+      logout,
+    }),
+    [
+      user,
+      token,
+      loading,
+      error,
+      login,
+      loginWithMercadoLibre,
+      registerSeller,
+      completeSellerProfile,
+      refreshUser,
+      updatePreferredAgency,
+      logout,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -175,3 +256,14 @@ export function useAuth(): AuthState {
   if (!ctx) throw new Error('useAuth debe usarse dentro de <AuthProvider>');
   return ctx;
 }
+
+function sellerNeedsOnboarding(user: User): boolean {
+  return Boolean(
+    user.needsOnboarding ||
+      (user.role === 'store_admin' &&
+        user.isMarketplaceSeller &&
+        (!user.monthlyOrders || !user.sellerCategories?.length))
+  );
+}
+
+export { sellerNeedsOnboarding };

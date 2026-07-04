@@ -114,6 +114,8 @@ export interface User {
   monthlyOrders?: SellerMonthlyOrders | null;
   /** Categorías ML en las que vende. */
   sellerCategories?: string[];
+  /** Vendedor marketplace con perfil incompleto (falta volumen/categorías). */
+  needsOnboarding?: boolean;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];

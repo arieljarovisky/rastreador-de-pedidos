@@ -28,6 +28,11 @@ import { isAgencyAdmin } from '../utils/roles.js';
 import { updateAgencyMlFlexMode, updateAgencyMarketplaceProfile, getAgencyById } from '../services/agencies.service.js';
 import { normalizeCoverageAreas, validateCoverageAreas } from '../services/coverage-areas.service.js';
 import { updateSellerPreferredAgency } from '../services/marketplace.service.js';
+import { updateSellerProfile } from '../services/users.service.js';
+import {
+  normalizeSellerCategories,
+  validateSellerProfile,
+} from '../config/seller-profile.js';
 import type { AgencyCoverageArea, AgencyShippingService, MlFlexMode } from '../types/index.js';
 
 const router = Router();
@@ -452,6 +457,48 @@ router.put('/seller/preferred-agency', authenticate, requireRoles(UserRole.STORE
     }
     if (message === 'AGENCY_NOT_FOUND') {
       res.status(404).json({ error: 'Agencia no encontrada.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/seller/profile', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
+  const { monthlyOrders, sellerCategories: categoriesRaw } = req.body as {
+    monthlyOrders?: string;
+    sellerCategories?: unknown;
+  };
+
+  const sellerCategories = normalizeSellerCategories(categoriesRaw);
+  try {
+    validateSellerProfile(String(monthlyOrders ?? ''), sellerCategories);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'SELLER_ORDERS_INVALID') {
+      res.status(400).json({ error: 'Seleccioná cuántos pedidos enviás por mes.' });
+      return;
+    }
+    if (message === 'SELLER_CATEGORIES_REQUIRED') {
+      res.status(400).json({ error: 'Seleccioná al menos una categoría de Mercado Libre.' });
+      return;
+    }
+    throw err;
+  }
+
+  try {
+    const user = await updateSellerProfile(req.user!.id, {
+      monthlyOrders: monthlyOrders as import('../types/index.js').SellerMonthlyOrders,
+      sellerCategories,
+    });
+    res.json(user);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    if (message === 'NOT_MARKETPLACE_SELLER') {
+      res.status(400).json({ error: 'Tu cuenta ya está vinculada a una agencia fija.' });
       return;
     }
     throw err;

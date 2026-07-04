@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { authenticate, signToken } from '../middleware/auth.js';
 import { findUserByUsername, createUser, getUserById } from '../services/users.service.js';
 import { createAgency } from '../services/agencies.service.js';
@@ -12,8 +13,75 @@ import {
 import { listBarrios } from '../config/barrios.js';
 import { listMlFlexZones, ML_FLEX_CORDON_LABELS, ML_FLEX_CORDON_ORDER } from '../config/ml-flex-zones.js';
 import { UserRole } from '../types/index.js';
+import { env } from '../config/env.js';
+import {
+  getMercadoLibreLoginAuthUrl,
+  isMercadoLibreLoginConfigured,
+} from '../services/mercadolibre.service.js';
+import { loginOrRegisterWithMercadoLibre } from '../services/mercadolibre-auth.service.js';
 
 const router = Router();
+
+interface MercadoLibreLoginStatePayload {
+  purpose: 'login';
+  platform?: 'web' | 'mobile';
+}
+
+type MercadoLibreLoginPlatform = 'web' | 'mobile';
+
+function signMercadoLibreLoginState(platform: MercadoLibreLoginPlatform = 'web'): string {
+  return jwt.sign({ purpose: 'login', platform } satisfies MercadoLibreLoginStatePayload, env.jwtSecret, {
+    expiresIn: '15m',
+  });
+}
+
+function verifyMercadoLibreLoginState(state: string): MercadoLibreLoginStatePayload {
+  const payload = jwt.verify(state, env.jwtSecret) as MercadoLibreLoginStatePayload;
+  if (payload.purpose !== 'login') throw new Error('INVALID_STATE');
+  return payload;
+}
+
+function redirectToFrontendLoginSuccess(token: string): string {
+  const params = new URLSearchParams({ ml_login: 'success', token });
+  return `${env.frontendUrl}/app?${params}`;
+}
+
+function redirectToFrontendLoginError(message: string): string {
+  const params = new URLSearchParams({ ml_login: 'error', message });
+  return `${env.frontendUrl}/app?${params}`;
+}
+
+function redirectToMobileLoginSuccess(token: string): string {
+  const params = new URLSearchParams({ ml_login: 'success', token });
+  return `lupo://auth/mercadolibre?${params}`;
+}
+
+function redirectToMobileLoginError(message: string): string {
+  const params = new URLSearchParams({ ml_login: 'error', message });
+  return `lupo://auth/mercadolibre?${params}`;
+}
+
+function redirectLoginSuccess(platform: MercadoLibreLoginPlatform, token: string): string {
+  return platform === 'mobile' ? redirectToMobileLoginSuccess(token) : redirectToFrontendLoginSuccess(token);
+}
+
+function redirectLoginError(platform: MercadoLibreLoginPlatform, message: string): string {
+  return platform === 'mobile' ? redirectToMobileLoginError(message) : redirectToFrontendLoginError(message);
+}
+
+function mercadoLibreLoginErrorMessage(err: unknown): string {
+  const code = err instanceof Error ? err.message : '';
+  if (code === 'ML_TOKEN_FAILED') {
+    return 'Mercado Libre rechazó la autorización. Intentá de nuevo.';
+  }
+  if (code === 'ML_USER_MISSING') {
+    return 'No se pudo obtener tu cuenta de Mercado Libre.';
+  }
+  if (code === 'USERNAME_TAKEN') {
+    return 'Ya existe una cuenta vinculada a ese usuario de Mercado Libre.';
+  }
+  return 'No se pudo iniciar sesión con Mercado Libre.';
+}
 
 router.get('/barrios', (_req: Request, res: Response) => {
   res.json({
@@ -185,6 +253,50 @@ router.post('/register/seller', async (req: Request, res: Response) => {
 
 router.get('/me', authenticate, (req: Request, res: Response) => {
   res.json(req.user);
+});
+
+router.get('/mercadolibre/status', (_req: Request, res: Response) => {
+  res.json({ configured: isMercadoLibreLoginConfigured() });
+});
+
+router.get('/mercadolibre/connect', (req: Request, res: Response) => {
+  if (!isMercadoLibreLoginConfigured()) {
+    res.status(503).json({ error: 'Mercado Libre OAuth no está configurado en el servidor.' });
+    return;
+  }
+  const platform: MercadoLibreLoginPlatform = req.query.platform === 'mobile' ? 'mobile' : 'web';
+  const state = signMercadoLibreLoginState(platform);
+  res.json({ url: getMercadoLibreLoginAuthUrl(state) });
+});
+
+router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
+  const { code, state, error: oauthError } = req.query;
+
+  if (oauthError) {
+    res.redirect(redirectToFrontendLoginError(String(oauthError)));
+    return;
+  }
+
+  if (!code || typeof code !== 'string' || !state || typeof state !== 'string') {
+    res.redirect(redirectToFrontendLoginError('Parámetros de autorización incompletos.'));
+    return;
+  }
+
+  let platform: MercadoLibreLoginPlatform = 'web';
+  try {
+    platform = verifyMercadoLibreLoginState(state).platform === 'mobile' ? 'mobile' : 'web';
+  } catch {
+    res.redirect(redirectToFrontendLoginError('La sesión de autorización expiró. Intentá de nuevo.'));
+    return;
+  }
+
+  try {
+    const result = await loginOrRegisterWithMercadoLibre(code);
+    res.redirect(redirectLoginSuccess(platform, result.token));
+  } catch (err) {
+    console.error('[auth/mercadolibre/callback]', err);
+    res.redirect(redirectLoginError(platform, mercadoLibreLoginErrorMessage(err)));
+  }
 });
 
 export default router;

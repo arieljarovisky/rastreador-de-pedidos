@@ -6,7 +6,7 @@ import { listPickupPointsForUser } from './pickup-points.service.js';
 import { getAgencyDeparture, getAgencyById, updateAgencyDeparture as updateAgencyDepartureRecord } from './agencies.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { isValidZoneForAgency } from './delivery-zones.service.js';
-import { normalizeSellerCategories, type SellerMonthlyOrders } from '../config/seller-profile.js';
+import { normalizeSellerCategories, validateSellerProfile, type SellerMonthlyOrders } from '../config/seller-profile.js';
 
 const USER_COLUMNS = `id, username, name, role, agency_id, preferred_agency_id, city, province, password_hash, current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng, delivery_zone, monthly_orders, seller_categories`;
@@ -81,7 +81,16 @@ async function enrichUser(user: User): Promise<User> {
   if (user.role === UserRole.STORE_ADMIN) {
     user.pickupPoints = await listPickupPointsForUser(user.id);
   }
+  user.needsOnboarding = sellerNeedsOnboarding(user);
   return user;
+}
+
+function sellerNeedsOnboarding(user: User): boolean {
+  return (
+    user.role === UserRole.STORE_ADMIN &&
+    !user.agencyId &&
+    (!user.monthlyOrders || !user.sellerCategories?.length)
+  );
 }
 
 export async function findUserByUsername(username: string): Promise<(DbUserRow & RowDataPacket) | null> {
@@ -257,6 +266,28 @@ export async function createUser(data: {
   const user = await getUserById(id);
   if (!user) throw new Error('CREATE_FAILED');
   return user;
+}
+
+export async function updateSellerProfile(
+  userId: string,
+  data: { monthlyOrders: SellerMonthlyOrders; sellerCategories: string[] }
+): Promise<User> {
+  const user = await getUserById(userId);
+  if (!user) throw new Error('NOT_FOUND');
+  if (user.role !== UserRole.STORE_ADMIN || user.agencyId) throw new Error('NOT_MARKETPLACE_SELLER');
+
+  const categories = normalizeSellerCategories(data.sellerCategories);
+  validateSellerProfile(data.monthlyOrders, categories);
+
+  await pool.query('UPDATE users SET monthly_orders = ?, seller_categories = ? WHERE id = ?', [
+    data.monthlyOrders,
+    JSON.stringify(categories),
+    userId,
+  ]);
+
+  const updated = await getUserById(userId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
 }
 
 export async function updateRepartidorZone(

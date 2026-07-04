@@ -97,6 +97,7 @@ export interface User {
   province?: string | null;
   monthlyOrders?: SellerMonthlyOrders | null;
   sellerCategories?: string[];
+  needsOnboarding?: boolean;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];

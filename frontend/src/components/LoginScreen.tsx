@@ -74,6 +74,7 @@ interface LoginScreenProps {
   onLogin: (username: string, password: string) => Promise<void>;
   onRegisterAgency: (data: AgencyRegisterData) => Promise<void>;
   onRegisterSeller: (data: SellerRegisterData) => Promise<void>;
+  onMercadoLibreLogin?: () => Promise<void>;
   loading: boolean;
   error: string | null;
   onClearError?: () => void;
@@ -177,6 +178,7 @@ export default function LoginScreen({
   onLogin,
   onRegisterAgency,
   onRegisterSeller,
+  onMercadoLibreLogin,
   loading,
   error,
   onClearError,
@@ -207,6 +209,8 @@ export default function LoginScreen({
   const [monthlyOrders, setMonthlyOrders] = useState<SellerMonthlyOrders | ''>('');
   const [sellerCategories, setSellerCategories] = useState<string[]>([]);
   const [showPassword, setShowPassword] = useState(false);
+  const [mlLoginAvailable, setMlLoginAvailable] = useState(false);
+  const [mlLoginLoading, setMlLoginLoading] = useState(false);
   const theme = usePostaTheme();
   const meta = MODE_META[mode];
   const ModeIcon = meta.icon;
@@ -214,6 +218,19 @@ export default function LoginScreen({
   const toggleTheme = () => {
     applyPostaTheme(theme === 'dark' ? 'paper' : 'dark');
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(apiUrl('/api/auth/mercadolibre/status'))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { configured?: boolean } | null) => {
+        if (!cancelled && data?.configured) setMlLoginAvailable(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -608,6 +625,39 @@ export default function LoginScreen({
                     {isRegister && !isLastRegisterStep && !loading && <ChevronRight className="w-4 h-4" />}
                   </PostaButton>
                 </div>
+
+                {mode === 'login' && mlLoginAvailable && onMercadoLibreLogin && (
+                  <div className="mt-4 pt-4 border-t border-[var(--surface-border)]">
+                    <p className="text-center text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-faint)] mb-3">
+                      o
+                    </p>
+                    <button
+                      type="button"
+                      id="btn-ml-login"
+                      disabled={loading || mlLoginLoading}
+                      onClick={() => {
+                        onClearError?.();
+                        setMlLoginLoading(true);
+                        void onMercadoLibreLogin().catch(() => {
+                          setMlLoginLoading(false);
+                        });
+                      }}
+                      className="w-full py-3 px-4 rounded-lg border border-[#FFE600]/40 bg-[#FFE600]/10 hover:bg-[#FFE600]/20 text-[var(--color-text)] font-mono text-[11px] font-bold uppercase tracking-wider transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 48 48" aria-hidden>
+                        <circle cx="24" cy="24" r="22" fill="#FFE600" />
+                        <path
+                          d="M14 18h6.5c3.2 0 5.5 2.1 5.5 5.2 0 3.4-2.6 5.3-6.1 5.3H17.5V32H14V18zm3.5 3v4.2h2.8c1.6 0 2.5-.8 2.5-2.1 0-1.3-.9-2.1-2.5-2.1H17.5zm11.2-3H34v2.7h-2.3V32h-3.5V20.7h-2.3V18z"
+                          fill="#2D3277"
+                        />
+                      </svg>
+                      {mlLoginLoading ? 'Redirigiendo…' : 'Entrar con Mercado Libre'}
+                    </button>
+                    <p className="mt-2 text-[10px] text-center text-[var(--color-text-faint)] leading-relaxed">
+                      Vendedores: ingresá con tu cuenta ML. Si es tu primera vez, se crea tu perfil automáticamente.
+                    </p>
+                  </div>
+                )}
               </form>
               </div>
             </PaperCard>

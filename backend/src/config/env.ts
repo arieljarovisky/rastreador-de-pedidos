@@ -59,6 +59,9 @@ export const env = {
     redirectUri:
       process.env.ML_REDIRECT_URI?.trim() ||
       `${resolvePublicUrl()}/api/integrations/mercadolibre/callback`,
+    loginRedirectUri:
+      process.env.ML_LOGIN_REDIRECT_URI?.trim() ||
+      `${resolvePublicUrl()}/api/auth/mercadolibre/callback`,
   },
   tiendanube: {
     appId: process.env.TN_APP_ID?.trim() || process.env.TIENDANUBE_APP_ID?.trim() || '',
