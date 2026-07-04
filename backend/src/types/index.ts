@@ -63,6 +63,8 @@ export interface MarketplaceAgency {
   description?: string | null;
   cutoffTime?: string | null;
   repartidoresCount?: number | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
   shippingServices: AgencyShippingService[];
   departurePoint?: LocationPoint;
   coverageAreas?: AgencyCoverageArea[];

@@ -1,4 +1,4 @@
-import { Building2, MapPin, Globe, Instagram, Truck, ArrowLeft, Map, DollarSign, Package, Shield } from 'lucide-react';
+import { Building2, MapPin, Globe, Instagram, Truck, ArrowLeft, Map, DollarSign, Package, Shield, Phone, Mail } from 'lucide-react';
 import type { MarketplaceAgency, AgencyShippingService, AgencyCoverageArea } from '../types.js';
 
 interface AgencyProfilePageProps {
@@ -131,12 +131,45 @@ export default function AgencyProfilePage({ agency, onBack }: AgencyProfilePageP
                     {agency.instagram}
                   </a>
                 )}
+                {agency.contactPhone && (
+                  <a
+                    href={`tel:${agency.contactPhone.replace(/\s/g, '')}`}
+                    className="inline-flex items-center gap-1.5 text-xs text-[var(--color-accent)] hover:underline"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    {agency.contactPhone}
+                  </a>
+                )}
+                {agency.contactEmail && (
+                  <a
+                    href={`mailto:${agency.contactEmail}`}
+                    className="inline-flex items-center gap-1.5 text-xs text-[var(--color-accent)] hover:underline"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    {agency.contactEmail}
+                  </a>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         <div className="px-4 sm:px-6 py-5 space-y-6">
+          {/* Acerca de */}
+          {agency.description && (
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="w-4 h-4 text-[var(--color-accent)]" />
+                <h3 className="text-sm font-bold text-[var(--color-text)] uppercase tracking-wide">Acerca de</h3>
+              </div>
+              <div className="bg-[var(--surface-panel)] border border-[var(--surface-border)] rounded-lg p-4">
+                <p className="text-xs text-[var(--color-text-muted)] leading-relaxed whitespace-pre-line">
+                  {agency.description}
+                </p>
+              </div>
+            </section>
+          )}
+
           {/* Servicios de envío */}
           <section>
             <div className="flex items-center gap-2 mb-3">
@@ -237,6 +270,46 @@ export default function AgencyProfilePage({ agency, onBack }: AgencyProfilePageP
                     </span>
                   </div>
                 </div>
+                {agency.contactPhone && (
+                  <div className="flex items-start gap-2">
+                    <Phone className="w-3.5 h-3.5 text-[var(--color-text-muted)] mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono block">Teléfono</span>
+                      <a href={`tel:${agency.contactPhone.replace(/\s/g, '')}`} className="text-xs text-[var(--color-accent)] hover:underline">
+                        {agency.contactPhone}
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {agency.contactEmail && (
+                  <div className="flex items-start gap-2">
+                    <Mail className="w-3.5 h-3.5 text-[var(--color-text-muted)] mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono block">Email</span>
+                      <a href={`mailto:${agency.contactEmail}`} className="text-xs text-[var(--color-accent)] hover:underline">
+                        {agency.contactEmail}
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {agency.cutoffTime && (
+                  <div className="flex items-start gap-2">
+                    <Shield className="w-3.5 h-3.5 text-[var(--color-text-muted)] mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono block">Horario de corte</span>
+                      <span className="text-xs text-[var(--color-text)]">{agency.cutoffTime} hs</span>
+                    </div>
+                  </div>
+                )}
+                {agency.repartidoresCount != null && agency.repartidoresCount > 0 && (
+                  <div className="flex items-start gap-2">
+                    <Truck className="w-3.5 h-3.5 text-[var(--color-text-muted)] mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] font-mono block">Repartidores</span>
+                      <span className="text-xs text-[var(--color-text)]">{agency.repartidoresCount}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </section>

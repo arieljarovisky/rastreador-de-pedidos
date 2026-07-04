@@ -312,6 +312,8 @@ router.get('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
     description: agency.description,
     cutoffTime: agency.cutoffTime,
     repartidoresCount: agency.repartidoresCount,
+    contactPhone: agency.contactPhone,
+    contactEmail: agency.contactEmail,
     shippingServices: agency.shippingServices,
     coverageAreas: agency.coverageAreas,
   });
@@ -323,7 +325,7 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
     return;
   }
 
-  const { website, instagram, city, province, description, cutoffTime, repartidoresCount, shippingServices, coverageAreas: coverageAreasRaw } = req.body as {
+  const { website, instagram, city, province, description, cutoffTime, repartidoresCount, contactPhone, contactEmail, shippingServices, coverageAreas: coverageAreasRaw } = req.body as {
     website?: string | null;
     instagram?: string | null;
     city?: string | null;
@@ -331,6 +333,8 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
     description?: string | null;
     cutoffTime?: string | null;
     repartidoresCount?: number | null;
+    contactPhone?: string | null;
+    contactEmail?: string | null;
     shippingServices?: AgencyShippingService[];
     coverageAreas?: AgencyCoverageArea[];
   };
@@ -375,6 +379,8 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
       description,
       cutoffTime,
       repartidoresCount,
+      contactPhone,
+      contactEmail,
       shippingServices,
       coverageAreas,
     });
@@ -386,6 +392,8 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
       description: agency.description,
       cutoffTime: agency.cutoffTime,
       repartidoresCount: agency.repartidoresCount,
+      contactPhone: agency.contactPhone,
+      contactEmail: agency.contactEmail,
       shippingServices: agency.shippingServices,
       coverageAreas: agency.coverageAreas,
     });

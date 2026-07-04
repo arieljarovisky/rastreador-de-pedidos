@@ -17,6 +17,8 @@ export interface Agency {
   description?: string | null;
   cutoffTime?: string | null;
   repartidoresCount?: number | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
   shippingServices: AgencyShippingService[];
   coverageAreas: AgencyCoverageArea[];
   departurePoint?: LocationPoint;
@@ -34,6 +36,8 @@ interface AgencyRow extends RowDataPacket {
   description: string | null;
   cutoff_time: string | null;
   repartidores_count: number | null;
+  contact_phone: string | null;
+  contact_email: string | null;
   shipping_services: AgencyShippingService[] | string | null;
   coverage_areas: AgencyCoverageArea[] | string | null;
   departure_address: string | null;
@@ -41,7 +45,7 @@ interface AgencyRow extends RowDataPacket {
   departure_lng: number | null;
 }
 
-const AGENCY_COLUMNS = `id, name, ml_flex_mode, website, instagram, city, province, logo_url, description, cutoff_time, repartidores_count, shipping_services, coverage_areas,
+const AGENCY_COLUMNS = `id, name, ml_flex_mode, website, instagram, city, province, logo_url, description, cutoff_time, repartidores_count, contact_phone, contact_email, shipping_services, coverage_areas,
   departure_address, departure_lat, departure_lng`;
 
 function parseShippingServices(raw: AgencyShippingService[] | string | null): AgencyShippingService[] {
@@ -78,6 +82,8 @@ function rowToAgency(row: AgencyRow): Agency {
     description: row.description ?? null,
     cutoffTime: row.cutoff_time ?? null,
     repartidoresCount: row.repartidores_count ?? null,
+    contactPhone: row.contact_phone ?? null,
+    contactEmail: row.contact_email ?? null,
     shippingServices: parseShippingServices(row.shipping_services),
     coverageAreas: parseCoverageAreas(row.coverage_areas),
   };
@@ -104,6 +110,8 @@ function rowToMarketplaceAgency(row: AgencyRow): MarketplaceAgency {
     description: agency.description,
     cutoffTime: agency.cutoffTime,
     repartidoresCount: agency.repartidoresCount,
+    contactPhone: agency.contactPhone,
+    contactEmail: agency.contactEmail,
     shippingServices: agency.shippingServices,
     coverageAreas: agency.coverageAreas,
     departurePoint: agency.departurePoint,
@@ -196,6 +204,8 @@ export async function updateAgencyMarketplaceProfile(
     description?: string | null;
     cutoffTime?: string | null;
     repartidoresCount?: number | null;
+    contactPhone?: string | null;
+    contactEmail?: string | null;
     shippingServices?: AgencyShippingService[];
     coverageAreas?: AgencyCoverageArea[];
   }
@@ -211,12 +221,14 @@ export async function updateAgencyMarketplaceProfile(
   const description = data.description !== undefined ? (data.description?.trim() || null) : agency.description ?? null;
   const cutoffTime = data.cutoffTime !== undefined ? (data.cutoffTime?.trim() || null) : agency.cutoffTime ?? null;
   const repartidoresCount = data.repartidoresCount !== undefined ? (data.repartidoresCount ?? null) : agency.repartidoresCount ?? null;
+  const contactPhone = data.contactPhone !== undefined ? (data.contactPhone?.trim() || null) : agency.contactPhone ?? null;
+  const contactEmail = data.contactEmail !== undefined ? (data.contactEmail?.trim() || null) : agency.contactEmail ?? null;
   const shippingServices = data.shippingServices ?? agency.shippingServices;
   const coverageAreas = data.coverageAreas ?? agency.coverageAreas;
 
   await pool.query(
-    `UPDATE agencies SET website = ?, instagram = ?, city = ?, province = ?, description = ?, cutoff_time = ?, repartidores_count = ?, shipping_services = ?, coverage_areas = ? WHERE id = ?`,
-    [website, instagram, city, province, description, cutoffTime, repartidoresCount, JSON.stringify(shippingServices), JSON.stringify(coverageAreas), agencyId]
+    `UPDATE agencies SET website = ?, instagram = ?, city = ?, province = ?, description = ?, cutoff_time = ?, repartidores_count = ?, contact_phone = ?, contact_email = ?, shipping_services = ?, coverage_areas = ? WHERE id = ?`,
+    [website, instagram, city, province, description, cutoffTime, repartidoresCount, contactPhone, contactEmail, JSON.stringify(shippingServices), JSON.stringify(coverageAreas), agencyId]
   );
 
   const updated = await getAgencyById(agencyId);

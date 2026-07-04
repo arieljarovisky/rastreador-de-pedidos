@@ -41,6 +41,8 @@ export default function AgencyEditForm({
   const [profileDescription, setProfileDescription] = useState('');
   const [profileCutoffTime, setProfileCutoffTime] = useState('');
   const [profileRepartidoresCount, setProfileRepartidoresCount] = useState('');
+  const [profileContactPhone, setProfileContactPhone] = useState('');
+  const [profileContactEmail, setProfileContactEmail] = useState('');
   const [profileSameDay, setProfileSameDay] = useState(false);
   const [profileTurbo, setProfileTurbo] = useState(false);
   const [profileCustomLabel, setProfileCustomLabel] = useState('');
@@ -61,6 +63,8 @@ export default function AgencyEditForm({
         setProfileDescription(profile.description ?? '');
         setProfileCutoffTime(profile.cutoffTime ?? '');
         setProfileRepartidoresCount(profile.repartidoresCount != null ? String(profile.repartidoresCount) : '');
+        setProfileContactPhone(profile.contactPhone ?? '');
+        setProfileContactEmail(profile.contactEmail ?? '');
         setProfileSameDay(profile.shippingServices.some((s) => s.type === 'same_day'));
         setProfileTurbo(profile.shippingServices.some((s) => s.type === 'turbo'));
         const custom = profile.shippingServices.find((s) => s.type === 'custom');
@@ -101,6 +105,8 @@ export default function AgencyEditForm({
         description: profileDescription.trim() || null,
         cutoffTime: profileCutoffTime.trim() || null,
         repartidoresCount: profileRepartidoresCount.trim() ? parseInt(profileRepartidoresCount, 10) : null,
+        contactPhone: profileContactPhone.trim() || null,
+        contactEmail: profileContactEmail.trim() || null,
         shippingServices: services,
         coverageAreas: draftsToCoverageAreas(profileCoverageDrafts, barrios, mlZones),
       });
@@ -169,6 +175,29 @@ export default function AgencyEditForm({
           placeholder="@tuagencia"
           className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none transition"
         />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-text-muted)] block mb-1.5">Teléfono de contacto</label>
+          <input
+            type="tel"
+            value={profileContactPhone}
+            onChange={(e) => setProfileContactPhone(e.target.value)}
+            placeholder="Ej: +54 11 1234-5678"
+            className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none transition"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-text-muted)] block mb-1.5">Email de contacto</label>
+          <input
+            type="email"
+            value={profileContactEmail}
+            onChange={(e) => setProfileContactEmail(e.target.value)}
+            placeholder="contacto@tuagencia.com"
+            className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none transition"
+          />
+        </div>
       </div>
 
       <div>

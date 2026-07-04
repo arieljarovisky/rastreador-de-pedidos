@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
-import { Building2, MapPin, Globe, Instagram, Truck, Pencil, Camera, X, ArrowLeft, Map, Package, Shield, Briefcase, Zap, Target } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect, isValidElement, cloneElement, type ReactNode, type ReactElement } from 'react';
+import { Building2, MapPin, Globe, Instagram, Truck, Pencil, Camera, X, ArrowLeft, Map, Package, Shield, Briefcase, Zap, Target, Phone, Mail } from 'lucide-react';
 import type { AgencyMarketplaceProfile, AgencyShippingService, AgencyCoverageArea } from '../types.js';
 import { apiUrl } from '../api.js';
 
@@ -58,6 +58,25 @@ export default function AgencyProfileEditor({ agencyName, profile: initialProfil
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const refreshProfile = useCallback(() => {
+    if (!onFetchProfile) return;
+    void onFetchProfile()
+      .then((fetched) => {
+        setProfile(fetched);
+        setLogoUrl(fetched.logoUrl ?? null);
+      })
+      .catch(() => {});
+  }, [onFetchProfile]);
+
+  const handleFormSaved = useCallback(() => {
+    refreshProfile();
+    setEditing(false);
+  }, [refreshProfile]);
+
+  const renderedEditForm = isValidElement(editForm)
+    ? cloneElement(editForm as ReactElement<{ onSaved?: () => void }>, { onSaved: handleFormSaved })
+    : editForm;
 
   const handleLogoUpload = useCallback(async (file: File) => {
     if (file.size > 500_000) {
@@ -125,7 +144,7 @@ export default function AgencyProfileEditor({ agencyName, profile: initialProfil
           <h2 className="text-sm font-bold text-[var(--color-text)]">Editar perfil de agencia</h2>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
-          {editForm}
+          {renderedEditForm}
         </div>
       </div>
     );
@@ -133,7 +152,7 @@ export default function AgencyProfileEditor({ agencyName, profile: initialProfil
 
   const hasServices = profile.shippingServices.length > 0;
   const hasCoverage = profile.coverageAreas.length > 0;
-  const hasContact = Boolean(profile.website || profile.instagram);
+  const hasContact = Boolean(profile.website || profile.instagram || profile.contactPhone || profile.contactEmail);
   const isEmpty = !hasServices && !hasCoverage && !hasContact && !profile.city;
 
   return (
@@ -255,6 +274,24 @@ export default function AgencyProfileEditor({ agencyName, profile: initialProfil
                 >
                   <Instagram className="w-3.5 h-3.5" />
                   @{profile.instagram.replace(/^@/, '')}
+                </a>
+              )}
+              {profile.contactPhone && (
+                <a
+                  href={`tel:${profile.contactPhone.replace(/\s/g, '')}`}
+                  className="inline-flex items-center gap-1.5 text-xs text-[var(--color-accent)] hover:underline font-medium"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  {profile.contactPhone}
+                </a>
+              )}
+              {profile.contactEmail && (
+                <a
+                  href={`mailto:${profile.contactEmail}`}
+                  className="inline-flex items-center gap-1.5 text-xs text-[var(--color-accent)] hover:underline font-medium"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  {profile.contactEmail}
                 </a>
               )}
             </div>
