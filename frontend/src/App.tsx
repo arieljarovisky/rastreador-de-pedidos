@@ -16,6 +16,8 @@ import NotificationHub, { playNotificationSound } from './components/Notificatio
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import ReportsDashboard from './components/ReportsDashboard.tsx';
 import AgenciesPage from './components/AgenciesPage.tsx';
+import AgencyProfileEditor from './components/AgencyProfileEditor.tsx';
+import AgencyEditForm from './components/AgencyEditForm.tsx';
 import { LogOut, Bell, Settings, LayoutDashboard, BarChart3, Building2 } from 'lucide-react';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
@@ -26,13 +28,13 @@ import { mergeRepartidorLocation } from './utils/repartidorLocation.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 
-type AppTab = 'dashboard' | 'notifications' | 'settings' | 'reports' | 'agencies';
+type AppTab = 'dashboard' | 'notifications' | 'settings' | 'reports' | 'agencies' | 'agency-profile';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
 
 function readSavedTab(): AppTab {
   const saved = localStorage.getItem(ACTIVE_TAB_KEY);
-  if (saved === 'dashboard' || saved === 'notifications' || saved === 'settings' || saved === 'reports' || saved === 'agencies') {
+  if (saved === 'dashboard' || saved === 'notifications' || saved === 'settings' || saved === 'reports' || saved === 'agencies' || saved === 'agency-profile') {
     return saved;
   }
   return 'dashboard';
@@ -1621,9 +1623,9 @@ export default function App() {
           <div
             className={`flex flex-col ${
               mobileTab === 'settings' ? 'w-full' : 'xl:flex-row h-full overflow-hidden'
-            } ${mobileTab !== 'settings' && mobileTab !== 'reports' && mobileTab !== 'agencies' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
+            } ${mobileTab !== 'settings' && mobileTab !== 'reports' && mobileTab !== 'agencies' && mobileTab !== 'agency-profile' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
-            {mobileTab !== 'settings' && mobileTab !== 'reports' && mobileTab !== 'agencies' && (
+            {mobileTab !== 'settings' && mobileTab !== 'reports' && mobileTab !== 'agencies' && mobileTab !== 'agency-profile' && (
               <div
                 className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
                   mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
@@ -1660,6 +1662,7 @@ export default function App() {
                   user={user}
                   token={token!}
                   onBack={() => setMobileTab('dashboard')}
+                  onOpenProfile={() => setMobileTab('agency-profile')}
                   departurePoint={departurePoint}
                   repartidores={repartidores}
                   sellers={sellers}
@@ -1721,7 +1724,41 @@ export default function App() {
               </div>
             )}
 
-            {mobileTab !== 'settings' && mobileTab !== 'reports' && mobileTab !== 'agencies' && (
+            {mobileTab === 'agency-profile' && (
+              <div className="flex-1 min-w-0 h-full overflow-hidden">
+                <AgencyProfileEditor
+                  agencyName={user.agencyName || user.name}
+                  profile={{
+                    website: null,
+                    instagram: null,
+                    city: user.city || null,
+                    province: user.province || null,
+                    logoUrl: null,
+                    shippingServices: [],
+                    coverageAreas: [],
+                  }}
+                  token={token!}
+                  onSave={handleUpdateAgencyMarketplaceProfile!}
+                  onFetchProfile={handleFetchAgencyMarketplaceProfile}
+                  onBack={() => setMobileTab('settings')}
+                  editForm={
+                    <AgencyEditForm
+                      city={user.city ?? ''}
+                      province={user.province ?? ''}
+                      barrios={barrios}
+                      mlZones={mlZones}
+                      cordonLabels={cordonLabels}
+                      cordonOrder={cordonOrder}
+                      onFetchProfile={handleFetchAgencyMarketplaceProfile}
+                      onSaveProfile={handleUpdateAgencyMarketplaceProfile!}
+                      onRefreshMarketplaceAgencies={fetchMarketplaceAgencies}
+                    />
+                  }
+                />
+              </div>
+            )}
+
+            {mobileTab !== 'settings' && mobileTab !== 'reports' && mobileTab !== 'agencies' && mobileTab !== 'agency-profile' && (
               <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
                 <NotificationHub
                   notifications={notifications}

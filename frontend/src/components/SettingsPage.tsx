@@ -7,7 +7,6 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode, type MarketplaceAgency, type AgencyMarketplaceProfile, type AgencyShippingService, type AgencyCoverageArea } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
-import AgencyProfileEditor from './AgencyProfileEditor.tsx';
 import {
   Warehouse,
   UserPlus,
@@ -97,6 +96,7 @@ interface SettingsPageProps {
   user: User;
   token?: string;
   onBack?: () => void;
+  onOpenProfile?: () => void;
   departurePoint?: LocationPoint | null;
   repartidores: User[];
   sellers?: User[];
@@ -186,6 +186,7 @@ export default function SettingsPage({
   user,
   token,
   onBack,
+  onOpenProfile,
   departurePoint = null,
   repartidores,
   sellers = [],
@@ -1543,149 +1544,27 @@ export default function SettingsPage({
       <div className="flex flex-col gap-3 w-full mt-3">
         {agency && onUpdateAgencyMarketplaceProfile && (
           <section className={sectionClass}>
-            <AgencyProfileEditor
-              agencyName={user.agencyName || user.name}
-              profile={{
-                website: profileWebsite || null,
-                instagram: profileInstagram || null,
-                city: profileCity || null,
-                province: profileProvince || null,
-                logoUrl: null,
-                shippingServices: [
-                  ...(profileSameDay ? [{ type: 'same_day' as const }] : []),
-                  ...(profileTurbo ? [{ type: 'turbo' as const }] : []),
-                  ...(profileCustomLabel.trim() ? [{ type: 'custom' as const, label: profileCustomLabel.trim() }] : []),
-                ],
-                coverageAreas: draftsToCoverageAreas(profileCoverageDrafts, barrios, mlZones),
-              }}
-              token={token || ''}
-              onSave={onUpdateAgencyMarketplaceProfile}
+            <SettingsSectionHeader
+              icon={<Globe className="w-4 h-4 text-[var(--color-accent)]" />}
+              title="Perfil marketplace"
+              meta="Servicios y presencia online para vendedores"
+            />
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-[var(--surface-border)] bg-[var(--surface-panel-2)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-accent)]/5 transition group"
             >
-              <SettingsSectionHeader
-                icon={<Globe className="w-4 h-4 text-[var(--color-accent)]" />}
-                title="Perfil marketplace"
-                meta="Servicios y presencia online para vendedores"
-              />
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="mono-label block mb-1">Ciudad</label>
-                  <input
-                    type="text"
-                    value={profileCity}
-                    onChange={(e) => setProfileCity(e.target.value)}
-                    placeholder="Ej: Córdoba"
-                    className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
-                  />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-[var(--color-accent)]" />
                 </div>
-                <div>
-                  <label className="mono-label block mb-1">Provincia</label>
-                  <input
-                    type="text"
-                    value={profileProvince}
-                    onChange={(e) => setProfileProvince(e.target.value)}
-                    placeholder="Ej: Córdoba"
-                    className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
-                  />
+                <div className="text-left">
+                  <span className="text-xs font-bold text-[var(--color-text)] block">Ver y editar perfil de agencia</span>
+                  <span className="text-[10px] text-[var(--color-text-muted)]">Perfil estilo LinkedIn visible para vendedores</span>
                 </div>
               </div>
-              <div>
-                <label className="mono-label block mb-1">Sitio web</label>
-                <input
-                  type="url"
-                  value={profileWebsite}
-                  onChange={(e) => setProfileWebsite(e.target.value)}
-                  placeholder="https://tuagencia.com"
-                  className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
-                />
-              </div>
-              <div>
-                <label className="mono-label block mb-1">Instagram</label>
-                <input
-                  type="text"
-                  value={profileInstagram}
-                  onChange={(e) => setProfileInstagram(e.target.value)}
-                  placeholder="@tuagencia"
-                  className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
-                />
-              </div>
-              {profileLoading ? (
-                <p className="text-xs text-[var(--color-text-muted)]">Cargando perfil…</p>
-              ) : (
-                <CoverageAreasEditor
-                  value={profileCoverageDrafts}
-                  onChange={setProfileCoverageDrafts}
-                  barrios={barrios}
-                  mlZones={mlZones}
-                  cordonLabels={cordonLabels}
-                  cordonOrder={cordonOrder}
-                  disabled={profileSaving}
-                />
-              )}
-              <div>
-                <p className="mono-label mb-2">Servicios de envío</p>
-                <div className="flex flex-wrap gap-3">
-                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                    <input type="checkbox" checked={profileSameDay} onChange={(e) => setProfileSameDay(e.target.checked)} />
-                    Envío en el día
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                    <input type="checkbox" checked={profileTurbo} onChange={(e) => setProfileTurbo(e.target.checked)} />
-                    Envío turbo
-                  </label>
-                </div>
-                <input
-                  type="text"
-                  value={profileCustomLabel}
-                  onChange={(e) => setProfileCustomLabel(e.target.value)}
-                  placeholder="Servicio personalizado (opcional)"
-                  className="w-full mt-2 bg-[var(--paper)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs"
-                />
-              </div>
-              <button
-                type="button"
-                disabled={profileSaving}
-                className={btnPrimary}
-                onClick={() => {
-                  void (async () => {
-                    setProfileSaving(true);
-                    try {
-                      const services: AgencyShippingService[] = [];
-                      if (profileSameDay) services.push({ type: 'same_day' });
-                      if (profileTurbo) services.push({ type: 'turbo' });
-                      if (profileCustomLabel.trim()) {
-                        services.push({ type: 'custom', label: profileCustomLabel.trim() });
-                      }
-                      await onUpdateAgencyMarketplaceProfile({
-                        website: profileWebsite.trim() || null,
-                        instagram: profileInstagram.trim() || null,
-                        city: profileCity.trim() || null,
-                        province: profileProvince.trim() || null,
-                        shippingServices: services,
-                        coverageAreas: draftsToCoverageAreas(profileCoverageDrafts, barrios, mlZones),
-                      });
-                      void onRefreshMarketplaceAgencies?.();
-                      void showAlert({
-                        title: 'Perfil guardado',
-                        message: 'Tu agencia ya aparece en el marketplace.',
-                        variant: 'success',
-                      });
-                    } catch (err: unknown) {
-                      void showAlert({
-                        title: 'Error',
-                        message: err instanceof Error ? err.message : 'No se pudo guardar',
-                        variant: 'error',
-                      });
-                    } finally {
-                      setProfileSaving(false);
-                    }
-                  })();
-                }}
-              >
-                {profileSaving ? 'Guardando…' : 'Guardar perfil marketplace'}
-              </button>
-            </div>
-            </AgencyProfileEditor>
+              <Pencil className="w-4 h-4 text-[var(--color-text-muted)] group-hover:text-[var(--color-accent)] transition" />
+            </button>
           </section>
         )}
         {agency && onConnectMercadoLibreCourier && (
