@@ -308,6 +308,7 @@ router.get('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
     instagram: agency.instagram,
     city: agency.city,
     province: agency.province,
+    logoUrl: agency.logoUrl,
     shippingServices: agency.shippingServices,
     coverageAreas: agency.coverageAreas,
   });
@@ -384,6 +385,25 @@ router.put('/agency/marketplace-profile', authenticate, requireAgencyAdmin(), as
     }
     throw err;
   }
+});
+
+router.put('/agency/logo', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  if (!req.user!.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+
+  const { logoUrl } = req.body as { logoUrl?: string | null };
+
+  if (logoUrl && logoUrl.length > 500_000) {
+    res.status(400).json({ error: 'El logo es demasiado grande. Máximo 500KB.' });
+    return;
+  }
+
+  const { pool } = await import('../config/database.js');
+  await pool.query('UPDATE agencies SET logo_url = ? WHERE id = ?', [logoUrl ?? null, req.user!.agencyId]);
+
+  res.json({ logoUrl: logoUrl ?? null });
 });
 
 router.put('/seller/preferred-agency', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {

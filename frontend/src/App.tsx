@@ -1658,6 +1658,7 @@ export default function App() {
               <div className="flex-1 min-w-0 w-full">
                 <SettingsPage
                   user={user}
+                  token={token!}
                   onBack={() => setMobileTab('dashboard')}
                   departurePoint={departurePoint}
                   repartidores={repartidores}

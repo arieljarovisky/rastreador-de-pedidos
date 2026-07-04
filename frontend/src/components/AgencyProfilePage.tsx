@@ -91,8 +91,14 @@ export default function AgencyProfilePage({ agency, onBack }: AgencyProfilePageP
         {/* Hero section */}
         <div className="relative bg-gradient-to-br from-[var(--color-accent)]/10 via-[var(--surface-panel)] to-[var(--surface-panel-2)] px-4 sm:px-6 py-6 sm:py-8 border-b border-[var(--surface-border)]">
           <div className="flex flex-col sm:flex-row items-start gap-4">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[var(--color-accent)]/10 border-2 border-[var(--color-accent)]/30 flex items-center justify-center shrink-0">
-              <Building2 className="w-8 h-8 sm:w-10 sm:h-10 text-[var(--color-accent)]" />
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-[var(--color-accent)]/30 flex items-center justify-center shrink-0">
+              {agency.logoUrl ? (
+                <img src={agency.logoUrl} alt={`Logo de ${agency.name}`} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-[var(--color-accent)]/10 flex items-center justify-center">
+                  <Building2 className="w-8 h-8 sm:w-10 sm:h-10 text-[var(--color-accent)]" />
+                </div>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text)] mb-1">{agency.name}</h1>

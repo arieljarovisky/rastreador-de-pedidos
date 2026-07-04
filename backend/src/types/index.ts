@@ -59,6 +59,7 @@ export interface MarketplaceAgency {
   province?: string | null;
   website?: string | null;
   instagram?: string | null;
+  logoUrl?: string | null;
   shippingServices: AgencyShippingService[];
   departurePoint?: LocationPoint;
   coverageAreas?: AgencyCoverageArea[];

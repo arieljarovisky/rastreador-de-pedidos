@@ -13,6 +13,7 @@ export interface Agency {
   instagram?: string | null;
   city?: string | null;
   province?: string | null;
+  logoUrl?: string | null;
   shippingServices: AgencyShippingService[];
   coverageAreas: AgencyCoverageArea[];
   departurePoint?: LocationPoint;
@@ -26,6 +27,7 @@ interface AgencyRow extends RowDataPacket {
   instagram: string | null;
   city: string | null;
   province: string | null;
+  logo_url: string | null;
   shipping_services: AgencyShippingService[] | string | null;
   coverage_areas: AgencyCoverageArea[] | string | null;
   departure_address: string | null;
@@ -33,7 +35,7 @@ interface AgencyRow extends RowDataPacket {
   departure_lng: number | null;
 }
 
-const AGENCY_COLUMNS = `id, name, ml_flex_mode, website, instagram, city, province, shipping_services, coverage_areas,
+const AGENCY_COLUMNS = `id, name, ml_flex_mode, website, instagram, city, province, logo_url, shipping_services, coverage_areas,
   departure_address, departure_lat, departure_lng`;
 
 function parseShippingServices(raw: AgencyShippingService[] | string | null): AgencyShippingService[] {
@@ -66,6 +68,7 @@ function rowToAgency(row: AgencyRow): Agency {
     instagram: row.instagram ?? null,
     city: row.city ?? null,
     province: row.province ?? null,
+    logoUrl: row.logo_url ?? null,
     shippingServices: parseShippingServices(row.shipping_services),
     coverageAreas: parseCoverageAreas(row.coverage_areas),
   };
@@ -88,6 +91,7 @@ function rowToMarketplaceAgency(row: AgencyRow): MarketplaceAgency {
     province: agency.province,
     website: agency.website,
     instagram: agency.instagram,
+    logoUrl: agency.logoUrl,
     shippingServices: agency.shippingServices,
     coverageAreas: agency.coverageAreas,
     departurePoint: agency.departurePoint,

@@ -60,6 +60,7 @@ export interface MarketplaceAgency {
   province?: string | null;
   website?: string | null;
   instagram?: string | null;
+  logoUrl?: string | null;
   shippingServices: AgencyShippingService[];
   departurePoint?: LocationPoint;
   coverageAreas?: AgencyCoverageArea[];
@@ -71,6 +72,7 @@ export interface AgencyMarketplaceProfile {
   instagram?: string | null;
   city?: string | null;
   province?: string | null;
+  logoUrl?: string | null;
   shippingServices: AgencyShippingService[];
   coverageAreas: AgencyCoverageArea[];
 }

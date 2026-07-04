@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode, type MarketplaceAgency, type AgencyMarketplaceProfile, type AgencyShippingService, type AgencyCoverageArea } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
+import AgencyProfileEditor from './AgencyProfileEditor.tsx';
 import {
   Warehouse,
   UserPlus,
@@ -94,6 +95,7 @@ const DIRECTORY_PRESETS = [
 
 interface SettingsPageProps {
   user: User;
+  token?: string;
   onBack?: () => void;
   departurePoint?: LocationPoint | null;
   repartidores: User[];
@@ -182,6 +184,7 @@ interface SettingsPageProps {
 
 export default function SettingsPage({
   user,
+  token,
   onBack,
   departurePoint = null,
   repartidores,
@@ -1540,11 +1543,29 @@ export default function SettingsPage({
       <div className="flex flex-col gap-3 w-full mt-3">
         {agency && onUpdateAgencyMarketplaceProfile && (
           <section className={sectionClass}>
-            <SettingsSectionHeader
-              icon={<Globe className="w-4 h-4 text-[var(--color-accent)]" />}
-              title="Perfil marketplace"
-              meta="Servicios y presencia online para vendedores"
-            />
+            <AgencyProfileEditor
+              agencyName={user.agencyName || user.name}
+              profile={{
+                website: profileWebsite || null,
+                instagram: profileInstagram || null,
+                city: profileCity || null,
+                province: profileProvince || null,
+                logoUrl: null,
+                shippingServices: [
+                  ...(profileSameDay ? [{ type: 'same_day' as const }] : []),
+                  ...(profileTurbo ? [{ type: 'turbo' as const }] : []),
+                  ...(profileCustomLabel.trim() ? [{ type: 'custom' as const, label: profileCustomLabel.trim() }] : []),
+                ],
+                coverageAreas: draftsToCoverageAreas(profileCoverageDrafts, barrios, mlZones),
+              }}
+              token={token || ''}
+              onSave={onUpdateAgencyMarketplaceProfile}
+            >
+              <SettingsSectionHeader
+                icon={<Globe className="w-4 h-4 text-[var(--color-accent)]" />}
+                title="Perfil marketplace"
+                meta="Servicios y presencia online para vendedores"
+              />
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
@@ -1664,6 +1685,7 @@ export default function SettingsPage({
                 {profileSaving ? 'Guardando…' : 'Guardar perfil marketplace'}
               </button>
             </div>
+            </AgencyProfileEditor>
           </section>
         )}
         {agency && onConnectMercadoLibreCourier && (

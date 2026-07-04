@@ -26,8 +26,14 @@ function AgencyCard({ agency, onClick }: { agency: MarketplaceAgency; onClick: (
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-9 h-9 rounded-full bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/30 flex items-center justify-center shrink-0">
-              <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
+            <div className="w-9 h-9 rounded-full overflow-hidden border border-[var(--color-accent)]/30 flex items-center justify-center shrink-0">
+              {agency.logoUrl ? (
+                <img src={agency.logoUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-[var(--color-accent)]/10 flex items-center justify-center">
+                  <Building2 className="w-4 h-4 text-[var(--color-accent)]" />
+                </div>
+              )}
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-[var(--color-text)] truncate group-hover:text-[var(--color-accent)] transition">
