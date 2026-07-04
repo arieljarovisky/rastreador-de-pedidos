@@ -30,3 +30,5 @@ backend/tmp/
 backend/tmp/**
 frontend/public/geo/departamentos-ar.geojson
 frontend/public/geo/provincias-ar.geojson
+backend/db/
+backend/db/**
