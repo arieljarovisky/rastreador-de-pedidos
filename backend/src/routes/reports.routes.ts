@@ -72,11 +72,13 @@ router.get('/orders', authenticate, requireRoles(...AGENCY_ROLES), async (req: R
     const [repartidorRows] = await pool.query(
       `SELECT
          o.repartidor_id as repartidorId,
-         o.repartidor_name as repartidorName,
+         u.name as repartidorName,
          COUNT(*) as total,
          SUM(CASE WHEN o.status = 'delivered' THEN 1 ELSE 0 END) as delivered
-       FROM orders o ${baseWhere} AND o.repartidor_id IS NOT NULL
-       GROUP BY o.repartidor_id, o.repartidor_name
+       FROM orders o
+       LEFT JOIN users u ON o.repartidor_id = u.id
+       ${baseWhere} AND o.repartidor_id IS NOT NULL
+       GROUP BY o.repartidor_id, u.name
        ORDER BY total DESC
        LIMIT 20`,
       [...baseParams]
