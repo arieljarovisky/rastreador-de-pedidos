@@ -1,6 +1,11 @@
 # Build APK local en Windows (sin cola de Expo EAS).
 # Requiere: Android Studio + SDK. Usa JDK embebido de Android Studio.
 #
+# ATENCIÓN: el release local firma con debug.keystore (ver android/app/build.gradle).
+# Si los usuarios ya tienen Posta instalada desde un APK de EAS, Android mostrará
+# "conflicto de paquete" al actualizar. Para producción usá:
+#   npm run build:apk && npm run save:apk
+#
 # Uso desde PowerShell:
 #   cd mobile
 #   .\scripts\build-apk-local.ps1
