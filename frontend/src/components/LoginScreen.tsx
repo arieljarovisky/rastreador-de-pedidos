@@ -18,12 +18,12 @@ import {
   MapPin,
   FileText,
   ChevronRight,
+  Navigation,
+  Route,
+  Globe,
 } from 'lucide-react';
 import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
-import PaperCard from './ui/PaperCard.tsx';
-import ThemeToggle from './ui/ThemeToggle.tsx';
-import { applyPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
 import { isValidEmail } from '../utils/email.ts';
 import { formatCuitInput, isValidCuit } from '../utils/cuit.ts';
 import {
@@ -55,6 +55,12 @@ interface LoginScreenProps {
   error: string | null;
 }
 
+const FEATURES = [
+  { icon: Navigation, text: 'Seguimiento GPS en vivo de cada repartidor' },
+  { icon: Route, text: 'Rutas, pedidos y asignaciones en un solo lugar' },
+  { icon: Globe, text: 'Cobertura en CABA, GBA y marketplace nacional' },
+] as const;
+
 function Field({
   label,
   children,
@@ -63,8 +69,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label className="block text-[11px] font-medium text-[var(--color-text-muted)]">{label}</label>
+    <div className="auth-field">
+      <label className="auth-field__label">{label}</label>
       {children}
     </div>
   );
@@ -78,14 +84,11 @@ function IconInput({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="relative">
-      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]">
+    <div className="auth-field__wrap">
+      <span className="auth-field__icon" aria-hidden="true">
         <Icon className="h-4 w-4" />
       </span>
-      <input
-        {...props}
-        className={`auth-input auth-input--icon ${className}`.trim()}
-      />
+      <input {...props} className={`auth-input auth-input--icon ${className}`.trim()} />
     </div>
   );
 }
@@ -111,11 +114,6 @@ export default function LoginScreen({
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const theme = usePostaTheme();
-
-  const toggleTheme = () => {
-    applyPostaTheme(theme === 'dark' ? 'paper' : 'dark');
-  };
 
   const resetForm = () => {
     setUsername('');
@@ -141,10 +139,10 @@ export default function LoginScreen({
   const passwordMeta = useMemo(() => passwordStrengthLabel(passwordScore), [passwordScore]);
 
   const strengthBarClass = {
-    weak: 'bg-[var(--color-danger)]',
-    fair: 'bg-[var(--color-warn)]',
-    good: 'bg-[var(--color-accent)]',
-    strong: 'bg-[var(--color-ok)]',
+    weak: 'auth-strength__bar--weak',
+    fair: 'auth-strength__bar--fair',
+    good: 'auth-strength__bar--good',
+    strong: 'auth-strength__bar--strong',
   }[passwordMeta.tone];
 
   const validateStep1 = (): string | null => {
@@ -223,86 +221,124 @@ export default function LoginScreen({
 
   const isRegister = mode === 'register-agency';
   const displayError = localError || error;
-
   const step1Ready = agencyName.trim() && cuit && phone && city.trim();
   const step2Ready =
     adminName.trim() && email.trim() && password && passwordConfirm && acceptTerms;
 
+  const brandTitle = isRegister
+    ? registerStep === 1
+      ? 'Registrar agencia'
+      : 'Cuenta del responsable'
+    : 'Iniciar sesión';
+
+  const brandSubtitle = isRegister
+    ? registerStep === 1
+      ? 'Completá los datos de tu empresa de logística para operar en Posta.'
+      : 'Creá la cuenta del administrador que gestionará la flota y los envíos.'
+    : 'Agencias y repartidores: ingresá con tus credenciales para gestionar envíos en tiempo real.';
+
   return (
-    <div className="auth-screen" id="login-container">
-      <div className="auth-screen__toolbar">
-        <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
-      </div>
+    <div className="auth-split" id="login-container">
+      <aside className="auth-split__brand">
+        <div className="auth-split__brand-grid" aria-hidden="true" />
+        <div className="auth-split__brand-inner">
+          <PostaLogo variant="dark" size={36} showWordmark className="auth-split__logo" />
 
-      <div className="auth-screen__inner">
-        <header className="auth-screen__header">
-          <PostaLogo
-            variant={theme === 'paper' ? 'paper' : 'dark'}
-            size={48}
-            className="justify-center mb-2"
-          />
-          <p className="mono-label text-[var(--color-text-muted)]">Hoja de ruta · CABA y GBA</p>
-        </header>
+          <p className="auth-split__eyebrow">Panel operativo</p>
+          <h1 className="auth-split__title">{brandTitle}</h1>
+          <p className="auth-split__lead">{brandSubtitle}</p>
 
-        <PaperCard className="auth-card w-full max-w-md">
-          <div className="auth-tabs">
+          <ul className="auth-split__features">
+            {FEATURES.map(({ icon: Icon, text }) => (
+              <li key={text}>
+                <span className="auth-split__feature-icon">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span>{text}</span>
+              </li>
+            ))}
+          </ul>
+
+          <footer className="auth-split__footer">
+            <p className="auth-split__market">Marketplace de envíos · Argentina</p>
+            <a href="/" className="auth-split__home">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Volver al inicio
+            </a>
+          </footer>
+        </div>
+      </aside>
+
+      <main className="auth-split__panel">
+        <div className="auth-split__mobile-brand lg:hidden">
+          <PostaLogo variant="dark" size={32} showWordmark />
+          <p className="auth-split__eyebrow auth-split__eyebrow--mobile">Panel operativo</p>
+          <h1 className="auth-split__title auth-split__title--mobile">{brandTitle}</h1>
+        </div>
+
+        <div className="auth-split__card">
+          <div className="auth-split__tabs" role="tablist" aria-label="Tipo de acceso">
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === 'login'}
               onClick={() => switchMode('login')}
-              className={`auth-tab ${mode === 'login' ? 'auth-tab--active' : ''}`}
+              className={`auth-split__tab ${mode === 'login' ? 'auth-split__tab--active' : ''}`}
             >
               Ingresar
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === 'register-agency'}
               onClick={() => switchMode('register-agency')}
-              className={`auth-tab ${mode === 'register-agency' ? 'auth-tab--active' : ''}`}
+              className={`auth-split__tab ${mode === 'register-agency' ? 'auth-split__tab--active' : ''}`}
             >
               Agencia
             </button>
           </div>
 
-          <div className="auth-card__head">
-            <h2 className="font-display text-base font-semibold tracking-[-0.02em] text-[var(--color-text)] flex items-center gap-2">
+          <div className="auth-split__card-head">
+            <h2 className="auth-split__card-title">
               {mode === 'login' ? (
                 <>
-                  <Lock className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
+                  <Lock className="h-4 w-4 text-[var(--auth-accent)]" />
                   Iniciar sesión
                 </>
               ) : (
                 <>
-                  <Building2 className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
-                  Registrar agencia
+                  <Building2 className="h-4 w-4 text-[var(--auth-accent)]" />
+                  {registerStep === 1 ? 'Datos de la agencia' : 'Administrador'}
                 </>
               )}
             </h2>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1 leading-relaxed">
+            <p className="auth-split__card-sub">
               {mode === 'login'
-                ? 'Usá el correo o usuario que te asignó tu agencia.'
+                ? 'Accedé al panel con tu usuario o correo.'
                 : registerStep === 1
-                  ? 'Paso 1 de 2 · Datos de tu empresa'
-                  : 'Paso 2 de 2 · Cuenta del responsable'}
+                  ? 'Paso 1 de 2'
+                  : 'Paso 2 de 2 · Revisá y confirmá'}
             </p>
           </div>
 
           {isRegister && (
-            <div className="auth-steps" aria-hidden="true">
-              <span className={`auth-steps__dot ${registerStep >= 1 ? 'auth-steps__dot--on' : ''}`} />
-              <span className={`auth-steps__line ${registerStep >= 2 ? 'auth-steps__line--on' : ''}`} />
-              <span className={`auth-steps__dot ${registerStep >= 2 ? 'auth-steps__dot--on' : ''}`} />
+            <div className="auth-split__steps" aria-hidden="true">
+              <span className={`auth-split__step ${registerStep >= 1 ? 'auth-split__step--on' : ''}`} />
+              <span className={`auth-split__step-line ${registerStep >= 2 ? 'auth-split__step-line--on' : ''}`} />
+              <span className={`auth-split__step ${registerStep >= 2 ? 'auth-split__step--on' : ''}`} />
             </div>
           )}
 
           {displayError && (
-            <div className="auth-error" role="alert">
-              <Shield className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="auth-split__error" role="alert">
+              <Shield className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{displayError}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="auth-form" noValidate>
+          <form onSubmit={handleSubmit} className="auth-split__form" noValidate>
             {isRegister && registerStep === 1 && (
-              <div className="auth-form__section space-y-3">
+              <div className="auth-split__fields">
                 <Field label="Nombre comercial">
                   <input
                     type="text"
@@ -314,7 +350,7 @@ export default function LoginScreen({
                     autoComplete="organization"
                   />
                 </Field>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="auth-split__row">
                   <Field label="CUIT">
                     <IconInput
                       icon={FileText}
@@ -351,11 +387,11 @@ export default function LoginScreen({
             )}
 
             {isRegister && registerStep === 2 && (
-              <div className="auth-form__section space-y-3">
-                <div className="auth-summary">
-                  <p className="auth-summary__label">Agencia</p>
-                  <p className="auth-summary__value">{agencyName}</p>
-                  <p className="auth-summary__meta">
+              <div className="auth-split__fields">
+                <div className="auth-split__summary">
+                  <p className="auth-split__summary-label">Agencia</p>
+                  <p className="auth-split__summary-name">{agencyName}</p>
+                  <p className="auth-split__summary-meta">
                     CUIT {cuit} · {city}
                   </p>
                 </div>
@@ -382,8 +418,8 @@ export default function LoginScreen({
                   />
                 </Field>
                 <Field label="Contraseña">
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]">
+                  <div className="auth-field__wrap">
+                    <span className="auth-field__icon" aria-hidden="true">
                       <Key className="h-4 w-4" />
                     </span>
                     <input
@@ -392,39 +428,37 @@ export default function LoginScreen({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Mín. 8 caracteres, letra y número"
-                      className="auth-input auth-input--icon pr-10"
+                      className="auth-input auth-input--icon auth-input--icon-right"
                       autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)] hover:text-[var(--color-text)]"
+                      className="auth-field__toggle"
                       aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                   {password.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <div className="flex gap-1 h-1">
+                    <div className="auth-strength">
+                      <div className="auth-strength__track">
                         {Array.from({ length: 4 }).map((_, i) => (
                           <span
                             key={i}
-                            className={`flex-1 rounded-full transition-colors ${
-                              i < passwordScore ? strengthBarClass : 'bg-[var(--surface-border)]'
+                            className={`auth-strength__bar ${
+                              i < passwordScore ? strengthBarClass : ''
                             }`}
                           />
                         ))}
                       </div>
-                      <p className="text-[10px] text-[var(--color-text-muted)]">
-                        {passwordMeta.label} · incluí letras y números
-                      </p>
+                      <p className="auth-strength__label">{passwordMeta.label}</p>
                     </div>
                   )}
                 </Field>
                 <Field label="Confirmar contraseña">
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]">
+                  <div className="auth-field__wrap">
+                    <span className="auth-field__icon" aria-hidden="true">
                       <Key className="h-4 w-4" />
                     </span>
                     <input
@@ -433,20 +467,20 @@ export default function LoginScreen({
                       value={passwordConfirm}
                       onChange={(e) => setPasswordConfirm(e.target.value)}
                       placeholder="Repetí la contraseña"
-                      className="auth-input auth-input--icon pr-10"
+                      className="auth-input auth-input--icon auth-input--icon-right"
                       autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)] hover:text-[var(--color-text)]"
+                      className="auth-field__toggle"
                       aria-label={showPasswordConfirm ? 'Ocultar confirmación' : 'Mostrar confirmación'}
                     >
-                      {showPasswordConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPasswordConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </Field>
-                <label className="auth-terms">
+                <label className="auth-split__terms">
                   <input
                     type="checkbox"
                     checked={acceptTerms}
@@ -464,20 +498,20 @@ export default function LoginScreen({
             )}
 
             {!isRegister && (
-              <div className="auth-form__section space-y-3">
-                <Field label="Correo o usuario">
+              <div className="auth-split__fields">
+                <Field label="Usuario">
                   <IconInput
-                    icon={Mail}
+                    icon={UserIcon}
                     disabled={loading}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="correo o usuario"
+                    placeholder="Correo o usuario"
                     autoComplete="username"
                   />
                 </Field>
                 <Field label="Contraseña">
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]">
+                  <div className="auth-field__wrap">
+                    <span className="auth-field__icon" aria-hidden="true">
                       <Key className="h-4 w-4" />
                     </span>
                     <input
@@ -486,34 +520,34 @@ export default function LoginScreen({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="auth-input auth-input--icon pr-10"
+                      className="auth-input auth-input--icon auth-input--icon-right"
                       autoComplete="current-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)] hover:text-[var(--color-text)]"
+                      className="auth-field__toggle"
                       aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </Field>
               </div>
             )}
 
-            <div className="auth-form__actions">
+            <div className="auth-split__actions">
               {isRegister && registerStep === 2 && (
                 <button
                   type="button"
-                  className="auth-back-btn"
+                  className="auth-split__back"
                   disabled={loading}
                   onClick={() => {
                     setRegisterStep(1);
                     setLocalError(null);
                   }}
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <ArrowLeft className="h-3.5 w-3.5" />
                   Volver
                 </button>
               )}
@@ -529,7 +563,7 @@ export default function LoginScreen({
                     : !username.trim() || !password)
                 }
                 id="btn-login-submit"
-                className="flex-1 min-w-0"
+                className="auth-split__submit flex-1 min-w-0"
               >
                 {loading ? (
                   'Procesando...'
@@ -537,7 +571,7 @@ export default function LoginScreen({
                   registerStep === 1 ? (
                     <span className="inline-flex items-center justify-center gap-1.5">
                       Continuar
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="h-4 w-4" />
                     </span>
                   ) : (
                     'Crear cuenta de agencia'
@@ -548,13 +582,13 @@ export default function LoginScreen({
               </PostaButton>
             </div>
           </form>
-        </PaperCard>
+        </div>
 
-        <a href="/" className="auth-screen__footer">
-          <ArrowLeft className="w-3.5 h-3.5" />
+        <a href="/" className="auth-split__mobile-home lg:hidden">
+          <ArrowLeft className="h-3.5 w-3.5" />
           Volver al inicio
         </a>
-      </div>
+      </main>
     </div>
   );
 }
