@@ -89,15 +89,16 @@ export default function LoginScreen() {
           </Text>
 
           <MonoLabel color={paper.muted} style={styles.fieldLabel}>
-            Usuario
+            Correo o usuario
           </MonoLabel>
           <PostaInput
             variant="paper"
             value={username}
             onChangeText={setUsername}
-            placeholder="Ej: carlos"
+            placeholder="Ej: repartidor@mail.com"
             autoCapitalize="none"
             autoCorrect={false}
+            keyboardType="email-address"
           />
 
           <MonoLabel color={paper.muted} style={[styles.fieldLabel, { marginTop: spacing.lg }]}>

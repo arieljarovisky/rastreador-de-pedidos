@@ -40,6 +40,10 @@ function handleCreateUserError(res: Response, err: unknown): boolean {
     res.status(400).json({ error: 'El usuario debe tener al menos 3 caracteres.' });
     return true;
   }
+  if (message === 'INVALID_EMAIL') {
+    res.status(400).json({ error: 'El usuario del repartidor debe ser un correo electrónico válido.' });
+    return true;
+  }
   if (message === 'PASSWORD_SHORT') {
     res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
     return true;

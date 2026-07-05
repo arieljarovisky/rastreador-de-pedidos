@@ -7,6 +7,7 @@ import { listPickupPointsForUser } from './pickup-points.service.js';
 import { getAgencyDeparture, getAgencyById, updateAgencyDeparture as updateAgencyDepartureRecord } from './agencies.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { isValidZoneForAgency } from './delivery-zones.service.js';
+import { isValidEmail } from '../utils/email.js';
 
 const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng, delivery_zone`;
@@ -179,6 +180,9 @@ export async function createUser(data: {
   deliveryZone?: string | null;
 }): Promise<User> {
   const normalizedUsername = data.username.trim().toLowerCase();
+  if (data.role === UserRole.REPARTIDOR && !isValidEmail(normalizedUsername)) {
+    throw new Error('INVALID_EMAIL');
+  }
   if (normalizedUsername.length < 3) {
     throw new Error('USERNAME_SHORT');
   }

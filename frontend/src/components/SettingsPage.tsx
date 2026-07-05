@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
+import { isValidEmail } from '../utils/email.ts';
 import {
   Warehouse,
   UserPlus,
@@ -1222,7 +1223,7 @@ export default function SettingsPage({
                   <input
                     value={repartidorSearch}
                     onChange={(e) => setRepartidorSearch(e.target.value)}
-                    placeholder="Buscar por nombre o usuario…"
+                    placeholder="Buscar por nombre o correo…"
                     className={`${inputClass} !pl-7 !py-1.5`}
                   />
                 </div>
@@ -1248,7 +1249,7 @@ export default function SettingsPage({
                                 {rep.name}
                               </p>
                               <p className="text-[9px] text-[var(--color-text-muted)] font-mono truncate">
-                                @{rep.username}
+                                {rep.username}
                               </p>
                             </td>
                             <td className="px-2 py-1.5">
@@ -1295,7 +1296,7 @@ export default function SettingsPage({
                                   onClick={async () => {
                                     const ok = await confirm({
                                       title: 'Eliminar repartidor',
-                                      message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente.`,
+                                      message: `¿Eliminar a ${rep.name} (${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente.`,
                                       variant: 'danger',
                                       confirmText: 'Eliminar',
                                       cancelText: 'Cancelar',
@@ -1382,9 +1383,14 @@ export default function SettingsPage({
                   setRepartidorFormLoading(true);
                   setRepartidorFormMessage(null);
                   try {
+                    const email = repartidorUsername.trim();
+                    if (!isValidEmail(email)) {
+                      setRepartidorFormMessage('El usuario del repartidor debe ser un correo electrónico válido.');
+                      return;
+                    }
                     await onCreateRepartidor({
                       name: repartidorName,
-                      username: repartidorUsername,
+                      username: email,
                       password: repartidorPassword,
                       deliveryZone: repartidorZone || null,
                     });
@@ -1410,9 +1416,11 @@ export default function SettingsPage({
                 />
                 <input
                   required
+                  type="email"
+                  autoComplete="email"
                   value={repartidorUsername}
                   onChange={(e) => setRepartidorUsername(e.target.value)}
-                  placeholder="Usuario (mín. 3 caracteres)"
+                  placeholder="Correo electrónico"
                   className={inputClass}
                 />
                 <input
