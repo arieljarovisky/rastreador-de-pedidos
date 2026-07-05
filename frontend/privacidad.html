@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Política de privacidad — Posta Envios</title>
+<meta name="description" content="Política de privacidad de Posta Envios. Información sobre cómo tratamos los datos personales en la app móvil y el panel web de logística.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script>
+(function(){
+  var k='posta-theme',s=localStorage.getItem(k);
+  var t=s||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  document.documentElement.setAttribute('data-theme',t);
+})();
+</script>
+<style>
+:root,[data-theme="light"]{
+  color-scheme:light;
+  --paper:#EFE7D8; --paper2:#F6F0E4; --edge:#D8CCB5; --edge2:#C5B79C;
+  --ink:#1C1814; --ink2:#544A3C; --ink3:#897C68;
+  --stamp:#D8401E; --stamp2:#A82E13; --stampwash:rgba(216,64,30,.10);
+  --ok:#2E6B45;
+  --header-bg:rgba(239,231,216,.9);
+  --disp:'Bricolage Grotesque',system-ui,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'Space Mono',ui-monospace,monospace;
+  --maxw:760px;
+  --pad-x:clamp(24px,6vw,48px);
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#141210; --paper2:#1C1814; --edge:#2E2820; --edge2:#3D352C;
+  --ink:#EDE6D8; --ink2:#B8AB98; --ink3:#7A6F60;
+  --stamp:#E85A38; --stamp2:#D8401E; --stampwash:rgba(232,90,56,.14);
+  --ok:#6BC48A;
+  --header-bg:rgba(20,18,16,.92);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased;transition:background-color .25s ease,color .2s ease}
+a{color:var(--stamp);text-decoration:underline;text-underline-offset:3px}
+a:hover{color:var(--stamp2)}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--pad-x)}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--stamp2);font-weight:700}
+h1,h2{font-family:var(--disp);font-weight:700;color:var(--ink);line-height:1.12;letter-spacing:-.02em}
+h1{font-size:clamp(2rem,5vw,2.8rem);margin:14px 0 0}
+h2{font-size:1.25rem;margin:36px 0 12px;padding-top:8px;border-top:1.5px dashed var(--edge2)}
+h2:first-of-type{border-top:none;padding-top:0;margin-top:28px}
+p,li{color:var(--ink2)}
+ul,ol{padding-left:1.35em;margin:10px 0 0}
+li{margin:6px 0}
+li::marker{color:var(--stamp)}
+.meta{font-family:var(--mono);font-size:.74rem;color:var(--ink3);margin-top:18px;letter-spacing:.02em}
+header{position:sticky;top:0;z-index:40;background:var(--header-bg);backdrop-filter:blur(8px);border-bottom:1.5px solid var(--ink)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:62px;max-width:1140px;margin:0 auto;padding:0 var(--pad-x)}
+.brand{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:700;font-size:1.25rem;letter-spacing:-.03em;color:var(--ink);text-decoration:none}
+.brand:hover{color:var(--stamp)}
+.navlinks{display:flex;align-items:center;gap:18px}
+.navlinks a{font-family:var(--mono);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);text-decoration:none}
+.navlinks a:hover{color:var(--stamp)}
+.theme-toggle{display:flex;align-items:center;justify-content:center;background:none;border:1.5px solid var(--ink);border-radius:4px;width:42px;height:42px;cursor:pointer;color:var(--ink);transition:background .15s ease}
+.theme-toggle:hover{background:var(--paper2)}
+.theme-toggle svg{width:18px;height:18px}
+.theme-toggle .icon-moon{display:none}
+[data-theme="dark"] .theme-toggle .icon-sun{display:none}
+[data-theme="dark"] .theme-toggle .icon-moon{display:block}
+main{padding:clamp(40px,7vw,72px) 0 clamp(56px,8vw,88px)}
+.doc{background:var(--paper2);border:1.5px solid var(--edge);border-radius:6px;padding:clamp(28px,5vw,44px);box-shadow:4px 5px 0 rgba(28,24,20,.06)}
+[data-theme="dark"] .doc{box-shadow:4px 5px 0 rgba(0,0,0,.25)}
+.doc-intro{font-size:1.05rem;margin-top:16px;max-width:62ch}
+table{width:100%;border-collapse:collapse;margin:16px 0 0;font-size:.92rem}
+th,td{text-align:left;padding:10px 12px;border:1px solid var(--edge);vertical-align:top}
+th{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);background:var(--paper);font-weight:700}
+.contact-box{margin-top:28px;padding:18px 20px;border:1.5px solid var(--edge);border-radius:6px;background:var(--paper)}
+.contact-box p{margin:0}
+footer{border-top:2px solid var(--ink);margin-top:48px;padding:32px 0 28px}
+.foot-bot{font-family:var(--mono);font-size:.72rem;color:var(--ink3);text-align:center;line-height:1.7}
+@media (max-width:620px){
+  .navlinks .back-home{display:none}
+  table{font-size:.85rem}
+  th,td{padding:8px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <a class="brand" href="/">
+      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="13" cy="32" r="5" fill="currentColor"/>
+        <line x1="18" y1="32" x2="28" y2="32" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+        <circle cx="33" cy="32" r="6" fill="none" stroke="currentColor" stroke-width="3.4"/>
+        <line x1="39" y1="32" x2="46" y2="32" stroke="#D8401E" stroke-width="3.4" stroke-linecap="round"/>
+        <path d="M45 26 L55 32 L45 38 Z" fill="#D8401E"/>
+      </svg>
+      Posta
+    </a>
+    <div class="navlinks">
+      <a class="back-home" href="/">Volver al inicio</a>
+      <a href="/app">Iniciar sesión</a>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Activar modo oscuro">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <article class="doc">
+      <p class="eyebrow">Documento legal · Posta Envios</p>
+      <h1>Política de privacidad</h1>
+      <p class="meta">Última actualización: 5 de julio de 2026 · Aplica a la app móvil <em>Posta Envios</em> (Android/iOS) y al panel web en <a href="https://www.enviosposta.com.ar">enviosposta.com.ar</a></p>
+
+      <p class="doc-intro">
+        Posta es una plataforma de logística en tiempo real para agencias, vendedores y repartidores en Argentina.
+        Esta política explica qué datos recopilamos, para qué los usamos y cuáles son tus derechos.
+      </p>
+
+      <h2>1. Responsable del tratamiento</h2>
+      <p>
+        El responsable del tratamiento de los datos es <strong>Posta</strong> (Posta Envios), con sitio web
+        <a href="https://www.enviosposta.com.ar">www.enviosposta.com.ar</a>.
+        Para consultas sobre privacidad podés escribir a
+        <a href="mailto:jaroviskyariel@gmail.com">jaroviskyariel@gmail.com</a>.
+      </p>
+
+      <h2>2. A quién aplica</h2>
+      <p>Esta política cubre:</p>
+      <ul>
+        <li><strong>App móvil Posta Envios</strong> (<span class="mono">com.postaenvios.repartidor</span>) para repartidores, vendedores y administradores de agencia.</li>
+        <li><strong>Panel web</strong> accesible desde el navegador para agencias y tiendas.</li>
+      </ul>
+      <p>La app está destinada a uso laboral por adultos. No está dirigida a menores de 18 años.</p>
+
+      <h2>3. Datos que recopilamos</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo de dato</th>
+            <th>Ejemplos</th>
+            <th>Origen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Cuenta de usuario</strong></td>
+            <td>Nombre, nombre de usuario, rol (repartidor, vendedor, agencia), contraseña (almacenada de forma cifrada)</td>
+            <td>Lo proporcionás al registrarte o te lo asigna tu agencia</td>
+          </tr>
+          <tr>
+            <td><strong>Ubicación precisa</strong></td>
+            <td>Coordenadas GPS, historial de recorrido durante entregas activas</td>
+            <td>Permiso del dispositivo (incluye ubicación en segundo plano para repartidores)</td>
+          </tr>
+          <tr>
+            <td><strong>Datos de pedidos</strong></td>
+            <td>Direcciones de entrega, teléfonos de clientes, estado del envío, referencias de marketplace</td>
+            <td>Carga manual, importación desde integraciones o escaneo de etiquetas</td>
+          </tr>
+          <tr>
+            <td><strong>Cámara</strong></td>
+            <td>Imagen en tiempo real para escanear códigos de etiquetas (no guardamos fotos en el dispositivo salvo lo necesario para la operación)</td>
+            <td>Permiso del dispositivo</td>
+          </tr>
+          <tr>
+            <td><strong>Notificaciones push</strong></td>
+            <td>Token del dispositivo (Expo Push Token), plataforma (Android/iOS)</td>
+            <td>Permiso del dispositivo</td>
+          </tr>
+          <tr>
+            <td><strong>Datos técnicos</strong></td>
+            <td>Sesión activa, identificador de dispositivo para evitar sesiones duplicadas, registros de conexión al servidor</td>
+            <td>Generados automáticamente al usar la app</td>
+          </tr>
+          <tr>
+            <td><strong>Integraciones de marketplace</strong> (opcional)</td>
+            <td>Tokens de acceso OAuth, IDs de tienda, datos de envíos importados desde Mercado Libre o Tienda Nube</td>
+            <td>Cuando conectás tu cuenta de marketplace</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>4. Para qué usamos tus datos</h2>
+      <ul>
+        <li>Autenticarte y mantener tu sesión segura.</li>
+        <li>Mostrar pedidos, rutas y el mapa en vivo de la flota.</li>
+        <li>Reportar la ubicación del repartidor a la agencia mientras trabaja (incluso con la pantalla apagada o la app en segundo plano).</li>
+        <li>Enviarte alertas sobre asignaciones, entregas y novedades operativas.</li>
+        <li>Importar y sincronizar envíos desde Mercado Libre y Tienda Nube, si activás esas integraciones.</li>
+        <li>Mejorar la estabilidad del servicio y resolver incidencias técnicas.</li>
+      </ul>
+      <p>No vendemos tus datos personales ni los usamos para publicidad de terceros.</p>
+
+      <h2>5. Base legal</h2>
+      <p>Tratamos tus datos con base en:</p>
+      <ul>
+        <li><strong>Ejecución del servicio:</strong> operar la plataforma de logística que contratás o usás en tu trabajo.</li>
+        <li><strong>Consentimiento:</strong> permisos de ubicación, cámara y notificaciones que otorgás desde el dispositivo.</li>
+        <li><strong>Interés legítimo:</strong> seguridad de la cuenta, prevención de fraude y mejora del servicio.</li>
+      </ul>
+
+      <h2>6. Con quién compartimos datos</h2>
+      <ul>
+        <li><strong>Tu agencia o tienda:</strong> repartidores, vendedores y administradores ven la información operativa necesaria (pedidos, ubicación en ruta, estados).</li>
+        <li><strong>Proveedores de infraestructura:</strong> servidores alojados en Railway (<span class="mono">envios-erp.up.railway.app</span>) para almacenar y procesar datos.</li>
+        <li><strong>Expo / Google:</strong> para el envío de notificaciones push a dispositivos móviles.</li>
+        <li><strong>Mercado Libre y Tienda Nube:</strong> solo si conectás esas integraciones, para importar y sincronizar envíos según sus propias políticas.</li>
+        <li><strong>Mapas y geocodificación:</strong> servicios de mapas (p. ej. OpenStreetMap, Google Maps al abrir navegación externa) reciben coordenadas cuando usás funciones de ruta.</li>
+      </ul>
+      <p>No compartimos datos con fines distintos a los descritos, salvo obligación legal.</p>
+
+      <h2>7. Ubicación en segundo plano</h2>
+      <p>
+        La app de repartidor solicita acceso a la ubicación <strong>todo el tiempo</strong> porque es esencial para el servicio:
+        permite que la agencia vea la flota en vivo y registre el recorrido durante entregas, incluso con el celular bloqueado.
+        Si denegás este permiso, algunas funciones (seguimiento en vivo, navegación integrada) no estarán disponibles.
+      </p>
+
+      <h2>8. Retención y eliminación</h2>
+      <ul>
+        <li>Conservamos los datos mientras tu cuenta esté activa y sea necesario para la operación logística.</li>
+        <li>El historial de ubicación se asocia a pedidos y sesiones de trabajo; puede eliminarse junto con la cuenta o pedido según políticas de tu agencia.</li>
+        <li>Los tokens de integraciones con marketplaces se eliminan al desconectar la cuenta.</li>
+        <li>Podés solicitar la eliminación de tu cuenta y datos escribiendo a <a href="mailto:jaroviskyariel@gmail.com">jaroviskyariel@gmail.com</a>.</li>
+      </ul>
+      <p>
+        Si sos cliente final de una tienda que usa Posta (destinatario de un envío), contactá directamente a la tienda o agencia
+        que gestionó tu pedido para ejercer tus derechos sobre esos datos.
+      </p>
+
+      <h2>9. Seguridad</h2>
+      <p>
+        Aplicamos medidas técnicas razonables: comunicación cifrada (HTTPS), contraseñas hasheadas,
+        tokens de sesión con expiración y control de sesión única para repartidores.
+        Ningún sistema es 100 % infalible; te recomendamos usar contraseñas seguras y no compartir tu cuenta.
+      </p>
+
+      <h2>10. Tus derechos</h2>
+      <p>De acuerdo con la legislación argentina de protección de datos personales, podés:</p>
+      <ul>
+        <li>Acceder a los datos que tenemos sobre vos.</li>
+        <li>Solicitar la rectificación de datos incorrectos.</li>
+        <li>Solicitar la eliminación cuando corresponda.</li>
+        <li>Revocar permisos del dispositivo (ubicación, cámara, notificaciones) desde la configuración del sistema operativo.</li>
+      </ul>
+      <p>
+        Para ejercer estos derechos, escribinos a
+        <a href="mailto:jaroviskyariel@gmail.com">jaroviskyariel@gmail.com</a>.
+        Responderemos en un plazo razonable.
+      </p>
+
+      <h2>11. Transferencias internacionales</h2>
+      <p>
+        Algunos proveedores (Railway, Expo, Google) pueden procesar datos en servidores fuera de Argentina.
+        En esos casos, procuramos que existan garantías contractuales y medidas de seguridad adecuadas.
+      </p>
+
+      <h2>12. Cambios a esta política</h2>
+      <p>
+        Podemos actualizar esta política para reflejar cambios en la app o requisitos legales.
+        Publicaremos la versión vigente en esta misma URL e indicaremos la fecha de última actualización.
+        Si los cambios son significativos, te lo comunicaremos por la app o por correo cuando sea posible.
+      </p>
+
+      <div class="contact-box">
+        <p class="eyebrow" style="margin-bottom:8px">Contacto</p>
+        <p>
+          <strong>Posta Envios</strong><br>
+          Web: <a href="https://www.enviosposta.com.ar">www.enviosposta.com.ar</a><br>
+          Email: <a href="mailto:jaroviskyariel@gmail.com">jaroviskyariel@gmail.com</a>
+        </p>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="foot-bot">
+      © 2026 Posta · <a href="/">Inicio</a> · <a href="/privacidad">Privacidad</a> · <a href="/app">Iniciar sesión</a>
+    </p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var themeToggle=document.getElementById('themeToggle');
+  var themeKey='posta-theme';
+  function applyTheme(theme){
+    document.documentElement.setAttribute('data-theme',theme);
+    localStorage.setItem(themeKey,theme);
+    localStorage.setItem('posta_theme',theme==='dark'?'dark':'paper');
+    if(themeToggle){
+      themeToggle.setAttribute('aria-label',theme==='dark'?'Activar modo claro':'Activar modo oscuro');
+    }
+  }
+  if(themeToggle){
+    themeToggle.addEventListener('click',function(){
+      var current=document.documentElement.getAttribute('data-theme')||'light';
+      applyTheme(current==='dark'?'light':'dark');
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -13,6 +13,8 @@ function appRoutePlugin(): Plugin {
         if (pathOnly === '/app' || pathOnly.startsWith('/app/')) {
           const query = raw.includes('?') ? raw.slice(raw.indexOf('?')) : '';
           req.url = `/app.html${query}`;
+        } else if (pathOnly === '/privacidad') {
+          req.url = '/privacidad.html';
         }
         next();
       });
@@ -33,6 +35,7 @@ export default defineConfig(() => {
         input: {
           main: path.resolve(__dirname, 'index.html'),
           app: path.resolve(__dirname, 'app.html'),
+          privacidad: path.resolve(__dirname, 'privacidad.html'),
         },
         output: {
           manualChunks(id) {
