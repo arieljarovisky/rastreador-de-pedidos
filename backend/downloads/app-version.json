@@ -1,7 +1,7 @@
 {
-  "version": "1.1.8",
-  "minVersion": "1.1.8",
-  "versionCode": 10,
-  "minVersionCode": 10,
-  "message": "Cerrá la sesión del otro dispositivo desde el login. Mejoras de estabilidad."
+  "version": "1.2.0",
+  "minVersion": "1.2.0",
+  "versionCode": 11,
+  "minVersionCode": 11,
+  "message": "Nueva interfaz para repartidores, vendedores y logística. Panel más claro, escaneo mejorado y mejor navegación."
 }

@@ -29,6 +29,14 @@ $env:ANDROID_HOME = $androidHome
 $env:NODE_ENV = "production"
 $env:PATH = "$javaHome\bin;$androidHome\platform-tools;$env:PATH"
 
+Write-Host ">> Instalando dependencias npm..."
+Push-Location $shortRoot
+try {
+  npm install --omit=dev
+} finally {
+  Pop-Location
+}
+
 Write-Host ">> Sincronizando version nativa desde app.json (expo prebuild)..."
 Push-Location $shortRoot
 try {
