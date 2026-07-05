@@ -26,6 +26,7 @@ interface MarketplaceIntegrationsProps {
   /** Vendedor marketplace debe elegir agencia antes de importar. */
   importRequiresAgency?: boolean;
   selectedAgencyName?: string | null;
+  mercadolibreLinkedViaLogin?: boolean;
 }
 
 const btnPrimary = 'btn-primary px-3 py-1.5 disabled:opacity-50';
@@ -76,6 +77,7 @@ function PlatformCard({
   onRefreshShipments,
   onImportAll,
   onImportOne,
+  linkedViaLogin = false,
 }: {
   title: string;
   subtitle: string;
@@ -99,6 +101,8 @@ function PlatformCard({
   onRefreshShipments: () => void;
   onImportAll: () => void;
   onImportOne: (externalId: string) => void;
+  /** ML vinculado al iniciar sesión: ocultar conectar/desconectar manual. */
+  linkedViaLogin?: boolean;
 }) {
   const pending = shipments.filter((s) => !s.alreadyImported);
 
@@ -114,6 +118,16 @@ function PlatformCard({
           {connected && accountName && (
             <p className="text-[10px] text-[var(--color-ok)] mt-0.5 truncate">Conectado: {accountName}</p>
           )}
+          {platform === 'mercadolibre' && linkedViaLogin && connected && (
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+              Vinculada al iniciar sesión con Mercado Libre.
+            </p>
+          )}
+          {platform === 'mercadolibre' && linkedViaLogin && !connected && (
+            <p className="text-[10px] text-[var(--color-warn)] mt-0.5">
+              Volvé a entrar con Mercado Libre para reconectar tu cuenta.
+            </p>
+          )}
           {!configured && showMissingCredentials && (
             <p className="text-[10px] text-[var(--color-warn)] mt-0.5">
               Falta configurar credenciales en el servidor.
@@ -126,23 +140,27 @@ function PlatformCard({
           )}
         </div>
         <div className="flex flex-col gap-1 shrink-0">
-          {!connected ? (
-            <button
-              type="button"
-              className={btnPrimary}
-              disabled={!configured}
-              onClick={onConnect}
-            >
-              <span className="inline-flex items-center gap-1">
-                <Link2 className="w-3 h-3" /> Conectar
-              </span>
-            </button>
-          ) : (
-            <button type="button" className={btnGhost} onClick={onDisconnect}>
-              <span className="inline-flex items-center gap-1">
-                <Unlink className="w-3 h-3" /> Desconectar
-              </span>
-            </button>
+          {!(platform === 'mercadolibre' && linkedViaLogin) && (
+            <>
+              {!connected ? (
+                <button
+                  type="button"
+                  className={btnPrimary}
+                  disabled={!configured}
+                  onClick={onConnect}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Link2 className="w-3 h-3" /> Conectar
+                  </span>
+                </button>
+              ) : (
+                <button type="button" className={btnGhost} onClick={onDisconnect}>
+                  <span className="inline-flex items-center gap-1">
+                    <Unlink className="w-3 h-3" /> Desconectar
+                  </span>
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -304,6 +322,7 @@ export default function MarketplaceIntegrations({
   onImport,
   importRequiresAgency = false,
   selectedAgencyName = null,
+  mercadolibreLinkedViaLogin = false,
 }: MarketplaceIntegrationsProps) {
   const [mlShipments, setMlShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [tnShipments, setTnShipments] = useState<MarketplaceShipmentPreview[]>([]);
@@ -459,6 +478,7 @@ export default function MarketplaceIntegrations({
           onRefreshShipments={() => void refreshMl()}
           onImportAll={() => void runImport('mercadolibre')}
           onImportOne={(id) => void runImport('mercadolibre', [id])}
+          linkedViaLogin={mercadolibreLinkedViaLogin}
         />
         <PlatformCard
           title="Tienda Nube"

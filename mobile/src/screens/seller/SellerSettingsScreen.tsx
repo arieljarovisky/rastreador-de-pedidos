@@ -20,6 +20,7 @@ import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import AgencyMarketplaceList from '../../components/AgencyMarketplaceList';
 import { SellerStackParamList } from '../../navigation/types';
+import { isMercadoLibreLoginAccount } from '../../utils/mercadolibreAuth';
 
 type Props = NativeStackScreenProps<SellerStackParamList, 'SellerSettings'>;
 
@@ -31,6 +32,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
   const [agencies, setAgencies] = useState<MarketplaceAgency[]>([]);
   const [agencySaving, setAgencySaving] = useState<string | 'clear' | null>(null);
   const isMarketplaceSeller = Boolean(user?.isMarketplaceSeller || !user?.agencyId);
+  const mlLinkedViaLogin = user ? isMercadoLibreLoginAccount(user) : false;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyPlatform, setBusyPlatform] = useState<MarketplacePlatform | null>(null);
@@ -158,6 +160,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
           connected={status?.mercadolibre.connected ?? false}
           account={status?.mercadolibre.account ?? null}
           busy={busyPlatform === 'mercadolibre'}
+          linkedViaLogin={mlLinkedViaLogin}
           onConnect={() => connect('mercadolibre')}
           onDisconnect={() => disconnect('mercadolibre')}
           onImport={() => navigation.navigate('ImportShipments', { platform: 'mercadolibre' })}
@@ -215,6 +218,7 @@ function IntegrationRow({
   connected,
   account,
   busy,
+  linkedViaLogin = false,
   onConnect,
   onDisconnect,
   onImport,
@@ -224,10 +228,13 @@ function IntegrationRow({
   connected: boolean;
   account: IntegrationsStatus['mercadolibre']['account'];
   busy: boolean;
+  linkedViaLogin?: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
   onImport: () => void;
 }) {
+  const hideManualLink = linkedViaLogin && label === 'Mercado Libre';
+
   return (
     <View style={styles.integrationCard}>
       <View style={styles.integrationHeader}>
@@ -242,17 +249,25 @@ function IntegrationRow({
       {connected && account?.nickname ? (
         <Text style={styles.rowSub}>Cuenta: {account.nickname}</Text>
       ) : null}
+      {hideManualLink && connected ? (
+        <Text style={styles.linkedHint}>Vinculada al iniciar sesión con Mercado Libre.</Text>
+      ) : null}
+      {hideManualLink && !connected ? (
+        <Text style={styles.warn}>Volvé a entrar con Mercado Libre para reconectar.</Text>
+      ) : null}
       <View style={styles.integrationActions}>
         {connected ? (
           <>
             <Pressable style={styles.linkBtn} onPress={onImport}>
               <Text style={styles.linkBtnText}>Importar envíos</Text>
             </Pressable>
-            <Pressable style={styles.linkBtnDanger} onPress={onDisconnect} disabled={busy}>
-              <Text style={styles.linkBtnDangerText}>{busy ? '…' : 'Desconectar'}</Text>
-            </Pressable>
+            {!hideManualLink ? (
+              <Pressable style={styles.linkBtnDanger} onPress={onDisconnect} disabled={busy}>
+                <Text style={styles.linkBtnDangerText}>{busy ? '…' : 'Desconectar'}</Text>
+              </Pressable>
+            ) : null}
           </>
-        ) : (
+        ) : hideManualLink ? null : (
           <Button
             label="Conectar"
             onPress={onConnect}
@@ -315,6 +330,7 @@ const styles = StyleSheet.create({
   badgeOk: { color: colors.green, backgroundColor: colors.greenBg },
   badgeOff: { color: colors.textMuted, backgroundColor: colors.surfaceAlt },
   warn: { color: colors.amber, fontSize: 12, marginBottom: spacing.sm },
+  linkedHint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm, lineHeight: 16 },
   integrationActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
   linkBtn: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm },
   linkBtnText: { color: colors.accent, fontWeight: '700', fontSize: 13 },

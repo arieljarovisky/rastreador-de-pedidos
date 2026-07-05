@@ -6,6 +6,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode, type MarketplaceAgency, type AgencyMarketplaceProfile, type AgencyShippingService, type AgencyCoverageArea } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
+import { isMercadoLibreLoginAccount } from '../utils/mercadolibreAuth.js';
 import { useModal } from '../context/ModalContext.tsx';
 import {
   Warehouse,
@@ -247,6 +248,7 @@ export default function SettingsPage({
   const mlFlexMode = agencyIntegrationsStatus?.mlFlexMode ?? user.agencyMlFlexMode ?? 'agency';
   const agencyCourierStatus = agencyIntegrationsStatus?.mercadolibreCourier ?? null;
   const isMarketplaceSeller = Boolean(user.isMarketplaceSeller || (userRole === UserRole.STORE_ADMIN && !user.agencyId));
+  const mercadolibreLinkedViaLogin = isMercadoLibreLoginAccount(user);
 
   const [profileWebsite, setProfileWebsite] = useState('');
   const [profileInstagram, setProfileInstagram] = useState('');
@@ -1767,6 +1769,7 @@ export default function SettingsPage({
               }
               importRequiresAgency={isMarketplaceSeller}
               selectedAgencyName={user.preferredAgencyName}
+              mercadolibreLinkedViaLogin={mercadolibreLinkedViaLogin}
             />
           )}
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (
