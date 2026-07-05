@@ -17,7 +17,7 @@ import {
   RepartidorStackParamList,
   RepartidorTabParamList,
 } from './types';
-import { colors, fonts } from '../theme';
+import { colors, fonts, roleAccents, spacing } from '../theme';
 
 const Tab = createBottomTabNavigator<RepartidorTabParamList>();
 const Stack = createNativeStackNavigator<RepartidorStackParamList>();
@@ -78,6 +78,7 @@ function RepartidorTabs() {
           centerIndex={1}
           centerIcon="scan"
           centerLabel="Escanear"
+          accentColor={roleAccents.repartidor}
           tabs={{
             Home: { icon: 'package', label: 'Envíos' },
             Scan: { icon: 'scan', label: 'Escanear' },

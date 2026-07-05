@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Order } from '../types';
-import { colors, fonts, radius, spacing, typography } from '../theme';
+import { colors, fonts, radius, spacing, statusStyle, typography } from '../theme';
 import PostaIcon from './icons/PostaIcons';
 import StatusBadge from './StatusBadge';
 import IconLabelRow from './ui/IconLabelRow';
@@ -15,50 +15,61 @@ interface Props {
 }
 
 export default function OrderCard({ order, onPress, showRepartidor, showSeller }: Props) {
+  const status = statusStyle(order.status);
+
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <View style={styles.headerRow}>
-        <MonoLabel color={colors.textFaint}>ID: {order.id}</MonoLabel>
-        <StatusBadge status={order.status} />
-      </View>
+      <View style={[styles.statusStripe, { backgroundColor: status.fg }]} />
 
-      <Text style={styles.client} numberOfLines={1}>
-        {order.clientName}
-      </Text>
-      <Text style={styles.address} numberOfLines={2}>
-        {order.address}
-      </Text>
+      <View style={styles.content}>
+        <View style={styles.headerRow}>
+          <MonoLabel color={colors.textFaint}>#{order.id.slice(-6)}</MonoLabel>
+          <StatusBadge status={order.status} />
+        </View>
 
-      {showSeller && order.sellerName ? (
-        <IconLabelRow
-          icon="store"
-          label={order.sellerName}
-          color={colors.blue}
-          iconBg={colors.accentBg}
-        />
-      ) : null}
+        <Text style={styles.client} numberOfLines={1}>
+          {order.clientName}
+        </Text>
+        <View style={styles.addressRow}>
+          <PostaIcon name="mapPin" size={14} color={colors.textFaint} strokeWidth={1.5} />
+          <Text style={styles.address} numberOfLines={2}>
+            {order.address}
+          </Text>
+        </View>
 
-      {showRepartidor && order.repartidorName ? (
-        <IconLabelRow
-          icon="motorcycle"
-          label={order.repartidorName}
-          color={colors.accent}
-          iconBg={colors.accentBg}
-        />
-      ) : null}
+        {showSeller && order.sellerName ? (
+          <IconLabelRow
+            icon="store"
+            label={order.sellerName}
+            color={colors.blue}
+            iconBg={colors.accentBg}
+          />
+        ) : null}
 
-      <View style={styles.footerRow}>
-        {order.externalSource ? (
-          <MonoLabel color={colors.textFaint}>{order.externalSource}</MonoLabel>
-        ) : (
-          <View />
-        )}
-        <View style={styles.detailLink}>
-          <Text style={styles.detailText}>Ver detalle</Text>
-          <PostaIcon name="chevronRight" size={14} color={colors.accent} />
+        {showRepartidor && order.repartidorName ? (
+          <IconLabelRow
+            icon="motorcycle"
+            label={order.repartidorName}
+            color={colors.accent}
+            iconBg={colors.accentBg}
+          />
+        ) : null}
+
+        <View style={styles.footerRow}>
+          {order.externalSource ? (
+            <View style={styles.sourcePill}>
+              <MonoLabel color={colors.textMuted}>{order.externalSource}</MonoLabel>
+            </View>
+          ) : (
+            <View />
+          )}
+          <View style={styles.detailLink}>
+            <Text style={styles.detailText}>Ver detalle</Text>
+            <PostaIcon name="chevronRight" size={14} color={colors.accent} />
+          </View>
         </View>
       </View>
     </Pressable>
@@ -67,14 +78,22 @@ export default function OrderCard({ order, onPress, showRepartidor, showSeller }
 
 const styles = StyleSheet.create({
   card: {
+    flexDirection: 'row',
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: radius.lg,
-    padding: spacing.lg,
     marginBottom: spacing.md,
+    overflow: 'hidden',
   },
-  pressed: { opacity: 0.88, transform: [{ scale: 0.995 }] },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.995 }] },
+  statusStripe: {
+    width: 4,
+  },
+  content: {
+    flex: 1,
+    padding: spacing.lg,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -84,10 +103,16 @@ const styles = StyleSheet.create({
   client: {
     ...typography.displaySection(16, colors.text),
   },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+    marginTop: 4,
+  },
   address: {
     ...typography.body(13, colors.textMuted),
     lineHeight: 18,
-    marginTop: 2,
+    flex: 1,
   },
   footerRow: {
     flexDirection: 'row',
@@ -97,6 +122,14 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  sourcePill: {
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   detailLink: {
     flexDirection: 'row',

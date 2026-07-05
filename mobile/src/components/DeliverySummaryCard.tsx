@@ -13,9 +13,10 @@ import {
 
 interface Props {
   orders: Order[];
+  accentColor?: string;
 }
 
-export default function DeliverySummaryCard({ orders }: Props) {
+export default function DeliverySummaryCard({ orders, accentColor = colors.accent }: Props) {
   const summary = useMemo(() => computeDeliverySummaryFromOrders(orders), [orders]);
 
   const urgency =
@@ -41,7 +42,7 @@ export default function DeliverySummaryCard({ orders }: Props) {
     <View style={[styles.card, { borderColor, backgroundColor: bgColor }]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <PostaIcon name="live" size={14} color={urgency === 'overdue' ? colors.red : colors.accent} />
+          <PostaIcon name="live" size={14} color={urgency === 'overdue' ? colors.red : accentColor} />
           <Text style={styles.title}>Control del día</Text>
         </View>
         <View style={styles.headerRight}>
@@ -165,7 +166,7 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontFamily: fonts.mono,
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',
     color: colors.textMuted,
@@ -173,15 +174,15 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: fonts.mono,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
   },
   progressWrap: {
     gap: 4,
   },
   progressTrack: {
-    height: 4,
-    borderRadius: 2,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.border,
     overflow: 'hidden',
   },

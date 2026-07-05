@@ -22,18 +22,18 @@ export default function StatusBadge({ status }: { status: OrderStatus }) {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 3,
-    borderWidth: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1.5,
     alignSelf: 'flex-start',
   },
   text: {
     fontFamily: fonts.mono,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.54,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
-    lineHeight: 12,
+    lineHeight: 13,
   },
 });

@@ -15,11 +15,12 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
 import { Order, OrderStatus } from '../../types';
-import { colors, fonts, radius, spacing } from '../../theme';
+import { colors, fonts, radius, roleAccents, spacing } from '../../theme';
 import OrderCard from '../../components/OrderCard';
 import PostaIcon from '../../components/icons/PostaIcons';
 import DashboardHeader from '../../components/ui/DashboardHeader';
 import EmptyState from '../../components/ui/EmptyState';
+import ListTabBar from '../../components/ui/ListTabBar';
 import ListTabButton from '../../components/ui/ListTabButton';
 import PostaMap from '../../components/PostaMap';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
@@ -111,7 +112,7 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
         title={user?.agencyName ?? user?.name ?? 'Agencia'}
         subtitle={`${repartidores.length} repartidores · ${enRouteCount} en ruta`}
         connected={connected}
-        accentColor={colors.blue}
+        accentColor={roleAccents.agency}
         onNotifications={() => navigation.navigate('AgencyNotifications')}
         notificationCount={unreadNotifs}
         onLogout={logout}
@@ -147,13 +148,13 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
         </View>
       )}
 
-      <View style={styles.tabs}>
+      <ListTabBar>
         <ListTabButton
           active={tab === 'active'}
           icon="motorcycle"
           label="Activos"
           count={activeCount}
-          color={colors.accent}
+          color={roleAccents.agency}
           onPress={() => setTab('active')}
         />
         <ListTabButton
@@ -161,7 +162,7 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
           icon="package"
           label="Despacho"
           count={pendingCount}
-          color={colors.blue}
+          color={colors.amber}
           onPress={() => setTab('pending')}
         />
         <ListTabButton
@@ -172,7 +173,7 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
           color={colors.green}
           onPress={() => setTab('done')}
         />
-      </View>
+      </ListTabBar>
 
       {loading ? (
         <View style={styles.center}>

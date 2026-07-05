@@ -17,7 +17,7 @@ import {
   SellerStackParamList,
   SellerTabParamList,
 } from './types';
-import { colors, fonts } from '../theme';
+import { colors, fonts, roleAccents } from '../theme';
 
 const Tab = createBottomTabNavigator<SellerTabParamList>();
 const Stack = createNativeStackNavigator<SellerStackParamList>();
@@ -83,6 +83,7 @@ function SellerTabs() {
           centerIndex={1}
           centerIcon="plus"
           centerLabel="Nuevo"
+          accentColor={roleAccents.seller}
           tabs={{
             Home: { icon: 'live', label: 'Panel' },
             Create: { icon: 'plus', label: 'Nuevo' },
