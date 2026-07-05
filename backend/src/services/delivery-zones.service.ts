@@ -99,16 +99,37 @@ function validateColor(color: string): void {
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw new Error('INVALID_COLOR');
 }
 
-export async function seedDefaultZonesForAgency(agencyId: string): Promise<void> {
-  const existing = await listZonesForAgency(agencyId);
-  if (existing.length > 0) return;
+async function isGlobalZoneIdTaken(zoneId: string): Promise<boolean> {
+  const [rows] = await pool.query<Array<{ id: string } & RowDataPacket>>(
+    'SELECT id FROM delivery_zones WHERE id = ? LIMIT 1',
+    [zoneId]
+  );
+  return rows.length > 0;
+}
 
+/** ID único global: canonical si está libre; si no, prefijo por agencia (PK es solo `id`). */
+async function resolveSeedZoneId(agencyId: string, canonicalId: string): Promise<string | null> {
+  if (await getZoneById(agencyId, canonicalId)) return null;
+
+  if (!(await isGlobalZoneIdTaken(canonicalId))) return canonicalId;
+
+  const scopedId = `${agencyId}_${canonicalId}`.slice(0, 64);
+  if (await getZoneById(agencyId, scopedId)) return null;
+  if (await isGlobalZoneIdTaken(scopedId)) return null;
+
+  return scopedId;
+}
+
+export async function seedDefaultZonesForAgency(agencyId: string): Promise<void> {
   const now = new Date();
   for (const zone of DEFAULT_DELIVERY_ZONES) {
+    const zoneId = await resolveSeedZoneId(agencyId, zone.id);
+    if (!zoneId) continue;
+
     await pool.query(
       `INSERT INTO delivery_zones (id, agency_id, name, color, south, west, north, east, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [zone.id, agencyId, zone.name, zone.color, zone.south, zone.west, zone.north, zone.east, now]
+      [zoneId, agencyId, zone.name, zone.color, zone.south, zone.west, zone.north, zone.east, now]
     );
   }
 }
