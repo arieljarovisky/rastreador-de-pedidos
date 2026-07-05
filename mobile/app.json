@@ -72,7 +72,7 @@
       "expo-web-browser"
     ],
     "extra": {
-      "apiBaseUrl": "https://envios-erp.up.railway.app",
+      "apiBaseUrl": "https://tracking-envios-tracking.up.railway.app",
       "eas": {
         "projectId": "66fe0c44-a8c0-428b-babf-e5de345b6ecd"
       }
