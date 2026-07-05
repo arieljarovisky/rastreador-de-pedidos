@@ -205,10 +205,42 @@ router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Req
   }
 });
 
+router.post('/logistics-admins', authenticate, requireRoles(UserRole.SUPER_ADMIN), async (req: Request, res: Response) => {
+  const { username, password, name } = req.body;
+  if (!username || !password || !name) {
+    res.status(400).json({ error: 'Usuario, contraseña y nombre son requeridos.' });
+    return;
+  }
+
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+
+  try {
+    const user = await createUser({
+      username,
+      password,
+      name,
+      role: UserRole.LOGISTICS_ADMIN,
+      agencyId: req.user.agencyId,
+    });
+    const enriched = await getUserById(user.id);
+    res.status(201).json(enriched ?? user);
+  } catch (err) {
+    if (handleCreateUserError(res, err)) return;
+    throw err;
+  }
+});
+
 router.put('/repartidores/:id/zone', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   const { deliveryZone } = req.body as { deliveryZone?: string | null };
   try {
-    const user = await updateRepartidorZone(req.params.id, deliveryZone ?? null);
+    const user = await updateRepartidorZone(
+      req.params.id,
+      deliveryZone ?? null,
+      req.user?.agencyId
+    );
     res.json(user);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
@@ -226,7 +258,7 @@ router.put('/repartidores/:id/zone', authenticate, requireAgencyAdmin(), async (
 
 router.delete('/repartidores/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   try {
-    const result = await deleteRepartidor(req.params.id);
+    const result = await deleteRepartidor(req.params.id, req.user?.agencyId);
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';

@@ -14,11 +14,20 @@ interface AdminRow extends RowDataPacket {
   departure_lng: number | null;
 }
 
+function syncEnabled(): boolean {
+  const v = process.env.SYNC_MENSAJERIA_GR?.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 /**
- * Asegura que exista la agencia ag_default (MensajeriaGR), que gabriel sea su super_admin
- * y que el vendedor lupo pertenezca a esa agencia. Idempotente — seguro en cada arranque.
+ * Vincula cuentas conocidas de MensajeriaGR a ag_default.
+ * Solo corre si SYNC_MENSAJERIA_GR=1 — evita mezclar repartidores de otras agencias al arrancar.
  */
 export async function syncMensajeriaGrAgency(): Promise<void> {
+  if (!syncEnabled()) {
+    return;
+  }
+
   const [adminRows] = await pool.query<AdminRow[]>(
     `SELECT id, name, departure_address, departure_lat, departure_lng
      FROM users
@@ -61,12 +70,6 @@ export async function syncMensajeriaGrAgency(): Promise<void> {
       console.log(`[migrate] Vendedor @${username} asociado a agencia ${MENSAJERIA_AGENCY_ID}`);
     }
   }
-
-  await pool.query(
-    `UPDATE users SET agency_id = ?
-     WHERE role = 'repartidor' AND agency_id IS NULL`,
-    [MENSAJERIA_AGENCY_ID]
-  );
 
   await pool.query(
     `UPDATE orders o

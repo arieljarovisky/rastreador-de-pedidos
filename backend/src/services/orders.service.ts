@@ -188,7 +188,10 @@ export function canViewOrder(user: User, order: Order, sellerId?: string | null)
   if (isAgencyAdmin(user.role)) return belongsToUserAgency(user, order.agencyId);
   if (user.role === UserRole.STORE_ADMIN) return sellerId === user.id;
   if (user.role === UserRole.REPARTIDOR) {
-    return order.repartidorId === user.id || order.status === OrderStatus.PENDING;
+    return (
+      order.repartidorId === user.id ||
+      (order.status === OrderStatus.PENDING && belongsToUserAgency(user, order.agencyId))
+    );
   }
   return false;
 }
@@ -466,6 +469,7 @@ export async function updateOrderStatus(
   if (user.role === UserRole.REPARTIDOR) {
     if (status === OrderStatus.ASSIGNED) {
       if (order.status !== OrderStatus.PENDING) throw new Error('NOT_AVAILABLE');
+      if (!belongsToUserAgency(user, order.agencyId)) throw new Error('NOT_AVAILABLE');
       assignedRepartidorId = user.id;
       assignedRepartidorName = user.name;
     } else if (order.repartidorId !== user.id) {

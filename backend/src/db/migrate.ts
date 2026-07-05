@@ -146,24 +146,17 @@ export async function runMigrations(): Promise<void> {
     await pool.query('UPDATE users SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
     await pool.query('UPDATE orders SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
   } else {
+    // Multi-agencia: no reasignar usuarios huérfanos a la primera agencia (mezclaría flotas).
+    // Solo sincronizamos pedidos con la agencia de su vendedor (más abajo).
     const [orphanUsers] = await pool.query<Array<{ cnt: number } & import('mysql2').RowDataPacket>>(
-      'SELECT COUNT(*) AS cnt FROM users WHERE agency_id IS NULL'
+      'SELECT COUNT(*) AS cnt FROM users WHERE agency_id IS NULL AND role IN (?, ?, ?, ?)',
+      ['super_admin', 'logistics_admin', 'store_admin', 'repartidor']
     );
-    if (Number(orphanUsers[0]?.cnt ?? 0) > 0) {
-      const [firstAgency] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
-        'SELECT id FROM agencies ORDER BY created_at ASC LIMIT 1'
+    const orphanCount = Number(orphanUsers[0]?.cnt ?? 0);
+    if (orphanCount > 0) {
+      console.warn(
+        `[migrate] ${orphanCount} usuario(s) sin agency_id. Asigná cada uno a su agencia manualmente o con POST /api/auth/register/agency.`
       );
-      const agencyId = firstAgency[0]?.id;
-      if (agencyId) {
-        await pool.query('UPDATE users SET agency_id = ? WHERE agency_id IS NULL', [agencyId]);
-        await pool.query(
-          `UPDATE orders o
-           LEFT JOIN users s ON s.id = o.seller_id
-           SET o.agency_id = COALESCE(s.agency_id, ?)
-           WHERE o.agency_id IS NULL`,
-          [agencyId]
-        );
-      }
     }
   }
 

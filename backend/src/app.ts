@@ -1,8 +1,9 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors, { CorsOptions } from 'cors';
 import { env } from './config/env.js';
+import { applyCorsHeaders, corsMethods, isAllowedCorsOrigin } from './config/cors.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.routes.js';
 import accountsRoutes from './routes/accounts.routes.js';
@@ -20,32 +21,34 @@ import appRoutes from './routes/app.routes.js';
 
 const app = express();
 
-function isAllowedCorsOrigin(origin: string): boolean {
-  if (env.corsOrigins.includes(origin)) return true;
-  try {
-    const { protocol, hostname } = new URL(origin);
-    if (protocol !== 'https:') return false;
-    if (hostname === 'enviosposta.com.ar' || hostname.endsWith('.enviosposta.com.ar')) {
-      return true;
-    }
-    return hostname.endsWith('.vercel.app') && hostname.startsWith('rastreador-de-pedidos');
-  } catch {
-    return false;
+function corsPreflight(req: Request, res: Response, next: NextFunction): void {
+  applyCorsHeaders(req, res);
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
   }
+  next();
 }
 
 const corsOptions: CorsOptions = {
   origin(origin, callback) {
-    if (!origin || isAllowedCorsOrigin(origin)) {
+    if (!origin) {
       callback(null, true);
       return;
     }
+    if (isAllowedCorsOrigin(origin)) {
+      callback(null, origin);
+      return;
+    }
+    console.warn(`[cors] Origen rechazado: ${origin}`);
     callback(null, false);
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: [...corsMethods],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
 };
 
+app.use(corsPreflight);
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());

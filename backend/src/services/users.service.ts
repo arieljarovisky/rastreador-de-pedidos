@@ -80,18 +80,25 @@ export async function getUserById(id: string): Promise<User | null> {
 }
 
 export async function getRepartidores(agencyId?: string | null): Promise<User[]> {
-  if (agencyId) {
-    const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-      `SELECT ${USER_COLUMNS} FROM users WHERE role = ? AND agency_id = ?`,
-      [UserRole.REPARTIDOR, agencyId]
-    );
-    return rows.map(rowToUser);
+  if (!agencyId) {
+    return [];
   }
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE role = ?`,
-    [UserRole.REPARTIDOR]
+    `SELECT ${USER_COLUMNS} FROM users WHERE role = ? AND agency_id = ? ORDER BY name`,
+    [UserRole.REPARTIDOR, agencyId]
   );
   return rows.map(rowToUser);
+}
+
+export async function assertRepartidorInAgency(
+  repartidorId: string,
+  agencyId: string
+): Promise<User> {
+  const rep = await getRepartidorById(repartidorId);
+  if (!rep || rep.agencyId !== agencyId) {
+    throw new Error('NOT_FOUND');
+  }
+  return rep;
 }
 
 export async function updateUserLocation(
@@ -220,10 +227,14 @@ export async function createUser(data: {
 
 export async function updateRepartidorZone(
   repartidorId: string,
-  deliveryZone: string | null
+  deliveryZone: string | null,
+  agencyId?: string | null
 ): Promise<User> {
   const rep = await getRepartidorById(repartidorId);
   if (!rep) {
+    throw new Error('NOT_FOUND');
+  }
+  if (agencyId && rep.agencyId !== agencyId) {
     throw new Error('NOT_FOUND');
   }
   if (deliveryZone) {
@@ -394,9 +405,15 @@ export async function deleteSeller(
   return { unlinkedOrders: unlinkResult.affectedRows };
 }
 
-export async function deleteRepartidor(id: string): Promise<{ finalizedOrders: number }> {
+export async function deleteRepartidor(
+  id: string,
+  agencyId?: string | null
+): Promise<{ finalizedOrders: number }> {
   const repartidor = await getRepartidorById(id);
   if (!repartidor) {
+    throw new Error('NOT_FOUND');
+  }
+  if (agencyId && repartidor.agencyId !== agencyId) {
     throw new Error('NOT_FOUND');
   }
 
