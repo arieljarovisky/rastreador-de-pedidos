@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
+import ThemeToggle from './ui/ThemeToggle.tsx';
+import { applyPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
 import { isValidEmail } from '../utils/email.ts';
 import { formatCuitInput, isValidCuit } from '../utils/cuit.ts';
 import {
@@ -114,6 +116,13 @@ export default function LoginScreen({
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const theme = usePostaTheme();
+
+  const toggleTheme = () => {
+    applyPostaTheme(theme === 'dark' ? 'paper' : 'dark');
+  };
+
+  const logoVariant = theme === 'paper' ? 'paper' : 'dark';
 
   const resetForm = () => {
     setUsername('');
@@ -239,10 +248,14 @@ export default function LoginScreen({
 
   return (
     <div className="auth-split" id="login-container">
+      <div className="auth-split__theme">
+        <ThemeToggle theme={theme} onToggle={toggleTheme} compact className="auth-split__theme-btn" />
+      </div>
+
       <aside className="auth-split__brand">
         <div className="auth-split__brand-grid" aria-hidden="true" />
         <div className="auth-split__brand-inner">
-          <PostaLogo variant="dark" size={36} showWordmark className="auth-split__logo" />
+          <PostaLogo variant={logoVariant} size={36} showWordmark className="auth-split__logo" />
 
           <p className="auth-split__eyebrow">Panel operativo</p>
           <h1 className="auth-split__title">{brandTitle}</h1>
@@ -271,7 +284,7 @@ export default function LoginScreen({
 
       <main className="auth-split__panel">
         <div className="auth-split__mobile-brand lg:hidden">
-          <PostaLogo variant="dark" size={32} showWordmark />
+          <PostaLogo variant={logoVariant} size={32} showWordmark />
           <p className="auth-split__eyebrow auth-split__eyebrow--mobile">Panel operativo</p>
           <h1 className="auth-split__title auth-split__title--mobile">{brandTitle}</h1>
         </div>
