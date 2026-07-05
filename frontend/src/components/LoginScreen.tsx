@@ -209,7 +209,7 @@ export default function LoginScreen({
   const [monthlyOrders, setMonthlyOrders] = useState<SellerMonthlyOrders | ''>('');
   const [sellerCategories, setSellerCategories] = useState<string[]>([]);
   const [showPassword, setShowPassword] = useState(false);
-  const [mlLoginAvailable, setMlLoginAvailable] = useState(false);
+  const [mlLoginConfigured, setMlLoginConfigured] = useState<boolean | null>(null);
   const [mlLoginLoading, setMlLoginLoading] = useState(false);
   const theme = usePostaTheme();
   const meta = MODE_META[mode];
@@ -224,7 +224,7 @@ export default function LoginScreen({
     void fetch(apiUrl('/api/auth/mercadolibre/status'))
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { configured?: boolean } | null) => {
-        if (!cancelled && data?.configured) setMlLoginAvailable(true);
+        if (!cancelled && data) setMlLoginConfigured(Boolean(data.configured));
       })
       .catch(() => {});
     return () => {
@@ -626,7 +626,7 @@ export default function LoginScreen({
                   </PostaButton>
                 </div>
 
-                {mode === 'login' && mlLoginAvailable && onMercadoLibreLogin && (
+                {mode === 'login' && onMercadoLibreLogin && (
                   <div className="mt-4 pt-4 border-t border-[var(--surface-border)]">
                     <p className="text-center text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-faint)] mb-3">
                       o
@@ -634,7 +634,7 @@ export default function LoginScreen({
                     <button
                       type="button"
                       id="btn-ml-login"
-                      disabled={loading || mlLoginLoading}
+                      disabled={loading || mlLoginLoading || mlLoginConfigured === false}
                       onClick={() => {
                         onClearError?.();
                         setMlLoginLoading(true);
@@ -653,9 +653,15 @@ export default function LoginScreen({
                       </svg>
                       {mlLoginLoading ? 'Redirigiendo…' : 'Entrar con Mercado Libre'}
                     </button>
-                    <p className="mt-2 text-[10px] text-center text-[var(--color-text-faint)] leading-relaxed">
-                      Vendedores: ingresá con tu cuenta ML. Si es tu primera vez, se crea tu perfil automáticamente.
-                    </p>
+                    {mlLoginConfigured === false ? (
+                      <p className="mt-2 text-[10px] text-center text-[var(--color-warn)] leading-relaxed">
+                        OAuth de Mercado Libre no está configurado en el servidor (ML_APP_ID / ML_APP_SECRET).
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-[10px] text-center text-[var(--color-text-faint)] leading-relaxed">
+                        Vendedores: ingresá con tu cuenta ML. Si es tu primera vez, se crea tu perfil automáticamente.
+                      </p>
+                    )}
                   </div>
                 )}
               </form>

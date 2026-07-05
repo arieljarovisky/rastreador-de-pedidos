@@ -39,7 +39,7 @@ export default function LoginScreen() {
   const [monthlyOrders, setMonthlyOrders] = useState<SellerMonthlyOrders | ''>('');
   const [sellerCategories, setSellerCategories] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [mlLoginAvailable, setMlLoginAvailable] = useState(false);
+  const [mlLoginConfigured, setMlLoginConfigured] = useState<boolean | null>(null);
   const [mlLoginLoading, setMlLoginLoading] = useState(false);
   const insets = useSafeAreaInsets();
 
@@ -48,7 +48,7 @@ export default function LoginScreen() {
     api
       .getMercadoLibreLoginStatus()
       .then((data) => {
-        if (!cancelled && data.configured) setMlLoginAvailable(true);
+        if (!cancelled) setMlLoginConfigured(Boolean(data.configured));
       })
       .catch(() => {});
     return () => {
@@ -323,7 +323,7 @@ export default function LoginScreen() {
             />
           </View>
 
-          {mode === 'login' && mlLoginAvailable && (
+          {mode === 'login' && (
             <View style={styles.mlSection}>
               <Text style={styles.mlDivider}>o</Text>
               <Button
@@ -336,11 +336,13 @@ export default function LoginScreen() {
                     .finally(() => setMlLoginLoading(false));
                 }}
                 loading={mlLoginLoading}
-                disabled={submitting || loading || mlLoginLoading}
+                disabled={submitting || loading || mlLoginLoading || mlLoginConfigured === false}
                 paperTheme
               />
               <Text style={styles.mlHint}>
-                Si es tu primera vez, se crea tu perfil y te pedimos completar unos datos.
+                {mlLoginConfigured === false
+                  ? 'OAuth de Mercado Libre no está configurado en el servidor.'
+                  : 'Si es tu primera vez, se crea tu perfil y te pedimos completar unos datos.'}
               </Text>
             </View>
           )}
