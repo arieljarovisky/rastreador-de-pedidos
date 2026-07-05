@@ -84,6 +84,10 @@ export async function runMigrations(): Promise<void> {
       CREATE TABLE agencies (
         id VARCHAR(36) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
+        contact_email VARCHAR(255) NULL,
+        contact_phone VARCHAR(32) NULL,
+        cuit VARCHAR(13) NULL,
+        city VARCHAR(100) NULL,
         ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency',
         departure_address VARCHAR(500) NULL,
         departure_lat DECIMAL(10, 7) NULL,
@@ -216,6 +220,19 @@ export async function runMigrations(): Promise<void> {
     await pool.query(
       `ALTER TABLE agencies ADD COLUMN ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency' AFTER name`
     );
+  }
+
+  if (!(await columnExists('agencies', 'contact_email'))) {
+    await pool.query('ALTER TABLE agencies ADD COLUMN contact_email VARCHAR(255) NULL AFTER name');
+  }
+  if (!(await columnExists('agencies', 'contact_phone'))) {
+    await pool.query('ALTER TABLE agencies ADD COLUMN contact_phone VARCHAR(32) NULL AFTER contact_email');
+  }
+  if (!(await columnExists('agencies', 'cuit'))) {
+    await pool.query('ALTER TABLE agencies ADD COLUMN cuit VARCHAR(13) NULL AFTER contact_phone');
+  }
+  if (!(await columnExists('agencies', 'city'))) {
+    await pool.query('ALTER TABLE agencies ADD COLUMN city VARCHAR(100) NULL AFTER cuit');
   }
 
   if (!(await columnExists('users', 'session_token'))) {

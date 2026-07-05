@@ -183,6 +183,12 @@ export async function createUser(data: {
   if (data.role === UserRole.REPARTIDOR && !isValidEmail(normalizedUsername)) {
     throw new Error('INVALID_EMAIL');
   }
+  if (
+    (data.role === UserRole.SUPER_ADMIN || data.role === UserRole.LOGISTICS_ADMIN) &&
+    !isValidEmail(normalizedUsername)
+  ) {
+    throw new Error('INVALID_EMAIL');
+  }
   if (normalizedUsername.length < 3) {
     throw new Error('USERNAME_SHORT');
   }

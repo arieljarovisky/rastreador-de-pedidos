@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyIntegrationsStatus, RepartidorMercadoLibreStatus, type MlFlexMode } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
-import LoginScreen from './components/LoginScreen.tsx';
+import LoginScreen, { type AgencyRegisterData } from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -413,7 +413,7 @@ export default function App() {
 
   const handleRegister = async (
     endpoint: '/api/auth/register/agency',
-    data: { username: string; password: string; name: string }
+    data: AgencyRegisterData
   ) => {
     setLoading(true);
     setAuthError(null);

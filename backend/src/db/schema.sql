@@ -1,6 +1,10 @@
 CREATE TABLE IF NOT EXISTS agencies (
   id VARCHAR(36) PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
+  contact_email VARCHAR(255) NULL,
+  contact_phone VARCHAR(32) NULL,
+  cuit VARCHAR(13) NULL,
+  city VARCHAR(100) NULL,
   ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency',
   departure_address VARCHAR(500) NULL,
   departure_lat DECIMAL(10, 7) NULL,
