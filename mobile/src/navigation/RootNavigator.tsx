@@ -1,5 +1,4 @@
 import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +7,7 @@ import RepartidorNavigator from './RepartidorNavigator';
 import SellerNavigator from './SellerNavigator';
 import AgencyNavigator from './AgencyNavigator';
 import PushNotificationsBridge from '../components/PushNotificationsBridge';
+import SplashScreen from '../components/ui/SplashScreen';
 import { isAgencyAdminRole, isRepartidorRole, isSellerRole } from '../types';
 import { colors } from '../theme';
 
@@ -29,18 +29,7 @@ export default function RootNavigator() {
   const { user, token, loading } = useAuth();
 
   if (loading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: colors.bg,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <ActivityIndicator color={colors.blue} />
-      </View>
-    );
+    return <SplashScreen message="Verificando sesión…" />;
   }
 
   return (
