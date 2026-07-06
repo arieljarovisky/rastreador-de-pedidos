@@ -1,4 +1,4 @@
-import { RowDataPacket } from 'mysql2';
+import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { pool } from '../config/database.js';
 import {
   AppNotification,
@@ -809,6 +809,47 @@ export async function deleteOrder(user: User, orderId: string): Promise<{ seller
 
   await pool.query('DELETE FROM orders WHERE id = ?', [orderId]);
   return { sellerId: order.sellerId };
+}
+
+export async function deleteAllOrders(
+  user: User
+): Promise<{ deleted: number; orderIds: string[]; sellerIds: string[] }> {
+  if (user.role === UserRole.STORE_ADMIN) {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT id FROM orders WHERE seller_id = ?', [
+      user.id,
+    ]);
+    const orderIds = rows.map((r) => String(r.id));
+    const [result] = await pool.query<ResultSetHeader>('DELETE FROM orders WHERE seller_id = ?', [
+      user.id,
+    ]);
+    return {
+      deleted: result.affectedRows,
+      orderIds,
+      sellerIds: result.affectedRows > 0 ? [user.id] : [],
+    };
+  }
+
+  if (isAgencyAdmin(user.role)) {
+    if (!user.agencyId) throw new Error('FORBIDDEN');
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT id, seller_id FROM orders WHERE agency_id = ?',
+      [user.agencyId]
+    );
+    const orderIds = rows.map((r) => String(r.id));
+    const sellerIds = [
+      ...new Set(
+        rows
+          .map((r) => (r.seller_id != null ? String(r.seller_id) : null))
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+    const [result] = await pool.query<ResultSetHeader>('DELETE FROM orders WHERE agency_id = ?', [
+      user.agencyId,
+    ]);
+    return { deleted: result.affectedRows, orderIds, sellerIds };
+  }
+
+  throw new Error('FORBIDDEN');
 }
 
 export async function setOrderArchived(

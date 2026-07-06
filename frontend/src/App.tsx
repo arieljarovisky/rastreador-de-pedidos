@@ -43,7 +43,7 @@ function readNotifsSidebarOpen(): boolean {
 }
 
 export default function App() {
-  const { alert: showAlert } = useModal();
+  const { alert: showAlert, confirm: showConfirm } = useModal();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -1077,6 +1077,47 @@ export default function App() {
     }
   };
 
+  const handleDeleteAllOrders = async (): Promise<number> => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl('/api/orders/all'), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudieron eliminar los pedidos');
+    setOrders([]);
+    setActiveOrderId(null);
+    fetchData();
+    return Number(body.deleted ?? 0);
+  };
+
+  const confirmDeleteAllOrders = async (): Promise<number> => {
+    const ok = await showConfirm({
+      title: 'Eliminar todos los pedidos',
+      message:
+        'Se borrarán todos tus envíos de Posta (incluidos importados de Mercado Libre). Esta acción no se puede deshacer.',
+      variant: 'danger',
+      confirmText: 'Eliminar todos',
+      cancelText: 'Cancelar',
+    });
+    if (!ok) return 0;
+    try {
+      const deleted = await handleDeleteAllOrders();
+      if (deleted > 0) {
+        void showAlert({
+          title: 'Pedidos eliminados',
+          message: `Se eliminaron ${deleted} pedido${deleted !== 1 ? 's' : ''}.`,
+          variant: 'success',
+        });
+      }
+      return deleted;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'No se pudieron eliminar los pedidos';
+      void showAlert({ title: 'Error', message, variant: 'error' });
+      throw e;
+    }
+  };
+
   const handleArchiveOrder = async (orderId: string, archived: boolean) => {
     if (!token) return;
     try {
@@ -1512,6 +1553,11 @@ export default function App() {
                   onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}
                   onFetchMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? fetchMarketplaceShipments : undefined}
                   onImportMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? importMarketplaceShipments : undefined}
+                  onDeleteAllOrders={
+                    user.role === UserRole.STORE_ADMIN || user.role === UserRole.LOGISTICS_ADMIN
+                      ? confirmDeleteAllOrders
+                      : undefined
+                  }
                 />
               </div>
             )}

@@ -12,6 +12,7 @@ import {
   getSellerIdForOrder,
   assignOrderToSeller,
   deleteOrder,
+  deleteAllOrders,
   setOrderArchived,
 } from '../services/orders.service.js';
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
@@ -256,6 +257,24 @@ router.put('/:id/seller', authenticate, requireAgencyAdmin(), async (req: Reques
     }
     if (message === 'SELLER_NOT_FOUND') {
       res.status(400).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.delete('/all', authenticate, async (req: Request, res: Response) => {
+  try {
+    const result = await deleteAllOrders(req.user!);
+    for (const orderId of result.orderIds) {
+      const sellerId = result.sellerIds.length === 1 ? result.sellerIds[0]! : null;
+      emitOrderDeleted(orderId, sellerId);
+    }
+    res.json({ deleted: result.deleted });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tienes permiso para eliminar todos los pedidos.' });
       return;
     }
     throw err;

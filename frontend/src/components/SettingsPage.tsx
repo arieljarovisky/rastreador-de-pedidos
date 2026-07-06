@@ -149,6 +149,7 @@ interface SettingsPageProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
+  onDeleteAllOrders?: () => Promise<number>;
 }
 
 export default function SettingsPage({
@@ -184,6 +185,7 @@ export default function SettingsPage({
   onDisconnectMarketplace,
   onFetchMarketplaceShipments,
   onImportMarketplaceShipments,
+  onDeleteAllOrders,
 }: SettingsPageProps) {
   const userRole = user.role;
   const agency = isAgencyAdmin(userRole);
@@ -1534,6 +1536,7 @@ export default function SettingsPage({
               onDisconnect={onDisconnectMarketplace}
               onFetchShipments={onFetchMarketplaceShipments}
               onImport={onImportMarketplaceShipments}
+              onDeleteAllOrders={onDeleteAllOrders}
             />
           )}
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (

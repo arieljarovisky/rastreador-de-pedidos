@@ -236,42 +236,28 @@ export async function findImportedMercadoLibreFlex(
   sellerId: string,
   flex: MercadoLibreFlexRef
 ): Promise<Order | null> {
-  if (flex.mlOrderId) {
-    const byOrder = await findOrderByExternal(sellerId, 'mercadolibre', flex.mlOrderId);
-    if (byOrder) return byOrder;
-  }
-
+  // Un envío físico Flex = un pedido en Posta (packs comparten externalId).
   const byShipment = await findOrderByExternal(sellerId, 'mercadolibre', flex.externalId);
-  if (!byShipment) return null;
+  if (byShipment) return byShipment;
 
-  // Pedidos legacy guardados con ID de envío: solo coinciden con esta orden ML.
   if (flex.mlOrderId) {
-    const notes = byShipment.notes ?? '';
-    if (notes.includes(`Orden #${flex.mlOrderId}`)) return byShipment;
-    return null;
+    return findOrderByExternal(sellerId, 'mercadolibre', flex.mlOrderId);
   }
 
-  return byShipment;
+  return null;
 }
 
 export async function findImportedMercadoLibreFlexGlobal(
   flex: MercadoLibreFlexRef
 ): Promise<Order | null> {
-  if (flex.mlOrderId) {
-    const byOrder = await findOrderByExternalGlobal('mercadolibre', flex.mlOrderId);
-    if (byOrder) return byOrder;
-  }
-
   const byShipment = await findOrderByExternalGlobal('mercadolibre', flex.externalId);
-  if (!byShipment) return null;
+  if (byShipment) return byShipment;
 
   if (flex.mlOrderId) {
-    const notes = byShipment.notes ?? '';
-    if (notes.includes(`Orden #${flex.mlOrderId}`)) return byShipment;
-    return null;
+    return findOrderByExternalGlobal('mercadolibre', flex.mlOrderId);
   }
 
-  return byShipment;
+  return null;
 }
 
 export async function findImportedMercadoLibreRef(

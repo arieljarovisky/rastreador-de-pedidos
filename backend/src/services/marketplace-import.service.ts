@@ -207,7 +207,7 @@ async function importMercadoLibreFlexShipment(
       lng,
       notes: shipment.notes,
       externalSource: 'mercadolibre',
-      externalOrderId: shipment.mlOrderId,
+      externalOrderId: shipment.externalId,
       shippingType: 'flex',
     });
 
@@ -236,6 +236,7 @@ export async function importMercadoLibreByRefs(
   let skipped = 0;
   const orderIds: string[] = [];
   const errors: string[] = [];
+  const seenShipments = new Set<string>();
 
   for (const rawRef of refs) {
     const trimmed = rawRef.trim();
@@ -256,6 +257,12 @@ export async function importMercadoLibreByRefs(
       skipped++;
       continue;
     }
+
+    if (seenShipments.has(flex.externalId)) {
+      skipped++;
+      continue;
+    }
+    seenShipments.add(flex.externalId);
 
     const result = await importMercadoLibreFlexShipment(user, flex);
     if (result.kind === 'imported') {
@@ -367,8 +374,17 @@ export async function importMarketplaceShipments(
     }
   }
 
+  /** Packs ML: varias órdenes comparten un envío → importar una sola vez por envío. */
+  const seenMlShipments = new Set<string>();
+
   for (const shipment of toImport) {
     if (shipment.platform === 'mercadolibre') {
+      if (seenMlShipments.has(shipment.externalId)) {
+        skipped++;
+        continue;
+      }
+      seenMlShipments.add(shipment.externalId);
+
       const result = await importMercadoLibreFlexShipment(user, shipment as MercadoLibreFlexShipment);
       if (result.kind === 'imported') {
         imported++;
@@ -689,7 +705,7 @@ export async function importMercadoLibreByScanForAgency(
       notes: flex.notes,
       sellerId: validIntegration.userId,
       externalSource: flex.platform,
-      externalOrderId: flex.mlOrderId,
+      externalOrderId: flex.externalId,
       shippingType: flex.shippingType,
       historyComment: `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,
       historyLat: scanLocation?.lat,
@@ -714,7 +730,7 @@ export async function importMercadoLibreByScanForAgency(
         alreadyImported: false,
         sellerId: validIntegration.userId,
         sellerName: seller?.name ?? 'Vendedor',
-        externalOrderId: flex.mlOrderId,
+        externalOrderId: flex.externalId,
       },
       flex.externalId
     );

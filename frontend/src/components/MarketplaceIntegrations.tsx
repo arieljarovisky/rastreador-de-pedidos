@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link2, Unlink, Download, RefreshCw, ShoppingBag, Store, Loader2 } from 'lucide-react';
+import { Link2, Unlink, Download, RefreshCw, ShoppingBag, Store, Loader2, Trash2 } from 'lucide-react';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 interface MarketplaceIntegrationsProps {
@@ -23,6 +23,7 @@ interface MarketplaceIntegrationsProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
+  onDeleteAllOrders?: () => Promise<number>;
 }
 
 const btnPrimary = 'btn-primary px-3 py-1.5 disabled:opacity-50';
@@ -119,6 +120,12 @@ function PlatformCard({
   const pending = shipments.filter(
     (s) => !s.alreadyImported && s.mlShipmentStatus !== 'delivered'
   );
+  const pendingImportCount =
+    platform === 'mercadolibre'
+      ? new Set(pending.map((s) => s.externalId)).size
+      : pending.length;
+  const uniqueShipmentCount =
+    platform === 'mercadolibre' ? new Set(shipments.map((s) => s.externalId)).size : shipments.length;
   const shipmentCounts = new Map<string, number>();
   for (const s of shipments) {
     if (s.platform === 'mercadolibre') {
@@ -277,7 +284,7 @@ function PlatformCard({
                 Buscar envíos
               </span>
             </button>
-            {pending.length > 0 && (
+            {pendingImportCount > 0 && (
               <button
                 type="button"
                 className={btnPrimary}
@@ -290,7 +297,11 @@ function PlatformCard({
                   ) : (
                     <Download className="w-3 h-3" />
                   )}
-                  {importingId === 'all' ? 'Importando…' : `Importar todos (${pending.length})`}
+                  {importingId === 'all'
+                    ? 'Importando…'
+                    : platform === 'mercadolibre' && pendingImportCount !== pending.length
+                      ? `Importar envíos (${pendingImportCount})`
+                      : `Importar todos (${pendingImportCount})`}
                 </span>
               </button>
             )}
@@ -300,8 +311,11 @@ function PlatformCard({
             <p className="text-[10px] text-[var(--color-text-muted)]">
               {shipments.length} venta{shipments.length !== 1 ? 's' : ''} encontrada
               {shipments.length !== 1 ? 's' : ''}
-              {pending.length !== shipments.length &&
-                ` · ${pending.length} pendiente${pending.length !== 1 ? 's' : ''} de importar`}
+              {platform === 'mercadolibre' && uniqueShipmentCount !== shipments.length &&
+                ` · ${uniqueShipmentCount} envío${uniqueShipmentCount !== 1 ? 's' : ''} físico${uniqueShipmentCount !== 1 ? 's' : ''}`}
+              {pendingImportCount !== shipments.length &&
+                pendingImportCount > 0 &&
+                ` · ${pendingImportCount} pendiente${pendingImportCount !== 1 ? 's' : ''} de importar`}
             </p>
           )}
 
@@ -322,7 +336,7 @@ function PlatformCard({
               {platform === 'mercadolibre' ? ' seleccionado' : ''}
               {platform === 'tiendanube' ? ' seleccionado' : ''}.
               {platform === 'mercadolibre' &&
-                ' Se listan todas las órdenes Flex (incluye packs con varias ventas).'}
+                ' Se listan todas las ventas Flex; varios productos en un mismo carrito comparten un envío.'}
             </p>
           )}
 
@@ -363,7 +377,7 @@ function PlatformCard({
                       {s.platform === 'mercadolibre' &&
                         (shipmentCounts.get(s.externalId) ?? 0) > 1 && (
                           <p className="text-[9px] text-[var(--color-text-faint)] mt-0.5">
-                            Pack · envío compartido #{s.externalId}
+                            Mismo envío #{s.externalId} · se importa una sola vez
                           </p>
                         )}
                     </div>
@@ -408,6 +422,7 @@ export default function MarketplaceIntegrations({
   onDisconnect,
   onFetchShipments,
   onImport,
+  onDeleteAllOrders,
 }: MarketplaceIntegrationsProps) {
   const [mlShipments, setMlShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [tnShipments, setTnShipments] = useState<MarketplaceShipmentPreview[]>([]);
@@ -423,6 +438,7 @@ export default function MarketplaceIntegrations({
   const [mlDateTo, setMlDateTo] = useState(() => defaultMlDateRange().dateTo);
   const [mlRefInput, setMlRefInput] = useState('');
   const [mlRefImporting, setMlRefImporting] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<'success' | 'error'>('success');
 
@@ -641,6 +657,39 @@ export default function MarketplaceIntegrations({
           onImportOne={(id) => void runImport('tiendanube', [id])}
         />
       </div>
+
+      {onDeleteAllOrders && (
+        <div className="pt-2 border-t border-[var(--surface-border)]">
+          <button
+            type="button"
+            className={`${btnGhost} text-[var(--color-danger)] border-[var(--color-danger)]/30 hover:bg-[var(--color-danger)]/10 w-full`}
+            disabled={deletingAll || mlLoading || tnLoading || mlImporting || tnImporting}
+            onClick={() => {
+              setDeletingAll(true);
+              void onDeleteAllOrders()
+                .then((deleted) => {
+                  if (deleted > 0) {
+                    setMlShipments([]);
+                    setTnShipments([]);
+                    setMessageTone('success');
+                    setMessage(`Se eliminaron ${deleted} pedido${deleted !== 1 ? 's' : ''}.`);
+                  }
+                })
+                .catch(() => {})
+                .finally(() => setDeletingAll(false));
+            }}
+          >
+            <span className="inline-flex items-center justify-center gap-1 w-full">
+              {deletingAll ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Trash2 className="w-3 h-3" />
+              )}
+              {deletingAll ? 'Eliminando…' : 'Eliminar todos los pedidos'}
+            </span>
+          </button>
+        </div>
+      )}
     </section>
   );
 }
