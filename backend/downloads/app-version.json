@@ -1,7 +1,7 @@
 {
-  "version": "1.2.1",
-  "minVersion": "1.2.1",
-  "versionCode": 12,
-  "minVersionCode": 12,
-  "message": "Escaneo múltiple de etiquetas, asignación automática al repartidor y mejoras en Mercado Libre Flex."
+  "version": "1.2.2",
+  "minVersion": "1.2.2",
+  "versionCode": 13,
+  "minVersionCode": 13,
+  "message": "Escaneo múltiple, Terminar escaneo, Empezar a repartir y asignación automática ML Flex."
 }
