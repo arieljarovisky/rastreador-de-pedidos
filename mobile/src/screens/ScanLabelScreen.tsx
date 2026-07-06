@@ -28,7 +28,7 @@ type Props = CompositeScreenProps<
 
 type ScanMode = 'camera' | 'manual';
 
-export default function ScanLabelScreen(_props: Props) {
+export default function ScanLabelScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const accent = roleAccents.repartidor;
   const { scanMercadoLibreLabel } = useOrdersContext();
@@ -38,7 +38,16 @@ export default function ScanLabelScreen(_props: Props) {
   const [importing, setImporting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusOk, setStatusOk] = useState(true);
+  const [scanCount, setScanCount] = useState(0);
   const cooldownUntil = useRef(0);
+
+  const finishScanning = useCallback(() => {
+    const tabNav = navigation.getParent();
+    tabNav?.navigate('Home', {
+      screen: 'Orders',
+      params: { fromScanSession: true },
+    });
+  }, [navigation]);
 
   const runImport = useCallback(
     async (code: string) => {
@@ -50,6 +59,7 @@ export default function ScanLabelScreen(_props: Props) {
       try {
         const result = await scanMercadoLibreLabel(trimmed);
         setStatusOk(true);
+        setScanCount((n) => n + 1);
         const locNote = result.order.history?.some((h) => h.lat != null) ? ' · ubicación registrada' : '';
         const flexNote = result.mlFlexMessage
           ? result.mlFlexRegistered
@@ -198,10 +208,21 @@ export default function ScanLabelScreen(_props: Props) {
         </View>
       ) : null}
 
-      <Text style={[styles.footerNote, { paddingBottom: TAB_BAR_CLEARANCE + spacing.md }]}>
-        Cada escaneo queda en la bitácora del pedido con tu nombre y ubicación. Los envíos
-        escaneados aparecen en Mis envíos.
-      </Text>
+      <View style={[styles.finishBar, { paddingBottom: TAB_BAR_CLEARANCE + spacing.sm }]}>
+        {scanCount > 0 ? (
+          <Text style={styles.scanCount}>
+            {scanCount} paquete{scanCount === 1 ? '' : 's'} escaneado{scanCount === 1 ? '' : 's'}
+          </Text>
+        ) : (
+          <Text style={styles.finishHint}>Escaneá todas las etiquetas y tocá terminar cuando listo.</Text>
+        )}
+        <Button
+          label={scanCount > 0 ? 'Terminar escaneo' : 'Ver mis envíos'}
+          onPress={finishScanning}
+          disabled={importing}
+          style={styles.finishBtn}
+        />
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -297,13 +318,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   statusText: { flex: 1, fontSize: 13, lineHeight: 18 },
-  footerNote: {
-    color: colors.textFaint,
-    fontSize: 11,
-    textAlign: 'center',
-    paddingHorizontal: spacing.xl,
-    marginTop: spacing.sm,
+  finishBar: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
+  scanCount: {
+    ...typography.body(13, colors.text),
+    textAlign: 'center',
+    fontFamily: fonts.bodySemiBold,
+  },
+  finishHint: {
+    ...typography.body(12, colors.textMuted),
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  finishBtn: { width: '100%' },
   permPane: { padding: spacing.xl },
   permIcon: {
     width: 64,

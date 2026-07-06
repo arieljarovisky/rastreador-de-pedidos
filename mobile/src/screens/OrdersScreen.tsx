@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CompositeScreenProps } from '@react-navigation/native';
+import { CompositeScreenProps, RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
 import { Order, OrderStatus } from '../types';
@@ -22,6 +23,7 @@ import EmptyState from '../components/ui/EmptyState';
 import ListTabBar from '../components/ui/ListTabBar';
 import ListTabButton from '../components/ui/ListTabButton';
 import MonoLabel from '../components/ui/MonoLabel';
+import Button from '../components/Button';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import { RepartidorHomeStackParamList, RepartidorStackParamList } from '../navigation/types';
 
@@ -29,6 +31,7 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RepartidorHomeStackParamList, 'Orders'>,
   NativeStackScreenProps<RepartidorStackParamList>
 >;
+type OrdersRouteProp = RouteProp<RepartidorHomeStackParamList, 'Orders'>;
 type Tab = 'assigned' | 'available';
 
 function initials(name: string): string {
@@ -40,10 +43,29 @@ function initials(name: string): string {
 
 export default function OrdersScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const route = useRoute<OrdersRouteProp>();
   const accent = roleAccents.repartidor;
   const { user } = useAuth();
-  const { orders, loading, refreshing, connected, error, refresh } = useOrdersContext();
+  const {
+    orders,
+    loading,
+    refreshing,
+    connected,
+    error,
+    refresh,
+    deliveringOrder,
+    updateStatus,
+  } = useOrdersContext();
   const [tab, setTab] = useState<Tab>('assigned');
+  const [startingRoute, setStartingRoute] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (route.params?.fromScanSession) {
+        setTab('assigned');
+      }
+    }, [route.params?.fromScanSession])
+  );
 
   const myAssigned = useMemo(
     () =>
@@ -56,6 +78,11 @@ export default function OrdersScreen({ navigation }: Props) {
     [orders, user?.id]
   );
 
+  const readyToDeliver = useMemo(
+    () => myAssigned.filter((o) => o.status === OrderStatus.ASSIGNED),
+    [myAssigned]
+  );
+
   const available = useMemo(
     () => orders.filter((o) => o.status === OrderStatus.PENDING),
     [orders]
@@ -63,6 +90,43 @@ export default function OrdersScreen({ navigation }: Props) {
 
   const data = tab === 'assigned' ? myAssigned : available;
   const displayName = user?.name ?? 'Repartidor';
+  const showStartRoute = tab === 'assigned' && readyToDeliver.length > 0 && !deliveringOrder;
+  const showContinueRoute = tab === 'assigned' && deliveringOrder != null;
+
+  const handleStartDelivering = () => {
+    const count = readyToDeliver.length;
+    Alert.alert(
+      'Empezar a repartir',
+      count === 1
+        ? '¿Iniciar el reparto de 1 envío?'
+        : `¿Iniciar el reparto de ${count} envíos? Vas a entregarlos uno por uno.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Empezar',
+          onPress: () => {
+            void (async () => {
+              setStartingRoute(true);
+              try {
+                const first = readyToDeliver[0];
+                await updateStatus(first.id, OrderStatus.DELIVERING, {
+                  comment: 'Reparto iniciado',
+                });
+                navigation.navigate('OrderDetail', { orderId: first.id });
+              } catch (err) {
+                Alert.alert(
+                  'Error',
+                  err instanceof Error ? err.message : 'No se pudo iniciar el reparto.'
+                );
+              } finally {
+                setStartingRoute(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
+  };
 
   const renderItem = ({ item }: { item: Order }) => (
     <OrderCard
@@ -109,6 +173,15 @@ export default function OrdersScreen({ navigation }: Props) {
         />
       </ListTabBar>
 
+      {tab === 'assigned' && readyToDeliver.length > 0 && !deliveringOrder ? (
+        <View style={styles.sessionBanner}>
+          <Text style={styles.sessionBannerText}>
+            {readyToDeliver.length} envío{readyToDeliver.length === 1 ? '' : 's'} listo
+            {readyToDeliver.length === 1 ? '' : 's'} para salir
+          </Text>
+        </View>
+      ) : null}
+
       {error && !loading ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
@@ -130,7 +203,10 @@ export default function OrdersScreen({ navigation }: Props) {
           contentContainerStyle={[
             styles.list,
             data.length === 0 && styles.listEmpty,
-            { paddingBottom: TAB_BAR_CLEARANCE + spacing.lg },
+            {
+              paddingBottom:
+                TAB_BAR_CLEARANCE + spacing.lg + (showStartRoute || showContinueRoute ? 72 : 0),
+            },
           ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={accent} />
@@ -142,7 +218,7 @@ export default function OrdersScreen({ navigation }: Props) {
               title={tab === 'assigned' ? 'Sin envíos asignados' : 'Nada disponible ahora'}
               message={
                 tab === 'assigned'
-                  ? 'Tomá un pedido de la pestaña Disponibles para empezar a repartir.'
+                  ? 'Escaneá etiquetas ML para cargar envíos o tomá uno de Disponibles.'
                   : 'Cuando haya pedidos nuevos van a aparecer acá automáticamente.'
               }
               action={
@@ -159,6 +235,29 @@ export default function OrdersScreen({ navigation }: Props) {
           }
         />
       )}
+
+      {showStartRoute ? (
+        <View style={[styles.routeBar, { paddingBottom: TAB_BAR_CLEARANCE + spacing.sm }]}>
+          <Button
+            label={`Empezar a repartir (${readyToDeliver.length})`}
+            variant="amber"
+            onPress={handleStartDelivering}
+            loading={startingRoute}
+            style={styles.routeBtn}
+          />
+        </View>
+      ) : null}
+
+      {showContinueRoute && deliveringOrder ? (
+        <View style={[styles.routeBar, { paddingBottom: TAB_BAR_CLEARANCE + spacing.sm }]}>
+          <Button
+            label="Continuar reparto"
+            variant="amber"
+            onPress={() => navigation.navigate('OrderDetail', { orderId: deliveringOrder.id })}
+            style={styles.routeBtn}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -195,6 +294,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   headerText: { flex: 1, minWidth: 0 },
+  sessionBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: `${accent}14`,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: `${accent}33`,
+  },
+  sessionBannerText: {
+    ...typography.body(13, colors.text),
+    textAlign: 'center',
+    fontWeight: '600',
+  },
   list: { padding: spacing.lg },
   listEmpty: { flexGrow: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -215,4 +329,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     alignSelf: 'flex-start',
   },
+  routeBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  routeBtn: { width: '100%' },
 });

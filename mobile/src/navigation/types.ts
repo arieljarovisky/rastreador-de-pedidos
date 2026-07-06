@@ -2,7 +2,7 @@ import { MarketplacePlatform } from '../types';
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RepartidorHomeStackParamList = {
-  Orders: undefined;
+  Orders: { fromScanSession?: boolean } | undefined;
 };
 
 export type RepartidorScanStackParamList = {
