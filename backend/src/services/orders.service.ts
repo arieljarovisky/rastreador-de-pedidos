@@ -457,6 +457,42 @@ export async function assignOrderToRepartidorFromMarketplace(
   return getOrderById(orderId);
 }
 
+/** Aplica estado y repartidor sincronizados desde Mercado Libre (importación / webhook). */
+export async function applyMercadoLibreSyncState(
+  orderId: string,
+  options: {
+    status: OrderStatus;
+    repartidorId?: string | null;
+    comment: string;
+  }
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+    return order;
+  }
+
+  let repartidorId = order.repartidorId;
+  if (options.repartidorId) {
+    const repartidor = await getRepartidorById(options.repartidorId);
+    if (repartidor && repartidor.agencyId === order.agencyId) {
+      repartidorId = options.repartidorId;
+    }
+  }
+
+  const now = new Date();
+  await pool.query(
+    'UPDATE orders SET status = ?, repartidor_id = ?, updated_at = ? WHERE id = ?',
+    [options.status, repartidorId, now, orderId]
+  );
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, options.status, 'Mercado Libre', options.comment, now]
+  );
+
+  return getOrderById(orderId);
+}
+
 export async function assignOrderToSeller(
   user: User,
   orderId: string,

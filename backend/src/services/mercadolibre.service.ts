@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { sleep } from '../utils/sleep.js';
 import type { Order } from '../types/index.js';
+import { OrderStatus } from '../types/index.js';
 import {
   findOrderByExternal,
   findOrderByExternalGlobal,
@@ -221,6 +222,7 @@ export interface MercadoLibreFlexShipment {
   notes: string;
   createdAt: string;
   mlShipmentStatus?: string;
+  mlShipmentSubstatus?: string | null;
 }
 
 function buildFlexNotes(order: MlOrder, shipment: MlShipment): string {
@@ -316,6 +318,7 @@ function buildFlexShipmentFromMl(
     notes: buildFlexNotes(order, shipment),
     createdAt: order.date_created,
     mlShipmentStatus: shipment.status,
+    mlShipmentSubstatus: shipment.substatus ?? null,
   };
 }
 
@@ -419,6 +422,70 @@ export function formatMlShipmentStatusLabel(shipment: Pick<MlShipment, 'status' 
   const substatus = shipment.substatus?.trim();
   if (status && substatus) return `${status}/${substatus}`;
   return status ?? substatus ?? 'desconocido';
+}
+
+const ML_IN_TRANSIT_SUBSTATUSES = [
+  'out_for_delivery',
+  'on_route',
+  'in_transit',
+  'picked_up',
+  'in_carriage',
+  'dropped_off',
+  'delivery_in_progress',
+];
+
+function isMercadoLibreShipmentInTransit(mlStatus: string, mlSubstatus: string): boolean {
+  if (
+    ['shipped', 'in_transit', 'out_for_delivery', 'on_route'].includes(mlStatus)
+  ) {
+    return true;
+  }
+  return ML_IN_TRANSIT_SUBSTATUSES.some((s) => mlSubstatus === s || mlSubstatus.includes(s));
+}
+
+/** Mapea estado ML → Posta. Con `onImport` aplica el estado real al importar. */
+export function mapMercadoLibreShipmentToOrderStatus(
+  mlStatus?: string,
+  mlSubstatus?: string | null,
+  options?: {
+    hasRepartidor?: boolean;
+    currentStatus?: OrderStatus;
+    onImport?: boolean;
+  }
+): OrderStatus | null {
+  const status = (mlStatus ?? '').toLowerCase().trim();
+  const sub = (mlSubstatus ?? '').toLowerCase().trim();
+  const hasRepartidor = options?.hasRepartidor ?? false;
+  const current = options?.currentStatus ?? OrderStatus.PENDING;
+  const onImport = options?.onImport ?? false;
+
+  if (status === 'delivered' || sub === 'delivered') return OrderStatus.DELIVERED;
+  if (status === 'cancelled') return OrderStatus.CANCELLED;
+
+  const inTransit = isMercadoLibreShipmentInTransit(status, sub);
+
+  if (onImport) {
+    if (inTransit) {
+      return OrderStatus.DELIVERING;
+    }
+    if (status === 'handling' || sub.includes('in_hub') || sub.includes('packed')) {
+      return hasRepartidor ? OrderStatus.ASSIGNED : OrderStatus.PENDING;
+    }
+    if (hasRepartidor) return OrderStatus.ASSIGNED;
+    return OrderStatus.PENDING;
+  }
+
+  if (inTransit) {
+    if (
+      hasRepartidor &&
+      (current === OrderStatus.ASSIGNED || current === OrderStatus.DELIVERING)
+    ) {
+      return OrderStatus.DELIVERING;
+    }
+    return null;
+  }
+
+  return null;
 }
 
 export async function fetchMercadoLibreFlexShipment(

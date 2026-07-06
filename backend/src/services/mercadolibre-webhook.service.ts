@@ -17,6 +17,7 @@ import {
   findImportedMercadoLibreRefGlobal,
   formatMlShipmentStatusLabel,
   getValidMercadoLibreIntegration,
+  mapMercadoLibreShipmentToOrderStatus,
   parseMercadoLibreNotificationResource,
   type MercadoLibreFlexShipment,
   type MlFlexAssignment,
@@ -33,6 +34,7 @@ import {
 import { getRepartidorByMercadoLibreUserId, getUserById } from './users.service.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
+import { syncMercadoLibreOrderAfterImport } from './marketplace-import.service.js';
 
 export interface MercadoLibreNotificationPayload {
   _id?: string;
@@ -68,23 +70,14 @@ export function getMercadoLibreWebhookUrl(): string {
 function mapMlShipmentStatusToOrderStatus(
   mlStatus: string,
   currentStatus: OrderStatus,
-  hasRepartidor: boolean
+  hasRepartidor: boolean,
+  mlSubstatus?: string | null
 ): OrderStatus | null {
-  const normalized = mlStatus.toLowerCase();
-
-  if (normalized === 'delivered') return OrderStatus.DELIVERED;
-  if (normalized === 'cancelled') return OrderStatus.CANCELLED;
-
-  if (
-    ['shipped', 'in_transit', 'out_for_delivery', 'on_route', 'handling'].includes(normalized)
-  ) {
-    if (hasRepartidor && (currentStatus === OrderStatus.ASSIGNED || currentStatus === OrderStatus.DELIVERING)) {
-      return OrderStatus.DELIVERING;
-    }
-    return null;
-  }
-
-  return null;
+  return mapMercadoLibreShipmentToOrderStatus(mlStatus, mlSubstatus, {
+    hasRepartidor,
+    currentStatus,
+    onImport: false,
+  });
 }
 
 async function notifySellerFlexEvent(
@@ -123,7 +116,7 @@ async function importFlexShipment(
     lng = geocoded.lng;
   }
 
-  const order = await createOrder(seller, {
+  let order = await createOrder(seller, {
     clientName: shipment.clientName,
     clientPhone: shipment.clientPhone,
     address: shipment.address,
@@ -134,6 +127,8 @@ async function importFlexShipment(
     externalOrderId: shipment.externalId,
     shippingType: 'flex',
   });
+
+  order = await syncMercadoLibreOrderAfterImport(integration.userId, order, shipment);
 
   const sellerId = await getSellerIdForOrder(order.id);
   await notifySellerFlexEvent(
@@ -218,7 +213,8 @@ async function syncOrderFromMlShipment(
   const next = mapMlShipmentStatusToOrderStatus(
     shipment.status,
     existing.status,
-    Boolean(existing.repartidorId)
+    Boolean(existing.repartidorId),
+    shipment.substatus
   );
   if (next) {
     await syncOrderStatus(existing.id, next, statusLabel);
@@ -264,10 +260,15 @@ async function handleOrderResource(
     const next = mapMlShipmentStatusToOrderStatus(
       flexShipment.mlShipmentStatus,
       existing.status,
-      Boolean(existing.repartidorId)
+      Boolean(existing.repartidorId),
+      flexShipment.mlShipmentSubstatus
     );
     if (next) {
-      await syncOrderStatus(existing.id, next, flexShipment.mlShipmentStatus);
+      const label = formatMlShipmentStatusLabel({
+        status: flexShipment.mlShipmentStatus,
+        substatus: flexShipment.mlShipmentSubstatus ?? undefined,
+      });
+      await syncOrderStatus(existing.id, next, label);
     }
   }
 }

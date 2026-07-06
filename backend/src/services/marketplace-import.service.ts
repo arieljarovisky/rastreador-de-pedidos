@@ -8,6 +8,7 @@ import {
   recordMercadoLibreLabelScan,
   assertOrderAccessibleForLabelScan,
   updateOrderStatus,
+  applyMercadoLibreSyncState,
 } from './orders.service.js';
 import {
   listMercadoLibreFlexShipments,
@@ -17,6 +18,10 @@ import {
   findImportedMercadoLibreFlex,
   resolveMercadoLibreShipmentId,
   syncMercadoLibreFlexOnScan,
+  fetchMercadoLibreShipment,
+  fetchMercadoLibreFlexAssignment,
+  formatMlShipmentStatusLabel,
+  mapMercadoLibreShipmentToOrderStatus,
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import {
@@ -29,11 +34,12 @@ import {
   listMercadoLibreIntegrationsForAgency,
   type IntegrationPlatform,
 } from './integrations.service.js';
-import { assertSellerInAgency, getUserById } from './users.service.js';
+import { assertSellerInAgency, getRepartidorByMercadoLibreUserId, getUserById } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { sleep } from '../utils/sleep.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
+import { env } from '../config/env.js';
 
 function formatImportError(externalId: string, reason: string): string {
   if (reason === 'GEOCODE_UNAVAILABLE') {
@@ -65,6 +71,8 @@ export interface MarketplaceShipmentPreview {
   notes: string;
   createdAt: string;
   alreadyImported: boolean;
+  mlShipmentStatus?: string;
+  mlShipmentSubstatus?: string | null;
 }
 
 type RawShipment = MercadoLibreFlexShipment | TiendaNubeExpressShipment;
@@ -88,6 +96,68 @@ async function markImported(
     });
   }
   return previews;
+}
+
+/** Tras importar, sincroniza estado ML y repartidor Flex (assignment). */
+export async function syncMercadoLibreOrderAfterImport(
+  sellerUserId: string,
+  order: Order,
+  flex: Pick<
+    MercadoLibreFlexShipment,
+    'externalId' | 'mlShipmentStatus' | 'mlShipmentSubstatus'
+  >
+): Promise<Order> {
+  try {
+    const integration = await getValidMercadoLibreIntegration(sellerUserId);
+    const liveShipment = await fetchMercadoLibreShipment(integration, flex.externalId);
+    const mlStatus = liveShipment.status ?? flex.mlShipmentStatus;
+    const mlSubstatus = liveShipment.substatus ?? flex.mlShipmentSubstatus ?? null;
+
+    let repartidorId: string | null = null;
+    if (order.agencyId) {
+      const assignment = await fetchMercadoLibreFlexAssignment(
+        integration,
+        env.mercadolibre.siteId,
+        flex.externalId
+      );
+      if (assignment?.driver_id) {
+        const repartidor = await getRepartidorByMercadoLibreUserId(
+          assignment.driver_id,
+          order.agencyId
+        );
+        repartidorId = repartidor?.id ?? null;
+      }
+    }
+
+    const targetStatus = mapMercadoLibreShipmentToOrderStatus(mlStatus, mlSubstatus, {
+      hasRepartidor: Boolean(repartidorId),
+      onImport: true,
+    });
+    if (!targetStatus) {
+      return order;
+    }
+    if (targetStatus === OrderStatus.PENDING && !repartidorId) {
+      return order;
+    }
+
+    const statusLabel = formatMlShipmentStatusLabel({
+      status: mlStatus,
+      substatus: mlSubstatus ?? undefined,
+    });
+    const comment = repartidorId
+      ? `Importado desde ML · estado ${statusLabel} · repartidor sincronizado`
+      : `Importado desde ML · estado ${statusLabel}`;
+
+    const updated = await applyMercadoLibreSyncState(order.id, {
+      status: targetStatus,
+      repartidorId,
+      comment,
+    });
+    return updated ?? order;
+  } catch (err) {
+    console.warn('[ml-import] No se pudo sincronizar estado ML:', err);
+    return order;
+  }
 }
 
 export interface MarketplaceListOptions {
@@ -157,6 +227,15 @@ export async function importMarketplaceShipments(
             })
           : await findOrderByExternal(user.id, shipment.platform, shipment.externalId);
       if (existing) {
+        if (shipment.platform === 'mercadolibre') {
+          const synced = await syncMercadoLibreOrderAfterImport(user.id, existing, {
+            externalId: shipment.externalId,
+            mlShipmentStatus: shipment.mlShipmentStatus,
+            mlShipmentSubstatus: shipment.mlShipmentSubstatus,
+          });
+          const sellerId = await getSellerIdForOrder(synced.id);
+          emitOrderUpdated(synced, sellerId);
+        }
         skipped++;
         continue;
       }
@@ -174,7 +253,7 @@ export async function importMarketplaceShipments(
         lng = geocoded.lng;
       }
 
-      const order = await createOrder(user, {
+      let order = await createOrder(user, {
         clientName: shipment.clientName,
         clientPhone: shipment.clientPhone,
         address: shipment.address,
@@ -185,6 +264,14 @@ export async function importMarketplaceShipments(
         externalOrderId: shipment.externalId,
         shippingType: shipment.shippingType,
       });
+
+      if (shipment.platform === 'mercadolibre') {
+        order = await syncMercadoLibreOrderAfterImport(user.id, order, {
+          externalId: shipment.externalId,
+          mlShipmentStatus: shipment.mlShipmentStatus,
+          mlShipmentSubstatus: shipment.mlShipmentSubstatus,
+        });
+      }
 
       const sellerId = await getSellerIdForOrder(order.id);
       emitOrderUpdated(order, sellerId);
