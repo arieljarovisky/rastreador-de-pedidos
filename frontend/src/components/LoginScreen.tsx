@@ -242,9 +242,9 @@ export default function LoginScreen({
 
   const brandSubtitle = isRegister
     ? registerStep === 1
-      ? 'Completá los datos de tu empresa de logística para operar en Posta.'
+      ? 'Solo las agencias de logística se registran acá. Los vendedores reciben su cuenta desde el panel de su agencia.'
       : 'Creá la cuenta del administrador que gestionará la flota y los envíos.'
-    : 'Agencias y repartidores: ingresá con tus credenciales para gestionar envíos en tiempo real.';
+    : 'Agencias, vendedores y repartidores: ingresá con las credenciales que te asignaron. El alta de vendedores la hace tu agencia.';
 
   return (
     <div className="auth-split" id="login-container">
@@ -327,12 +327,26 @@ export default function LoginScreen({
             </h2>
             <p className="auth-split__card-sub">
               {mode === 'login'
-                ? 'Accedé al panel con tu usuario o correo.'
+                ? 'Agencias, vendedores y repartidores — sin registro público para vendedores.'
                 : registerStep === 1
-                  ? 'Paso 1 de 2'
+                  ? 'Paso 1 de 2 · Solo registro de agencias'
                   : 'Paso 2 de 2 · Revisá y confirmá'}
             </p>
           </div>
+
+          {mode === 'login' && (
+            <p className="auth-split__hint">
+              <strong>¿Sos vendedor?</strong> Ingresá con el usuario y contraseña que te dio tu agencia.
+              No podés registrarte solo: tu agencia te crea la cuenta desde Configuración.
+            </p>
+          )}
+
+          {isRegister && registerStep === 1 && (
+            <p className="auth-split__hint auth-split__hint--register">
+              Las cuentas de <strong>vendedores</strong> y <strong>repartidores</strong> las crea el
+              administrador de la agencia después del registro.
+            </p>
+          )}
 
           {isRegister && (
             <div className="auth-split__steps" aria-hidden="true">

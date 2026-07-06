@@ -802,6 +802,27 @@
   color: var(--auth-muted);
 }
 
+.auth-split__hint {
+  margin: -0.25rem 0 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, var(--auth-accent) 28%, var(--auth-line));
+  background: color-mix(in srgb, var(--auth-accent) 8%, var(--auth-panel-2));
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--auth-muted);
+}
+
+.auth-split__hint strong {
+  color: var(--auth-text);
+  font-weight: 600;
+}
+
+.auth-split__hint--register {
+  border-color: color-mix(in srgb, var(--auth-stamp) 25%, var(--auth-line));
+  background: color-mix(in srgb, var(--auth-stamp) 6%, var(--auth-panel-2));
+}
+
 .auth-split__steps {
   display: flex;
   align-items: center;
