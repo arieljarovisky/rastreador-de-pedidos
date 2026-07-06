@@ -14,6 +14,7 @@ import {
   MapPin,
   ChevronRight,
   Bike,
+  Layers,
 } from 'lucide-react';
 import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
@@ -22,6 +23,8 @@ import {
   formatMinutesUntilDeadline,
   getUndeliveredTodayOrders,
   getDeliveredTodayOrders,
+  getDeliveredLateTodayOrders,
+  getOrderDeliveredAt,
   DELIVERY_DEADLINE_HOUR,
   DELIVERY_TIMEZONE_LABEL,
   formatArTime,
@@ -47,6 +50,7 @@ export default function OperationsDashboard({
   const summary = useMemo(() => computeDeliverySummaryFromOrders(orders), [orders]);
   const undelivered = useMemo(() => getUndeliveredTodayOrders(orders), [orders]);
   const delivered = useMemo(() => getDeliveredTodayOrders(orders), [orders]);
+  const deliveredLate = useMemo(() => getDeliveredLateTodayOrders(orders), [orders]);
 
   const statusBreakdown = useMemo(() => {
     const undeliveredToday = getUndeliveredTodayOrders(orders);
@@ -124,10 +128,17 @@ export default function OperationsDashboard({
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
+          <KpiCard label="Total pedidos" value={summary.total} tone="accent" icon={Layers} />
           <KpiCard label="Entregados" value={summary.delivered} tone="ok" icon={CheckCircle2} />
           <KpiCard label="Sin entregar" value={summary.undelivered} tone={summary.undelivered > 0 ? 'warn' : 'neutral'} icon={Package} />
           <KpiCard label="Fuera plazo" value={summary.overdue} tone={summary.overdue > 0 ? 'danger' : 'neutral'} icon={AlertTriangle} />
+          <KpiCard
+            label="Entreg. tarde"
+            value={summary.deliveredLate}
+            tone={summary.deliveredLate > 0 ? 'danger' : 'neutral'}
+            icon={AlertTriangle}
+          />
           <KpiCard label="En ruta" value={statusBreakdown.delivering} tone="warn" icon={Truck} />
           <KpiCard label="Pendientes" value={statusBreakdown.pending + statusBreakdown.assigned} tone="neutral" icon={Package} />
           {isAgency && (
@@ -154,7 +165,7 @@ export default function OperationsDashboard({
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4 scrollbar-thin">
-        <div className="grid lg:grid-cols-2 gap-4">
+        <div className="grid lg:grid-cols-3 gap-4">
           <OrderListSection
             title="Sin entregar hoy"
             count={undelivered.length}
@@ -172,6 +183,16 @@ export default function OperationsDashboard({
             tone="ok"
             onSelectOrder={onSelectOrder}
             showSeller={isAgency}
+          />
+          <OrderListSection
+            title="Entregados fuera de plazo"
+            count={deliveredLate.length}
+            orders={deliveredLate}
+            emptyMessage="Ningún pedido entregado después del corte de las 21:00."
+            tone="danger"
+            onSelectOrder={onSelectOrder}
+            showSeller={isAgency}
+            showDeliveredAt
           />
         </div>
 
@@ -246,17 +267,23 @@ function OrderListSection({
   tone,
   onSelectOrder,
   showSeller,
+  showDeliveredAt = false,
 }: {
   title: string;
   count: number;
   orders: Order[];
   emptyMessage: string;
-  tone: 'ok' | 'warn';
+  tone: 'ok' | 'warn' | 'danger';
   onSelectOrder?: (orderId: string) => void;
   showSeller?: boolean;
+  showDeliveredAt?: boolean;
 }) {
   const borderTone =
-    tone === 'ok' ? 'border-[var(--color-ok)]/30' : 'border-[var(--color-warn)]/30';
+    tone === 'ok'
+      ? 'border-[var(--color-ok)]/30'
+      : tone === 'danger'
+        ? 'border-[var(--color-danger)]/30'
+        : 'border-[var(--color-warn)]/30';
 
   return (
     <section className={`border rounded-[var(--radius-posta)] overflow-hidden ${borderTone}`}>
@@ -292,6 +319,14 @@ function OrderListSection({
                     {order.repartidorName}
                   </p>
                 )}
+                {showDeliveredAt && (() => {
+                  const deliveredAt = getOrderDeliveredAt(order);
+                  return deliveredAt ? (
+                    <p className="text-[10px] text-[var(--color-danger)] mt-0.5 font-mono">
+                      Entregado {formatArTime(deliveredAt)} hs · corte {DELIVERY_DEADLINE_HOUR}:00
+                    </p>
+                  ) : null;
+                })()}
               </button>
             </li>
           ))}

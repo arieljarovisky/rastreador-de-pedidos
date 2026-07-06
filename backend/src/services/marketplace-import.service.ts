@@ -73,6 +73,8 @@ export interface MarketplaceShipmentPreview {
   alreadyImported: boolean;
   mlShipmentStatus?: string;
   mlShipmentSubstatus?: string | null;
+  mlProductCount?: number;
+  mlOrderIds?: string[];
 }
 
 type RawShipment = MercadoLibreFlexShipment | TiendaNubeExpressShipment;

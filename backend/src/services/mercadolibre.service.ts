@@ -41,6 +41,7 @@ interface MlOrder {
   date_created: string;
   buyer: { nickname?: string; first_name?: string; last_name?: string; phone?: { number?: string } };
   shipping: { id: number };
+  order_items?: Array<{ quantity?: number }>;
 }
 
 interface MlShipment {
@@ -223,11 +224,24 @@ export interface MercadoLibreFlexShipment {
   createdAt: string;
   mlShipmentStatus?: string;
   mlShipmentSubstatus?: string | null;
+  /** Productos en la venta (suma de cantidades en order_items), como en ML. */
+  mlProductCount?: number;
+  /** Órdenes MLA agrupadas (mismo pack o envío). Solo informativo. */
+  mlOrderIds?: string[];
+}
+
+function countOrderProducts(order: MlOrder): number {
+  const items = order.order_items ?? [];
+  if (items.length === 0) return 1;
+  return items.reduce((sum, item) => sum + Math.max(1, item.quantity ?? 1), 0);
 }
 
 function buildFlexNotes(order: MlOrder, shipment: MlShipment): string {
-  const pack = order.pack_id != null ? ` · Pack #${order.pack_id}` : '';
-  return `Mercado Libre Flex · Envío #${shipment.id}${pack} · Orden #${order.id}`;
+  const productCount = countOrderProducts(order);
+  const products =
+    productCount > 1 ? ` · Paquete de ${productCount} productos` : '';
+  const pack = order.pack_id != null ? ` · Pack MLA #${order.pack_id}` : '';
+  return `Mercado Libre Flex · Envío #${shipment.id}${pack}${products} · Orden #${order.id}`;
 }
 
 export type MercadoLibreFlexRef = Pick<MercadoLibreFlexShipment, 'externalId' | 'mlOrderId'>;
@@ -330,6 +344,7 @@ function buildFlexShipmentFromMl(
     createdAt: order.date_created,
     mlShipmentStatus: shipment.status,
     mlShipmentSubstatus: shipment.substatus ?? null,
+    mlProductCount: countOrderProducts(order),
   };
 }
 
@@ -624,7 +639,7 @@ export async function listMercadoLibreFlexShipments(
   if (!sellerId) throw new Error('ML_NOT_CONNECTED');
 
   const shipments: MercadoLibreFlexShipment[] = [];
-  /** Una fila por orden ML (packs pueden compartir el mismo envío). */
+  /** Una fila por orden ML al consultar ML; se fusiona por envío al final. */
   const seenOrderIds = new Set<string>();
   const pageSize = 50;
   const maxPages = 6;
@@ -668,7 +683,36 @@ export async function listMercadoLibreFlexShipments(
     if (results.length < pageSize) break;
   }
 
-  return shipments;
+  return mergeMercadoLibreFlexForListing(shipments);
+}
+
+/** Una fila por venta MLA (pack o envío), como en el panel de Mercado Libre. */
+function mergeMercadoLibreFlexForListing(
+  items: MercadoLibreFlexShipment[]
+): MercadoLibreFlexShipment[] {
+  const grouped = new Map<string, MercadoLibreFlexShipment>();
+
+  for (const flex of items) {
+    const key = flex.mlPackId ? `pack:${flex.mlPackId}` : `ship:${flex.externalId}`;
+    const prev = grouped.get(key);
+    if (!prev) {
+      grouped.set(key, {
+        ...flex,
+        mlOrderIds: [flex.mlOrderId],
+        mlProductCount: flex.mlProductCount ?? 1,
+      });
+      continue;
+    }
+
+    const mlOrderIds = [...(prev.mlOrderIds ?? [prev.mlOrderId]), flex.mlOrderId];
+    grouped.set(key, {
+      ...prev,
+      mlOrderIds,
+      mlProductCount: (prev.mlProductCount ?? 1) + (flex.mlProductCount ?? 1),
+    });
+  }
+
+  return [...grouped.values()];
 }
 
 export function isMercadoLibreConfigured(): boolean {

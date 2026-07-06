@@ -161,6 +161,8 @@ export interface MarketplaceShipmentPreview {
   alreadyImported: boolean;
   mlShipmentStatus?: string;
   mlPackId?: string;
+  mlProductCount?: number;
+  mlOrderIds?: string[];
 }
 
 export interface MarketplaceDateRange {
@@ -176,6 +178,8 @@ export interface DeliveryDailySummary {
   delivered: number;
   undelivered: number;
   overdue: number;
+  /** Entregados después del corte del día (21:00 AR). */
+  deliveredLate: number;
   cancelled: number;
   minutesUntilDeadline: number;
   isPastDeadline: boolean;

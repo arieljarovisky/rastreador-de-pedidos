@@ -46,6 +46,15 @@ function defaultMlDateRange(): { dateFrom: string; dateTo: string } {
 }
 
 function orderListKey(s: MarketplaceShipmentPreview): string {
+  if (s.platform === 'mercadolibre') {
+    if (s.mlPackId) return `pack:${s.mlPackId}`;
+    return s.externalId;
+  }
+  return s.mlOrderId ?? s.externalId;
+}
+
+/** Referencia para importar (orden o envío MLA, no clave de UI). */
+function importRef(s: MarketplaceShipmentPreview): string {
   return s.mlOrderId ?? s.externalId;
 }
 
@@ -120,18 +129,7 @@ function PlatformCard({
   const pending = shipments.filter(
     (s) => !s.alreadyImported && s.mlShipmentStatus !== 'delivered'
   );
-  const pendingImportCount =
-    platform === 'mercadolibre'
-      ? new Set(pending.map((s) => s.externalId)).size
-      : pending.length;
-  const uniqueShipmentCount =
-    platform === 'mercadolibre' ? new Set(shipments.map((s) => s.externalId)).size : shipments.length;
-  const shipmentCounts = new Map<string, number>();
-  for (const s of shipments) {
-    if (s.platform === 'mercadolibre') {
-      shipmentCounts.set(s.externalId, (shipmentCounts.get(s.externalId) ?? 0) + 1);
-    }
-  }
+  const pendingImportCount = pending.length;
 
   return (
     <div className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] p-3 flex flex-col gap-3">
@@ -299,9 +297,7 @@ function PlatformCard({
                   )}
                   {importingId === 'all'
                     ? 'Importando…'
-                    : platform === 'mercadolibre' && pendingImportCount !== pending.length
-                      ? `Importar envíos (${pendingImportCount})`
-                      : `Importar todos (${pendingImportCount})`}
+                    : `Importar todos (${pendingImportCount})`}
                 </span>
               </button>
             )}
@@ -309,12 +305,8 @@ function PlatformCard({
 
           {!shipmentsLoading && shipments.length > 0 && (
             <p className="text-[10px] text-[var(--color-text-muted)]">
-              {shipments.length} venta{shipments.length !== 1 ? 's' : ''} encontrada
-              {shipments.length !== 1 ? 's' : ''}
-              {platform === 'mercadolibre' && uniqueShipmentCount !== shipments.length &&
-                ` · ${uniqueShipmentCount} envío${uniqueShipmentCount !== 1 ? 's' : ''} físico${uniqueShipmentCount !== 1 ? 's' : ''}`}
-              {pendingImportCount !== shipments.length &&
-                pendingImportCount > 0 &&
+              {shipments.length} venta{shipments.length !== 1 ? 's' : ''}
+              {pendingImportCount > 0 &&
                 ` · ${pendingImportCount} pendiente${pendingImportCount !== 1 ? 's' : ''} de importar`}
             </p>
           )}
@@ -336,7 +328,7 @@ function PlatformCard({
               {platform === 'mercadolibre' ? ' seleccionado' : ''}
               {platform === 'tiendanube' ? ' seleccionado' : ''}.
               {platform === 'mercadolibre' &&
-                ' Se listan todas las ventas Flex; varios productos en un mismo carrito comparten un envío.'}
+                ' Una venta = un pack MLA (como en Mercado Libre), aunque tenga varios productos.'}
             </p>
           )}
 
@@ -364,6 +356,9 @@ function PlatformCard({
                         {s.platform === 'mercadolibre' && s.mlOrderId
                           ? `Orden #${s.mlOrderId}`
                           : `#${s.externalId}`}
+                        {s.platform === 'mercadolibre' &&
+                          (s.mlProductCount ?? 0) > 1 &&
+                          ` · Paquete de ${s.mlProductCount} productos`}
                         {' · '}
                         {s.clientName}
                         {s.createdAt && (
@@ -374,12 +369,6 @@ function PlatformCard({
                         )}
                       </p>
                       <p className="text-[var(--color-text-muted)] truncate">{s.address}</p>
-                      {s.platform === 'mercadolibre' &&
-                        (shipmentCounts.get(s.externalId) ?? 0) > 1 && (
-                          <p className="text-[9px] text-[var(--color-text-faint)] mt-0.5">
-                            Mismo envío #{s.externalId} · se importa una sola vez
-                          </p>
-                        )}
                     </div>
                     {s.alreadyImported ? (
                       <span className="shrink-0 mono-label">Importado</span>
@@ -389,10 +378,10 @@ function PlatformCard({
                       <button
                         type="button"
                         disabled={importLoading}
-                        onClick={() => onImportOne(orderListKey(s))}
+                        onClick={() => onImportOne(importRef(s))}
                         className="shrink-0 mono-label text-[var(--color-accent)] hover:brightness-110 disabled:opacity-50 inline-flex items-center gap-1"
                       >
-                        {importingId === orderListKey(s) ? (
+                        {importingId === importRef(s) ? (
                           <>
                             <Loader2 className="w-3 h-3 animate-spin" />
                             Importando

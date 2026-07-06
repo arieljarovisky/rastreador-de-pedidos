@@ -93,12 +93,45 @@ export function getDeliveredTodayOrders(
   return getTodayOrders(orders, dateKey).filter((o) => o.status === OrderStatus.DELIVERED);
 }
 
+/** Instantáneo en que el pedido pasó a entregado (historial o updatedAt). */
+export function getOrderDeliveredAt(order: Order): Date | null {
+  const deliveredEvents = order.history.filter((e) => e.status === OrderStatus.DELIVERED);
+  if (deliveredEvents.length > 0) {
+    return new Date(deliveredEvents[deliveredEvents.length - 1]!.timestamp);
+  }
+  if (order.status === OrderStatus.DELIVERED) {
+    return new Date(order.updatedAt);
+  }
+  return null;
+}
+
+export function getOrderDeadline(order: Order): Date {
+  if (order.deliveryDeadline) return new Date(order.deliveryDeadline);
+  return getTodayDeadlineInArgentina(new Date(order.createdAt));
+}
+
+export function wasDeliveredAfterDeadline(order: Order): boolean {
+  if (order.status !== OrderStatus.DELIVERED) return false;
+  const deliveredAt = getOrderDeliveredAt(order);
+  if (!deliveredAt) return false;
+  return deliveredAt.getTime() > getOrderDeadline(order).getTime();
+}
+
+export function getDeliveredLateTodayOrders(
+  orders: Order[],
+  dateKey: string = getOperationalDateKey()
+): Order[] {
+  return getDeliveredTodayOrders(orders, dateKey).filter(wasDeliveredAfterDeadline);
+}
+
 export function computeDeliverySummaryFromOrders(
   orders: Order[],
   dateKey: string = getOperationalDateKey()
 ): DeliveryDailySummary {
   const todayOrders = orders.filter((o) => !o.archived && isTodayOrder(o, dateKey));
-  const delivered = todayOrders.filter((o) => o.status === OrderStatus.DELIVERED).length;
+  const deliveredToday = todayOrders.filter((o) => o.status === OrderStatus.DELIVERED);
+  const delivered = deliveredToday.length;
+  const deliveredLate = deliveredToday.filter(wasDeliveredAfterDeadline).length;
   const cancelled = todayOrders.filter((o) => o.status === OrderStatus.CANCELLED).length;
   const undelivered = todayOrders.filter(
     (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
@@ -117,6 +150,7 @@ export function computeDeliverySummaryFromOrders(
     delivered,
     undelivered,
     overdue: isPastDeadline ? undelivered : 0,
+    deliveredLate,
     cancelled,
     minutesUntilDeadline: Math.max(0, Math.floor((deadlineAt.getTime() - now) / 60_000)),
     isPastDeadline,
