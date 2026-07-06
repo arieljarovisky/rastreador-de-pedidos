@@ -207,7 +207,7 @@ async function importMercadoLibreFlexShipment(
       lng,
       notes: shipment.notes,
       externalSource: 'mercadolibre',
-      externalOrderId: shipment.externalId,
+      externalOrderId: shipment.mlOrderId,
       shippingType: 'flex',
     });
 
@@ -294,7 +294,10 @@ export async function listImportableShipments(
   options?: MarketplaceListOptions
 ): Promise<MarketplaceShipmentPreview[]> {
   if (platform === 'mercadolibre') {
-    const flex = await listMercadoLibreFlexShipments(userId);
+    const flex = await listMercadoLibreFlexShipments(userId, {
+      dateFrom: options?.dateFrom,
+      dateTo: options?.dateTo,
+    });
     return markImported(userId, flex);
   }
 
@@ -686,7 +689,7 @@ export async function importMercadoLibreByScanForAgency(
       notes: flex.notes,
       sellerId: validIntegration.userId,
       externalSource: flex.platform,
-      externalOrderId: flex.externalId,
+      externalOrderId: flex.mlOrderId,
       shippingType: flex.shippingType,
       historyComment: `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,
       historyLat: scanLocation?.lat,
@@ -711,7 +714,7 @@ export async function importMercadoLibreByScanForAgency(
         alreadyImported: false,
         sellerId: validIntegration.userId,
         sellerName: seller?.name ?? 'Vendedor',
-        externalOrderId: flex.externalId,
+        externalOrderId: flex.mlOrderId,
       },
       flex.externalId
     );

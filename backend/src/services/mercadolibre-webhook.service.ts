@@ -124,7 +124,7 @@ async function importFlexShipment(
     lng,
     notes: shipment.notes,
     externalSource: 'mercadolibre',
-    externalOrderId: shipment.externalId,
+    externalOrderId: shipment.mlOrderId,
     shippingType: 'flex',
   });
 

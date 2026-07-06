@@ -413,8 +413,8 @@ router.get('/:platform/shipments', authenticate, requireRoles(UserRole.STORE_ADM
       platform === 'tiendanube' ? parseTiendaNubeDateRange(dateFrom, dateTo) : undefined;
 
     const shipments = await listImportableShipments(req.user!.id, platform, {
-      dateFrom: tnDateRange?.dateFrom,
-      dateTo: tnDateRange?.dateTo,
+      dateFrom: platform === 'mercadolibre' ? dateFrom : tnDateRange?.dateFrom,
+      dateTo: platform === 'mercadolibre' ? dateTo : tnDateRange?.dateTo,
     });
     res.json(shipments);
   } catch (err) {
@@ -429,6 +429,14 @@ router.get('/:platform/shipments', authenticate, requireRoles(UserRole.STORE_ADM
     }
     if (message === 'TN_DATE_RANGE_TOO_LONG') {
       res.status(400).json({ error: 'El período máximo de búsqueda es de 90 días.' });
+      return;
+    }
+    if (message === 'ML_INVALID_DATE') {
+      res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
+      return;
+    }
+    if (message === 'ML_INVALID_DATE_RANGE') {
+      res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
       return;
     }
     if (message === 'ML_NOT_CONNECTED' || message === 'TN_NOT_CONNECTED') {
@@ -461,8 +469,8 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
     const tnDateRange =
       platform === 'tiendanube' ? parseTiendaNubeDateRange(dateFrom, dateTo) : undefined;
     const result = await importMarketplaceShipments(req.user!, platform, externalIds, {
-      dateFrom: tnDateRange?.dateFrom,
-      dateTo: tnDateRange?.dateTo,
+      dateFrom: platform === 'mercadolibre' ? dateFrom : tnDateRange?.dateFrom,
+      dateTo: platform === 'mercadolibre' ? dateTo : tnDateRange?.dateTo,
       mlRefs: platform === 'mercadolibre' ? mlRefs : undefined,
     });
     res.json(result);
@@ -478,6 +486,14 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
     }
     if (message === 'TN_DATE_RANGE_TOO_LONG') {
       res.status(400).json({ error: 'El período máximo de búsqueda es de 90 días.' });
+      return;
+    }
+    if (message === 'ML_INVALID_DATE') {
+      res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
+      return;
+    }
+    if (message === 'ML_INVALID_DATE_RANGE') {
+      res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
       return;
     }
     if (message === 'ML_NOT_CONNECTED' || message === 'TN_NOT_CONNECTED') {

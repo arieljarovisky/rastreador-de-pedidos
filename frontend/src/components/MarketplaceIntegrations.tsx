@@ -37,6 +37,17 @@ function toDateInputValue(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+function defaultMlDateRange(): { dateFrom: string; dateTo: string } {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 7);
+  return { dateFrom: toDateInputValue(from), dateTo: toDateInputValue(to) };
+}
+
+function orderListKey(s: MarketplaceShipmentPreview): string {
+  return s.mlOrderId ?? s.externalId;
+}
+
 function defaultTnDateRange(): { dateFrom: string; dateTo: string } {
   const to = new Date();
   const from = new Date();
@@ -105,7 +116,15 @@ function PlatformCard({
   onImportByMlRef?: () => void;
   mlRefImporting?: boolean;
 }) {
-  const pending = shipments.filter((s) => !s.alreadyImported);
+  const pending = shipments.filter(
+    (s) => !s.alreadyImported && s.mlShipmentStatus !== 'delivered'
+  );
+  const shipmentCounts = new Map<string, number>();
+  for (const s of shipments) {
+    if (s.platform === 'mercadolibre') {
+      shipmentCounts.set(s.externalId, (shipmentCounts.get(s.externalId) ?? 0) + 1);
+    }
+  }
 
   return (
     <div className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] p-3 flex flex-col gap-3">
@@ -192,6 +211,33 @@ function PlatformCard({
             </div>
           )}
 
+          {platform === 'mercadolibre' && dateFrom && dateTo && onDateFromChange && onDateToChange && (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
+                <span className="mono-label">Desde</span>
+                <input
+                  type="date"
+                  className={dateInputClass}
+                  value={dateFrom}
+                  max={dateTo}
+                  disabled={shipmentsLoading || importLoading}
+                  onChange={(e) => onDateFromChange(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
+                <span className="mono-label">Hasta</span>
+                <input
+                  type="date"
+                  className={dateInputClass}
+                  value={dateTo}
+                  min={dateFrom}
+                  disabled={shipmentsLoading || importLoading}
+                  onChange={(e) => onDateToChange(e.target.value)}
+                />
+              </label>
+            </div>
+          )}
+
           {platform === 'tiendanube' && dateFrom && dateTo && onDateFromChange && onDateToChange && (
             <div className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
@@ -250,6 +296,15 @@ function PlatformCard({
             )}
           </div>
 
+          {!shipmentsLoading && shipments.length > 0 && (
+            <p className="text-[10px] text-[var(--color-text-muted)]">
+              {shipments.length} venta{shipments.length !== 1 ? 's' : ''} encontrada
+              {shipments.length !== 1 ? 's' : ''}
+              {pending.length !== shipments.length &&
+                ` · ${pending.length} pendiente${pending.length !== 1 ? 's' : ''} de importar`}
+            </p>
+          )}
+
           {importLoading && (
             <div className="flex items-center gap-2 rounded-[5px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-2 py-1.5">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--color-accent)] shrink-0" />
@@ -263,11 +318,11 @@ function PlatformCard({
 
           {!shipmentsLoading && shipments.length === 0 && (
             <p className="text-[10px] text-[var(--color-text-muted)]">
-              Tocá &quot;Buscar envíos&quot; para ver pedidos{' '}
-              {platform === 'mercadolibre' ? 'Flex' : 'Express'} pendientes de importar
-              {platform === 'tiendanube' ? ' en el período seleccionado' : ''}.
+              Tocá &quot;Buscar envíos&quot; para ver pedidos Flex del período
+              {platform === 'mercadolibre' ? ' seleccionado' : ''}
+              {platform === 'tiendanube' ? ' seleccionado' : ''}.
               {platform === 'mercadolibre' &&
-                ' Solo aparecen envíos Flex no entregados. La búsqueda puede tardar unos segundos.'}
+                ' Se listan todas las órdenes Flex (incluye packs con varias ventas).'}
             </p>
           )}
 
@@ -282,9 +337,9 @@ function PlatformCard({
             <ul className="space-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
               {shipments.map((s) => (
                 <li
-                  key={s.externalId}
+                  key={orderListKey(s)}
                   className={`text-[10px] rounded-[5px] border px-2 py-1.5 ${
-                    s.alreadyImported
+                    s.alreadyImported || s.mlShipmentStatus === 'delivered'
                       ? 'border-[var(--surface-border)] bg-[var(--paper-3)]/60 text-[var(--color-text-muted)]'
                       : 'border-[var(--edge-2)] bg-[var(--paper-3)] text-[var(--ink-soft)]'
                   }`}
@@ -305,17 +360,25 @@ function PlatformCard({
                         )}
                       </p>
                       <p className="text-[var(--color-text-muted)] truncate">{s.address}</p>
+                      {s.platform === 'mercadolibre' &&
+                        (shipmentCounts.get(s.externalId) ?? 0) > 1 && (
+                          <p className="text-[9px] text-[var(--color-text-faint)] mt-0.5">
+                            Pack · envío compartido #{s.externalId}
+                          </p>
+                        )}
                     </div>
                     {s.alreadyImported ? (
                       <span className="shrink-0 mono-label">Importado</span>
+                    ) : s.mlShipmentStatus === 'delivered' ? (
+                      <span className="shrink-0 mono-label">Entregado</span>
                     ) : (
                       <button
                         type="button"
                         disabled={importLoading}
-                        onClick={() => onImportOne(s.externalId)}
+                        onClick={() => onImportOne(orderListKey(s))}
                         className="shrink-0 mono-label text-[var(--color-accent)] hover:brightness-110 disabled:opacity-50 inline-flex items-center gap-1"
                       >
-                        {importingId === s.externalId ? (
+                        {importingId === orderListKey(s) ? (
                           <>
                             <Loader2 className="w-3 h-3 animate-spin" />
                             Importando
@@ -356,6 +419,8 @@ export default function MarketplaceIntegrations({
   const [tnImportingId, setTnImportingId] = useState<string | 'all' | null>(null);
   const [tnDateFrom, setTnDateFrom] = useState(() => defaultTnDateRange().dateFrom);
   const [tnDateTo, setTnDateTo] = useState(() => defaultTnDateRange().dateTo);
+  const [mlDateFrom, setMlDateFrom] = useState(() => defaultMlDateRange().dateFrom);
+  const [mlDateTo, setMlDateTo] = useState(() => defaultMlDateRange().dateTo);
   const [mlRefInput, setMlRefInput] = useState('');
   const [mlRefImporting, setMlRefImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -366,12 +431,18 @@ export default function MarketplaceIntegrations({
   }, [onRefreshStatus]);
 
   const tnDateOptions = { dateFrom: tnDateFrom, dateTo: tnDateTo };
+  const mlDateOptions = { dateFrom: mlDateFrom, dateTo: mlDateTo };
 
   const refreshMl = useCallback(async () => {
+    if (mlDateFrom > mlDateTo) {
+      setMessageTone('error');
+      setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
+      return;
+    }
     setMlLoading(true);
     setMessage(null);
     try {
-      const list = await onFetchShipments('mercadolibre');
+      const list = await onFetchShipments('mercadolibre', mlDateOptions);
       setMlShipments(list);
     } catch (err: unknown) {
       setMessageTone('error');
@@ -379,7 +450,7 @@ export default function MarketplaceIntegrations({
     } finally {
       setMlLoading(false);
     }
-  }, [onFetchShipments]);
+  }, [onFetchShipments, mlDateFrom, mlDateTo]);
 
   const refreshTn = useCallback(async () => {
     if (tnDateFrom > tnDateTo) {
@@ -408,9 +479,14 @@ export default function MarketplaceIntegrations({
     const setImporting = platform === 'mercadolibre' ? setMlImporting : setTnImporting;
     const setImportingId = platform === 'mercadolibre' ? setMlImportingId : setTnImportingId;
     const refresh = platform === 'mercadolibre' ? refreshMl : refreshTn;
-    const options = platform === 'tiendanube' ? tnDateOptions : undefined;
+    const options = platform === 'tiendanube' ? tnDateOptions : mlDateOptions;
 
     if (platform === 'tiendanube' && tnDateFrom > tnDateTo) {
+      setMessageTone('error');
+      setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
+      return;
+    }
+    if (platform === 'mercadolibre' && mlDateFrom > mlDateTo) {
       setMessageTone('error');
       setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
       return;
@@ -523,6 +599,10 @@ export default function MarketplaceIntegrations({
           shipmentsLoading={mlLoading}
           importLoading={mlImporting}
           importingId={mlImportingId}
+          dateFrom={mlDateFrom}
+          dateTo={mlDateTo}
+          onDateFromChange={setMlDateFrom}
+          onDateToChange={setMlDateTo}
           onConnect={() => void onConnect('mercadolibre')}
           onDisconnect={() => void onDisconnect('mercadolibre')}
           onRefreshShipments={() => void refreshMl()}

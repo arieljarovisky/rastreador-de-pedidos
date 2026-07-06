@@ -236,17 +236,42 @@ export async function findImportedMercadoLibreFlex(
   sellerId: string,
   flex: MercadoLibreFlexRef
 ): Promise<Order | null> {
+  if (flex.mlOrderId) {
+    const byOrder = await findOrderByExternal(sellerId, 'mercadolibre', flex.mlOrderId);
+    if (byOrder) return byOrder;
+  }
+
   const byShipment = await findOrderByExternal(sellerId, 'mercadolibre', flex.externalId);
-  if (byShipment) return byShipment;
-  return findOrderByExternal(sellerId, 'mercadolibre', flex.mlOrderId);
+  if (!byShipment) return null;
+
+  // Pedidos legacy guardados con ID de envío: solo coinciden con esta orden ML.
+  if (flex.mlOrderId) {
+    const notes = byShipment.notes ?? '';
+    if (notes.includes(`Orden #${flex.mlOrderId}`)) return byShipment;
+    return null;
+  }
+
+  return byShipment;
 }
 
 export async function findImportedMercadoLibreFlexGlobal(
   flex: MercadoLibreFlexRef
 ): Promise<Order | null> {
+  if (flex.mlOrderId) {
+    const byOrder = await findOrderByExternalGlobal('mercadolibre', flex.mlOrderId);
+    if (byOrder) return byOrder;
+  }
+
   const byShipment = await findOrderByExternalGlobal('mercadolibre', flex.externalId);
-  if (byShipment) return byShipment;
-  return findOrderByExternalGlobal('mercadolibre', flex.mlOrderId);
+  if (!byShipment) return null;
+
+  if (flex.mlOrderId) {
+    const notes = byShipment.notes ?? '';
+    if (notes.includes(`Orden #${flex.mlOrderId}`)) return byShipment;
+    return null;
+  }
+
+  return byShipment;
 }
 
 export async function findImportedMercadoLibreRef(
@@ -541,6 +566,51 @@ export function parseMercadoLibreScanCode(raw: string): MercadoLibreScanCandidat
   return candidates;
 }
 
+const ML_SEARCH_TZ = '-03:00';
+
+function toMercadoLibreSearchDateParam(isoDate: string, endOfDay: boolean): string {
+  const trimmed = isoDate.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    throw new Error('ML_INVALID_DATE');
+  }
+  return endOfDay
+    ? `${trimmed}T23:59:59.000${ML_SEARCH_TZ}`
+    : `${trimmed}T00:00:00.000${ML_SEARCH_TZ}`;
+}
+
+/** Rango de fechas para /orders/search (default: últimos 30 días). */
+export function resolveMercadoLibreSearchDateRange(
+  dateFrom?: string,
+  dateTo?: string
+): { from: string; to: string } {
+  if (dateFrom || dateTo) {
+    const to = dateTo ?? toDateInputValue(new Date());
+    const from =
+      dateFrom ??
+      toDateInputValue(new Date(new Date(to).getTime() - 30 * 24 * 60 * 60 * 1000));
+    if (from > to) throw new Error('ML_INVALID_DATE_RANGE');
+    return {
+      from: toMercadoLibreSearchDateParam(from, false),
+      to: toMercadoLibreSearchDateParam(to, true),
+    };
+  }
+
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 30);
+  return {
+    from: toMercadoLibreSearchDateParam(toDateInputValue(from), false),
+    to: toMercadoLibreSearchDateParam(toDateInputValue(to), true),
+  };
+}
+
+function toDateInputValue(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export async function resolveMercadoLibreFlexFromScan(
   integration: StoreIntegration,
   candidates: MercadoLibreScanCandidate[]
@@ -559,21 +629,36 @@ export async function resolveMercadoLibreFlexFromScan(
   return null;
 }
 
-export async function listMercadoLibreFlexShipments(userId: string): Promise<MercadoLibreFlexShipment[]> {
+export async function listMercadoLibreFlexShipments(
+  userId: string,
+  options?: { dateFrom?: string; dateTo?: string }
+): Promise<MercadoLibreFlexShipment[]> {
   const integration = await getValidMercadoLibreIntegration(userId);
   const sellerId = integration.externalUserId;
   if (!sellerId) throw new Error('ML_NOT_CONNECTED');
 
   const shipments: MercadoLibreFlexShipment[] = [];
-  const seenShipmentIds = new Set<string>();
+  /** Una fila por orden ML (packs pueden compartir el mismo envío). */
+  const seenOrderIds = new Set<string>();
   const pageSize = 50;
-  const maxPages = 4;
+  const maxPages = 6;
+  const dateRange = resolveMercadoLibreSearchDateRange(options?.dateFrom, options?.dateTo);
 
   for (let page = 0; page < maxPages; page++) {
     const offset = page * pageSize;
+    const params = new URLSearchParams({
+      seller: sellerId,
+      'order.status': 'paid',
+      sort: 'date_desc',
+      limit: String(pageSize),
+      offset: String(offset),
+    });
+    if (dateRange.from) params.set('order.date_created.from', dateRange.from);
+    if (dateRange.to) params.set('order.date_created.to', dateRange.to);
+
     const search = await mlFetch<MlOrderSearchResult>(
       integration,
-      `/orders/search?seller=${sellerId}&order.status=paid&sort=date_desc&limit=${pageSize}&offset=${offset}`
+      `/orders/search?${params.toString()}`
     );
 
     const results = search.results ?? [];
@@ -581,16 +666,16 @@ export async function listMercadoLibreFlexShipments(userId: string): Promise<Mer
 
     for (const item of results) {
       const orderId = String(item.id);
+      if (seenOrderIds.has(orderId)) continue;
+      seenOrderIds.add(orderId);
 
       try {
         await sleep(120);
         const flex = await fetchMercadoLibreFlexShipment(integration, orderId);
-        if (!flex || flex.mlShipmentStatus === 'delivered') continue;
-        if (seenShipmentIds.has(flex.externalId)) continue;
-        seenShipmentIds.add(flex.externalId);
+        if (!flex) continue;
         shipments.push(flex);
-      } catch {
-        // omitir pedidos individuales con error temporal de la API
+      } catch (err) {
+        console.warn('[ml-list] No se pudo cargar orden ML', orderId, err);
       }
     }
 

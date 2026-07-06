@@ -159,6 +159,8 @@ export interface MarketplaceShipmentPreview {
   notes: string;
   createdAt: string;
   alreadyImported: boolean;
+  mlShipmentStatus?: string;
+  mlPackId?: string;
 }
 
 export interface MarketplaceDateRange {

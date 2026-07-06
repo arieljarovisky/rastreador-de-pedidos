@@ -989,8 +989,8 @@ export default function App() {
   ): Promise<MarketplaceShipmentPreview[]> => {
     if (!token) throw new Error('Sin sesión');
     const params = new URLSearchParams();
-    if (platform === 'tiendanube' && options?.dateFrom) params.set('dateFrom', options.dateFrom);
-    if (platform === 'tiendanube' && options?.dateTo) params.set('dateTo', options.dateTo);
+    if (options?.dateFrom) params.set('dateFrom', options.dateFrom);
+    if (options?.dateTo) params.set('dateTo', options.dateTo);
     const query = params.toString();
     const res = await fetch(
       apiUrl(`/api/integrations/${platform}/shipments${query ? `?${query}` : ''}`),
@@ -1018,8 +1018,8 @@ export default function App() {
       body: JSON.stringify({
         externalIds,
         mlRefs: platform === 'mercadolibre' ? options?.mlRefs : undefined,
-        dateFrom: platform === 'tiendanube' ? options?.dateFrom : undefined,
-        dateTo: platform === 'tiendanube' ? options?.dateTo : undefined,
+        dateFrom: options?.dateFrom,
+        dateTo: options?.dateTo,
       }),
     });
     const body = await res.json().catch(() => ({}));
