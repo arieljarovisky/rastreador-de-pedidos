@@ -327,7 +327,7 @@ export default function LoginScreen({
             </h2>
             <p className="auth-split__card-sub">
               {mode === 'login'
-                ? 'Agencias, vendedores y repartidores — sin registro público para vendedores.'
+                ? 'Agencias, vendedores y repartidores.'
                 : registerStep === 1
                   ? 'Paso 1 de 2 · Solo registro de agencias'
                   : 'Paso 2 de 2 · Revisá y confirmá'}
