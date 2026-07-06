@@ -42,7 +42,7 @@ export default function SellerDashboardScreen({ navigation }: Props) {
       title="Panel del día"
       subtitle={user?.name}
       connected={connected}
-      accentColor={colors.stamp}
+      accentColor={roleAccents.seller}
       orders={orders}
       repartidores={repartidores}
       loading={loading}

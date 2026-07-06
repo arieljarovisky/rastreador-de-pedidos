@@ -80,6 +80,40 @@ export const spacing = {
   md: 12,
   lg: 16,
   xl: 24,
+  xxl: 32,
+};
+
+/** Acentos por rol — coherencia visual entre tabs, headers y CTAs */
+export const roleAccents = {
+  repartidor: colors.blue,
+  seller: colors.stamp,
+  agency: colors.accent,
+} as const;
+
+export const touchTarget = 44;
+
+export const shadows = {
+  sm: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  md: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  fab: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.38,
+    shadowRadius: 10,
+    elevation: 12,
+  },
 };
 
 export const typography = {

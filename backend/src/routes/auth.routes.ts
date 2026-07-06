@@ -11,6 +11,9 @@ import {
 } from '../services/users.service.js';
 import { createAgency } from '../services/agencies.service.js';
 import { UserRole } from '../types/index.js';
+import { isValidEmail } from '../utils/email.js';
+import { isValidCuit, normalizeCuit, formatCuit } from '../utils/cuit.js';
+import { validateStrongPassword } from '../utils/password.js';
 
 const router = Router();
 
@@ -19,18 +22,37 @@ function userResponse(user: Awaited<ReturnType<typeof getUserById>>) {
   return user;
 }
 
+function normalizePhone(value: string): string {
+  return value.replace(/[^\d+]/g, '').slice(0, 20);
+}
+
+function isValidPhone(value: string): boolean {
+  const digits = value.replace(/\D/g, '');
+  return digits.length >= 8 && digits.length <= 15;
+}
+
 function handleRegisterError(res: Response, err: unknown): boolean {
   const message = err instanceof Error ? err.message : '';
   if (message === 'USERNAME_TAKEN') {
-    res.status(409).json({ error: 'Ese nombre de usuario ya está en uso.' });
+    res.status(409).json({ error: 'Ese correo ya está registrado.' });
     return true;
   }
   if (message === 'USERNAME_SHORT') {
-    res.status(400).json({ error: 'El usuario debe tener al menos 3 caracteres.' });
+    res.status(400).json({ error: 'El correo debe tener al menos 3 caracteres.' });
+    return true;
+  }
+  if (message === 'INVALID_EMAIL') {
+    res.status(400).json({ error: 'Ingresá un correo electrónico válido.' });
     return true;
   }
   if (message === 'PASSWORD_SHORT') {
     res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    return true;
+  }
+  if (message === 'WEAK_PASSWORD') {
+    res.status(400).json({
+      error: 'La contraseña debe tener al menos 8 caracteres, una letra y un número.',
+    });
     return true;
   }
   if (message === 'NAME_REQUIRED') {
@@ -47,7 +69,7 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
-  const row = await findUserByUsername(username);
+  const row = await findUserByUsername(String(username).trim());
   if (!row) {
     res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
     return;
@@ -100,18 +122,92 @@ router.post('/logout', authenticate, async (req: Request, res: Response) => {
 });
 
 router.post('/register/agency', async (req: Request, res: Response) => {
-  const { username, password, name } = req.body;
-  if (!username || !password || !name) {
-    res.status(400).json({ error: 'Usuario, contraseña y nombre de la agencia son requeridos.' });
+  const {
+    agencyName,
+    adminName,
+    email,
+    password,
+    phone,
+    cuit,
+    city,
+    acceptTerms,
+    /** Compatibilidad con clientes anteriores */
+    name,
+    username,
+  } = req.body as {
+    agencyName?: string;
+    adminName?: string;
+    email?: string;
+    password?: string;
+    phone?: string;
+    cuit?: string;
+    city?: string;
+    acceptTerms?: boolean;
+    name?: string;
+    username?: string;
+  };
+
+  const resolvedAgencyName = (agencyName ?? name)?.trim();
+  const resolvedAdminName = (adminName ?? name)?.trim();
+  const resolvedEmail = (email ?? username)?.trim().toLowerCase();
+
+  if (!resolvedAgencyName || !resolvedAdminName || !resolvedEmail || !password || !phone || !cuit || !city) {
+    res.status(400).json({
+      error:
+        'Completá todos los datos: agencia, responsable, correo, teléfono, CUIT, ciudad y contraseña.',
+    });
+    return;
+  }
+
+  if (acceptTerms !== true) {
+    res.status(400).json({ error: 'Debés aceptar la política de privacidad para registrarte.' });
+    return;
+  }
+
+  if (!isValidEmail(resolvedEmail)) {
+    res.status(400).json({ error: 'Ingresá un correo electrónico válido.' });
+    return;
+  }
+
+  if (!isValidPhone(phone)) {
+    res.status(400).json({ error: 'Ingresá un teléfono de contacto válido (mínimo 8 dígitos).' });
+    return;
+  }
+
+  const cuitDigits = normalizeCuit(cuit);
+  if (!cuitDigits || !isValidCuit(cuit)) {
+    res.status(400).json({ error: 'El CUIT ingresado no es válido.' });
+    return;
+  }
+
+  if (resolvedAgencyName.length < 2) {
+    res.status(400).json({ error: 'El nombre de la agencia es demasiado corto.' });
+    return;
+  }
+
+  if (city.trim().length < 2) {
+    res.status(400).json({ error: 'Indicá la ciudad o zona de operación.' });
+    return;
+  }
+
+  const passwordCheck = validateStrongPassword(password);
+  if (!passwordCheck.ok) {
+    res.status(400).json({ error: passwordCheck.errors.join(' ') });
     return;
   }
 
   try {
-    const agency = await createAgency({ name: name.trim() });
+    const agency = await createAgency({
+      name: resolvedAgencyName,
+      contactEmail: resolvedEmail,
+      contactPhone: normalizePhone(phone),
+      cuit: formatCuit(cuitDigits),
+      city: city.trim(),
+    });
     const user = await createUser({
-      username,
+      username: resolvedEmail,
       password,
-      name,
+      name: resolvedAdminName,
       role: UserRole.SUPER_ADMIN,
       agencyId: agency.id,
     });

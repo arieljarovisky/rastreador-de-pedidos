@@ -1,5 +1,4 @@
 import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import {
   BricolageGrotesque_400Regular,
@@ -20,7 +19,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import AppUpdateChecker from './src/components/AppUpdateChecker';
-import { colors } from './src/theme';
+import SplashScreen from './src/components/ui/SplashScreen';
 
 import './src/location/backgroundLocationTask';
 import './src/oauth/connectMarketplace';
@@ -38,18 +37,7 @@ export default function App() {
   });
 
   if (!fontsLoaded) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: colors.bg,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
+    return <SplashScreen message="Cargando tipografía…" fontsReady={false} />;
   }
 
   return (

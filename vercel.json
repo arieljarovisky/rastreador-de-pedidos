@@ -4,7 +4,8 @@
   "installCommand": "cd frontend && npm install",
   "rewrites": [
     { "source": "/app", "destination": "/app.html" },
-    { "source": "/app/(.*)", "destination": "/app.html" }
+    { "source": "/app/(.*)", "destination": "/app.html" },
+    { "source": "/privacidad", "destination": "/privacidad.html" }
   ],
   "headers": [
     {

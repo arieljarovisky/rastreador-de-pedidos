@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyIntegrationsStatus, RepartidorMercadoLibreStatus, type MlFlexMode } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
-import LoginScreen from './components/LoginScreen.tsx';
+import LoginScreen, { type AgencyRegisterData } from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -14,6 +14,7 @@ import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import { LogOut, Bell, Settings, LayoutDashboard, Map } from 'lucide-react';
+import BootSplash from './components/ui/BootSplash.tsx';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
@@ -419,7 +420,7 @@ export default function App() {
 
   const handleRegister = async (
     endpoint: '/api/auth/register/agency',
-    data: { username: string; password: string; name: string }
+    data: AgencyRegisterData
   ) => {
     setLoading(true);
     setAuthError(null);
@@ -1262,15 +1263,7 @@ export default function App() {
   }, [user, mobileTab, showSettings, setMobileTab]);
 
   if (loading && !user) {
-    return (
-      <div className="min-h-screen bg-[var(--surface-bg)] flex flex-col items-center justify-center p-4">
-        <svg className="animate-spin h-6 w-6 text-[var(--color-accent)]" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-        </svg>
-        <span className="text-[var(--color-text-muted)] font-mono text-[10px] uppercase tracking-wider font-bold mt-3">Sincronizando Sistema...</span>
-      </div>
-    );
+    return <BootSplash message="Sincronizando sistema" />;
   }
 
   if (!user) {

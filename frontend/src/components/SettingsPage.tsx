@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
+import { isValidEmail } from '../utils/email.ts';
 import {
   Warehouse,
   UserPlus,
@@ -1423,9 +1424,14 @@ export default function SettingsPage({
                   setRepartidorFormLoading(true);
                   setRepartidorFormMessage(null);
                   try {
+                    const email = repartidorUsername.trim();
+                    if (!isValidEmail(email)) {
+                      setRepartidorFormMessage('El usuario del repartidor debe ser un correo electrónico válido.');
+                      return;
+                    }
                     await onCreateRepartidor({
                       name: repartidorName,
-                      username: repartidorUsername,
+                      username: email,
                       password: repartidorPassword,
                       deliveryZone: repartidorZone || null,
                     });
@@ -1451,9 +1457,11 @@ export default function SettingsPage({
                 />
                 <input
                   required
+                  type="email"
+                  autoComplete="email"
                   value={repartidorUsername}
                   onChange={(e) => setRepartidorUsername(e.target.value)}
-                  placeholder="Usuario (mín. 3 caracteres)"
+                  placeholder="Correo electrónico"
                   className={inputClass}
                 />
                 <input

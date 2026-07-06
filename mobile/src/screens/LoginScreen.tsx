@@ -10,12 +10,19 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import { paper, spacing, typography } from '../theme';
+import { paper, roleAccents, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaLogo from '../components/PostaLogo';
+import PostaIcon from '../components/icons/PostaIcons';
 import PaperCard from '../components/ui/PaperCard';
 import MonoLabel from '../components/ui/MonoLabel';
 import PostaInput from '../components/ui/PostaInput';
+
+const ROLES = [
+  { icon: 'motorcycle' as const, label: 'Repartidor', color: roleAccents.repartidor },
+  { icon: 'store' as const, label: 'Vendedor', color: roleAccents.seller },
+  { icon: 'live' as const, label: 'Logística', color: roleAccents.agency },
+];
 
 export default function LoginScreen() {
   const { login, error, errorCode, loading } = useAuth();
@@ -55,37 +62,51 @@ export default function LoginScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 },
+          { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 },
         ]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.brand}>
-          <PostaLogo size={44} variant="paper" />
+          <PostaLogo size={48} variant="paper" />
           <MonoLabel color={paper.muted} style={styles.tagline}>
             Hoja de ruta · CABA y GBA
           </MonoLabel>
         </View>
 
+        <View style={styles.roleRow}>
+          {ROLES.map((role) => (
+            <View key={role.label} style={styles.roleChip}>
+              <View style={[styles.roleIcon, { backgroundColor: `${role.color}18` }]}>
+                <PostaIcon name={role.icon} size={16} color={role.color} />
+              </View>
+              <Text style={styles.roleLabel}>{role.label}</Text>
+            </View>
+          ))}
+        </View>
+
         <PaperCard style={styles.form}>
-          <Text style={typography.displaySection(14, paper.ink)}>Iniciar sesión</Text>
+          <Text style={typography.displaySection(16, paper.ink)}>Iniciar sesión</Text>
           <MonoLabel color={paper.muted} style={styles.accessLabel}>
             Acceso operadores
           </MonoLabel>
 
           <Text style={[typography.body(12, paper.muted), styles.hintInForm]}>
-            Agencia, vendedor o repartidor: usá las credenciales que te dio tu operador logístico.
+            Usá las credenciales que te dio tu operador logístico. La app se adapta a tu rol
+            automáticamente.
           </Text>
 
           <MonoLabel color={paper.muted} style={styles.fieldLabel}>
-            Usuario
+            Correo o usuario
           </MonoLabel>
           <PostaInput
             variant="paper"
             value={username}
             onChangeText={setUsername}
-            placeholder="Ej: carlos"
+            placeholder="Ej: repartidor@mail.com"
             autoCapitalize="none"
             autoCorrect={false}
+            keyboardType="email-address"
           />
 
           <MonoLabel color={paper.muted} style={[styles.fieldLabel, { marginTop: spacing.lg }]}>
@@ -125,7 +146,7 @@ export default function LoginScreen() {
         </PaperCard>
 
         <Text style={[typography.body(12, paper.faint), styles.footerHint]}>
-          App móvil Posta para vendedores y repartidores.
+          Posta · App móvil para repartidores, vendedores y logística.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -138,8 +159,38 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
   },
-  brand: { alignItems: 'center', marginBottom: 28, gap: 8 },
+  brand: { alignItems: 'center', marginBottom: spacing.xl, gap: 8 },
   tagline: { marginTop: 4 },
+  roleRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  roleChip: {
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    maxWidth: 90,
+  },
+  roleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: paper.edge,
+  },
+  roleLabel: {
+    fontFamily: 'SpaceMono_700Bold',
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: paper.muted,
+    textAlign: 'center',
+  },
   form: {
     padding: spacing.xl,
   },

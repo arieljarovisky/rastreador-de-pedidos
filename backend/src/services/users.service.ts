@@ -7,6 +7,7 @@ import { listPickupPointsForUser } from './pickup-points.service.js';
 import { getAgencyDeparture, getAgencyById, updateAgencyDeparture as updateAgencyDepartureRecord } from './agencies.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { isValidZoneForAgency } from './delivery-zones.service.js';
+import { isValidEmail } from '../utils/email.js';
 
 const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng, delivery_zone`;
@@ -80,18 +81,25 @@ export async function getUserById(id: string): Promise<User | null> {
 }
 
 export async function getRepartidores(agencyId?: string | null): Promise<User[]> {
-  if (agencyId) {
-    const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-      `SELECT ${USER_COLUMNS} FROM users WHERE role = ? AND agency_id = ?`,
-      [UserRole.REPARTIDOR, agencyId]
-    );
-    return rows.map(rowToUser);
+  if (!agencyId) {
+    return [];
   }
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE role = ?`,
-    [UserRole.REPARTIDOR]
+    `SELECT ${USER_COLUMNS} FROM users WHERE role = ? AND agency_id = ? ORDER BY name`,
+    [UserRole.REPARTIDOR, agencyId]
   );
   return rows.map(rowToUser);
+}
+
+export async function assertRepartidorInAgency(
+  repartidorId: string,
+  agencyId: string
+): Promise<User> {
+  const rep = await getRepartidorById(repartidorId);
+  if (!rep || rep.agencyId !== agencyId) {
+    throw new Error('NOT_FOUND');
+  }
+  return rep;
 }
 
 export async function updateUserLocation(
@@ -172,6 +180,15 @@ export async function createUser(data: {
   deliveryZone?: string | null;
 }): Promise<User> {
   const normalizedUsername = data.username.trim().toLowerCase();
+  if (data.role === UserRole.REPARTIDOR && !isValidEmail(normalizedUsername)) {
+    throw new Error('INVALID_EMAIL');
+  }
+  if (
+    (data.role === UserRole.SUPER_ADMIN || data.role === UserRole.LOGISTICS_ADMIN) &&
+    !isValidEmail(normalizedUsername)
+  ) {
+    throw new Error('INVALID_EMAIL');
+  }
   if (normalizedUsername.length < 3) {
     throw new Error('USERNAME_SHORT');
   }
@@ -220,10 +237,14 @@ export async function createUser(data: {
 
 export async function updateRepartidorZone(
   repartidorId: string,
-  deliveryZone: string | null
+  deliveryZone: string | null,
+  agencyId?: string | null
 ): Promise<User> {
   const rep = await getRepartidorById(repartidorId);
   if (!rep) {
+    throw new Error('NOT_FOUND');
+  }
+  if (agencyId && rep.agencyId !== agencyId) {
     throw new Error('NOT_FOUND');
   }
   if (deliveryZone) {
@@ -394,9 +415,15 @@ export async function deleteSeller(
   return { unlinkedOrders: unlinkResult.affectedRows };
 }
 
-export async function deleteRepartidor(id: string): Promise<{ finalizedOrders: number }> {
+export async function deleteRepartidor(
+  id: string,
+  agencyId?: string | null
+): Promise<{ finalizedOrders: number }> {
   const repartidor = await getRepartidorById(id);
   if (!repartidor) {
+    throw new Error('NOT_FOUND');
+  }
+  if (agencyId && repartidor.agencyId !== agencyId) {
     throw new Error('NOT_FOUND');
   }
 

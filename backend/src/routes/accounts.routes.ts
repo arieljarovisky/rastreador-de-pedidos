@@ -41,6 +41,10 @@ function handleCreateUserError(res: Response, err: unknown): boolean {
     res.status(400).json({ error: 'El usuario debe tener al menos 3 caracteres.' });
     return true;
   }
+  if (message === 'INVALID_EMAIL') {
+    res.status(400).json({ error: 'El usuario del repartidor debe ser un correo electrónico válido.' });
+    return true;
+  }
   if (message === 'PASSWORD_SHORT') {
     res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
     return true;
@@ -206,10 +210,42 @@ router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Req
   }
 });
 
+router.post('/logistics-admins', authenticate, requireRoles(UserRole.SUPER_ADMIN), async (req: Request, res: Response) => {
+  const { username, password, name } = req.body;
+  if (!username || !password || !name) {
+    res.status(400).json({ error: 'Usuario, contraseña y nombre son requeridos.' });
+    return;
+  }
+
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+
+  try {
+    const user = await createUser({
+      username,
+      password,
+      name,
+      role: UserRole.LOGISTICS_ADMIN,
+      agencyId: req.user.agencyId,
+    });
+    const enriched = await getUserById(user.id);
+    res.status(201).json(enriched ?? user);
+  } catch (err) {
+    if (handleCreateUserError(res, err)) return;
+    throw err;
+  }
+});
+
 router.put('/repartidores/:id/zone', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   const { deliveryZone } = req.body as { deliveryZone?: string | null };
   try {
-    const user = await updateRepartidorZone(req.params.id, deliveryZone ?? null);
+    const user = await updateRepartidorZone(
+      req.params.id,
+      deliveryZone ?? null,
+      req.user?.agencyId
+    );
     res.json(user);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
@@ -246,7 +282,7 @@ router.post(
 
 router.delete('/repartidores/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   try {
-    const result = await deleteRepartidor(req.params.id);
+    const result = await deleteRepartidor(req.params.id, req.user?.agencyId);
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';

@@ -6,7 +6,11 @@ import { getRepartidores } from '../services/users.service.js';
 const router = Router();
 
 router.get('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
-  const repartidores = await getRepartidores(req.user?.agencyId);
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+  const repartidores = await getRepartidores(req.user.agencyId);
   res.json(repartidores);
 });
 

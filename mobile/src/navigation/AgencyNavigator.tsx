@@ -16,7 +16,7 @@ import {
   AgencyStackParamList,
   AgencyTabParamList,
 } from './types';
-import { colors, fonts } from '../theme';
+import { colors, fonts, roleAccents } from '../theme';
 
 const Tab = createBottomTabNavigator<AgencyTabParamList>();
 const Stack = createNativeStackNavigator<AgencyStackParamList>();
@@ -82,6 +82,7 @@ function AgencyTabs() {
           centerIndex={1}
           centerIcon="scan"
           centerLabel="Escanear"
+          accentColor={roleAccents.agency}
           tabs={{
             Home: { icon: 'live', label: 'Panel' },
             Scan: { icon: 'scan', label: 'Escanear' },

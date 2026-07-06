@@ -15,11 +15,12 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useSellerOrdersContext } from '../../context/SellerOrdersContext';
 import { Order, OrderStatus } from '../../types';
-import { colors, fonts, radius, spacing } from '../../theme';
+import { colors, fonts, radius, roleAccents, spacing } from '../../theme';
 import OrderCard from '../../components/OrderCard';
 import PostaIcon from '../../components/icons/PostaIcons';
 import DashboardHeader from '../../components/ui/DashboardHeader';
 import EmptyState from '../../components/ui/EmptyState';
+import ListTabBar from '../../components/ui/ListTabBar';
 import ListTabButton from '../../components/ui/ListTabButton';
 import MapLegendItem from '../../components/ui/MapLegendItem';
 import PostaMap from '../../components/PostaMap';
@@ -101,7 +102,7 @@ export default function SellerOrdersScreen({ navigation }: Props) {
         title={user?.name ?? 'Vendedor'}
         subtitle={user?.agencyName ?? undefined}
         connected={connected}
-        accentColor={colors.stamp}
+        accentColor={roleAccents.seller}
         onNotifications={() => navigation.navigate('Notifications')}
         notificationCount={unreadNotifs}
         onLogout={logout}
@@ -144,13 +145,13 @@ export default function SellerOrdersScreen({ navigation }: Props) {
         </View>
       )}
 
-      <View style={styles.tabs}>
+      <ListTabBar>
         <ListTabButton
           active={tab === 'active'}
           icon="package"
           label="Activos"
           count={activeCount}
-          color={colors.accent}
+          color={roleAccents.seller}
           onPress={() => setTab('active')}
         />
         <ListTabButton
@@ -169,7 +170,7 @@ export default function SellerOrdersScreen({ navigation }: Props) {
           color={colors.textMuted}
           onPress={() => setTab('archived')}
         />
-      </View>
+      </ListTabBar>
 
       {loading ? (
         <View style={styles.center}>

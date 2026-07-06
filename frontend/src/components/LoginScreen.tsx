@@ -3,28 +3,115 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Shield, Key, Eye, EyeOff, Lock, User as UserIcon, Building2, ArrowLeft } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import {
+  Shield,
+  Key,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  Building2,
+  ArrowLeft,
+  User as UserIcon,
+  Phone,
+  MapPin,
+  FileText,
+  ChevronRight,
+  Navigation,
+  Route,
+  Globe,
+} from 'lucide-react';
 import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
-import PaperCard from './ui/PaperCard.tsx';
 import ThemeToggle from './ui/ThemeToggle.tsx';
 import { applyPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
+import { isValidEmail } from '../utils/email.ts';
+import { formatCuitInput, isValidCuit } from '../utils/cuit.ts';
+import {
+  isValidPhone,
+  normalizePhone,
+  passwordStrengthLabel,
+  passwordStrengthScore,
+  validateStrongPassword,
+} from '../utils/password.ts';
 
 type AuthMode = 'login' | 'register-agency';
+type RegisterStep = 1 | 2;
 
-interface RegisterData {
-  username: string;
+export interface AgencyRegisterData {
+  agencyName: string;
+  adminName: string;
+  email: string;
   password: string;
-  name: string;
+  phone: string;
+  cuit: string;
+  city: string;
+  acceptTerms: boolean;
 }
 
 interface LoginScreenProps {
   onLogin: (username: string, password: string, replaceSession?: boolean) => Promise<void>;
-  onRegisterAgency: (data: RegisterData) => Promise<void>;
+  onRegisterAgency: (data: AgencyRegisterData) => Promise<void>;
   loading: boolean;
   error: string | null;
   errorCode?: string | null;
+}
+
+const FEATURES = [
+  { icon: Navigation, text: 'Seguimiento GPS en vivo de cada repartidor' },
+  { icon: Route, text: 'Rutas, pedidos y asignaciones en un solo lugar' },
+  { icon: Globe, text: 'Cobertura en CABA, GBA y marketplace nacional' },
+] as const;
+
+const AUTH_EASE = [0.22, 1, 0.36, 1] as const;
+
+const AUTH_CROSSFADE = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+};
+
+function authBrandVariants(reduced: boolean) {
+  if (reduced) return AUTH_CROSSFADE;
+  return {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+  };
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="auth-field">
+      <label className="auth-field__label">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function IconInput({
+  icon: Icon,
+  className = '',
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="auth-field__wrap">
+      <span className="auth-field__icon" aria-hidden="true">
+        <Icon className="h-4 w-4" />
+      </span>
+      <input {...props} className={`auth-input auth-input--icon ${className}`.trim()} />
+    </div>
+  );
 }
 
 export default function LoginScreen({
@@ -35,20 +122,42 @@ export default function LoginScreen({
   errorCode = null,
 }: LoginScreenProps) {
   const [mode, setMode] = useState<AuthMode>('login');
+  const [registerStep, setRegisterStep] = useState<RegisterStep>(1);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [agencyName, setAgencyName] = useState('');
+  const [adminName, setAdminName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [cuit, setCuit] = useState('');
+  const [city, setCity] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const theme = usePostaTheme();
+  const reducedMotion = useReducedMotion();
 
   const toggleTheme = () => {
     applyPostaTheme(theme === 'dark' ? 'paper' : 'dark');
   };
 
+  const logoVariant = theme === 'paper' ? 'paper' : 'dark';
+
   const resetForm = () => {
     setUsername('');
     setPassword('');
-    setName('');
+    setAgencyName('');
+    setAdminName('');
+    setEmail('');
+    setPhone('');
+    setCuit('');
+    setCity('');
+    setPasswordConfirm('');
+    setAcceptTerms(false);
+    setRegisterStep(1);
+    setLocalError(null);
   };
 
   const switchMode = (next: AuthMode) => {
@@ -56,174 +165,542 @@ export default function LoginScreen({
     resetForm();
   };
 
+  const goBackToStep1 = () => {
+    setRegisterStep(1);
+    setLocalError(null);
+  };
+
+  const passwordScore = useMemo(() => passwordStrengthScore(password), [password]);
+  const passwordMeta = useMemo(() => passwordStrengthLabel(passwordScore), [passwordScore]);
+
+  const strengthBarClass = {
+    weak: 'auth-strength__bar--weak',
+    fair: 'auth-strength__bar--fair',
+    good: 'auth-strength__bar--good',
+    strong: 'auth-strength__bar--strong',
+  }[passwordMeta.tone];
+
+  const validateStep1 = (): string | null => {
+    if (!agencyName.trim()) return 'Ingresá el nombre comercial de la agencia.';
+    if (!isValidCuit(cuit)) return 'El CUIT ingresado no es válido.';
+    if (!isValidPhone(phone)) return 'Ingresá un teléfono válido (mínimo 8 dígitos).';
+    if (!city.trim()) return 'Indicá la ciudad o zona de operación.';
+    return null;
+  };
+
+  const goToStep2 = () => {
+    setLocalError(null);
+    const err = validateStep1();
+    if (err) {
+      setLocalError(err);
+      return;
+    }
+    setRegisterStep(2);
+  };
+
   const handleSubmit = (e: React.FormEvent, replaceSession = false) => {
     e.preventDefault();
-    if (!username || !password) return;
+    setLocalError(null);
 
     if (mode === 'login') {
-      void onLogin(username, password, replaceSession);
+      if (!username.trim() || !password) {
+        setLocalError('Completá usuario y contraseña.');
+        return;
+      }
+      void onLogin(username.trim(), password, replaceSession);
       return;
     }
 
-    if (!name.trim()) return;
-    onRegisterAgency({ username, password, name: name.trim() });
+    if (registerStep === 1) {
+      goToStep2();
+      return;
+    }
+
+    if (!adminName.trim() || !email.trim() || !password || !passwordConfirm) {
+      setLocalError('Completá los datos del administrador.');
+      return;
+    }
+
+    if (!isValidEmail(email.trim())) {
+      setLocalError('Ingresá un correo electrónico válido.');
+      return;
+    }
+
+    const pwdCheck = validateStrongPassword(password);
+    if (!pwdCheck.ok) {
+      setLocalError(pwdCheck.errors.join(' '));
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      setLocalError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    if (!acceptTerms) {
+      setLocalError('Debés aceptar la política de privacidad.');
+      return;
+    }
+
+    onRegisterAgency({
+      agencyName: agencyName.trim(),
+      adminName: adminName.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      phone: normalizePhone(phone),
+      cuit,
+      city: city.trim(),
+      acceptTerms: true,
+    });
   };
 
-  const isRegister = mode !== 'login';
+  const isRegister = mode === 'register-agency';
   const sessionConflict = errorCode === 'SESSION_ALREADY_ACTIVE';
+  const displayError = localError || error;
+  const step1Ready = agencyName.trim() && cuit && phone && city.trim();
+  const step2Ready =
+    adminName.trim() && email.trim() && password && passwordConfirm && acceptTerms;
+
+  const panelKey = isRegister ? `register-${registerStep}` : 'login';
+  const crossfadeDuration = reducedMotion ? 0.12 : 0.22;
+  const layoutTransition = reducedMotion
+    ? { duration: 0.12 }
+    : { duration: 0.32, ease: AUTH_EASE };
+
+  const brandTitle = isRegister
+    ? registerStep === 1
+      ? 'Registrar agencia'
+      : 'Cuenta del responsable'
+    : 'Iniciar sesión';
+
+  const brandSubtitle = isRegister
+    ? registerStep === 1
+      ? 'Solo las agencias de logística se registran acá. Los vendedores reciben su cuenta desde el panel de su agencia.'
+      : 'Creá la cuenta del administrador que gestionará la flota y los envíos.'
+    : 'Agencias, vendedores y repartidores: ingresá con las credenciales que te asignaron. El alta de vendedores la hace tu agencia.';
 
   return (
-    <div className="app-viewport safe-top safe-bottom min-h-[100dvh] flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 bg-[var(--surface-bg)] relative" id="login-container">
-      <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 sm:right-4">
-        <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
-      </div>
-      <div className="mb-4 sm:mb-6 text-center w-full max-w-md">
-        <PostaLogo variant={theme === 'paper' ? 'paper' : 'dark'} size={44} className="justify-center mb-2 sm:mb-3 sm:[&_svg]:w-12 sm:[&_svg]:h-12" />
-        <p className="mono-label text-[var(--color-text-muted)] mt-2">
-          Hoja de ruta · CABA y GBA
-        </p>
+    <div className="auth-split" id="login-container">
+      <div className="auth-split__theme">
+        <ThemeToggle theme={theme} onToggle={toggleTheme} compact className="auth-split__theme-btn" />
       </div>
 
-      <PaperCard className="w-full max-w-sm sm:max-w-md p-4 sm:p-6 relative overflow-hidden">
-        <div className="flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)] mb-4 text-[10px]">
-          <button
-            type="button"
-            onClick={() => switchMode('login')}
-            className={`flex-1 py-1.5 rounded font-mono font-bold uppercase tracking-wider transition ${
-              mode === 'login' ? 'bg-[var(--surface-panel)] text-[var(--color-text)] border border-[var(--ink)]/10' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-            }`}
-          >
-            Ingresar
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode('register-agency')}
-            className={`flex-1 py-1.5 rounded font-mono font-bold uppercase tracking-wider transition ${
-              mode === 'register-agency' ? 'bg-[var(--surface-panel)] text-[var(--color-text)] border border-[var(--ink)]/10' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-            }`}
-          >
-            Agencia
-          </button>
+      <aside className="auth-split__brand">
+        <div className="auth-split__brand-grid" aria-hidden="true" />
+        <div className="auth-split__brand-inner">
+          <PostaLogo variant={logoVariant} size={36} showWordmark className="auth-split__logo" />
+
+          <p className="auth-split__eyebrow">Panel operativo</p>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`${brandTitle}-${brandSubtitle.slice(0, 24)}`}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={authBrandVariants(Boolean(reducedMotion))}
+              transition={{ duration: crossfadeDuration, ease: AUTH_EASE }}
+            >
+              <h1 className="auth-split__title">{brandTitle}</h1>
+              <p className="auth-split__lead">{brandSubtitle}</p>
+            </motion.div>
+          </AnimatePresence>
+
+          <ul className="auth-split__features">
+            {FEATURES.map(({ icon: Icon, text }) => (
+              <li key={text}>
+                <span className="auth-split__feature-icon">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span>{text}</span>
+              </li>
+            ))}
+          </ul>
+
+          <footer className="auth-split__footer">
+            <p className="auth-split__market">Marketplace de envíos · Argentina</p>
+            <a href="/" className="auth-split__home">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Volver al inicio
+            </a>
+          </footer>
+        </div>
+      </aside>
+
+      <main className="auth-split__panel">
+        <div className="auth-split__mobile-brand lg:hidden">
+          <PostaLogo variant={logoVariant} size={32} showWordmark />
+          <p className="auth-split__eyebrow auth-split__eyebrow--mobile">Panel operativo</p>
+          <h1 className="auth-split__title auth-split__title--mobile">{brandTitle}</h1>
         </div>
 
-        <h2 className="font-display text-sm font-semibold tracking-[-0.02em] text-[var(--color-text)] mb-1 flex items-center gap-1.5">
-          {mode === 'login' && <><Lock className="w-3.5 h-3.5 text-[var(--color-accent)]" /> Iniciar sesión</>}
-          {mode === 'register-agency' && <><Building2 className="w-3.5 h-3.5 text-[var(--color-accent)]" /> Crear cuenta de agencia</>}
-        </h2>
-        <p className="mono-label mb-4">Acceso operadores</p>
-
-        {mode === 'register-agency' && (
-          <p className="text-xs text-[var(--color-text-muted)] mb-3 leading-relaxed">
-            Registrá tu empresa de logística. Desde el panel podrás crear cuentas para tus vendedores y asignarles envíos.
-          </p>
-        )}
-
-        {mode === 'login' && (
-          <p className="text-xs text-[var(--color-text-muted)] mb-3 leading-relaxed">
-            Si sos vendedor, usá las credenciales que te dio tu agencia de logística.
-          </p>
-        )}
-
-        {error && (
-          <div className="bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 text-[var(--color-danger)] text-xs rounded p-2.5 mb-4 font-medium flex items-start gap-1.5 animate-shake">
-            <Shield className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <form onSubmit={(e) => handleSubmit(e)} className="space-y-3">
-          {isRegister && (
-            <div>
-              <label className="mono-label block mb-1">Nombre de la agencia</label>
-              <input
-                type="text"
-                required
-                disabled={loading}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: Logística Rápida BA"
-                className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded py-2 px-3 text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] transition disabled:opacity-50"
-              />
-            </div>
-          )}
-
-          <div>
-            <label className="mono-label block mb-1">Usuario</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]">
-                <UserIcon className="w-3.5 h-3.5" />
-              </span>
-              <input
-                type="text"
-                required
-                disabled={loading}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="mínimo 3 caracteres"
-                className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded py-2 pl-9 pr-3 text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] transition disabled:opacity-50"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mono-label block mb-1">Contraseña</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]">
-                <Key className="w-3.5 h-3.5" />
-              </span>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                disabled={loading}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={isRegister ? 'mínimo 6 caracteres' : '••••••••'}
-                className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded py-2 pl-9 pr-9 text-xs text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-accent)] transition disabled:opacity-50"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)] hover:text-[var(--color-text)] transition"
-              >
-                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          <PostaButton
-            type="submit"
-            disabled={loading || !username || !password || (isRegister && !name.trim())}
-            id="btn-login-submit"
-            className="w-full mt-2"
-          >
-            {loading
-              ? 'Procesando...'
-              : mode === 'login'
-                ? 'Ingresar al panel'
-                : 'Crear cuenta de agencia'}
-          </PostaButton>
-
-          {sessionConflict && mode === 'login' && (
-            <PostaButton
+        <motion.div
+          className="auth-split__card"
+          layout
+          transition={{ layout: layoutTransition }}
+        >
+          <div className="auth-split__tabs" role="tablist" aria-label="Tipo de acceso">
+            <button
               type="button"
-              variant="secondary"
-              disabled={loading || !username || !password}
-              className="w-full mt-2"
-              onClick={(e) => handleSubmit(e, true)}
+              role="tab"
+              aria-selected={mode === 'login'}
+              onClick={() => switchMode('login')}
+              className={`auth-split__tab ${mode === 'login' ? 'auth-split__tab--active' : ''}`}
             >
-              Cerrar sesión en el otro dispositivo e ingresar
-            </PostaButton>
-          )}
-        </form>
-      </PaperCard>
+              {mode === 'login' ? (
+                <motion.span
+                  layoutId="auth-tab-pill"
+                  className="auth-split__tab-pill"
+                  transition={{ type: 'spring', stiffness: 320, damping: 38 }}
+                />
+              ) : null}
+              <span className="auth-split__tab-label">Ingresar</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'register-agency'}
+              onClick={() => switchMode('register-agency')}
+              className={`auth-split__tab ${mode === 'register-agency' ? 'auth-split__tab--active' : ''}`}
+            >
+              {mode === 'register-agency' ? (
+                <motion.span
+                  layoutId="auth-tab-pill"
+                  className="auth-split__tab-pill"
+                  transition={{ type: 'spring', stiffness: 320, damping: 38 }}
+                />
+              ) : null}
+              <span className="auth-split__tab-label">Agencia</span>
+            </button>
+          </div>
 
-      <a
-        href="/"
-        className="mt-5 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        Volver al inicio
-      </a>
+          <div className="auth-split__stage">
+            <AnimatePresence mode="sync" initial={false}>
+              <motion.div
+                key={panelKey}
+                className="auth-split__stage-panel"
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                variants={AUTH_CROSSFADE}
+                transition={{ duration: crossfadeDuration, ease: AUTH_EASE }}
+              >
+          <div className="auth-split__card-head">
+            <h2 className="auth-split__card-title">
+              {mode === 'login' ? (
+                <>
+                  <Lock className="h-4 w-4 text-[var(--auth-accent)]" />
+                  Iniciar sesión
+                </>
+              ) : (
+                <>
+                  <Building2 className="h-4 w-4 text-[var(--auth-accent)]" />
+                  {registerStep === 1 ? 'Datos de la agencia' : 'Administrador'}
+                </>
+              )}
+            </h2>
+            <p className="auth-split__card-sub">
+              {mode === 'login'
+                ? 'Agencias, vendedores y repartidores.'
+                : registerStep === 1
+                  ? 'Paso 1 de 2 · Solo registro de agencias'
+                  : 'Paso 2 de 2 · Revisá y confirmá'}
+            </p>
+          </div>
+
+          {mode === 'login' && (
+            <p className="auth-split__hint">
+              <strong>¿Sos vendedor?</strong> Ingresá con el usuario y contraseña que te dio tu agencia.
+              No podés registrarte solo: tu agencia te crea la cuenta desde Configuración.
+            </p>
+          )}
+
+          {isRegister && registerStep === 1 && (
+            <p className="auth-split__hint auth-split__hint--register">
+              Las cuentas de <strong>vendedores</strong> y <strong>repartidores</strong> las crea el
+              administrador de la agencia después del registro.
+            </p>
+          )}
+
+          {isRegister && (
+            <div className="auth-split__steps" aria-hidden="true">
+              <span className={`auth-split__step ${registerStep >= 1 ? 'auth-split__step--on' : ''}`} />
+              <span className={`auth-split__step-line ${registerStep >= 2 ? 'auth-split__step-line--on' : ''}`} />
+              <span className={`auth-split__step ${registerStep >= 2 ? 'auth-split__step--on' : ''}`} />
+            </div>
+          )}
+
+          {displayError && (
+            <div className="auth-split__error" role="alert">
+              <Shield className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{displayError}</span>
+            </div>
+          )}
+
+          <form onSubmit={(e) => handleSubmit(e)} className="auth-split__form" noValidate>
+            {isRegister && registerStep === 1 && (
+              <div className="auth-split__fields">
+                <Field label="Nombre comercial">
+                  <input
+                    type="text"
+                    disabled={loading}
+                    value={agencyName}
+                    onChange={(e) => setAgencyName(e.target.value)}
+                    placeholder="Ej: Logística Rápida BA"
+                    className="auth-input"
+                    autoComplete="organization"
+                  />
+                </Field>
+                <div className="auth-split__row">
+                  <Field label="CUIT">
+                    <IconInput
+                      icon={FileText}
+                      inputMode="numeric"
+                      disabled={loading}
+                      value={cuit}
+                      onChange={(e) => setCuit(formatCuitInput(e.target.value))}
+                      placeholder="20-12345678-9"
+                    />
+                  </Field>
+                  <Field label="Teléfono">
+                    <IconInput
+                      icon={Phone}
+                      type="tel"
+                      disabled={loading}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="11 1234-5678"
+                      autoComplete="tel"
+                    />
+                  </Field>
+                </div>
+                <Field label="Ciudad / zona de operación">
+                  <IconInput
+                    icon={MapPin}
+                    disabled={loading}
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Ej: CABA y GBA Norte"
+                    autoComplete="address-level2"
+                  />
+                </Field>
+              </div>
+            )}
+
+            {isRegister && registerStep === 2 && (
+              <div className="auth-split__fields">
+                <div className="auth-split__summary">
+                  <p className="auth-split__summary-label">Agencia</p>
+                  <p className="auth-split__summary-name">{agencyName}</p>
+                  <p className="auth-split__summary-meta">
+                    CUIT {cuit} · {city}
+                  </p>
+                </div>
+
+                <Field label="Nombre del responsable">
+                  <IconInput
+                    icon={UserIcon}
+                    disabled={loading}
+                    value={adminName}
+                    onChange={(e) => setAdminName(e.target.value)}
+                    placeholder="Ej: María González"
+                    autoComplete="name"
+                  />
+                </Field>
+                <Field label="Correo (usuario de acceso)">
+                  <IconInput
+                    icon={Mail}
+                    type="email"
+                    disabled={loading}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@tuagencia.com.ar"
+                    autoComplete="email"
+                  />
+                </Field>
+                <Field label="Contraseña">
+                  <div className="auth-field__wrap">
+                    <span className="auth-field__icon" aria-hidden="true">
+                      <Key className="h-4 w-4" />
+                    </span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      disabled={loading}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Mín. 8 caracteres, letra y número"
+                      className="auth-input auth-input--icon auth-input--icon-right"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="auth-field__toggle"
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {password.length > 0 && (
+                    <div className="auth-strength">
+                      <div className="auth-strength__track">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <span
+                            key={i}
+                            className={`auth-strength__bar ${
+                              i < passwordScore ? strengthBarClass : ''
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <p className="auth-strength__label">{passwordMeta.label}</p>
+                    </div>
+                  )}
+                </Field>
+                <Field label="Confirmar contraseña">
+                  <div className="auth-field__wrap">
+                    <span className="auth-field__icon" aria-hidden="true">
+                      <Key className="h-4 w-4" />
+                    </span>
+                    <input
+                      type={showPasswordConfirm ? 'text' : 'password'}
+                      disabled={loading}
+                      value={passwordConfirm}
+                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      placeholder="Repetí la contraseña"
+                      className="auth-input auth-input--icon auth-input--icon-right"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                      className="auth-field__toggle"
+                      aria-label={showPasswordConfirm ? 'Ocultar confirmación' : 'Mostrar confirmación'}
+                    >
+                      {showPasswordConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </Field>
+                <label className="auth-split__terms">
+                  <input
+                    type="checkbox"
+                    checked={acceptTerms}
+                    onChange={(e) => setAcceptTerms(e.target.checked)}
+                    disabled={loading}
+                  />
+                  <span>
+                    Acepto la{' '}
+                    <a href="/privacidad" target="_blank" rel="noopener noreferrer">
+                      política de privacidad
+                    </a>
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {!isRegister && (
+              <div className="auth-split__fields">
+                <Field label="Usuario">
+                  <IconInput
+                    icon={UserIcon}
+                    disabled={loading}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Correo o usuario"
+                    autoComplete="username"
+                  />
+                </Field>
+                <Field label="Contraseña">
+                  <div className="auth-field__wrap">
+                    <span className="auth-field__icon" aria-hidden="true">
+                      <Key className="h-4 w-4" />
+                    </span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      disabled={loading}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="auth-input auth-input--icon auth-input--icon-right"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="auth-field__toggle"
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </Field>
+              </div>
+            )}
+
+            <div className="auth-split__actions">
+              {isRegister && registerStep === 2 && (
+                <button
+                  type="button"
+                  className="auth-split__back"
+                  disabled={loading}
+                  onClick={goBackToStep1}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Volver
+                </button>
+              )}
+
+              <PostaButton
+                type="submit"
+                disabled={
+                  loading ||
+                  (isRegister
+                    ? registerStep === 1
+                      ? !step1Ready
+                      : !step2Ready
+                    : !username.trim() || !password)
+                }
+                id="btn-login-submit"
+                className="auth-split__submit flex-1 min-w-0"
+              >
+                {loading ? (
+                  'Procesando...'
+                ) : isRegister ? (
+                  registerStep === 1 ? (
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      Continuar
+                      <ChevronRight className="h-4 w-4" />
+                    </span>
+                  ) : (
+                    'Crear cuenta de agencia'
+                  )
+                ) : (
+                  'Ingresar al panel'
+                )}
+              </PostaButton>
+
+              {sessionConflict && !isRegister && (
+                <PostaButton
+                  type="button"
+                  variant="secondary"
+                  disabled={loading || !username.trim() || !password}
+                  className="auth-split__submit flex-1 min-w-0"
+                  onClick={(e) => handleSubmit(e, true)}
+                >
+                  Cerrar sesión en el otro dispositivo e ingresar
+                </PostaButton>
+              )}
+            </div>
+          </form>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </motion.div>
+
+        <a href="/" className="auth-split__mobile-home lg:hidden">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Volver al inicio
+        </a>
+      </main>
     </div>
   );
 }

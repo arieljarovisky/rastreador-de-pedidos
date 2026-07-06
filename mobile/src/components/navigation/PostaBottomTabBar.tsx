@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PostaIcon, { PostaIconName } from '../icons/PostaIcons';
-import { colors, fonts, spacing } from '../../theme';
+import { colors, fonts, roleAccents, shadows, spacing } from '../../theme';
+import { TAB_BAR_HEIGHT } from '../../constants/layout';
 
 export interface PostaTabItemConfig {
   icon: PostaIconName;
@@ -15,6 +16,8 @@ interface Props extends BottomTabBarProps {
   centerIcon?: PostaIconName;
   centerLabel?: string;
   tabs: Record<string, PostaTabItemConfig>;
+  /** Color de acento del rol (FAB activo, tab seleccionado) */
+  accentColor?: string;
 }
 
 export default function PostaBottomTabBar({
@@ -25,6 +28,7 @@ export default function PostaBottomTabBar({
   centerIcon = 'scan',
   centerLabel = 'Escanear',
   tabs,
+  accentColor = roleAccents.repartidor,
 }: Props) {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, spacing.sm);
@@ -64,10 +68,17 @@ export default function PostaBottomTabBar({
                 onLongPress={onLongPress}
                 style={({ pressed }) => [styles.centerSlot, pressed && styles.pressed]}
               >
-                <View style={[styles.centerBtn, isFocused && styles.centerBtnActive]}>
+                <View
+                  style={[
+                    styles.centerBtn,
+                    { backgroundColor: accentColor },
+                    isFocused && styles.centerBtnActive,
+                    shadows.fab,
+                  ]}
+                >
                   <PostaIcon name={centerIcon} size={26} color="#F6F0E4" strokeWidth={2} />
                 </View>
-                <Text style={[styles.centerLabel, isFocused && styles.labelActive]}>
+                <Text style={[styles.centerLabel, isFocused && { color: accentColor }]}>
                   {centerLabel}
                 </Text>
               </Pressable>
@@ -76,7 +87,7 @@ export default function PostaBottomTabBar({
 
           if (!config) return null;
 
-          const tint = isFocused ? colors.accent : colors.textFaint;
+          const tint = isFocused ? accentColor : colors.textFaint;
 
           return (
             <Pressable
@@ -86,9 +97,20 @@ export default function PostaBottomTabBar({
               accessibilityLabel={options.tabBarAccessibilityLabel ?? config.label}
               onPress={onPress}
               onLongPress={onLongPress}
-              style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.tab,
+                isFocused && { backgroundColor: `${accentColor}12` },
+                pressed && styles.pressed,
+              ]}
             >
-              <PostaIcon name={config.icon} size={22} color={tint} strokeWidth={isFocused ? 2 : 1.75} />
+              <View style={[styles.iconWrap, isFocused && { backgroundColor: `${accentColor}18` }]}>
+                <PostaIcon
+                  name={config.icon}
+                  size={22}
+                  color={tint}
+                  strokeWidth={isFocused ? 2 : 1.75}
+                />
+              </View>
               <Text style={[styles.label, { color: tint }, isFocused && styles.labelActive]}>
                 {config.label}
               </Text>
@@ -100,58 +122,62 @@ export default function PostaBottomTabBar({
   );
 }
 
-const BAR_HEIGHT = 58;
 const CENTER_SIZE = 56;
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderTopColor: colors.border,
     borderTopWidth: 1,
+    ...shadows.sm,
   },
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-around',
-    height: BAR_HEIGHT,
-    paddingHorizontal: spacing.md,
+    height: TAB_BAR_HEIGHT,
+    paddingHorizontal: spacing.sm,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingBottom: 6,
-    minHeight: BAR_HEIGHT,
+    gap: 4,
+    paddingBottom: 8,
+    paddingTop: 6,
+    minHeight: TAB_BAR_HEIGHT,
+    borderRadius: 10,
+    marginHorizontal: 2,
+  },
+  iconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   centerSlot: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingBottom: 2,
-    marginTop: -22,
+    paddingBottom: 4,
+    marginTop: -20,
   },
   centerBtn: {
     width: CENTER_SIZE,
     height: CENTER_SIZE,
     borderRadius: CENTER_SIZE / 2,
-    backgroundColor: colors.stamp,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: colors.bg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 10,
+    borderColor: colors.surface,
   },
   centerBtnActive: {
-    backgroundColor: '#F04A22',
+    transform: [{ scale: 1.04 }],
   },
   centerLabel: {
     fontFamily: fonts.mono,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
@@ -160,13 +186,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.mono,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.4,
+    letterSpacing: 0.35,
     textTransform: 'uppercase',
   },
   labelActive: {
-    color: colors.accent,
+    fontWeight: '700',
   },
-  pressed: { opacity: 0.88 },
+  pressed: { opacity: 0.82 },
 });

@@ -1,10 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -16,9 +14,11 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOrdersContext } from '../context/OrdersContext';
 import { RepartidorScanStackParamList, RepartidorStackParamList } from '../navigation/types';
-import { colors, radius, spacing } from '../theme';
+import { colors, fonts, radius, roleAccents, spacing, typography } from '../theme';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import Button from '../components/Button';
+import PostaIcon from '../components/icons/PostaIcons';
+import SegmentedControl from '../components/ui/SegmentedControl';
 
 type Props = CompositeScreenProps<
   NativeStackScreenProps<RepartidorScanStackParamList, 'ScanLabel'>,
@@ -29,6 +29,7 @@ type ScanMode = 'camera' | 'manual';
 
 export default function ScanLabelScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const accent = roleAccents.repartidor;
   const { scanMercadoLibreLabel } = useOrdersContext();
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<ScanMode>('camera');
@@ -84,14 +85,17 @@ export default function ScanLabelScreen({ navigation }: Props) {
   if (!permission) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
-        <ActivityIndicator color={colors.accent} />
+        <ActivityIndicator color={accent} />
       </View>
     );
   }
 
   if (!permission.granted && mode === 'camera') {
     return (
-      <View style={[styles.container, styles.center, { padding: spacing.xl }]}>
+      <View style={[styles.container, styles.center, styles.permPane, { paddingTop: insets.top }]}>
+        <View style={[styles.permIcon, { backgroundColor: `${accent}18` }]}>
+          <PostaIcon name="camera" size={32} color={accent} />
+        </View>
         <Text style={styles.permTitle}>Permiso de cámara</Text>
         <Text style={styles.permText}>
           Necesitamos acceso a la cámara para escanear etiquetas de Mercado Libre.
@@ -112,23 +116,18 @@ export default function ScanLabelScreen({ navigation }: Props) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={[styles.modeTabs, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable
-          onPress={() => setMode('camera')}
-          style={[styles.modeTab, mode === 'camera' && styles.modeTabActive]}
-        >
-          <Text style={[styles.modeTabText, mode === 'camera' && styles.modeTabTextActive]}>
-            Cámara
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setMode('manual')}
-          style={[styles.modeTab, mode === 'manual' && styles.modeTabActive]}
-        >
-          <Text style={[styles.modeTabText, mode === 'manual' && styles.modeTabTextActive]}>
-            Manual
-          </Text>
-        </Pressable>
+      <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
+        <Text style={styles.screenTitle}>Escanear etiqueta</Text>
+        <Text style={styles.screenSub}>Importá envíos ML Flex al instante</Text>
+        <SegmentedControl
+          options={[
+            { value: 'camera' as const, label: 'Cámara', icon: 'camera' },
+            { value: 'manual' as const, label: 'Manual', icon: 'tag' },
+          ]}
+          value={mode}
+          onChange={setMode}
+          accentColor={accent}
+        />
       </View>
 
       {mode === 'camera' ? (
@@ -141,14 +140,20 @@ export default function ScanLabelScreen({ navigation }: Props) {
             }}
             onBarcodeScanned={importing ? undefined : handleBarcode}
           />
+          <View style={styles.scanFrame}>
+            <View style={[styles.corner, styles.cornerTL, { borderColor: accent }]} />
+            <View style={[styles.corner, styles.cornerTR, { borderColor: accent }]} />
+            <View style={[styles.corner, styles.cornerBL, { borderColor: accent }]} />
+            <View style={[styles.corner, styles.cornerBR, { borderColor: accent }]} />
+          </View>
           <View style={styles.cameraOverlay}>
             <Text style={styles.hint}>Apuntá al código de la etiqueta Flex</Text>
-            {importing && (
+            {importing ? (
               <View style={styles.importingRow}>
                 <ActivityIndicator color="#fff" size="small" />
                 <Text style={styles.importingText}>Procesando…</Text>
               </View>
-            )}
+            ) : null}
           </View>
         </View>
       ) : (
@@ -180,6 +185,11 @@ export default function ScanLabelScreen({ navigation }: Props) {
             { backgroundColor: statusOk ? colors.greenBg : colors.redBg },
           ]}
         >
+          <PostaIcon
+            name={statusOk ? 'checkCircle' : 'circle'}
+            size={16}
+            color={statusOk ? colors.green : colors.red}
+          />
           <Text style={[styles.statusText, { color: statusOk ? colors.green : colors.red }]}>
             {statusMessage}
           </Text>
@@ -193,52 +203,54 @@ export default function ScanLabelScreen({ navigation }: Props) {
   );
 }
 
+const FRAME = 220;
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  modeTabs: {
-    flexDirection: 'row',
+  topBar: {
     paddingHorizontal: spacing.lg,
-    gap: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  modeTab: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: radius.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: spacing.sm,
   },
-  modeTabActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentBg,
-  },
-  modeTabText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  modeTabTextActive: { color: colors.accent },
+  screenTitle: { ...typography.displaySection(18, colors.text) },
+  screenSub: { ...typography.body(13, colors.textMuted), marginBottom: spacing.xs },
   cameraWrap: {
     flex: 1,
-    marginHorizontal: spacing.lg,
-    borderRadius: radius.lg,
+    margin: spacing.lg,
+    borderRadius: radius.xl,
     overflow: 'hidden',
     backgroundColor: '#000',
     minHeight: 280,
   },
+  scanFrame: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  corner: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderWidth: 3,
+  },
+  cornerTL: { top: '50%', left: '50%', marginTop: -FRAME / 2, marginLeft: -FRAME / 2, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 8 },
+  cornerTR: { top: '50%', right: '50%', marginTop: -FRAME / 2, marginRight: -FRAME / 2, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 8 },
+  cornerBL: { bottom: '50%', left: '50%', marginBottom: -FRAME / 2, marginLeft: -FRAME / 2, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 8 },
+  cornerBR: { bottom: '50%', right: '50%', marginBottom: -FRAME / 2, marginRight: -FRAME / 2, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 8 },
   cameraOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'flex-end',
     padding: spacing.lg,
-    backgroundColor: 'rgba(0,0,0,0.25)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   hint: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fonts.bodySemiBold,
     textAlign: 'center',
   },
   importingRow: {
@@ -255,9 +267,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   manualLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
+    fontFamily: fonts.mono,
+    fontSize: 10,
     fontWeight: '700',
+    color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -267,17 +280,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
-    height: 50,
+    minHeight: 50,
     color: colors.text,
     fontSize: 16,
   },
   statusBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
     padding: spacing.md,
     borderRadius: radius.md,
   },
-  statusText: { fontSize: 13, lineHeight: 18 },
+  statusText: { flex: 1, fontSize: 13, lineHeight: 18 },
   footerNote: {
     color: colors.textFaint,
     fontSize: 11,
@@ -285,17 +301,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     marginTop: spacing.sm,
   },
-  permTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: spacing.sm,
-    textAlign: 'center',
+  permPane: { padding: spacing.xl },
+  permIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
   },
-  permText: {
-    color: colors.textMuted,
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+  permTitle: { ...typography.displaySection(18, colors.text), textAlign: 'center', marginBottom: spacing.sm },
+  permText: { ...typography.body(14, colors.textMuted), textAlign: 'center', lineHeight: 20 },
 });

@@ -115,7 +115,7 @@ export default function RepartidorProfileScreen(_props: Props) {
       }
     >
       <Text style={styles.name}>{user?.name}</Text>
-      <Text style={styles.sub}>@{user?.username}</Text>
+      <Text style={styles.sub}>{user?.username}</Text>
       {user?.agencyName ? <Text style={styles.sub}>Agencia: {user.agencyName}</Text> : null}
 
       {showMlSection ? (

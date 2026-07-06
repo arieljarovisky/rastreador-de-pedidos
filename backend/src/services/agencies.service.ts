@@ -8,6 +8,10 @@ export interface Agency {
   id: string;
   name: string;
   mlFlexMode: MlFlexMode;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  cuit?: string | null;
+  city?: string | null;
   departurePoint?: LocationPoint;
 }
 
@@ -15,13 +19,25 @@ interface AgencyRow extends RowDataPacket {
   id: string;
   name: string;
   ml_flex_mode: MlFlexMode;
+  contact_email: string | null;
+  contact_phone: string | null;
+  cuit: string | null;
+  city: string | null;
   departure_address: string | null;
   departure_lat: number | null;
   departure_lng: number | null;
 }
 
 function rowToAgency(row: AgencyRow): Agency {
-  const agency: Agency = { id: row.id, name: row.name, mlFlexMode: row.ml_flex_mode ?? 'agency' };
+  const agency: Agency = {
+    id: row.id,
+    name: row.name,
+    mlFlexMode: row.ml_flex_mode ?? 'agency',
+    contactEmail: row.contact_email,
+    contactPhone: row.contact_phone,
+    cuit: row.cuit,
+    city: row.city,
+  };
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
     agency.departurePoint = {
       address: row.departure_address,
@@ -34,16 +50,24 @@ function rowToAgency(row: AgencyRow): Agency {
 
 export async function createAgency(data: {
   name: string;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  cuit?: string | null;
+  city?: string | null;
   departurePoint?: LocationPoint;
 }): Promise<Agency> {
   const id = `ag${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date();
   await pool.query(
-    `INSERT INTO agencies (id, name, departure_address, departure_lat, departure_lng, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO agencies (id, name, contact_email, contact_phone, cuit, city, departure_address, departure_lat, departure_lng, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       data.name.trim(),
+      data.contactEmail?.trim().toLowerCase() ?? null,
+      data.contactPhone ?? null,
+      data.cuit ?? null,
+      data.city?.trim() ?? null,
       data.departurePoint?.address ?? null,
       data.departurePoint?.lat ?? null,
       data.departurePoint?.lng ?? null,
@@ -58,7 +82,7 @@ export async function createAgency(data: {
 
 export async function getAgencyById(id: string): Promise<Agency | null> {
   const [rows] = await pool.query<AgencyRow[]>(
-    `SELECT id, name, ml_flex_mode, departure_address, departure_lat, departure_lng FROM agencies WHERE id = ?`,
+    `SELECT id, name, ml_flex_mode, contact_email, contact_phone, cuit, city, departure_address, departure_lat, departure_lng FROM agencies WHERE id = ?`,
     [id]
   );
   const row = rows[0];
