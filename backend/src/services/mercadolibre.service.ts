@@ -559,8 +559,8 @@ export async function resolveMercadoLibreShipmentId(
 }
 
 /**
- * Registra en Mercado Libre Flex que la mensajería tomó el envío (API courier-shipment).
- * Requiere cuenta de mensajería vinculada vía OAuth (admin de agencia).
+ * Registra en Mercado Libre Flex que el repartidor tomó el envío (API courier-shipment).
+ * Requiere cuenta ML del repartidor vinculada vía OAuth.
  */
 export async function registerMercadoLibreCourierShipment(
   integration: StoreIntegration,
@@ -572,7 +572,7 @@ export async function registerMercadoLibreCourierShipment(
     return {
       ok: false,
       code: 'ML_COURIER_NO_USER',
-      message: 'La cuenta de mensajería no tiene user_id de Mercado Libre.',
+      message: 'La cuenta de Mercado Libre no tiene user_id asociado.',
     };
   }
 
@@ -592,7 +592,7 @@ export async function registerMercadoLibreCourierShipment(
     return {
       ok: false,
       code: 'ML_COURIER_NOT_CONNECTED',
-      message: 'La cuenta de mensajería perdió la conexión con Mercado Libre. Reconectala en Configuración.',
+      message: 'La cuenta de Mercado Libre perdió la conexión. Reconectala en tu perfil.',
     };
   }
 
@@ -626,7 +626,7 @@ export async function registerMercadoLibreCourierShipment(
         ok: false,
         code: 'ML_COURIER_AUTH',
         message:
-          'Mercado Libre rechazó la cuenta de mensajería. Verificá que esté registrada como mensajería Flex y reconectala.',
+          'Mercado Libre rechazó la cuenta. Verificá que esté registrada como mensajería Flex y reconectala en tu perfil.',
       };
     }
     if (res.status === 404) {

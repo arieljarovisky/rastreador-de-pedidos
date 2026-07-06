@@ -871,7 +871,7 @@ export default function AdminDashboard({
                       key={index}
                       type="button"
                       onClick={() => applyPreset(preset)}
-                      className="text-[9px] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] hover:border-[var(--color-accent)] hover:text-white text-[var(--color-text-muted)] rounded px-1.5 py-0.5 transition font-mono inline-flex items-center gap-1"
+                      className="text-[9px] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-text)] text-[var(--color-text-muted)] rounded px-1.5 py-0.5 transition font-mono inline-flex items-center gap-1"
                     >
                       <MapPin className="w-2.5 h-2.5 shrink-0" />
                       {preset.name.split(' (')[0]}
@@ -995,7 +995,7 @@ export default function AdminDashboard({
                   className={`p-2.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
                     isSelected
                       ? 'bg-[var(--color-accent)]/5 border-l-2 border-[var(--color-accent)] border-t-[var(--surface-border)] border-r-[var(--surface-border)] border-b-[var(--surface-border)]'
-                      : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)]/50'
+                      : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)] hover:border-[var(--edge-2,var(--surface-border))]'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -1003,7 +1003,7 @@ export default function AdminDashboard({
                     <StatusBadge status={order.status} label={statusLabel} />
                   </div>
 
-                  <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-white transition truncate">
+                  <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-[var(--color-text)] transition truncate">
                     {order.clientName}
                   </h4>
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate leading-snug flex items-start gap-1">

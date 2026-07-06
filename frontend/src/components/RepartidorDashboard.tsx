@@ -323,7 +323,7 @@ export default function RepartidorDashboard({
                     className={`p-3 rounded border text-left transition cursor-pointer ${
                       selectedOrder?.id === order.id
                         ? 'bg-[var(--color-accent)]/5 border-l-2 border-[var(--color-accent)] border-t-[var(--surface-border)] border-r-[var(--surface-border)] border-b-[var(--surface-border)]'
-                        : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)]/50'
+                        : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)] hover:border-[var(--edge-2,var(--surface-border))]'
                     }`}
                   >
                     <div className="flex items-center justify-between text-[10px]">
@@ -397,7 +397,7 @@ export default function RepartidorDashboard({
                 <div className="lg:hidden flex items-center justify-between pb-2 border-b border-[var(--surface-border)]/80 mb-2 shrink-0">
                   <button
                     onClick={() => onSelectOrder(null)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:text-white rounded text-[10px] font-bold uppercase tracking-wider transition"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:text-[var(--color-text)] rounded text-[10px] font-bold uppercase tracking-wider transition"
                   >
                     ← Volver a la Lista
                   </button>
@@ -417,7 +417,7 @@ export default function RepartidorDashboard({
                     href={`https://www.google.com/maps/dir/?api=1&destination=${selectedOrder.lat},${selectedOrder.lng}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1.5 rounded bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:text-white transition flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold"
+                    className="p-1.5 rounded bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] hover:text-[var(--color-text)] transition flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold"
                   >
                     <Navigation className="w-3.5 h-3.5 text-blue-500" /> GPS Externo
                   </a>

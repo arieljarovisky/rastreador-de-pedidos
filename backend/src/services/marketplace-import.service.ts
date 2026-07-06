@@ -330,7 +330,7 @@ async function attachMercadoLibreFlexSync(
       ...base,
       mlFlexRegistered: false,
       mlFlexMessage:
-        'No se pudo registrar en Mercado Libre Flex. El pedido quedó en Posta; verificá la conexión de mensajería ML.',
+        'No se pudo registrar en Mercado Libre Flex. El pedido quedó en Posta; verificá tu conexión ML en el perfil.',
     };
   }
 }
