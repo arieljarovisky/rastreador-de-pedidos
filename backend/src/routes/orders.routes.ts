@@ -17,7 +17,7 @@ import {
 } from '../services/orders.service.js';
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
-import { getMercadoLibreShippingLabelPdf } from '../services/mercadolibre.service.js';
+import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../services/mercadolibre.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
 import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
 
@@ -30,7 +30,9 @@ function mercadoLibreLabelErrorMessage(code: string): string {
     case 'ML_LABEL_NOT_READY':
       return 'La etiqueta aún no está lista para imprimir. Verificá el estado del envío en Mercado Libre.';
     case 'ML_LABEL_NOT_FOUND':
-      return 'No se encontró la etiqueta de envío.';
+      return 'No se encontró la etiqueta de envío en Mercado Libre.';
+    case 'ML_LABEL_UNAVAILABLE':
+      return 'Mercado Libre rechazó la descarga. Reconectá ML en Configuración o imprimí la etiqueta desde la app de ML.';
     default:
       return 'No se pudo descargar la etiqueta de Mercado Libre.';
   }
@@ -145,7 +147,9 @@ router.get('/:id/mercadolibre-label', authenticate, async (req: Request, res: Re
   }
 
   try {
-    const pdf = await getMercadoLibreShippingLabelPdf(sellerId, order.externalOrderId);
+    const pdf = await getMercadoLibreShippingLabelPdf(sellerId, order.externalOrderId, {
+      alternateRef: extractMlOrderIdFromNotes(order.notes),
+    });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',

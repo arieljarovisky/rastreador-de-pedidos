@@ -869,25 +869,34 @@ export async function syncMercadoLibreFlexOnScan(
   return { registered: false, message: result.message };
 }
 
+/** Extrae número de orden MLA guardado en notas del pedido Posta. */
+export function extractMlOrderIdFromNotes(notes?: string | null): string | undefined {
+  const match = notes?.match(/Orden #(\d{8,})/);
+  return match?.[1];
+}
+
 export async function getMercadoLibreShippingLabelPdf(
   sellerUserId: string,
-  mlRefId: string
+  mlRefId: string,
+  options?: { alternateRef?: string }
 ): Promise<Buffer> {
   const integration = await getValidMercadoLibreIntegration(sellerUserId);
-  let shipmentId: string | null = null;
+  const refs = [...new Set([mlRefId, options?.alternateRef].filter(Boolean) as string[])];
 
-  try {
-    const order = await fetchMercadoLibreOrder(integration, mlRefId);
-    if (order.shipping?.id) {
-      shipmentId = String(order.shipping.id);
+  let shipmentId: string | null = null;
+  for (const ref of refs) {
+    try {
+      const resolved = await resolveMercadoLibreShipmentId(sellerUserId, ref);
+      await fetchMercadoLibreShipment(integration, resolved);
+      shipmentId = resolved;
+      break;
+    } catch {
+      // probar siguiente referencia (orden vs envío)
     }
-  } catch {
-    // Puede ser un ID de envío guardado como referencia externa.
   }
 
   if (!shipmentId) {
-    const shipment = await fetchMercadoLibreShipment(integration, mlRefId);
-    shipmentId = String(shipment.id);
+    throw new Error('ML_NO_SHIPMENT');
   }
 
   const labelUrl = `${ML_API}/shipment_labels?shipment_ids=${encodeURIComponent(shipmentId)}&response_type=pdf`;
@@ -902,15 +911,23 @@ export async function getMercadoLibreShippingLabelPdf(
     }
     if (!res.ok) {
       const body = await res.text();
+      console.warn('[ml-label] Error ML', res.status, body.slice(0, 400));
       if (body.includes('not_printable_status')) {
         throw new Error('ML_LABEL_NOT_READY');
       }
       if (res.status === 404) {
         throw new Error('ML_LABEL_NOT_FOUND');
       }
+      if (res.status === 401 || body.includes('invalid_token') || body.includes('Unauthorized')) {
+        throw new Error('ML_NOT_CONNECTED');
+      }
       throw new Error('ML_LABEL_UNAVAILABLE');
     }
-    return Buffer.from(await res.arrayBuffer());
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length < 100) {
+      throw new Error('ML_LABEL_NOT_FOUND');
+    }
+    return buffer;
   }
   throw new Error('ML_LABEL_UNAVAILABLE');
 }
