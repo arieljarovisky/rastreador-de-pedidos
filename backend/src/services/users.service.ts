@@ -53,7 +53,6 @@ async function enrichUser(user: User): Promise<User> {
     const agency = await getAgencyById(user.agencyId);
     if (agency) {
       user.agencyName = agency.name;
-      user.agencyMlFlexMode = agency.mlFlexMode;
     }
   }
   if (user.role === UserRole.STORE_ADMIN) {
@@ -132,6 +131,28 @@ export async function getRepartidorById(id: string): Promise<User | null> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE id = ? AND role = ?`,
     [id, UserRole.REPARTIDOR]
+  );
+  const row = rows[0];
+  return row ? rowToUser(row) : null;
+}
+
+/** Repartidor Posta vinculado a una cuenta ML (external_user_id) dentro de la agencia. */
+export async function getRepartidorByMercadoLibreUserId(
+  mlUserId: string | number,
+  agencyId: string | null
+): Promise<User | null> {
+  if (!agencyId) return null;
+  const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
+    `SELECT u.id, u.username, u.name, u.role, u.agency_id, u.password_hash, u.current_lat, u.current_lng,
+            u.location_updated_at, u.departure_address, u.departure_lat, u.departure_lng, u.delivery_zone
+     FROM users u
+     INNER JOIN store_integrations si ON si.user_id = u.id
+     WHERE si.platform = 'mercadolibre'
+       AND si.external_user_id = ?
+       AND u.role = ?
+       AND u.agency_id = ?
+     LIMIT 1`,
+    [String(mlUserId), UserRole.REPARTIDOR, agencyId]
   );
   const row = rows[0];
   return row ? rowToUser(row) : null;

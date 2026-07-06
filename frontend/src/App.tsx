@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, AgencyIntegrationsStatus, RepartidorMercadoLibreStatus, type MlFlexMode } from './types.js';
+import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, RepartidorMercadoLibreStatus } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen, { type AgencyRegisterData } from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
@@ -64,8 +64,6 @@ export default function App() {
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
-  const [agencyIntegrationsStatus, setAgencyIntegrationsStatus] = useState<AgencyIntegrationsStatus | null>(null);
-  const [agencyCourierStatusLoading, setAgencyCourierStatusLoading] = useState(false);
   const [repartidorMlStatus, setRepartidorMlStatus] = useState<RepartidorMercadoLibreStatus | null>(null);
   const [repartidorMlLoading, setRepartidorMlLoading] = useState(false);
 
@@ -198,11 +196,6 @@ export default function App() {
         if (sellersRes.ok) {
           const data = await sellersRes.json();
           setSellers(data);
-        }
-
-        const courierRes = await fetch(apiUrl('/api/integrations/agency/status'), { headers });
-        if (courierRes.ok) {
-          setAgencyIntegrationsStatus((await courierRes.json()) as AgencyIntegrationsStatus);
         }
       }
 
@@ -848,7 +841,6 @@ export default function App() {
     setMobileTabState('dashboard');
     setAuthError(null);
     setLoading(false);
-    setAgencyIntegrationsStatus(null);
     setRepartidorMlStatus(null);
     setIntegrationStatus(null);
     window.location.replace('/app');
@@ -934,23 +926,6 @@ export default function App() {
     }
   }, [token]);
 
-  const fetchAgencyCourierStatus = useCallback(async () => {
-    if (!token) return;
-    setAgencyCourierStatusLoading(true);
-    try {
-      const res = await fetch(apiUrl('/api/integrations/agency/status'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        setAgencyIntegrationsStatus((await res.json()) as AgencyIntegrationsStatus);
-      }
-    } catch {
-      // silencioso
-    } finally {
-      setAgencyCourierStatusLoading(false);
-    }
-  }, [token]);
-
   const fetchRepartidorMlStatus = useCallback(async () => {
     if (!token) return;
     setRepartidorMlLoading(true);
@@ -968,25 +943,6 @@ export default function App() {
     }
   }, [token]);
 
-  const handleUpdateAgencyMlFlexMode = useCallback(
-    async (mlFlexMode: MlFlexMode) => {
-      if (!token) throw new Error('Sin sesión');
-      const res = await fetch(apiUrl('/api/accounts/agency/ml-flex-mode'), {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ mlFlexMode }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((body as { error?: string }).error || 'No se pudo guardar el modo Flex');
-      setUser((prev) => (prev ? { ...prev, agencyMlFlexMode: mlFlexMode } : prev));
-      await fetchAgencyCourierStatus();
-    },
-    [token, fetchAgencyCourierStatus]
-  );
-
   const connectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
     if (!token) throw new Error('Sin sesión');
     const res = await fetch(apiUrl(`/api/integrations/${platform}/connect`), {
@@ -995,23 +951,6 @@ export default function App() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'No se pudo iniciar la conexión');
     window.location.href = body.url;
-  };
-
-  const connectMercadoLibreCourier = async () => {
-    await connectMarketplace('mercadolibre');
-  };
-
-  const disconnectMercadoLibreCourier = async () => {
-    if (!token) return;
-    const res = await fetch(apiUrl('/api/integrations/mercadolibre'), {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok && res.status !== 204) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || 'No se pudo desconectar');
-    }
-    await fetchAgencyCourierStatus();
   };
 
   const connectRepartidorMercadoLibre = async () => {
@@ -1572,12 +1511,6 @@ export default function App() {
                   onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}
                   onFetchMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? fetchMarketplaceShipments : undefined}
                   onImportMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? importMarketplaceShipments : undefined}
-                  agencyIntegrationsStatus={isAgencyAdmin(user.role) ? agencyIntegrationsStatus : null}
-                  agencyCourierStatusLoading={agencyCourierStatusLoading}
-                  onRefreshAgencyCourierStatus={isAgencyAdmin(user.role) ? fetchAgencyCourierStatus : undefined}
-                  onUpdateAgencyMlFlexMode={isAgencyAdmin(user.role) ? handleUpdateAgencyMlFlexMode : undefined}
-                  onConnectMercadoLibreCourier={isAgencyAdmin(user.role) ? connectMercadoLibreCourier : undefined}
-                  onDisconnectMercadoLibreCourier={isAgencyAdmin(user.role) ? disconnectMercadoLibreCourier : undefined}
                 />
               </div>
             )}

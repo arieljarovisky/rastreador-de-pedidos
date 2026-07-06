@@ -93,9 +93,6 @@ export default function RepartidorProfileScreen(_props: Props) {
     ]);
   };
 
-  const showMlSection =
-    status?.mlFlexMode === 'repartidor' || user?.agencyMlFlexMode === 'repartidor';
-
   if (loading && !status) {
     return (
       <View style={styles.center}>
@@ -118,40 +115,31 @@ export default function RepartidorProfileScreen(_props: Props) {
       <Text style={styles.sub}>{user?.username}</Text>
       {user?.agencyName ? <Text style={styles.sub}>Agencia: {user.agencyName}</Text> : null}
 
-      {showMlSection ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Mercado Libre Flex</Text>
-          <Text style={styles.hint}>
-            Conectá tu cuenta para que tus escaneos se informen a Mercado Libre.
-          </Text>
-          {!status?.mercadolibre.configured ? (
-            <Text style={styles.warn}>ML no está configurado en el servidor de Posta.</Text>
-          ) : status.mercadolibre.connected ? (
-            <>
-              <Text style={styles.ok}>
-                Conectado como {status.mercadolibre.account?.nickname ?? 'ML'}
-              </Text>
-              <Pressable onPress={disconnect} disabled={busy}>
-                <Text style={styles.danger}>{busy ? '…' : 'Desconectar'}</Text>
-              </Pressable>
-            </>
-          ) : (
-            <Button
-              label="Conectar mi cuenta ML"
-              onPress={connect}
-              loading={busy}
-              disabled={!status?.mercadolibre.configured}
-            />
-          )}
-        </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.hint}>
-            Tu agencia usa una cuenta de mensajería centralizada. No necesitás conectar Mercado Libre
-            en tu perfil.
-          </Text>
-        </View>
-      )}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Mercado Libre Flex</Text>
+        <Text style={styles.hint}>
+          Conectá tu cuenta para que tus escaneos en Mercado Envíos Flex se sincronicen con Posta.
+        </Text>
+        {!status?.mercadolibre.configured ? (
+          <Text style={styles.warn}>ML no está configurado en el servidor de Posta.</Text>
+        ) : status.mercadolibre.connected ? (
+          <>
+            <Text style={styles.ok}>
+              Conectado como {status.mercadolibre.account?.nickname ?? 'ML'}
+            </Text>
+            <Pressable onPress={disconnect} disabled={busy}>
+              <Text style={styles.danger}>{busy ? '…' : 'Desconectar'}</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Button
+            label="Conectar mi cuenta ML"
+            onPress={connect}
+            loading={busy}
+            disabled={!status?.mercadolibre.configured}
+          />
+        )}
+      </View>
 
       <Button label="Cerrar sesión" variant="danger" onPress={logout} style={{ marginTop: spacing.xl }} />
     </ScrollView>

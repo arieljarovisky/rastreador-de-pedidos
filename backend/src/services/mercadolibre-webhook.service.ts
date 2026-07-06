@@ -1,5 +1,5 @@
 import { RowDataPacket } from 'mysql2';
-import { Order, OrderStatus } from '../types/index.js';
+import { Order, OrderStatus, User, UserRole } from '../types/index.js';
 import { env } from '../config/env.js';
 import { pool } from '../config/database.js';
 import {
@@ -24,12 +24,13 @@ import {
 import { geocodeAddress } from './geocode.service.js';
 import {
   appendOrderMarketplaceComment,
+  assignOrderToRepartidorFromMarketplace,
   createOrder,
   findOrderByExternalGlobal,
   getSellerIdForOrder,
   updateOrderStatusFromMarketplace,
 } from './orders.service.js';
-import { getUserById } from './users.service.js';
+import { getRepartidorByMercadoLibreUserId, getUserById } from './users.service.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
 
@@ -287,6 +288,25 @@ async function handleShipmentResource(
   await syncOrderFromMlShipment(existing, shipment);
 }
 
+/** Mapea driver_id de Flex (o la cuenta ML del webhook) al repartidor Posta de la agencia. */
+async function resolveRepartidorForFlexHandshake(
+  assignment: MlFlexAssignment | null,
+  integration: StoreIntegration,
+  agencyId: string | null
+): Promise<User | null> {
+  if (assignment?.driver_id) {
+    const byDriver = await getRepartidorByMercadoLibreUserId(assignment.driver_id, agencyId);
+    if (byDriver) return byDriver;
+  }
+
+  const scanner = await getUserById(integration.userId);
+  if (scanner?.role === UserRole.REPARTIDOR && scanner.agencyId === agencyId) {
+    return scanner;
+  }
+
+  return null;
+}
+
 /** Tópico flex-handshakes → GET assignment/v1 del resource de la notificación. */
 async function handleFlexHandshakeResource(
   integration: StoreIntegration,
@@ -312,24 +332,60 @@ async function handleFlexHandshakeResource(
   let existing = await resolveFlexOrderForShipment(validIntegration, shipmentId, shipment);
   if (!existing) return;
 
-  const driverNote = assignment?.driver_id
-    ? `Handshake Flex · transportista ML #${assignment.driver_id}`
-    : 'Handshake Flex · colecta o transferencia registrada en ML';
+  const repartidor = await resolveRepartidorForFlexHandshake(
+    assignment,
+    integration,
+    existing.agencyId ?? null
+  );
+
+  const driverNote = repartidor
+    ? `Handshake Flex · colectado por ${repartidor.name}`
+    : assignment?.driver_id
+      ? `Handshake Flex · transportista ML #${assignment.driver_id}`
+      : 'Handshake Flex · colecta o transferencia registrada en ML';
   const statusLabel = formatMlShipmentStatusLabel(shipment);
   const comment = `${driverNote} · estado ${statusLabel}`;
 
   const updated = await appendOrderMarketplaceComment(existing.id, comment);
   if (updated) {
     existing = updated;
-    const sellerId = await getSellerIdForOrder(existing.id);
-    emitOrderUpdated(existing, sellerId);
-    await notifySellerFlexEvent(
-      sellerId,
-      existing,
-      'Colecta Flex en Mercado Libre',
-      `Tu envío ${existing.id} (ML #${shipmentId}) fue escaneado o transferido en Flex.`
-    );
   }
+
+  let assignedToRepartidor = false;
+  if (
+    repartidor &&
+    existing.status === OrderStatus.PENDING &&
+    !existing.repartidorId
+  ) {
+    const assignedOrder = await assignOrderToRepartidorFromMarketplace(
+      existing.id,
+      repartidor.id,
+      'Asignado automáticamente por escaneo en Mercado Envíos Flex'
+    );
+    if (assignedOrder?.repartidorId === repartidor.id) {
+      existing = assignedOrder;
+      assignedToRepartidor = true;
+      await createNotification({
+        id: `n_ml_flex_assign_${Date.now()}_${existing.id}`,
+        userId: repartidor.id,
+        title: 'Pedido asignado (Flex)',
+        body: `Se te asignó el pedido ${existing.id} por escaneo en Mercado Envíos Flex.`,
+        type: 'order_assigned',
+        orderId: existing.id,
+      });
+    }
+  }
+
+  const sellerId = await getSellerIdForOrder(existing.id);
+  emitOrderUpdated(existing, sellerId);
+  await notifySellerFlexEvent(
+    sellerId,
+    existing,
+    assignedToRepartidor ? 'Colecta Flex — repartidor asignado' : 'Colecta Flex en Mercado Libre',
+    assignedToRepartidor && repartidor
+      ? `Tu envío ${existing.id} (ML #${shipmentId}) fue colectado por ${repartidor.name} en Flex.`
+      : `Tu envío ${existing.id} (ML #${shipmentId}) fue escaneado o transferido en Flex.`
+  );
 
   await syncOrderFromMlShipment(existing, shipment);
 }

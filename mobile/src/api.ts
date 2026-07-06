@@ -3,8 +3,6 @@ import {
   AppNotification,
   GeocodeResult,
   IntegrationsStatus,
-  AgencyIntegrationsStatus,
-  MlFlexMode,
   RepartidorMercadoLibreStatus,
   MarketplaceImportResult,
   MarketplacePlatform,
@@ -292,18 +290,6 @@ export const api = {
 
   getIntegrationsStatus(token: string): Promise<IntegrationsStatus> {
     return request<IntegrationsStatus>('/api/integrations/status', { token });
-  },
-
-  getAgencyCourierStatus(token: string): Promise<AgencyIntegrationsStatus> {
-    return request<AgencyIntegrationsStatus>('/api/integrations/agency/status', { token });
-  },
-
-  updateAgencyMlFlexMode(token: string, mlFlexMode: MlFlexMode): Promise<{ mlFlexMode: MlFlexMode }> {
-    return request<{ mlFlexMode: MlFlexMode }>('/api/accounts/agency/ml-flex-mode', {
-      method: 'PUT',
-      token,
-      body: { mlFlexMode },
-    });
   },
 
   getRepartidorMlStatus(token: string): Promise<RepartidorMercadoLibreStatus> {

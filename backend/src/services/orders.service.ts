@@ -431,6 +431,32 @@ export async function updateOrderStatusFromMarketplace(
   return getOrderById(orderId);
 }
 
+/** Asigna un pedido pendiente al repartidor que escaneó en Flex (webhook ML). */
+export async function assignOrderToRepartidorFromMarketplace(
+  orderId: string,
+  repartidorId: string,
+  comment: string
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+  if (order.status !== OrderStatus.PENDING || order.repartidorId) return order;
+
+  const repartidor = await getRepartidorById(repartidorId);
+  if (!repartidor || repartidor.agencyId !== order.agencyId) return order;
+
+  const now = new Date();
+  await pool.query(
+    'UPDATE orders SET status = ?, repartidor_id = ?, updated_at = ? WHERE id = ?',
+    [OrderStatus.ASSIGNED, repartidorId, now, orderId]
+  );
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, OrderStatus.ASSIGNED, repartidor.name, comment, now]
+  );
+
+  return getOrderById(orderId);
+}
+
 export async function assignOrderToSeller(
   user: User,
   orderId: string,

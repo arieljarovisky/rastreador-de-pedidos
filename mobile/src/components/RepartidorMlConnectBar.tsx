@@ -10,7 +10,7 @@ import PostaIcon from './icons/PostaIcons';
 import { connectMarketplace, oauthErrorMessage } from '../oauth/connectMarketplace';
 
 export default function RepartidorMlConnectBar() {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const [status, setStatus] = useState<RepartidorMercadoLibreStatus | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -29,10 +29,7 @@ export default function RepartidorMlConnectBar() {
     }, [load])
   );
 
-  const showSection =
-    status?.mlFlexMode === 'repartidor' || user?.agencyMlFlexMode === 'repartidor';
-
-  if (!showSection) return null;
+  if (!token) return null;
 
   const connect = async () => {
     if (!token) return;

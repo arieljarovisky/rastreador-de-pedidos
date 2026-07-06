@@ -198,8 +198,7 @@ export default function RepartidorDashboard({
   return (
     <div className="flex flex-col h-full overflow-hidden" id="repartidor-dashboard">
 
-      {(repartidorMlStatus?.mlFlexMode === 'repartidor' || currentUser.agencyMlFlexMode === 'repartidor') &&
-        onConnectRepartidorMercadoLibre && (
+      {onConnectRepartidorMercadoLibre && (
           <div className="shrink-0 px-2 sm:px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80">
             <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5">
               Tu cuenta Mercado Libre Flex

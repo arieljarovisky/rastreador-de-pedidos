@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
-import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, AgencyIntegrationsStatus, type MlFlexMode } from '../types.js';
+import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
 import { isValidEmail } from '../utils/email.ts';
@@ -149,12 +149,6 @@ interface SettingsPageProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
-  agencyIntegrationsStatus?: AgencyIntegrationsStatus | null;
-  agencyCourierStatusLoading?: boolean;
-  onRefreshAgencyCourierStatus?: () => Promise<void>;
-  onUpdateAgencyMlFlexMode?: (mode: MlFlexMode) => Promise<void>;
-  onConnectMercadoLibreCourier?: () => Promise<void>;
-  onDisconnectMercadoLibreCourier?: () => Promise<void>;
 }
 
 export default function SettingsPage({
@@ -190,19 +184,10 @@ export default function SettingsPage({
   onDisconnectMarketplace,
   onFetchMarketplaceShipments,
   onImportMarketplaceShipments,
-  agencyIntegrationsStatus = null,
-  agencyCourierStatusLoading = false,
-  onRefreshAgencyCourierStatus,
-  onUpdateAgencyMlFlexMode,
-  onConnectMercadoLibreCourier,
-  onDisconnectMercadoLibreCourier,
 }: SettingsPageProps) {
   const userRole = user.role;
   const agency = isAgencyAdmin(userRole);
   const { confirm, alert: showAlert } = useModal();
-  const [mlFlexModeSaving, setMlFlexModeSaving] = useState(false);
-  const mlFlexMode = agencyIntegrationsStatus?.mlFlexMode ?? user.agencyMlFlexMode ?? 'agency';
-  const agencyCourierStatus = agencyIntegrationsStatus?.mercadolibreCourier ?? null;
 
   const [showDepartureForm, setShowDepartureForm] = useState(false);
   const [departureAddress, setDepartureAddress] = useState(departurePoint?.address ?? '');
@@ -1503,138 +1488,17 @@ export default function SettingsPage({
 
 
       <div className="flex flex-col gap-3 w-full mt-3">
-        {agency && onConnectMercadoLibreCourier && (
+        {agency && isAgencyAdmin(userRole) && (
           <section className={sectionClass}>
             <SettingsSectionHeader
               emoji="📦"
               title="Mercado Libre Flex"
-              meta="Modo de operación y conexión con ML"
+              meta="Cada repartidor con su cuenta ML"
             />
-            {onUpdateAgencyMlFlexMode && (
-              <div className="space-y-2 mb-4">
-                <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
-                  Elegí cómo se registran los escaneos en Mercado Libre Flex:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(
-                    [
-                      {
-                        id: 'agency' as MlFlexMode,
-                        title: 'Mensajería en ML',
-                        desc: 'Una cuenta de mensajería para toda la agencia.',
-                      },
-                      {
-                        id: 'repartidor' as MlFlexMode,
-                        title: 'Repartidores independientes',
-                        desc: 'Cada repartidor conecta su cuenta ML en su perfil.',
-                      },
-                    ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      disabled={mlFlexModeSaving}
-                      onClick={() => {
-                        if (opt.id === mlFlexMode) return;
-                        void (async () => {
-                          setMlFlexModeSaving(true);
-                          try {
-                            await onUpdateAgencyMlFlexMode(opt.id);
-                          } catch (err: unknown) {
-                            void showAlert({
-                              title: 'Error',
-                              message: err instanceof Error ? err.message : 'No se pudo guardar',
-                              variant: 'error',
-                            });
-                          } finally {
-                            setMlFlexModeSaving(false);
-                          }
-                        })();
-                      }}
-                      className={`text-left p-3 rounded-lg border transition ${
-                        mlFlexMode === opt.id
-                          ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10'
-                          : 'border-[var(--surface-border)] bg-[var(--paper)] hover:border-[var(--color-text-faint)]'
-                      }`}
-                    >
-                      <p className="text-[11px] font-bold text-[var(--color-text)]">{opt.title}</p>
-                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1 leading-relaxed">{opt.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {mlFlexMode === 'repartidor' ? (
-              <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
-                Cada repartidor debe conectar su cuenta de Mercado Libre Flex desde su perfil en la app o web.
-              </p>
-            ) : agencyCourierStatusLoading ? (
-              <p className="text-[11px] text-[var(--color-text-muted)]">Consultando conexión…</p>
-            ) : !agencyCourierStatus?.configured ? (
-              <p className="text-[11px] text-[var(--color-warn)]">
-                Mercado Libre no está configurado en el servidor (ML_APP_ID / ML_APP_SECRET).
-              </p>
-            ) : agencyCourierStatus.connected ? (
-              <div className="space-y-2">
-                <p className="text-[11px] text-[var(--color-ok)]">
-                  Conectado como{' '}
-                  <span className="font-mono">
-                    {agencyCourierStatus.account?.nickname ?? 'mensajería ML'}
-                  </span>
-                </p>
-                <p className="text-[10px] text-[var(--color-text-faint)] leading-relaxed">
-                  Usá la cuenta de negocio de tu mensajería registrada en Mercado Libre Flex.
-                </p>
-                {onDisconnectMercadoLibreCourier && (
-                  <button
-                    type="button"
-                    className={btnGhost}
-                    onClick={() => {
-                      void (async () => {
-                        try {
-                          await onDisconnectMercadoLibreCourier();
-                          await onRefreshAgencyCourierStatus?.();
-                        } catch (err: unknown) {
-                          void showAlert({
-                            title: 'Error',
-                            message: err instanceof Error ? err.message : 'No se pudo desconectar',
-                            variant: 'error',
-                          });
-                        }
-                      })();
-                    }}
-                  >
-                    Desconectar
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
-                  Conectá la cuenta de mensajería de tu agencia para que cada escaneo se informe a
-                  Mercado Libre Flex automáticamente.
-                </p>
-                <button
-                  type="button"
-                  className={btnPrimary}
-                  onClick={() => {
-                    void (async () => {
-                      try {
-                        await onConnectMercadoLibreCourier();
-                      } catch (err: unknown) {
-                        void showAlert({
-                          title: 'Error',
-                          message: err instanceof Error ? err.message : 'No se pudo conectar',
-                          variant: 'error',
-                        });
-                      }
-                    })();
-                  }}
-                >
-                  Conectar mensajería ML
-                </button>
-              </div>
-            )}
+            <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
+              Los repartidores deben conectar su cuenta de Mercado Libre Flex desde su perfil en la app o web.
+              Los escaneos se hacen en la app oficial de Mercado Envíos Flex y se sincronizan automáticamente con Posta.
+            </p>
           </section>
         )}
         {userRole === UserRole.STORE_ADMIN && (

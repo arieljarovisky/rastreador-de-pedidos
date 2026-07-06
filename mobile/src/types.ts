@@ -18,8 +18,6 @@ export enum OrderStatus {
   CANCELLED = 'cancelled', // Cancelado
 }
 
-export type MlFlexMode = 'agency' | 'repartidor';
-
 export interface UserLocation {
   lat: number;
   lng: number;
@@ -50,7 +48,6 @@ export interface User {
   role: UserRole;
   agencyId?: string | null;
   agencyName?: string | null;
-  agencyMlFlexMode?: MlFlexMode | null;
   currentLocation?: UserLocation;
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];
@@ -145,13 +142,7 @@ export interface AgencyMercadoLibreCourierStatus {
   account: IntegrationAccountStatus | null;
 }
 
-export interface AgencyIntegrationsStatus {
-  mlFlexMode: MlFlexMode;
-  mercadolibreCourier: AgencyMercadoLibreCourierStatus;
-}
-
 export interface RepartidorMercadoLibreStatus {
-  mlFlexMode: MlFlexMode;
   mercadolibre: AgencyMercadoLibreCourierStatus;
 }
 

@@ -10,6 +10,9 @@
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
   <component name="ProjectId" id="3FjHombFaJxRg7YzvpiPvU0Rb16" />
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
