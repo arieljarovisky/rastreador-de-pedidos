@@ -788,7 +788,6 @@
   border: 1px solid var(--auth-line);
   background: var(--auth-panel);
   box-shadow: var(--auth-card-shadow);
-  overflow: hidden;
 }
 
 @media (min-width: 640px) {
@@ -862,8 +861,16 @@
   color: var(--auth-text);
 }
 
-.auth-split__card-body {
-  will-change: transform, opacity;
+.auth-split__stage {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.auth-split__stage-panel {
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
 }
 
 .auth-split__card-head {

@@ -66,33 +66,18 @@ const FEATURES = [
 
 const AUTH_EASE = [0.22, 1, 0.36, 1] as const;
 
-function authPanelVariants(direction: number, reduced: boolean) {
-  if (reduced) {
-    return {
-      enter: { opacity: 0 },
-      center: { opacity: 1 },
-      exit: { opacity: 0 },
-    };
-  }
-  return {
-    enter: { opacity: 0, x: direction > 0 ? 28 : -28, filter: 'blur(6px)' },
-    center: { opacity: 1, x: 0, filter: 'blur(0px)' },
-    exit: { opacity: 0, x: direction > 0 ? -28 : 28, filter: 'blur(6px)' },
-  };
-}
+const AUTH_CROSSFADE = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+};
 
-function authFadeVariants(reduced: boolean) {
-  if (reduced) {
-    return {
-      enter: { opacity: 0 },
-      center: { opacity: 1 },
-      exit: { opacity: 0 },
-    };
-  }
+function authBrandVariants(reduced: boolean) {
+  if (reduced) return AUTH_CROSSFADE;
   return {
-    enter: { opacity: 0, y: 10 },
-    center: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -8 },
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
   };
 }
 
@@ -149,7 +134,6 @@ export default function LoginScreen({
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [slideDirection, setSlideDirection] = useState(1);
   const theme = usePostaTheme();
   const reducedMotion = useReducedMotion();
 
@@ -175,13 +159,11 @@ export default function LoginScreen({
   };
 
   const switchMode = (next: AuthMode) => {
-    setSlideDirection(next === 'register-agency' ? 1 : -1);
     setMode(next);
     resetForm();
   };
 
   const goBackToStep1 = () => {
-    setSlideDirection(-1);
     setRegisterStep(1);
     setLocalError(null);
   };
@@ -211,7 +193,6 @@ export default function LoginScreen({
       setLocalError(err);
       return;
     }
-    setSlideDirection(1);
     setRegisterStep(2);
   };
 
@@ -278,11 +259,10 @@ export default function LoginScreen({
     adminName.trim() && email.trim() && password && passwordConfirm && acceptTerms;
 
   const panelKey = isRegister ? `register-${registerStep}` : 'login';
-  const panelMotion = authPanelVariants(slideDirection, Boolean(reducedMotion));
-  const fadeMotion = authFadeVariants(Boolean(reducedMotion));
-  const motionTransition = reducedMotion
-    ? { duration: 0.15 }
-    : { duration: 0.38, ease: AUTH_EASE };
+  const crossfadeDuration = reducedMotion ? 0.12 : 0.22;
+  const layoutTransition = reducedMotion
+    ? { duration: 0.12 }
+    : { duration: 0.32, ease: AUTH_EASE };
 
   const brandTitle = isRegister
     ? registerStep === 1
@@ -311,11 +291,11 @@ export default function LoginScreen({
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={`${brandTitle}-${brandSubtitle.slice(0, 24)}`}
-              initial="enter"
-              animate="center"
+              initial="initial"
+              animate="animate"
               exit="exit"
-              variants={fadeMotion}
-              transition={motionTransition}
+              variants={authBrandVariants(Boolean(reducedMotion))}
+              transition={{ duration: crossfadeDuration, ease: AUTH_EASE }}
             >
               <h1 className="auth-split__title">{brandTitle}</h1>
               <p className="auth-split__lead">{brandSubtitle}</p>
@@ -350,7 +330,11 @@ export default function LoginScreen({
           <h1 className="auth-split__title auth-split__title--mobile">{brandTitle}</h1>
         </div>
 
-        <div className="auth-split__card">
+        <motion.div
+          className="auth-split__card"
+          layout
+          transition={{ layout: layoutTransition }}
+        >
           <div className="auth-split__tabs" role="tablist" aria-label="Tipo de acceso">
             <button
               type="button"
@@ -363,7 +347,7 @@ export default function LoginScreen({
                 <motion.span
                   layoutId="auth-tab-pill"
                   className="auth-split__tab-pill"
-                  transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 38 }}
                 />
               ) : null}
               <span className="auth-split__tab-label">Ingresar</span>
@@ -379,24 +363,24 @@ export default function LoginScreen({
                 <motion.span
                   layoutId="auth-tab-pill"
                   className="auth-split__tab-pill"
-                  transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 38 }}
                 />
               ) : null}
               <span className="auth-split__tab-label">Agencia</span>
             </button>
           </div>
 
-          <AnimatePresence mode="wait" initial={false} custom={slideDirection}>
-            <motion.div
-              key={panelKey}
-              custom={slideDirection}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              variants={panelMotion}
-              transition={motionTransition}
-              className="auth-split__card-body"
-            >
+          <div className="auth-split__stage">
+            <AnimatePresence mode="sync" initial={false}>
+              <motion.div
+                key={panelKey}
+                className="auth-split__stage-panel"
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                variants={AUTH_CROSSFADE}
+                transition={{ duration: crossfadeDuration, ease: AUTH_EASE }}
+              >
           <div className="auth-split__card-head">
             <h2 className="auth-split__card-title">
               {mode === 'login' ? (
@@ -692,9 +676,10 @@ export default function LoginScreen({
               </PostaButton>
             </div>
           </form>
-            </motion.div>
-          </AnimatePresence>
-        </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </motion.div>
 
         <a href="/" className="auth-split__mobile-home lg:hidden">
           <ArrowLeft className="h-3.5 w-3.5" />
