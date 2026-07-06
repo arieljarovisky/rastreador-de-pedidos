@@ -299,10 +299,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    backgroundColor: `${accent}14`,
+    backgroundColor: `${roleAccents.repartidor}14`,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: `${accent}33`,
+    borderColor: `${roleAccents.repartidor}33`,
   },
   sessionBannerText: {
     ...typography.body(13, colors.text),
