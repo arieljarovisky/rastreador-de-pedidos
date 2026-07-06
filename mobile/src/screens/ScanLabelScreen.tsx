@@ -13,6 +13,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOrdersContext } from '../context/OrdersContext';
+import { ApiError } from '../api';
 import { RepartidorScanStackParamList, RepartidorStackParamList } from '../navigation/types';
 import { colors, fonts, radius, roleAccents, spacing, typography } from '../theme';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
@@ -67,7 +68,11 @@ export default function ScanLabelScreen({ navigation }: Props) {
         }, 800);
       } catch (err) {
         setStatusOk(false);
-        setStatusMessage(err instanceof Error ? err.message : 'No se pudo importar el envío.');
+        if (err instanceof ApiError && err.code === 'SESSION_INVALID') {
+          setStatusMessage('Tu sesión expiró. Cerrá sesión e ingresá de nuevo.');
+        } else {
+          setStatusMessage(err instanceof Error ? err.message : 'No se pudo importar el envío.');
+        }
       } finally {
         setImporting(false);
       }

@@ -16,6 +16,7 @@ import { getAgencyById } from './agencies.service.js';
 import { UserRole } from '../types/index.js';
 
 const ML_API = 'https://api.mercadolibre.com';
+const ML_FETCH_TIMEOUT_MS = 20_000;
 
 interface MlTokenResponse {
   access_token: string;
@@ -169,6 +170,7 @@ async function mlFetch<T>(integration: StoreIntegration, path: string): Promise<
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(`${ML_API}${path}`, {
       headers: { Authorization: `Bearer ${integration.accessToken}` },
+      signal: AbortSignal.timeout(ML_FETCH_TIMEOUT_MS),
     });
     if (res.status === 429) {
       await sleep(800 * (attempt + 1));
@@ -518,6 +520,7 @@ export async function registerMercadoLibreCourierShipment(
         Accept: 'application/json',
       },
       body: JSON.stringify({ shipment_id: numericId }),
+      signal: AbortSignal.timeout(ML_FETCH_TIMEOUT_MS),
     });
 
     if (res.status === 429) {

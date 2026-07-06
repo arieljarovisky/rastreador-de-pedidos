@@ -30,6 +30,7 @@ import {
 } from './integrations.service.js';
 import { assertSellerInAgency, getUserById } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import { sleep } from '../utils/sleep.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
 
@@ -270,17 +271,29 @@ async function attachMercadoLibreFlexSync(
     };
   }
 
-  const flexSync = await syncMercadoLibreFlexOnScan(
-    user.agencyId,
-    shipmentId,
-    user.id,
-    user.role
-  );
-  return {
-    ...base,
-    mlFlexRegistered: flexSync.registered,
-    mlFlexMessage: flexSync.message,
-  };
+  try {
+    const flexSync = await Promise.race([
+      syncMercadoLibreFlexOnScan(user.agencyId, shipmentId, user.id, user.role),
+      sleep(25_000).then(() => ({
+        registered: false,
+        message:
+          'Mercado Libre tardó demasiado en responder. El pedido quedó en Posta; reintentá el escaneo en unos segundos.',
+      })),
+    ]);
+    return {
+      ...base,
+      mlFlexRegistered: flexSync.registered,
+      mlFlexMessage: flexSync.message,
+    };
+  } catch (err) {
+    console.warn('[scan-import] Flex sync error:', err);
+    return {
+      ...base,
+      mlFlexRegistered: false,
+      mlFlexMessage:
+        'No se pudo registrar en Mercado Libre Flex. El pedido quedó en Posta; verificá la conexión de mensajería ML.',
+    };
+  }
 }
 
 export async function importMercadoLibreByScanForAgency(
