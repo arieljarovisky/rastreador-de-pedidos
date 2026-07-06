@@ -450,8 +450,9 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
     return;
   }
 
-  const { externalIds, dateFrom, dateTo } = req.body as {
+  const { externalIds, mlRefs, dateFrom, dateTo } = req.body as {
     externalIds?: string[];
+    mlRefs?: string[];
     dateFrom?: string;
     dateTo?: string;
   };
@@ -462,6 +463,7 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
     const result = await importMarketplaceShipments(req.user!, platform, externalIds, {
       dateFrom: tnDateRange?.dateFrom,
       dateTo: tnDateRange?.dateTo,
+      mlRefs: platform === 'mercadolibre' ? mlRefs : undefined,
     });
     res.json(result);
   } catch (err) {

@@ -163,6 +163,129 @@ export async function syncMercadoLibreOrderAfterImport(
 export interface MarketplaceListOptions {
   dateFrom?: string;
   dateTo?: string;
+  /** Números de orden o envío ML (ej. 2000013826685141) para importar sin listar antes. */
+  mlRefs?: string[];
+}
+
+type ImportFlexResult =
+  | { kind: 'imported'; order: Order }
+  | { kind: 'synced'; order: Order }
+  | { kind: 'error'; message: string; fatal?: boolean };
+
+async function importMercadoLibreFlexShipment(
+  user: User,
+  shipment: MercadoLibreFlexShipment
+): Promise<ImportFlexResult> {
+  try {
+    const existing = await findImportedMercadoLibreFlex(user.id, shipment);
+    if (existing) {
+      const synced = await syncMercadoLibreOrderAfterImport(user.id, existing, shipment);
+      const sellerId = await getSellerIdForOrder(synced.id);
+      emitOrderUpdated(synced, sellerId);
+      return { kind: 'synced', order: synced };
+    }
+
+    let lat = shipment.lat;
+    let lng = shipment.lng;
+    if (lat === undefined || lng === undefined) {
+      const geocoded = await geocodeAddress(shipment.address);
+      if (!geocoded) {
+        return {
+          kind: 'error',
+          message: `#${shipment.externalId}: no se pudo ubicar la dirección en el mapa.`,
+        };
+      }
+      lat = geocoded.lat;
+      lng = geocoded.lng;
+    }
+
+    let order = await createOrder(user, {
+      clientName: shipment.clientName,
+      clientPhone: shipment.clientPhone,
+      address: shipment.address,
+      lat,
+      lng,
+      notes: shipment.notes,
+      externalSource: 'mercadolibre',
+      externalOrderId: shipment.externalId,
+      shippingType: 'flex',
+    });
+
+    order = await syncMercadoLibreOrderAfterImport(user.id, order, shipment);
+    const sellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, sellerId);
+    return { kind: 'imported', order };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'error desconocido';
+    return {
+      kind: 'error',
+      message: formatImportError(shipment.externalId, reason),
+      fatal: reason === 'SELLER_NO_AGENCY',
+    };
+  }
+}
+
+/** Importa uno o más envíos Flex por número de orden o envío MLA escrito. */
+export async function importMercadoLibreByRefs(
+  user: User,
+  refs: string[],
+  options?: { notify?: boolean }
+): Promise<{ imported: number; skipped: number; orders: string[]; errors: string[] }> {
+  const integration = await getValidMercadoLibreIntegration(user.id);
+  let imported = 0;
+  let skipped = 0;
+  const orderIds: string[] = [];
+  const errors: string[] = [];
+
+  for (const rawRef of refs) {
+    const trimmed = rawRef.trim();
+    if (!trimmed) continue;
+
+    const candidates = parseMercadoLibreScanCode(trimmed);
+    if (candidates.length === 0) {
+      errors.push(`"${trimmed}": ingresá un número de orden o envío de Mercado Libre.`);
+      skipped++;
+      continue;
+    }
+
+    const flex = await resolveMercadoLibreFlexFromScan(integration, candidates);
+    if (!flex) {
+      errors.push(
+        `#${trimmed}: no se encontró un envío Flex en tu cuenta de Mercado Libre.`
+      );
+      skipped++;
+      continue;
+    }
+
+    const result = await importMercadoLibreFlexShipment(user, flex);
+    if (result.kind === 'imported') {
+      imported++;
+      orderIds.push(result.order.id);
+    } else if (result.kind === 'synced') {
+      skipped++;
+      orderIds.push(result.order.id);
+    } else {
+      errors.push(result.message);
+      skipped++;
+      if (result.fatal) break;
+    }
+  }
+
+  if (imported > 0 && options?.notify !== false) {
+    await createNotification({
+      id: `n_import_${Date.now()}_${user.id}`,
+      userId: user.id,
+      title: imported === 1 ? 'Envío importado' : 'Envíos importados',
+      body:
+        imported === 1
+          ? `Se importó 1 pedido de Mercado Libre Flex como ${orderIds[0]}.`
+          : `Se importaron ${imported} pedidos de Mercado Libre Flex.`,
+      type: 'info',
+      orderId: orderIds[0],
+    });
+  }
+
+  return { imported, skipped, orders: orderIds, errors };
 }
 
 export async function listImportableShipments(
@@ -189,53 +312,78 @@ export async function importMarketplaceShipments(
   externalIds?: string[],
   options?: MarketplaceListOptions
 ): Promise<{ imported: number; skipped: number; orders: string[]; errors: string[] }> {
-  const all = await listImportableShipments(user.id, platform, options);
-  const toImport = externalIds?.length
-    ? all.filter((s) => externalIds.includes(s.externalId) && !s.alreadyImported)
-    : all.filter((s) => !s.alreadyImported);
-
-  if (externalIds?.length && toImport.length === 0) {
-    const missing = externalIds.filter((id) => !all.some((s) => s.externalId === id));
-    if (missing.length > 0) {
-      return {
-        imported: 0,
-        skipped: externalIds.length,
-        orders: [],
-        errors: [`No se encontraron los pedidos #${missing.join(', #')} para importar. Buscá envíos de nuevo.`],
-      };
-    }
-    return {
-      imported: 0,
-      skipped: externalIds.length,
-      orders: [],
-      errors: ['Esos pedidos ya fueron importados.'],
-    };
+  if (platform === 'mercadolibre' && options?.mlRefs?.length) {
+    return importMercadoLibreByRefs(user, options.mlRefs);
   }
+
+  const all = await listImportableShipments(user.id, platform, options);
+
+  const matchesExternalId = (s: MarketplaceShipmentPreview, id: string) =>
+    s.externalId === id || s.mlOrderId === id;
+
+  let toImport = externalIds?.length
+    ? all.filter((s) => externalIds.some((id) => matchesExternalId(s, id)) && !s.alreadyImported)
+    : all.filter((s) => !s.alreadyImported);
 
   let imported = 0;
   let skipped = 0;
   const orderIds: string[] = [];
   const errors: string[] = [];
 
+  if (externalIds?.length && platform === 'mercadolibre') {
+    const listedIds = new Set(
+      all.flatMap((s) => [s.externalId, s.mlOrderId].filter((id): id is string => Boolean(id)))
+    );
+    const unmatchedRefs = externalIds.filter((id) => !listedIds.has(id));
+    if (unmatchedRefs.length > 0) {
+      const refResult = await importMercadoLibreByRefs(user, unmatchedRefs, { notify: false });
+      imported += refResult.imported;
+      skipped += refResult.skipped;
+      orderIds.push(...refResult.orders);
+      errors.push(...refResult.errors);
+    }
+  }
+
+  if (externalIds?.length && toImport.length === 0 && imported === 0 && errors.length === 0) {
+    const allAlreadyImported = externalIds.every((id) =>
+      all.some((s) => matchesExternalId(s, id) && s.alreadyImported)
+    );
+    if (allAlreadyImported) {
+      const syncResult = await importMercadoLibreByRefs(user, externalIds, { notify: false });
+      return {
+        imported: syncResult.imported,
+        skipped: syncResult.skipped,
+        orders: syncResult.orders,
+        errors:
+          syncResult.errors.length > 0
+            ? syncResult.errors
+            : syncResult.imported === 0
+              ? ['Esos pedidos ya fueron importados.']
+              : [],
+      };
+    }
+  }
+
   for (const shipment of toImport) {
+    if (shipment.platform === 'mercadolibre') {
+      const result = await importMercadoLibreFlexShipment(user, shipment as MercadoLibreFlexShipment);
+      if (result.kind === 'imported') {
+        imported++;
+        orderIds.push(result.order.id);
+      } else if (result.kind === 'synced') {
+        skipped++;
+        orderIds.push(result.order.id);
+      } else {
+        errors.push(result.message);
+        skipped++;
+        if (result.fatal) break;
+      }
+      continue;
+    }
+
     try {
-      const existing =
-        shipment.platform === 'mercadolibre' && shipment.mlOrderId
-          ? await findImportedMercadoLibreFlex(user.id, {
-              externalId: shipment.externalId,
-              mlOrderId: shipment.mlOrderId,
-            })
-          : await findOrderByExternal(user.id, shipment.platform, shipment.externalId);
+      const existing = await findOrderByExternal(user.id, shipment.platform, shipment.externalId);
       if (existing) {
-        if (shipment.platform === 'mercadolibre') {
-          const synced = await syncMercadoLibreOrderAfterImport(user.id, existing, {
-            externalId: shipment.externalId,
-            mlShipmentStatus: shipment.mlShipmentStatus,
-            mlShipmentSubstatus: shipment.mlShipmentSubstatus,
-          });
-          const sellerId = await getSellerIdForOrder(synced.id);
-          emitOrderUpdated(synced, sellerId);
-        }
         skipped++;
         continue;
       }
@@ -253,7 +401,7 @@ export async function importMarketplaceShipments(
         lng = geocoded.lng;
       }
 
-      let order = await createOrder(user, {
+      const order = await createOrder(user, {
         clientName: shipment.clientName,
         clientPhone: shipment.clientPhone,
         address: shipment.address,
@@ -265,17 +413,8 @@ export async function importMarketplaceShipments(
         shippingType: shipment.shippingType,
       });
 
-      if (shipment.platform === 'mercadolibre') {
-        order = await syncMercadoLibreOrderAfterImport(user.id, order, {
-          externalId: shipment.externalId,
-          mlShipmentStatus: shipment.mlShipmentStatus,
-          mlShipmentSubstatus: shipment.mlShipmentSubstatus,
-        });
-      }
-
       const sellerId = await getSellerIdForOrder(order.id);
       emitOrderUpdated(order, sellerId);
-
       orderIds.push(order.id);
       imported++;
     } catch (err) {
@@ -290,7 +429,7 @@ export async function importMarketplaceShipments(
     }
   }
 
-  if (imported === 0 && toImport.length > 0 && errors.length === 0) {
+  if (imported === 0 && toImport.length > 0 && errors.length === 0 && skipped === 0) {
     errors.push('No se pudo importar ningún envío.');
   }
 

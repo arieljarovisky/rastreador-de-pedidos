@@ -21,7 +21,7 @@ interface MarketplaceIntegrationsProps {
   onImport: (
     platform: 'mercadolibre' | 'tiendanube',
     externalIds?: string[],
-    options?: { dateFrom?: string; dateTo?: string }
+    options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
 }
 
@@ -73,6 +73,10 @@ function PlatformCard({
   onRefreshShipments,
   onImportAll,
   onImportOne,
+  mlRefInput = '',
+  onMlRefInputChange,
+  onImportByMlRef,
+  mlRefImporting = false,
 }: {
   title: string;
   subtitle: string;
@@ -96,6 +100,10 @@ function PlatformCard({
   onRefreshShipments: () => void;
   onImportAll: () => void;
   onImportOne: (externalId: string) => void;
+  mlRefInput?: string;
+  onMlRefInputChange?: (value: string) => void;
+  onImportByMlRef?: () => void;
+  mlRefImporting?: boolean;
 }) {
   const pending = shipments.filter((s) => !s.alreadyImported);
 
@@ -146,6 +154,44 @@ function PlatformCard({
 
       {connected && (
         <>
+          {platform === 'mercadolibre' && onMlRefInputChange && onImportByMlRef && (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-0.5 flex-1 min-w-[12rem]">
+                <span className="mono-label">Importar por número MLA</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Ej. 2000013826685141"
+                  className={dateInputClass}
+                  value={mlRefInput}
+                  disabled={shipmentsLoading || importLoading || mlRefImporting}
+                  onChange={(e) => onMlRefInputChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && mlRefInput.trim()) {
+                      e.preventDefault();
+                      onImportByMlRef();
+                    }
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className={btnPrimary}
+                disabled={!mlRefInput.trim() || shipmentsLoading || importLoading || mlRefImporting}
+                onClick={onImportByMlRef}
+              >
+                <span className="inline-flex items-center gap-1">
+                  {mlRefImporting ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Download className="w-3 h-3" />
+                  )}
+                  {mlRefImporting ? 'Importando…' : 'Importar'}
+                </span>
+              </button>
+            </div>
+          )}
+
           {platform === 'tiendanube' && dateFrom && dateTo && onDateFromChange && onDateToChange && (
             <div className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
@@ -310,6 +356,8 @@ export default function MarketplaceIntegrations({
   const [tnImportingId, setTnImportingId] = useState<string | 'all' | null>(null);
   const [tnDateFrom, setTnDateFrom] = useState(() => defaultTnDateRange().dateFrom);
   const [tnDateTo, setTnDateTo] = useState(() => defaultTnDateRange().dateTo);
+  const [mlRefInput, setMlRefInput] = useState('');
+  const [mlRefImporting, setMlRefImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<'success' | 'error'>('success');
 
@@ -397,6 +445,38 @@ export default function MarketplaceIntegrations({
     }
   };
 
+  const importByMlRef = async () => {
+    const ref = mlRefInput.trim();
+    if (!ref) return;
+
+    setMlRefImporting(true);
+    setMessage(null);
+    try {
+      const result = await onImport('mercadolibre', undefined, { mlRefs: [ref] });
+      if (result.imported > 0) {
+        setMessageTone('success');
+        setMessage('Pedido importado correctamente.');
+        setMlRefInput('');
+      } else if (result.skipped > 0 && !result.errors?.length) {
+        setMessageTone('success');
+        setMessage('El pedido ya estaba importado; se sincronizó el estado desde ML.');
+        setMlRefInput('');
+      } else if (result.errors?.length) {
+        setMessageTone('error');
+        setMessage(result.errors[0] ?? 'No se pudo importar.');
+      } else {
+        setMessageTone('error');
+        setMessage('No se importó el pedido.');
+      }
+      await refreshMl();
+    } catch (err: unknown) {
+      setMessageTone('error');
+      setMessage(err instanceof Error ? err.message : 'No se pudo importar');
+    } finally {
+      setMlRefImporting(false);
+    }
+  };
+
   return (
     <section className="paper-card p-3 lg:col-span-2">
       <div className="flex items-center justify-between gap-2 mb-3">
@@ -448,6 +528,10 @@ export default function MarketplaceIntegrations({
           onRefreshShipments={() => void refreshMl()}
           onImportAll={() => void runImport('mercadolibre')}
           onImportOne={(id) => void runImport('mercadolibre', [id])}
+          mlRefInput={mlRefInput}
+          onMlRefInputChange={setMlRefInput}
+          onImportByMlRef={() => void importByMlRef()}
+          mlRefImporting={mlRefImporting}
         />
         <PlatformCard
           title="Tienda Nube"

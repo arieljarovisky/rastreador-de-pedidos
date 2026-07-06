@@ -1006,7 +1006,7 @@ export default function App() {
   const importMarketplaceShipments = async (
     platform: 'mercadolibre' | 'tiendanube',
     externalIds?: string[],
-    options?: { dateFrom?: string; dateTo?: string }
+    options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => {
     if (!token) throw new Error('Sin sesión');
     const res = await fetch(apiUrl(`/api/integrations/${platform}/import`), {
@@ -1017,6 +1017,7 @@ export default function App() {
       },
       body: JSON.stringify({
         externalIds,
+        mlRefs: platform === 'mercadolibre' ? options?.mlRefs : undefined,
         dateFrom: platform === 'tiendanube' ? options?.dateFrom : undefined,
         dateTo: platform === 'tiendanube' ? options?.dateTo : undefined,
       }),
