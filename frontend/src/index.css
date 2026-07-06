@@ -578,7 +578,26 @@
 
 @media (min-width: 1024px) {
   .auth-split {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 30rem);
+    padding-inline: clamp(1.5rem, 4vw, 3.5rem);
+    column-gap: clamp(1.5rem, 3vw, 2.5rem);
+  }
+}
+
+@media (min-width: 1280px) {
+  .auth-split {
+    grid-template-columns: minmax(0, 1.15fr) minmax(24rem, 32rem);
+    padding-inline: clamp(2rem, 6vw, 5rem);
+    column-gap: clamp(2rem, 4vw, 3rem);
+  }
+}
+
+@media (min-width: 1536px) {
+  .auth-split {
+    max-width: 1320px;
+    margin-inline: auto;
+    padding-inline: 3rem;
+    column-gap: 3.5rem;
   }
 }
 
@@ -618,6 +637,21 @@
   padding: clamp(2rem, 4vw, 3.5rem);
 }
 
+@media (min-width: 1024px) {
+  .auth-split__brand-inner {
+    max-width: 34rem;
+    margin-left: auto;
+    padding-right: 0;
+    padding-left: clamp(0.5rem, 2vw, 1.5rem);
+  }
+}
+
+@media (min-width: 1280px) {
+  .auth-split__brand-inner {
+    max-width: 38rem;
+  }
+}
+
 .auth-split__logo {
   margin-bottom: 2.5rem;
 }
@@ -648,6 +682,21 @@
   line-height: 1.55;
   color: var(--auth-muted);
   margin-bottom: 2rem;
+}
+
+@media (min-width: 1280px) {
+  .auth-split__lead {
+    max-width: 36rem;
+    font-size: 1rem;
+  }
+
+  .auth-split__title {
+    font-size: clamp(2.25rem, 2.8vw, 3rem);
+  }
+
+  .auth-split__features li {
+    font-size: 0.9375rem;
+  }
 }
 
 .auth-split__features {
@@ -724,7 +773,10 @@
 
 @media (min-width: 1024px) {
   .auth-split__panel {
-    padding: 2rem;
+    align-items: stretch;
+    justify-content: center;
+    padding: clamp(2rem, 3vh, 3rem) 0;
+    padding-top: max(clamp(2rem, 3vh, 3rem), env(safe-area-inset-top));
   }
 }
 
@@ -741,6 +793,20 @@
 @media (min-width: 640px) {
   .auth-split__card {
     padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .auth-split__card {
+    max-width: none;
+    width: 100%;
+    padding: 1.75rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .auth-split__card {
+    padding: 2rem;
   }
 }
 
@@ -890,6 +956,24 @@
 @media (min-width: 480px) {
   .auth-split__row {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .auth-split__row {
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .auth-input {
+    height: 3rem;
+    font-size: 0.875rem;
+  }
+
+  .auth-split__tab {
+    padding: 0.75rem 1rem;
+    font-size: 0.6875rem;
   }
 }
 
