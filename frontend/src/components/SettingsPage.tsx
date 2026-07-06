@@ -21,6 +21,7 @@ import {
   Layers,
   Search,
   ChevronDown,
+  Smartphone,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
@@ -121,6 +122,7 @@ interface SettingsPageProps {
   onCreateRepartidor?: (data: { username: string; password: string; name: string; deliveryZone?: string | null }) => Promise<void>;
   onUpdateRepartidorZone?: (repartidorId: string, deliveryZone: string | null) => Promise<void>;
   onDeleteRepartidor?: (id: string) => Promise<{ finalizedOrders: number }>;
+  onClearRepartidorSession?: (id: string) => Promise<void>;
   onCreatePickupPoint?: (data: {
     label?: string;
     address: string;
@@ -181,6 +183,7 @@ export default function SettingsPage({
   onCreateRepartidor,
   onUpdateRepartidorZone,
   onDeleteRepartidor,
+  onClearRepartidorSession,
   onCreatePickupPoint,
   onUpdatePickupPoint,
   onDeletePickupPoint,
@@ -248,6 +251,7 @@ export default function SettingsPage({
   const [updatingZoneId, setUpdatingZoneId] = useState<string | null>(null);
   const [repartidorFormMessage, setRepartidorFormMessage] = useState<string | null>(null);
   const [deletingRepartidorId, setDeletingRepartidorId] = useState<string | null>(null);
+  const [clearingSessionRepartidorId, setClearingSessionRepartidorId] = useState<string | null>(null);
 
   const [showZoneForm, setShowZoneForm] = useState(false);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -1288,42 +1292,79 @@ export default function SettingsPage({
                               )}
                             </td>
                             <td className="px-1 py-1.5 text-center">
-                              {onDeleteRepartidor && (
-                                <button
-                                  type="button"
-                                  disabled={deletingRepartidorId === rep.id}
-                                  onClick={async () => {
-                                    const ok = await confirm({
-                                      title: 'Eliminar repartidor',
-                                      message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente.`,
-                                      variant: 'danger',
-                                      confirmText: 'Eliminar',
-                                      cancelText: 'Cancelar',
-                                    });
-                                    if (!ok) return;
-                                    setDeletingRepartidorId(rep.id);
-                                    setRepartidorFormMessage(null);
-                                    try {
-                                      const result = await onDeleteRepartidor(rep.id);
-                                      const extra =
-                                        result.finalizedOrders > 0
-                                          ? ` Se finalizaron ${result.finalizedOrders} viaje(s).`
-                                          : '';
-                                      setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
-                                    } catch (err: unknown) {
-                                      const message =
-                                        err instanceof Error ? err.message : 'Error al eliminar repartidor.';
-                                      setRepartidorFormMessage(message);
-                                    } finally {
-                                      setDeletingRepartidorId(null);
-                                    }
-                                  }}
-                                  className="text-[var(--color-danger)] hover:text-red-300 disabled:opacity-50 p-1"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                              <div className="flex items-center justify-center gap-0.5">
+                                {onClearRepartidorSession && (
+                                  <button
+                                    type="button"
+                                    disabled={clearingSessionRepartidorId === rep.id}
+                                    onClick={async () => {
+                                      const ok = await confirm({
+                                        title: 'Cerrar sesión móvil',
+                                        message: `¿Cerrar la sesión activa de ${rep.name} (@${rep.username}) en otros dispositivos?\n\nPodrá iniciar sesión de nuevo en su celular.`,
+                                        confirmText: 'Cerrar sesión',
+                                        cancelText: 'Cancelar',
+                                      });
+                                      if (!ok) return;
+                                      setClearingSessionRepartidorId(rep.id);
+                                      setRepartidorFormMessage(null);
+                                      try {
+                                        await onClearRepartidorSession(rep.id);
+                                        setRepartidorFormMessage(
+                                          `Sesión móvil de ${rep.name} cerrada correctamente.`
+                                        );
+                                      } catch (err: unknown) {
+                                        const message =
+                                          err instanceof Error
+                                            ? err.message
+                                            : 'Error al cerrar la sesión del repartidor.';
+                                        setRepartidorFormMessage(message);
+                                      } finally {
+                                        setClearingSessionRepartidorId(null);
+                                      }
+                                    }}
+                                    className="text-[var(--color-accent)] hover:text-[var(--route-2,var(--color-accent))] disabled:opacity-50 p-1"
+                                    title="Cerrar sesión en otros dispositivos"
+                                  >
+                                    <Smartphone className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {onDeleteRepartidor && (
+                                  <button
+                                    type="button"
+                                    disabled={deletingRepartidorId === rep.id}
+                                    onClick={async () => {
+                                      const ok = await confirm({
+                                        title: 'Eliminar repartidor',
+                                        message: `¿Eliminar a ${rep.name} (@${rep.username})?\n\nLos viajes en curso se marcarán como entregados automáticamente.`,
+                                        variant: 'danger',
+                                        confirmText: 'Eliminar',
+                                        cancelText: 'Cancelar',
+                                      });
+                                      if (!ok) return;
+                                      setDeletingRepartidorId(rep.id);
+                                      setRepartidorFormMessage(null);
+                                      try {
+                                        const result = await onDeleteRepartidor(rep.id);
+                                        const extra =
+                                          result.finalizedOrders > 0
+                                            ? ` Se finalizaron ${result.finalizedOrders} viaje(s).`
+                                            : '';
+                                        setRepartidorFormMessage(`Repartidor eliminado correctamente.${extra}`);
+                                      } catch (err: unknown) {
+                                        const message =
+                                          err instanceof Error ? err.message : 'Error al eliminar repartidor.';
+                                        setRepartidorFormMessage(message);
+                                      } finally {
+                                        setDeletingRepartidorId(null);
+                                      }
+                                    }}
+                                    className="text-[var(--color-danger)] hover:text-red-300 disabled:opacity-50 p-1"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );

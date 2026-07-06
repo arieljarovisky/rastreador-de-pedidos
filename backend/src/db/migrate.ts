@@ -46,6 +46,10 @@ export async function runMigrations(): Promise<void> {
     await pool.query('ALTER TABLE users ADD COLUMN delivery_zone VARCHAR(64) NULL AFTER departure_lng');
   }
 
+  if (!(await columnExists('users', 'session_token'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN session_token VARCHAR(64) NULL AFTER delivery_zone');
+  }
+
   if (!(await columnExists('orders', 'archived'))) {
     await pool.query('ALTER TABLE orders ADD COLUMN archived TINYINT(1) NOT NULL DEFAULT 0 AFTER status');
     await pool.query('CREATE INDEX idx_orders_archived ON orders (archived)');

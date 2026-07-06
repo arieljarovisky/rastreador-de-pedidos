@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -22,15 +22,23 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showReplaceOption, setShowReplaceOption] = useState(false);
   const insets = useSafeAreaInsets();
 
-  const sessionConflict = errorCode === 'SESSION_ALREADY_ACTIVE';
+  const sessionConflict = errorCode === 'SESSION_ALREADY_ACTIVE' || showReplaceOption;
+
+  useEffect(() => {
+    if (errorCode === 'SESSION_ALREADY_ACTIVE') {
+      setShowReplaceOption(true);
+    }
+  }, [errorCode]);
 
   const handleSubmit = async (replaceSession = false) => {
     if (!username.trim() || !password) return;
     setSubmitting(true);
     try {
       await login(username.trim(), password, replaceSession ? { replaceSession: true } : undefined);
+      setShowReplaceOption(false);
     } catch {
       // el error se muestra desde el contexto
     } finally {

@@ -13,6 +13,7 @@ import {
   getUserById,
   deleteRepartidor,
   updateRepartidorZone,
+  clearRepartidorSessionForAgency,
   assertSellerInAgency,
 } from '../services/users.service.js';
 import {
@@ -223,6 +224,25 @@ router.put('/repartidores/:id/zone', authenticate, requireAgencyAdmin(), async (
     throw err;
   }
 });
+
+router.post(
+  '/repartidores/:id/clear-session',
+  authenticate,
+  requireAgencyAdmin(),
+  async (req: Request, res: Response) => {
+    try {
+      await clearRepartidorSessionForAgency(req.params.id, req.user?.agencyId);
+      res.status(204).send();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'NOT_FOUND') {
+        res.status(404).json({ error: 'Repartidor no encontrado.' });
+        return;
+      }
+      throw err;
+    }
+  }
+);
 
 router.delete('/repartidores/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   try {

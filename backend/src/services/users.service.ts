@@ -471,3 +471,17 @@ export async function clearRepartidorSession(userId: string): Promise<void> {
     UserRole.REPARTIDOR,
   ]);
 }
+
+export async function clearRepartidorSessionForAgency(
+  repartidorId: string,
+  agencyId: string | null | undefined
+): Promise<void> {
+  const rep = await getRepartidorById(repartidorId);
+  if (!rep) {
+    throw new Error('NOT_FOUND');
+  }
+  if (agencyId && rep.agencyId !== agencyId) {
+    throw new Error('NOT_FOUND');
+  }
+  await clearRepartidorSession(repartidorId);
+}

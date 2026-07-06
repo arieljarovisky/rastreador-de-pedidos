@@ -20,10 +20,11 @@ interface RegisterData {
 }
 
 interface LoginScreenProps {
-  onLogin: (username: string, password: string) => Promise<void>;
+  onLogin: (username: string, password: string, replaceSession?: boolean) => Promise<void>;
   onRegisterAgency: (data: RegisterData) => Promise<void>;
   loading: boolean;
   error: string | null;
+  errorCode?: string | null;
 }
 
 export default function LoginScreen({
@@ -31,6 +32,7 @@ export default function LoginScreen({
   onRegisterAgency,
   loading,
   error,
+  errorCode = null,
 }: LoginScreenProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [username, setUsername] = useState('');
@@ -54,12 +56,12 @@ export default function LoginScreen({
     resetForm();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent, replaceSession = false) => {
     e.preventDefault();
     if (!username || !password) return;
 
     if (mode === 'login') {
-      onLogin(username, password);
+      void onLogin(username, password, replaceSession);
       return;
     }
 
@@ -68,6 +70,7 @@ export default function LoginScreen({
   };
 
   const isRegister = mode !== 'login';
+  const sessionConflict = errorCode === 'SESSION_ALREADY_ACTIVE';
 
   return (
     <div className="app-viewport safe-top safe-bottom min-h-[100dvh] flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 bg-[var(--surface-bg)] relative" id="login-container">
@@ -128,7 +131,7 @@ export default function LoginScreen({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={(e) => handleSubmit(e)} className="space-y-3">
           {isRegister && (
             <div>
               <label className="mono-label block mb-1">Nombre de la agencia</label>
@@ -199,6 +202,18 @@ export default function LoginScreen({
                 ? 'Ingresar al panel'
                 : 'Crear cuenta de agencia'}
           </PostaButton>
+
+          {sessionConflict && mode === 'login' && (
+            <PostaButton
+              type="button"
+              variant="secondary"
+              disabled={loading || !username || !password}
+              className="w-full mt-2"
+              onClick={(e) => handleSubmit(e, true)}
+            >
+              Cerrar sesión en el otro dispositivo e ingresar
+            </PostaButton>
+          )}
         </form>
       </PaperCard>
 

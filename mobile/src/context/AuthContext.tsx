@@ -89,7 +89,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(
     async (username: string, password: string, options?: { replaceSession?: boolean }) => {
       setError(null);
-      setErrorCode(null);
+      if (!options?.replaceSession) {
+        setErrorCode(null);
+      }
       setLoading(true);
       try {
         const data = await api.login(username, password, options);

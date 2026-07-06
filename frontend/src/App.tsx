@@ -47,6 +47,7 @@ export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
 
   // Estados de datos
   const [orders, setOrders] = useState<Order[]>([]);
@@ -377,18 +378,22 @@ export default function App() {
     }
   }, [isOnline]);
 
-  const handleLogin = async (username: string, password: string) => {
+  const handleLogin = async (username: string, password: string, replaceSession = false) => {
     setLoading(true);
-    setAuthError(null);
+    if (!replaceSession) {
+      setAuthError(null);
+      setAuthErrorCode(null);
+    }
     try {
       const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, replaceSession }),
       });
 
       if (!res.ok) {
         const errData = await res.json();
+        setAuthErrorCode(errData.code ?? null);
         throw new Error(errData.error || 'Credenciales incorrectas');
       }
 
@@ -397,6 +402,8 @@ export default function App() {
       localStorage.setItem('lupo_user', JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
+      setAuthError(null);
+      setAuthErrorCode(null);
       if (data.user.departurePoint) {
         setDeparturePoint(data.user.departurePoint);
       }
@@ -658,6 +665,18 @@ export default function App() {
     setRepartidores((prev) => prev.filter((r) => r.id !== id));
     await fetchData();
     return data;
+  };
+
+  const handleClearRepartidorSession = async (id: string): Promise<void> => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/repartidores/${id}/clear-session`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo cerrar la sesión del repartidor');
+    }
   };
 
   const handleAssignOrderSeller = async (orderId: string, sellerId: string) => {
@@ -1261,6 +1280,7 @@ export default function App() {
         onRegisterAgency={(data) => handleRegister('/api/auth/register/agency', data)}
         loading={loading}
         error={authError}
+        errorCode={authErrorCode}
       />
     );
   }
@@ -1574,6 +1594,7 @@ export default function App() {
                   onCreateRepartidor={isAgencyAdmin(user.role) ? handleCreateRepartidor : undefined}
                   onUpdateRepartidorZone={isAgencyAdmin(user.role) ? handleUpdateRepartidorZone : undefined}
                   onDeleteRepartidor={isAgencyAdmin(user.role) ? handleDeleteRepartidor : undefined}
+                  onClearRepartidorSession={isAgencyAdmin(user.role) ? handleClearRepartidorSession : undefined}
                   onCreatePickupPoint={handleCreatePickupPoint}
                   onUpdatePickupPoint={handleUpdatePickupPoint}
                   onDeletePickupPoint={handleDeletePickupPoint}
