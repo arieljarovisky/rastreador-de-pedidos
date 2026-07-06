@@ -479,16 +479,18 @@ export async function getRepartidorSessionToken(userId: string): Promise<string 
 
 export async function hasRepartidorActiveSession(userId: string): Promise<boolean> {
   const token = await getRepartidorSessionToken(userId);
-  return token != null;
+  return typeof token === 'string' && token.length > 0;
 }
 
 export async function createRepartidorSession(userId: string): Promise<string> {
   const sessionId = crypto.randomUUID();
-  await pool.query('UPDATE users SET session_token = ? WHERE id = ? AND role = ?', [
-    sessionId,
-    userId,
-    UserRole.REPARTIDOR,
-  ]);
+  const [result] = await pool.query<ResultSetHeader>(
+    'UPDATE users SET session_token = ? WHERE id = ? AND role = ?',
+    [sessionId, userId, UserRole.REPARTIDOR]
+  );
+  if (result.affectedRows === 0) {
+    throw new Error('SESSION_CREATE_FAILED');
+  }
   return sessionId;
 }
 

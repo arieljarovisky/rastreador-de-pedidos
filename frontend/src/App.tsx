@@ -384,12 +384,18 @@ export default function App() {
     if (!replaceSession) {
       setAuthError(null);
       setAuthErrorCode(null);
+    } else {
+      setAuthError(null);
     }
     try {
       const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, replaceSession }),
+        body: JSON.stringify({
+          username,
+          password,
+          replaceSession: replaceSession === true,
+        }),
       });
 
       if (!res.ok) {

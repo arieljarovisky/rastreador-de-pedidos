@@ -17,6 +17,10 @@ import { validateStrongPassword } from '../utils/password.js';
 
 const router = Router();
 
+function wantsReplaceSession(value: unknown): boolean {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
 function userResponse(user: Awaited<ReturnType<typeof getUserById>>) {
   if (!user) return null;
   return user;
@@ -88,25 +92,37 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 
   if (user.role === UserRole.REPARTIDOR) {
-    const hasSession = await hasRepartidorActiveSession(user.id);
-    const forceReplace = replaceSession === true;
+    const forceReplace = wantsReplaceSession(replaceSession);
 
-    if (hasSession && !forceReplace) {
-      res.status(409).json({
-        error:
-          'Ya tenés una sesión activa en otro dispositivo. Podés cerrarla desde acá para ingresar en este celular.',
-        code: 'SESSION_ALREADY_ACTIVE',
-      });
-      return;
-    }
-
-    if (hasSession && forceReplace) {
+    if (forceReplace) {
       await clearRepartidorSession(user.id);
+    } else {
+      const hasSession = await hasRepartidorActiveSession(user.id);
+      if (hasSession) {
+        res.status(409).json({
+          error:
+            'Ya tenés una sesión activa en otro dispositivo. Podés cerrarla desde acá para ingresar en este celular.',
+          code: 'SESSION_ALREADY_ACTIVE',
+        });
+        return;
+      }
     }
 
-    const sessionId = await createRepartidorSession(user.id);
-    const token = signToken(user.id, user.role, sessionId);
-    res.json({ user, token });
+    try {
+      const sessionId = await createRepartidorSession(user.id);
+      const token = signToken(user.id, user.role, sessionId);
+      res.json({ user, token });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'SESSION_CREATE_FAILED') {
+        res.status(500).json({
+          error: 'No se pudo iniciar sesión. Contactá a soporte de Posta.',
+          code: 'SESSION_CREATE_FAILED',
+        });
+        return;
+      }
+      throw err;
+    }
     return;
   }
 

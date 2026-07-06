@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   Shield,
@@ -136,6 +136,7 @@ export default function LoginScreen({
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [showReplaceOption, setShowReplaceOption] = useState(false);
   const theme = usePostaTheme();
   const reducedMotion = useReducedMotion();
 
@@ -208,6 +209,9 @@ export default function LoginScreen({
         return;
       }
       void onLogin(username.trim(), password, replaceSession);
+      if (replaceSession) {
+        setShowReplaceOption(true);
+      }
       return;
     }
 
@@ -255,8 +259,15 @@ export default function LoginScreen({
   };
 
   const isRegister = mode === 'register-agency';
-  const sessionConflict = errorCode === 'SESSION_ALREADY_ACTIVE';
+  const sessionConflict =
+    errorCode === 'SESSION_ALREADY_ACTIVE' || showReplaceOption;
   const displayError = localError || error;
+
+  useEffect(() => {
+    if (errorCode === 'SESSION_ALREADY_ACTIVE') {
+      setShowReplaceOption(true);
+    }
+  }, [errorCode]);
   const step1Ready = agencyName.trim() && cuit && phone && city.trim();
   const step2Ready =
     adminName.trim() && email.trim() && password && passwordConfirm && acceptTerms;
@@ -436,7 +447,11 @@ export default function LoginScreen({
             </div>
           )}
 
-          <form onSubmit={(e) => handleSubmit(e)} className="auth-split__form" noValidate>
+          <form
+            onSubmit={(e) => handleSubmit(e, sessionConflict && !isRegister)}
+            className="auth-split__form"
+            noValidate
+          >
             {isRegister && registerStep === 1 && (
               <div className="auth-split__fields">
                 <Field label="Nombre comercial">
@@ -636,7 +651,9 @@ export default function LoginScreen({
               </div>
             )}
 
-            <div className="auth-split__actions">
+            <div
+              className={`auth-split__actions ${sessionConflict && !isRegister ? 'auth-split__actions--stacked' : ''}`}
+            >
               {isRegister && registerStep === 2 && (
                 <button
                   type="button"
@@ -649,44 +666,45 @@ export default function LoginScreen({
                 </button>
               )}
 
-              <PostaButton
-                type="submit"
-                disabled={
-                  loading ||
-                  (isRegister
-                    ? registerStep === 1
-                      ? !step1Ready
-                      : !step2Ready
-                    : !username.trim() || !password)
-                }
-                id="btn-login-submit"
-                className="auth-split__submit flex-1 min-w-0"
-              >
-                {loading ? (
-                  'Procesando...'
-                ) : isRegister ? (
-                  registerStep === 1 ? (
-                    <span className="inline-flex items-center justify-center gap-1.5">
-                      Continuar
-                      <ChevronRight className="h-4 w-4" />
-                    </span>
+              {!sessionConflict || isRegister ? (
+                <PostaButton
+                  type="submit"
+                  disabled={
+                    loading ||
+                    (isRegister
+                      ? registerStep === 1
+                        ? !step1Ready
+                        : !step2Ready
+                      : !username.trim() || !password)
+                  }
+                  id="btn-login-submit"
+                  className="auth-split__submit flex-1 min-w-0"
+                >
+                  {loading ? (
+                    'Procesando...'
+                  ) : isRegister ? (
+                    registerStep === 1 ? (
+                      <span className="inline-flex items-center justify-center gap-1.5">
+                        Continuar
+                        <ChevronRight className="h-4 w-4" />
+                      </span>
+                    ) : (
+                      'Crear cuenta de agencia'
+                    )
                   ) : (
-                    'Crear cuenta de agencia'
-                  )
-                ) : (
-                  'Ingresar al panel'
-                )}
-              </PostaButton>
+                    'Ingresar al panel'
+                  )}
+                </PostaButton>
+              ) : null}
 
               {sessionConflict && !isRegister && (
                 <PostaButton
                   type="button"
-                  variant="secondary"
                   disabled={loading || !username.trim() || !password}
-                  className="auth-split__submit flex-1 min-w-0"
+                  className="auth-split__submit auth-split__submit--replace w-full"
                   onClick={(e) => handleSubmit(e, true)}
                 >
-                  Cerrar sesión en el otro dispositivo e ingresar
+                  {loading ? 'Cerrando sesión anterior...' : 'Cerrar sesión en el otro dispositivo e ingresar'}
                 </PostaButton>
               )}
             </div>

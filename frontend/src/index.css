@@ -1177,6 +1177,18 @@
   gap: 0.5rem;
 }
 
+.auth-split__actions--stacked {
+  flex-direction: column;
+}
+
+.auth-split__submit--replace {
+  min-height: 2.75rem;
+  font-size: 0.625rem;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: center;
+}
+
 .auth-split__back {
   display: inline-flex;
   align-items: center;
