@@ -1,7 +1,7 @@
 {
-  "version": "1.2.2",
-  "minVersion": "1.2.2",
-  "versionCode": 13,
-  "minVersionCode": 13,
-  "message": "Escaneo múltiple, Terminar escaneo, Empezar a repartir y asignación automática ML Flex."
+  "version": "1.2.3",
+  "minVersion": "1.2.3",
+  "versionCode": 14,
+  "minVersionCode": 14,
+  "message": "Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras."
 }
