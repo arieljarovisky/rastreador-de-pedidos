@@ -1,7 +1,7 @@
 {
-  "version": "1.2.3",
-  "minVersion": "1.2.3",
-  "versionCode": 14,
-  "minVersionCode": 14,
-  "message": "Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras."
+  "version": "1.2.4",
+  "minVersion": "1.2.4",
+  "versionCode": 15,
+  "minVersionCode": 15,
+  "message": "Corregido: cada repartidor puede conectar su cuenta de Mercado Libre Flex desde Perfil."
 }
