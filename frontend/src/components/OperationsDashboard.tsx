@@ -164,8 +164,8 @@ export default function OperationsDashboard({
         )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4 scrollbar-thin">
-        <div className="grid lg:grid-cols-3 gap-4">
+      <div className="flex-1 min-h-0 flex flex-col gap-4 p-3 sm:p-4 overflow-y-auto lg:overflow-hidden">
+        <div className="grid lg:grid-cols-3 gap-4 lg:flex-1 lg:min-h-0 items-stretch">
           <OrderListSection
             title="Sin entregar hoy"
             count={undelivered.length}
@@ -197,7 +197,7 @@ export default function OperationsDashboard({
         </div>
 
         {isAgency && sellerBreakdown.length > 0 && (
-          <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden">
+          <section className="shrink-0 border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden">
             <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
               <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-[var(--color-accent)]" />
@@ -286,17 +286,21 @@ function OrderListSection({
         : 'border-[var(--color-warn)]/30';
 
   return (
-    <section className={`border rounded-[var(--radius-posta)] overflow-hidden ${borderTone}`}>
-      <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex justify-between items-center">
+    <section
+      className={`border rounded-[var(--radius-posta)] overflow-hidden flex flex-col h-full min-h-[10rem] lg:min-h-0 ${borderTone}`}
+    >
+      <div className="shrink-0 px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex justify-between items-center">
         <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
           {title}
         </h2>
         <span className="text-[10px] font-mono font-bold text-[var(--color-text-muted)]">{count}</span>
       </div>
       {orders.length === 0 ? (
-        <p className="px-3 py-6 text-center text-[11px] text-[var(--color-text-muted)]">{emptyMessage}</p>
+        <p className="flex-1 flex items-center justify-center px-3 py-6 text-center text-[11px] text-[var(--color-text-muted)]">
+          {emptyMessage}
+        </p>
       ) : (
-        <ul className="divide-y divide-[var(--surface-border)]/50 max-h-72 overflow-y-auto scrollbar-thin">
+        <ul className="flex-1 min-h-0 overflow-y-auto divide-y divide-[var(--surface-border)]/50 scrollbar-thin">
           {orders.map((order) => (
             <li key={order.id}>
               <button

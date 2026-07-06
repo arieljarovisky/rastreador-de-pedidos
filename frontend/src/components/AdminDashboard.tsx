@@ -979,10 +979,6 @@ export default function AdminDashboard({
                       ? 'Entregado'
                       : 'En Almacén';
 
-              // Deterministic fake stats for telemetry based on order ID
-              const batteryValue = Math.floor(45 + (parseInt(order.id.replace(/\D/g, '')) || 42) % 50);
-              const speedValue = order.status === OrderStatus.DELIVERING ? Math.floor(12 + (parseInt(order.id.replace(/\D/g, '')) || 7) % 20) : 0;
-
               return (
                 <div
                   key={order.id}
@@ -1035,26 +1031,6 @@ export default function AdminDashboard({
                       )}
                     </p>
                   )}
-
-                  {/* Telemetry info just like the design! */}
-                  {order.status === OrderStatus.DELIVERING ? (
-                    <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
-                      <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <span className="text-[var(--color-text-muted)]">Activo</span>
-                      </div>
-                      <span>BATERÍA: {batteryValue}%</span>
-                      <span>VEL: {speedValue}km/h</span>
-                    </div>
-                  ) : order.status === OrderStatus.ASSIGNED ? (
-                    <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
-                      <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
-                        <span className="text-[var(--color-text-muted)]">Preparando</span>
-                      </div>
-                      <span>Carga asignada</span>
-                    </div>
-                  ) : null}
 
                   <div className="flex items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
                     <span className="flex items-center gap-1 shrink-0">
