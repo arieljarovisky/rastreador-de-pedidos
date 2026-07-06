@@ -6,23 +6,20 @@ import { OrdersProvider } from '../context/OrdersContext';
 import { useMandatoryLocation } from '../hooks/useMandatoryLocation';
 import OrdersScreen from '../screens/OrdersScreen';
 import OrderDetailScreen from '../screens/OrderDetailScreen';
-import ScanLabelScreen from '../screens/ScanLabelScreen';
 import RepartidorProfileScreen from '../screens/RepartidorProfileScreen';
 import LocationRequiredScreen from '../screens/LocationRequiredScreen';
 import PostaBottomTabBar from '../components/navigation/PostaBottomTabBar';
 import {
   RepartidorHomeStackParamList,
   RepartidorProfileStackParamList,
-  RepartidorScanStackParamList,
   RepartidorStackParamList,
   RepartidorTabParamList,
 } from './types';
-import { colors, fonts, roleAccents, spacing } from '../theme';
+import { colors, fonts, roleAccents } from '../theme';
 
 const Tab = createBottomTabNavigator<RepartidorTabParamList>();
 const Stack = createNativeStackNavigator<RepartidorStackParamList>();
 const HomeStack = createNativeStackNavigator<RepartidorHomeStackParamList>();
-const ScanStack = createNativeStackNavigator<RepartidorScanStackParamList>();
 const ProfileStack = createNativeStackNavigator<RepartidorProfileStackParamList>();
 
 const stackScreenOptions = {
@@ -41,18 +38,6 @@ function RepartidorHomeNavigator() {
         options={{ headerShown: false }}
       />
     </HomeStack.Navigator>
-  );
-}
-
-function RepartidorScanNavigator() {
-  return (
-    <ScanStack.Navigator screenOptions={stackScreenOptions}>
-      <ScanStack.Screen
-        name="ScanLabel"
-        component={ScanLabelScreen}
-        options={{ headerShown: false }}
-      />
-    </ScanStack.Navigator>
   );
 }
 
@@ -75,20 +60,15 @@ function RepartidorTabs() {
       tabBar={(props) => (
         <PostaBottomTabBar
           {...props}
-          centerIndex={1}
-          centerIcon="scan"
-          centerLabel="Escanear"
           accentColor={roleAccents.repartidor}
           tabs={{
             Home: { icon: 'package', label: 'Envíos' },
-            Scan: { icon: 'scan', label: 'Escanear' },
             Profile: { icon: 'user', label: 'Perfil' },
           }}
         />
       )}
     >
       <Tab.Screen name="Home" component={RepartidorHomeNavigator} />
-      <Tab.Screen name="Scan" component={RepartidorScanNavigator} />
       <Tab.Screen name="Profile" component={RepartidorProfileNavigator} />
     </Tab.Navigator>
   );

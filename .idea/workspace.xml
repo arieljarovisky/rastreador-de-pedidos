@@ -11,7 +11,11 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="ProjectId" id="3FjHombFaJxRg7YzvpiPvU0Rb16" />
-  <component name="PropertiesComponent">{}</component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "settings.editor.selected.configurable": "device.mirroring"
+  }
+}]]></component>
   <component name="TaskManager">
     <servers />
   </component>

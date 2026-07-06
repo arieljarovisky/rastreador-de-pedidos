@@ -5,13 +5,11 @@ import { AgencyOrdersProvider } from '../context/AgencyOrdersContext';
 import AgencyOrdersScreen from '../screens/agency/AgencyOrdersScreen';
 import AgencyDashboardScreen from '../screens/agency/AgencyDashboardScreen';
 import AgencyOrderDetailScreen from '../screens/agency/AgencyOrderDetailScreen';
-import AgencyScanScreen from '../screens/agency/AgencyScanScreen';
 import AgencySettingsScreen from '../screens/agency/AgencySettingsScreen';
 import AgencyNotificationsScreen from '../screens/agency/AgencyNotificationsScreen';
 import PostaBottomTabBar from '../components/navigation/PostaBottomTabBar';
 import {
   AgencyHomeStackParamList,
-  AgencyScanStackParamList,
   AgencySettingsStackParamList,
   AgencyStackParamList,
   AgencyTabParamList,
@@ -21,7 +19,6 @@ import { colors, fonts, roleAccents } from '../theme';
 const Tab = createBottomTabNavigator<AgencyTabParamList>();
 const Stack = createNativeStackNavigator<AgencyStackParamList>();
 const HomeStack = createNativeStackNavigator<AgencyHomeStackParamList>();
-const ScanStack = createNativeStackNavigator<AgencyScanStackParamList>();
 const SettingsStack = createNativeStackNavigator<AgencySettingsStackParamList>();
 
 const stackScreenOptions = {
@@ -48,18 +45,6 @@ function AgencyHomeNavigator() {
   );
 }
 
-function AgencyScanNavigator() {
-  return (
-    <ScanStack.Navigator screenOptions={stackScreenOptions}>
-      <ScanStack.Screen
-        name="AgencyScan"
-        component={AgencyScanScreen}
-        options={{ headerShown: false }}
-      />
-    </ScanStack.Navigator>
-  );
-}
-
 function AgencySettingsNavigator() {
   return (
     <SettingsStack.Navigator screenOptions={stackScreenOptions}>
@@ -79,20 +64,15 @@ function AgencyTabs() {
       tabBar={(props) => (
         <PostaBottomTabBar
           {...props}
-          centerIndex={1}
-          centerIcon="scan"
-          centerLabel="Escanear"
           accentColor={roleAccents.agency}
           tabs={{
             Home: { icon: 'live', label: 'Panel' },
-            Scan: { icon: 'scan', label: 'Escanear' },
             Settings: { icon: 'settings', label: 'Agencia' },
           }}
         />
       )}
     >
       <Tab.Screen name="Home" component={AgencyHomeNavigator} />
-      <Tab.Screen name="Scan" component={AgencyScanNavigator} />
       <Tab.Screen name="Settings" component={AgencySettingsNavigator} />
     </Tab.Navigator>
   );

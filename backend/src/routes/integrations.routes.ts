@@ -30,7 +30,9 @@ import {
 import { parseTiendaNubeDateRange } from '../services/tiendanube.service.js';
 import {
   getMercadoLibreWebhookUrl,
+  ML_WEBHOOK_TOPICS,
   processMercadoLibreNotification,
+  replayMercadoLibreMissedFeeds,
   type MercadoLibreNotificationPayload,
 } from '../services/mercadolibre-webhook.service.js';
 import { getAgencyById } from '../services/agencies.service.js';
@@ -122,6 +124,7 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
       configured: isMercadoLibreConfigured(),
       connected: integrations.some((i) => i.platform === 'mercadolibre'),
       webhookUrl: getMercadoLibreWebhookUrl(),
+      webhookTopics: [...ML_WEBHOOK_TOPICS],
       account: integrations.find((i) => i.platform === 'mercadolibre')
         ? integrationStatusPublic(integrations.find((i) => i.platform === 'mercadolibre')!)
         : null,
@@ -277,8 +280,33 @@ router.post('/mercadolibre/notifications', async (req: Request, res: Response) =
 });
 
 router.get('/mercadolibre/notifications', (_req: Request, res: Response) => {
-  res.status(200).json({ ok: true, webhook: getMercadoLibreWebhookUrl() });
+  res.status(200).json({
+    ok: true,
+    webhook: getMercadoLibreWebhookUrl(),
+    topics: [...ML_WEBHOOK_TOPICS],
+  });
 });
+
+router.post(
+  '/mercadolibre/missed-feeds/replay',
+  authenticate,
+  requireRoles(...AGENCY_ADMIN_ROLES),
+  async (req: Request, res: Response) => {
+    if (!isMercadoLibreConfigured()) {
+      res.status(400).json({ error: 'Mercado Libre no está configurado en el servidor.' });
+      return;
+    }
+    const topic = typeof req.body?.topic === 'string' ? req.body.topic : undefined;
+    const limit = typeof req.body?.limit === 'number' ? req.body.limit : undefined;
+    try {
+      const result = await replayMercadoLibreMissedFeeds({ topic, limit });
+      res.json(result);
+    } catch (err) {
+      console.error('[ml-webhook] missed-feeds replay:', err);
+      res.status(502).json({ error: 'No se pudieron reprocesar las notificaciones perdidas de ML.' });
+    }
+  }
+);
 
 router.post('/tiendanube/webhooks/store-redact', (req: Request, res: Response) => {
   res.status(200).send('OK');

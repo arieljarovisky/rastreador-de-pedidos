@@ -313,6 +313,9 @@ export default function App() {
         return [notification, ...prev];
       });
       playNotificationSound();
+      if (notification.orderId) {
+        void fetchData();
+      }
     },
   });
 
@@ -904,41 +907,6 @@ export default function App() {
       }
     },
     [token, showAlert]
-  );
-
-  const handleScanMercadoLibreLabel = useCallback(
-    async (code: string, sellerId?: string, scanLocation?: { lat: number; lng: number } | null) => {
-      if (!token) throw new Error('Sin sesión');
-      if (user && isAgencyAdmin(user.role) && !sellerId) {
-        throw new Error('Seleccioná el vendedor donde estás colectando.');
-      }
-      const res = await fetch(apiUrl('/api/integrations/mercadolibre/scan-import'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          code,
-          sellerId: sellerId || undefined,
-          lat: scanLocation?.lat,
-          lng: scanLocation?.lng,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error((body as { error?: string }).error ?? 'No se pudo importar el envío.');
-      }
-      fetchData();
-      return body as {
-        order: { id: string; clientName: string; address: string };
-        alreadyImported: boolean;
-        sellerId: string;
-        sellerName: string;
-        externalOrderId: string;
-      };
-    },
-    [token, fetchData, user]
   );
 
   const fetchIntegrationStatus = useCallback(async () => {
@@ -1564,7 +1532,6 @@ export default function App() {
                     onArchiveOrder={handleArchiveOrder}
                     userRole={user.role}
                     onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
-                    onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
                   />
                 </div>
               </>
@@ -1611,7 +1578,6 @@ export default function App() {
                   onUpdateAgencyMlFlexMode={isAgencyAdmin(user.role) ? handleUpdateAgencyMlFlexMode : undefined}
                   onConnectMercadoLibreCourier={isAgencyAdmin(user.role) ? connectMercadoLibreCourier : undefined}
                   onDisconnectMercadoLibreCourier={isAgencyAdmin(user.role) ? disconnectMercadoLibreCourier : undefined}
-                  onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
                 />
               </div>
             )}
@@ -1651,7 +1617,6 @@ export default function App() {
                 onReportLocation={handleReportLocation}
                 onReportUserLocation={handleReportUserLocation}
                 onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
-                onScanMercadoLibreLabel={handleScanMercadoLibreLabel}
                 repartidorMlStatus={repartidorMlStatus}
                 repartidorMlLoading={repartidorMlLoading}
                 onRefreshRepartidorMlStatus={fetchRepartidorMlStatus}

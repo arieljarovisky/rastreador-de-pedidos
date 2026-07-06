@@ -49,6 +49,7 @@ interface MlShipment {
   order_id?: number;
   logistic_type?: string;
   status?: string;
+  substatus?: string | null;
   receiver_address?: {
     address_line?: string;
     street_name?: string;
@@ -332,6 +333,94 @@ export async function fetchMercadoLibreShipment(
   mlShipmentId: string
 ): Promise<MlShipment> {
   return mlFetch<MlShipment>(integration, `/shipments/${mlShipmentId}`);
+}
+
+export interface MlFlexAssignment {
+  driver_id?: number;
+}
+
+export interface MlMissedFeedMessage {
+  _id?: string;
+  resource: string;
+  user_id: string | number;
+  topic: string;
+  application_id?: number | string;
+  attempts?: number;
+  sent?: string;
+  received?: string;
+}
+
+interface MlMissedFeedsResponse {
+  messages?: MlMissedFeedMessage[];
+}
+
+/** Extrae IDs de un resource de notificación ML (shipments, flex-handshakes, orders). */
+export function parseMercadoLibreNotificationResource(resource: string): {
+  shipmentId?: string;
+  siteId?: string;
+  mlOrderId?: string;
+} {
+  const trimmed = resource.trim();
+  const handshakeMatch = trimmed.match(
+    /\/flex\/sites\/([A-Z]{3})\/shipments\/(\d+)\/assignment\/v\d+/i
+  );
+  if (handshakeMatch) {
+    return { siteId: handshakeMatch[1].toUpperCase(), shipmentId: handshakeMatch[2] };
+  }
+  const shipmentMatch = trimmed.match(/\/shipments\/(\d+)/i);
+  if (shipmentMatch) return { shipmentId: shipmentMatch[1] };
+  const orderMatch = trimmed.match(/\/orders\/(\d+)/i);
+  if (orderMatch) return { mlOrderId: orderMatch[1] };
+  return {};
+}
+
+/** GET recurso relativo documentado en la notificación (p. ej. assignment/v1). */
+export async function fetchMercadoLibreResource<T>(
+  integration: StoreIntegration,
+  resource: string
+): Promise<T | null> {
+  const path = resource.trim().startsWith('/') ? resource.trim() : `/${resource.trim()}`;
+  try {
+    return await mlFetch<T>(integration, path);
+  } catch {
+    return null;
+  }
+}
+
+/** Consulta assignment/handshake Flex (tópico flex-handshakes). */
+export async function fetchMercadoLibreFlexAssignment(
+  integration: StoreIntegration,
+  siteId: string,
+  shipmentId: string
+): Promise<MlFlexAssignment | null> {
+  return fetchMercadoLibreResource<MlFlexAssignment>(
+    integration,
+    `/flex/sites/${siteId}/shipments/${shipmentId}/assignment/v1`
+  );
+}
+
+/** Historial de notificaciones perdidas de la aplicación ML. */
+export async function fetchMercadoLibreMissedFeeds(
+  integration: StoreIntegration,
+  options?: { topic?: string; offset?: number; limit?: number }
+): Promise<MlMissedFeedMessage[]> {
+  if (!env.mercadolibre.appId) return [];
+  const params = new URLSearchParams({ app_id: env.mercadolibre.appId });
+  if (options?.topic) params.set('topic', options.topic);
+  if (options?.offset != null) params.set('offset', String(options.offset));
+  if (options?.limit != null) params.set('limit', String(options.limit));
+  const data = await mlFetch<MlMissedFeedsResponse>(
+    integration,
+    `/missed_feeds?${params.toString()}`
+  );
+  return data.messages ?? [];
+}
+
+export function formatMlShipmentStatusLabel(shipment: Pick<MlShipment, 'status' | 'substatus'>): string {
+  const status = shipment.status?.trim();
+  const substatus = shipment.substatus?.trim();
+  if (status && substatus) return `${status}/${substatus}`;
+  return status ?? substatus ?? 'desconocido';
 }
 
 export async function fetchMercadoLibreFlexShipment(

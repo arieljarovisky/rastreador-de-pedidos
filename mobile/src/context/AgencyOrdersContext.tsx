@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { useOrders } from '../hooks/useOrders';
-import { api, MercadoLibreScanImportResult } from '../api';
+import { api } from '../api';
 import { Order, OrderStatus, User } from '../types';
 import type { DeliveryZone, Barrio } from '../config/deliveryZones';
 
@@ -24,10 +24,6 @@ interface AgencyOrdersState {
   cancelOrder: (orderId: string) => Promise<Order>;
   deleteOrder: (orderId: string) => Promise<void>;
   archiveOrder: (orderId: string, archived: boolean) => Promise<Order>;
-  scanMercadoLibreLabel: (
-    code: string,
-    sellerId: string
-  ) => Promise<MercadoLibreScanImportResult>;
 }
 
 const AgencyOrdersContext = createContext<AgencyOrdersState | undefined>(undefined);
@@ -160,24 +156,6 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
     [token, refreshAll]
   );
 
-  const scanMercadoLibreLabel = useMemo(
-    () => async (code: string, sellerId: string) => {
-      if (!token) throw new Error('Sin sesión');
-      const { getScanGeolocation } = await import('../utils/scanLocation');
-      const loc = await getScanGeolocation();
-      const result = await api.scanMercadoLibreLabel(
-        token,
-        code,
-        loc?.lat,
-        loc?.lng,
-        sellerId
-      );
-      await refreshAll();
-      return result;
-    },
-    [token, refreshAll]
-  );
-
   const value = useMemo<AgencyOrdersState>(
     () => ({
       orders,
@@ -198,7 +176,6 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
       cancelOrder,
       deleteOrder,
       archiveOrder,
-      scanMercadoLibreLabel,
     }),
     [
       orders,
@@ -219,7 +196,6 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
       cancelOrder,
       deleteOrder,
       archiveOrder,
-      scanMercadoLibreLabel,
     ]
   );
 

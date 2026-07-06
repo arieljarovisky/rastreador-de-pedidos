@@ -222,27 +222,6 @@ export const api = {
     });
   },
 
-  /** Escaneo de etiqueta Mercado Libre Flex (colecta / re-escaneo). */
-  scanMercadoLibreLabel(
-    token: string,
-    code: string,
-    lat?: number,
-    lng?: number,
-    sellerId?: string
-  ): Promise<MercadoLibreScanImportResult> {
-    return request<MercadoLibreScanImportResult>('/api/integrations/mercadolibre/scan-import', {
-      method: 'POST',
-      token,
-      timeoutMs: 120_000,
-      body: {
-        code,
-        lat,
-        lng,
-        sellerId,
-      },
-    });
-  },
-
   getSellers(token: string): Promise<User[]> {
     return request<User[]>('/api/accounts/sellers', { token });
   },
@@ -378,15 +357,5 @@ export const api = {
     return apiUrl(`/api/orders/${orderId}/mercadolibre-label`);
   },
 };
-
-export interface MercadoLibreScanImportResult {
-  order: Order;
-  alreadyImported: boolean;
-  sellerId: string;
-  sellerName: string;
-  externalOrderId: string;
-  mlFlexRegistered: boolean;
-  mlFlexMessage: string;
-}
 
 export { ApiError };

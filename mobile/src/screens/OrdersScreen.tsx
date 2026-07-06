@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CompositeScreenProps, RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
 import { Order, OrderStatus } from '../types';
@@ -31,7 +31,6 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RepartidorHomeStackParamList, 'Orders'>,
   NativeStackScreenProps<RepartidorStackParamList>
 >;
-type OrdersRouteProp = RouteProp<RepartidorHomeStackParamList, 'Orders'>;
 type Tab = 'assigned' | 'available';
 
 function initials(name: string): string {
@@ -43,7 +42,6 @@ function initials(name: string): string {
 
 export default function OrdersScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const route = useRoute<OrdersRouteProp>();
   const accent = roleAccents.repartidor;
   const { user } = useAuth();
   const {
@@ -58,14 +56,6 @@ export default function OrdersScreen({ navigation }: Props) {
   } = useOrdersContext();
   const [tab, setTab] = useState<Tab>('assigned');
   const [startingRoute, setStartingRoute] = useState(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (route.params?.fromScanSession) {
-        setTab('assigned');
-      }
-    }, [route.params?.fromScanSession])
-  );
 
   const myAssigned = useMemo(
     () =>

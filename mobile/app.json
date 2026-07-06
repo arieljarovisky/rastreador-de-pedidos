@@ -22,7 +22,6 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Posta requiere tu ubicación para que puedas usar la app como repartidor y compartir tu posición con logística.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Posta requiere tu ubicación todo el tiempo para el seguimiento en vivo de la flota, con o sin envío activo.",
-        "NSCameraUsageDescription": "Posta usa la cámara para escanear etiquetas de Mercado Libre.",
         "UIBackgroundModes": [
           "location"
         ]
@@ -55,10 +54,7 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
-        "CAMERA",
         "POST_NOTIFICATIONS",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_BACKGROUND_LOCATION",
@@ -68,12 +64,6 @@
     },
     "plugins": [
       "expo-task-manager",
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Posta usa la cámara para escanear etiquetas de Mercado Libre."
-        }
-      ],
       [
         "expo-location",
         {

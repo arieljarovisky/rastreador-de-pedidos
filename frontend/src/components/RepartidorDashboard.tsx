@@ -5,10 +5,9 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint, RepartidorMercadoLibreStatus } from '../types.js';
-import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText, Barcode } from 'lucide-react';
+import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText } from 'lucide-react';
 import { useModal } from '../context/ModalContext.tsx';
 import MapComponent from './MapComponent.tsx';
-import MercadoLibreLabelScanner, { type MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 
 function getCollectLabel(
   order: Order,
@@ -37,11 +36,6 @@ interface RepartidorDashboardProps {
   onReportLocation: (orderId: string, lat: number, lng: number) => Promise<void>;
   onReportUserLocation: (lat: number, lng: number) => Promise<void>;
   onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
-  onScanMercadoLibreLabel?: (
-    code: string,
-    sellerId?: string,
-    scanLocation?: { lat: number; lng: number } | null
-  ) => Promise<MercadoLibreScanImportResult>;
   repartidorMlStatus?: RepartidorMercadoLibreStatus | null;
   repartidorMlLoading?: boolean;
   onRefreshRepartidorMlStatus?: () => Promise<void>;
@@ -60,7 +54,6 @@ export default function RepartidorDashboard({
   onReportLocation,
   onReportUserLocation,
   onOpenMercadoLibreLabel,
-  onScanMercadoLibreLabel,
   repartidorMlStatus = null,
   repartidorMlLoading = false,
   onRefreshRepartidorMlStatus,
@@ -69,7 +62,6 @@ export default function RepartidorDashboard({
 }: RepartidorDashboardProps) {
   const { alert: showAlert } = useModal();
   const [activeTab, setActiveTab] = useState<'assigned' | 'available'>('assigned');
-  const [scannerOpen, setScannerOpen] = useState(false);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const lastGpsSentAt = useRef(0);
@@ -269,22 +261,6 @@ export default function RepartidorDashboard({
           </div>
         )}
 
-      {onScanMercadoLibreLabel && (
-        <div className="shrink-0 flex items-center justify-between gap-2 px-2 sm:px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/60">
-          <p className="text-[10px] sm:text-xs text-[var(--color-text-muted)] font-mono leading-snug min-w-0">
-            Escaneá etiquetas ML para registrar colecta o traspaso
-          </p>
-          <button
-            type="button"
-            onClick={() => setScannerOpen(true)}
-            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[9px] sm:text-[10px] uppercase tracking-wider rounded-[var(--radius-posta)] transition"
-          >
-            <Barcode className="w-3.5 h-3.5" />
-            Escanear
-          </button>
-        </div>
-      )}
-
       <div className="shrink-0 flex items-center justify-between gap-2 px-2 sm:px-3 py-1.5 border-b border-[var(--surface-border)]/80 bg-[var(--surface-panel-2)]/50">
         <div className="flex items-center gap-1.5 text-[10px] font-mono">
           <span className="font-bold text-[var(--ink-soft)]">📡 Ubicación</span>
@@ -298,17 +274,6 @@ export default function RepartidorDashboard({
           <span className="text-[9px] text-[var(--color-accent)] font-mono uppercase">Ruta en vivo</span>
         )}
       </div>
-
-      {onScanMercadoLibreLabel && (
-        <MercadoLibreLabelScanner
-          open={scannerOpen}
-          onClose={() => setScannerOpen(false)}
-          title="Escanear etiqueta ML"
-          subtitle="Cada escaneo queda registrado en la bitácora del pedido"
-          onImport={onScanMercadoLibreLabel}
-          onImported={(result) => onSelectOrder(result.order.id)}
-        />
-      )}
 
       <div className="grid grid-cols-2 bg-[var(--surface-panel-2)] p-0.5 border-b border-[var(--surface-border)] shrink-0 scroll-tabs">
         <button

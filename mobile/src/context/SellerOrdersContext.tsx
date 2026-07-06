@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { api } from '../api';
@@ -36,10 +36,19 @@ const SellerOrdersContext = createContext<SellerOrdersState | undefined>(undefin
 
 export function SellerOrdersProvider({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
+  const refreshOnNotifRef = useRef<(() => Promise<void>) | null>(null);
   const { orders, repartidores, loading, refreshing, connected, error, refresh } = useOrders(
     token,
-    { trackRepartidores: true }
+    {
+      trackRepartidores: true,
+      onNotificationCreated: (notification) => {
+        if (notification.orderId) {
+          void refreshOnNotifRef.current?.();
+        }
+      },
+    }
   );
+  refreshOnNotifRef.current = refresh;
 
   const getOrder = useMemo(
     () => (orderId: string) => orders.find((o) => o.id === orderId),

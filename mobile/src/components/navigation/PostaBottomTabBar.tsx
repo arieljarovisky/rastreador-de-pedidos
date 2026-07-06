@@ -12,7 +12,7 @@ export interface PostaTabItemConfig {
 }
 
 interface Props extends BottomTabBarProps {
-  centerIndex: number;
+  centerIndex?: number;
   centerIcon?: PostaIconName;
   centerLabel?: string;
   tabs: Record<string, PostaTabItemConfig>;
@@ -40,7 +40,7 @@ export default function PostaBottomTabBar({
           const { options } = descriptors[route.key];
           const config = tabs[route.name];
           const isFocused = state.index === index;
-          const isCenter = index === centerIndex;
+          const isCenter = centerIndex != null && index === centerIndex;
 
           const onPress = () => {
             const event = navigation.emit({

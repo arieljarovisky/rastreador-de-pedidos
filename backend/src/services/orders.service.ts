@@ -386,6 +386,23 @@ export async function recordMercadoLibreLabelScan(
   return refreshed;
 }
 
+/** Registra un evento de ML en la bitácora sin cambiar el estado del pedido. */
+export async function appendOrderMarketplaceComment(
+  orderId: string,
+  comment: string
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+
+  const now = new Date();
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, order.status, 'Mercado Libre', comment, now]
+  );
+  await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [now, orderId]);
+  return getOrderById(orderId);
+}
+
 export async function updateOrderStatusFromMarketplace(
   orderId: string,
   status: OrderStatus,

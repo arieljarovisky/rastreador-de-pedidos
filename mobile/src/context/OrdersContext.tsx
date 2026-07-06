@@ -2,8 +2,7 @@ import React, { createContext, useContext, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { useLocationReporter } from '../hooks/useLocationReporter';
-import { api, MercadoLibreScanImportResult } from '../api';
-import { getScanGeolocation } from '../utils/scanLocation';
+import { api } from '../api';
 import { Order, OrderStatus } from '../types';
 
 interface OrdersState {
@@ -22,7 +21,6 @@ interface OrdersState {
     opts?: { repartidorId?: string; comment?: string }
   ) => Promise<Order>;
   getOrder: (orderId: string) => Order | undefined;
-  scanMercadoLibreLabel: (code: string) => Promise<MercadoLibreScanImportResult>;
 }
 
 const OrdersContext = createContext<OrdersState | undefined>(undefined);
@@ -67,22 +65,6 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
     [orders]
   );
 
-  const scanMercadoLibreLabel = useMemo(
-    () => async (code: string): Promise<MercadoLibreScanImportResult> => {
-      if (!token) throw new Error('Sin sesión');
-      const loc = await getScanGeolocation();
-      const result = await api.scanMercadoLibreLabel(
-        token,
-        code,
-        loc?.lat,
-        loc?.lng
-      );
-      await refresh();
-      return result;
-    },
-    [token, refresh]
-  );
-
   const value = useMemo<OrdersState>(
     () => ({
       orders,
@@ -96,7 +78,6 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
       refresh,
       updateStatus,
       getOrder,
-      scanMercadoLibreLabel,
     }),
     [
       orders,
@@ -110,7 +91,6 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
       refresh,
       updateStatus,
       getOrder,
-      scanMercadoLibreLabel,
     ]
   );
 

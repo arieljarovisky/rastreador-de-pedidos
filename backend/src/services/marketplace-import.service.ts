@@ -259,6 +259,31 @@ export function parseScanLocation(lat?: unknown, lng?: unknown): ScanLocation | 
   return { lat: parsedLat, lng: parsedLng };
 }
 
+/** Notifica al vendedor cuando un repartidor o la agencia escanea su etiqueta ML. */
+async function notifySellerOnLabelScan(
+  sellerId: string | null | undefined,
+  scanner: User,
+  order: Order,
+  externalOrderId: string,
+  alreadyImported: boolean
+): Promise<void> {
+  if (!sellerId) return;
+
+  const title = alreadyImported ? 'Etiqueta escaneada' : 'Paquete colectado';
+  const body = alreadyImported
+    ? `${scanner.name} escaneó la etiqueta ML #${externalOrderId} de tu envío ${order.id}.`
+    : `${scanner.name} colectó tu envío ML #${externalOrderId} (${order.clientName}) → ${order.id}.`;
+
+  await createNotification({
+    id: `n_scan_seller_${Date.now()}_${order.id}`,
+    userId: sellerId,
+    title,
+    body,
+    type: 'info',
+    orderId: order.id,
+  });
+}
+
 /** Asigna el pedido al repartidor que escaneó (colecta Flex → Mis envíos). */
 async function assignScannedOrderToRepartidorIfNeeded(user: User, order: Order): Promise<Order> {
   if (user.role !== UserRole.REPARTIDOR) return order;
@@ -342,6 +367,13 @@ export async function importMercadoLibreByScanForAgency(
     updated = await assignScannedOrderToRepartidorIfNeeded(user, updated);
     const assignedSellerId = await getSellerIdForOrder(updated.id);
     emitOrderUpdated(updated, assignedSellerId);
+    await notifySellerOnLabelScan(
+      assignedSellerId ?? sellerIdForResult,
+      user,
+      updated,
+      externalOrderId,
+      true
+    );
     return attachMercadoLibreFlexSync(
       user,
       {
@@ -438,15 +470,13 @@ export async function importMercadoLibreByScanForAgency(
 
     const assignedSellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, assignedSellerId);
-
-    await createNotification({
-      id: `n_scan_${Date.now()}_${user.id}`,
-      userId: user.id,
-      title: 'Colecta en vendedor',
-      body: `Orden ML #${flex.mlOrderId} de ${seller?.name ?? 'vendedor'} → ${order.id}.`,
-      type: 'info',
-      orderId: order.id,
-    });
+    await notifySellerOnLabelScan(
+      assignedSellerId ?? validIntegration.userId,
+      user,
+      order,
+      flex.mlOrderId,
+      false
+    );
 
     return attachMercadoLibreFlexSync(
       user,

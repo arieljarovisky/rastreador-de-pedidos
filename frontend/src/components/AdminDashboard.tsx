@@ -17,7 +17,6 @@ import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge from './ui/StatusBadge.tsx';
 import MapComponent from './MapComponent.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
-import type { MercadoLibreScanImportResult } from './MercadoLibreLabelScanner.tsx';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -36,11 +35,6 @@ interface AdminDashboardProps {
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
   userRole?: UserRole;
   onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
-  onScanMercadoLibreLabel?: (
-    code: string,
-    sellerId?: string,
-    scanLocation?: { lat: number; lng: number } | null
-  ) => Promise<MercadoLibreScanImportResult>;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -140,7 +134,6 @@ export default function AdminDashboard({
   onArchiveOrder,
   userRole = UserRole.STORE_ADMIN,
   onOpenMercadoLibreLabel,
-  onScanMercadoLibreLabel,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
@@ -693,17 +686,15 @@ export default function AdminDashboard({
             </div>
           </div>
 
-          {isAgencyAdmin(userRole) && onScanMercadoLibreLabel && (
+          {isAgencyAdmin(userRole) && (
             <SellerPickupPanel
               collapsible
               sellers={sellers}
               pickupPoints={pickupPoints}
-              onScanImport={onScanMercadoLibreLabel}
-              onImported={(result) => onSelectOrder(result.order.id)}
             />
           )}
 
-          {isAgencyAdmin(userRole) && !onScanMercadoLibreLabel && (
+          {isAgencyAdmin(userRole) && sellers.length === 0 && (
             <p className="text-[9px] text-[var(--color-text-faint)] font-mono truncate">
               Gestioná vendedores y flota en <span className="text-[var(--ink-soft)]">Configuración</span>.
             </p>
