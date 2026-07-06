@@ -2,7 +2,7 @@
   "expo": {
     "name": "Posta",
     "slug": "posta-repartidor",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "scheme": "lupo",
     "userInterfaceStyle": "dark",
@@ -29,7 +29,7 @@
       }
     },
     "android": {
-      "versionCode": 11,
+      "versionCode": 12,
       "package": "com.postaenvios.repartidor",
       "intentFilters": [
         {

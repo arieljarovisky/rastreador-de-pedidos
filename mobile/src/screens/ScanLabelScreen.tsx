@@ -28,7 +28,7 @@ type Props = CompositeScreenProps<
 
 type ScanMode = 'camera' | 'manual';
 
-export default function ScanLabelScreen({ navigation }: Props) {
+export default function ScanLabelScreen(_props: Props) {
   const insets = useSafeAreaInsets();
   const accent = roleAccents.repartidor;
   const { scanMercadoLibreLabel } = useOrdersContext();
@@ -59,13 +59,10 @@ export default function ScanLabelScreen({ navigation }: Props) {
         setStatusMessage(
           result.alreadyImported
             ? `Re-escaneado: ${result.order.id} · ${result.order.clientName}${locNote}${flexNote}`
-            : `Importado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})${locNote}${flexNote}`
+            : `Importado y asignado: ${result.order.id} · ${result.order.clientName} (${result.sellerName})${locNote}${flexNote}`
         );
         cooldownUntil.current = Date.now() + 3500;
         setManualCode('');
-        setTimeout(() => {
-          navigation.replace('OrderDetail', { orderId: result.order.id });
-        }, 800);
       } catch (err) {
         setStatusOk(false);
         if (err instanceof ApiError && err.code === 'SESSION_INVALID') {
@@ -77,7 +74,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         setImporting(false);
       }
     },
-    [importing, navigation, scanMercadoLibreLabel]
+    [importing, scanMercadoLibreLabel]
   );
 
   const handleBarcode = useCallback(
@@ -202,7 +199,8 @@ export default function ScanLabelScreen({ navigation }: Props) {
       ) : null}
 
       <Text style={[styles.footerNote, { paddingBottom: TAB_BAR_CLEARANCE + spacing.md }]}>
-        Cada escaneo queda en la bitácora del pedido con tu nombre y ubicación.
+        Cada escaneo queda en la bitácora del pedido con tu nombre y ubicación. Los envíos
+        escaneados aparecen en Mis envíos.
       </Text>
     </KeyboardAvoidingView>
   );

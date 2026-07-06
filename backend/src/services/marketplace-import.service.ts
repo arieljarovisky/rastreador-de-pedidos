@@ -1,4 +1,4 @@
-import { User, Order, UserRole } from '../types/index.js';
+import { User, Order, UserRole, OrderStatus } from '../types/index.js';
 import { geocodeAddress } from './geocode.service.js';
 import {
   createOrder,
@@ -7,6 +7,7 @@ import {
   getSellerIdForOrder,
   recordMercadoLibreLabelScan,
   assertOrderAccessibleForLabelScan,
+  updateOrderStatus,
 } from './orders.service.js';
 import {
   listMercadoLibreFlexShipments,
@@ -258,6 +259,19 @@ export function parseScanLocation(lat?: unknown, lng?: unknown): ScanLocation | 
   return { lat: parsedLat, lng: parsedLng };
 }
 
+/** Asigna el pedido al repartidor que escaneó (colecta Flex → Mis envíos). */
+async function assignScannedOrderToRepartidorIfNeeded(user: User, order: Order): Promise<Order> {
+  if (user.role !== UserRole.REPARTIDOR) return order;
+  if (order.status !== OrderStatus.PENDING || order.repartidorId) return order;
+  return updateOrderStatus(
+    user,
+    order.id,
+    OrderStatus.ASSIGNED,
+    undefined,
+    'Asignado por escaneo de etiqueta ML'
+  );
+}
+
 async function attachMercadoLibreFlexSync(
   user: User,
   base: Omit<MercadoLibreScanImportResult, 'mlFlexRegistered' | 'mlFlexMessage'>,
@@ -320,11 +334,12 @@ export async function importMercadoLibreByScanForAgency(
     shipmentId: string
   ): Promise<MercadoLibreScanImportResult> {
     assertOrderAccessibleForLabelScan(user, existing);
-    const updated = await recordMercadoLibreLabelScan(user, existing.id, externalOrderId, {
+    let updated = await recordMercadoLibreLabelScan(user, existing.id, externalOrderId, {
       isFirstImport: false,
       lat: scanLocation?.lat,
       lng: scanLocation?.lng,
     });
+    updated = await assignScannedOrderToRepartidorIfNeeded(user, updated);
     const assignedSellerId = await getSellerIdForOrder(updated.id);
     emitOrderUpdated(updated, assignedSellerId);
     return attachMercadoLibreFlexSync(
@@ -404,7 +419,7 @@ export async function importMercadoLibreByScanForAgency(
     }
 
     const seller = await getUserById(validIntegration.userId);
-    const order = await createOrder(user, {
+    let order = await createOrder(user, {
       clientName: flex.clientName,
       clientPhone: flex.clientPhone,
       address: flex.address,
@@ -419,6 +434,7 @@ export async function importMercadoLibreByScanForAgency(
       historyLat: scanLocation?.lat,
       historyLng: scanLocation?.lng,
     });
+    order = await assignScannedOrderToRepartidorIfNeeded(user, order);
 
     const assignedSellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, assignedSellerId);

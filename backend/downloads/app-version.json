@@ -1,7 +1,7 @@
 {
-  "version": "1.2.0",
-  "minVersion": "1.2.0",
-  "versionCode": 11,
-  "minVersionCode": 11,
-  "message": "Nueva interfaz para repartidores, vendedores y logística. Panel más claro, escaneo mejorado y mejor navegación."
+  "version": "1.2.1",
+  "minVersion": "1.2.1",
+  "versionCode": 12,
+  "minVersionCode": 12,
+  "message": "Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras."
 }
