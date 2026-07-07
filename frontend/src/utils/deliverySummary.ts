@@ -57,6 +57,109 @@ export function getTodayDeadlineInArgentina(date: Date = new Date()): Date {
   return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
 }
 
+export function parseOperationalDateKey(dateKey: string): { year: number; month: number; day: number } {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return { year, month, day };
+}
+
+/** Corte operativo (21:00 ART) para una fecha YYYY-MM-DD. */
+export function getDeadlineForOperationalDate(dateKey: string): Date {
+  const { year, month, day } = parseOperationalDateKey(dateKey);
+  return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
+}
+
+export function shiftOperationalDateKey(dateKey: string, days: number): string {
+  const { year, month, day } = parseOperationalDateKey(dateKey);
+  const noon = arLocalToUtc(year, month, day, 12);
+  return getOperationalDateKey(new Date(noon.getTime() + days * 86_400_000));
+}
+
+export function formatOperationalDateLabel(dateKey: string, now: Date = new Date()): string {
+  const todayKey = getOperationalDateKey(now);
+  if (dateKey === todayKey) return 'Hoy';
+  if (dateKey === shiftOperationalDateKey(todayKey, -1)) return 'Ayer';
+  const { year, month, day } = parseOperationalDateKey(dateKey);
+  const label = new Intl.DateTimeFormat('es-AR', {
+    timeZone: DELIVERY_TIMEZONE,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+  }).format(arLocalToUtc(year, month, day, 12));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+export function formatOperationalDateShort(dateKey: string): string {
+  const { year, month, day } = parseOperationalDateKey(dateKey);
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: DELIVERY_TIMEZONE,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(arLocalToUtc(year, month, day, 12));
+}
+
+export function toOperationalDateKey(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+export function getOperationalMonthKey(dateKey: string): string {
+  const { year, month } = parseOperationalDateKey(dateKey);
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+export function shiftOperationalMonthKey(monthKey: string, deltaMonths: number): string {
+  const [year, month] = monthKey.split('-').map(Number);
+  let m = month + deltaMonths;
+  let y = year;
+  while (m > 12) {
+    m -= 12;
+    y += 1;
+  }
+  while (m < 1) {
+    m += 12;
+    y -= 1;
+  }
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+export function daysInOperationalMonth(year: number, month: number): number {
+  for (let day = 31; day >= 28; day -= 1) {
+    if (getArDateParts(arLocalToUtc(year, month, day, 12)).month === month) return day;
+  }
+  return 28;
+}
+
+function getWeekdayMondayFirst(year: number, month: number, day: number): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: DELIVERY_TIMEZONE,
+    weekday: 'short',
+  }).formatToParts(arLocalToUtc(year, month, day, 12));
+  const wd = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
+  const map: Record<string, number> = { Sun: 6, Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
+  return map[wd] ?? 0;
+}
+
+export function buildOperationalMonthGrid(monthKey: string): (string | null)[] {
+  const [year, month] = monthKey.split('-').map(Number);
+  const totalDays = daysInOperationalMonth(year, month);
+  const offset = getWeekdayMondayFirst(year, month, 1);
+  const cells: (string | null)[] = Array.from({ length: offset }, () => null);
+  for (let day = 1; day <= totalDays; day += 1) {
+    cells.push(toOperationalDateKey(year, month, day));
+  }
+  return cells;
+}
+
+export function formatOperationalMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split('-').map(Number);
+  const label = new Intl.DateTimeFormat('es-AR', {
+    timeZone: DELIVERY_TIMEZONE,
+    month: 'long',
+    year: 'numeric',
+  }).format(arLocalToUtc(year, month, 15, 12));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export function getOperationalDateKey(date: Date = new Date()): string {
   const { year, month, day } = getArDateParts(date);
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -138,9 +241,13 @@ export function computeDeliverySummaryFromOrders(
   ).length;
   const total = todayOrders.length;
 
-  const deadlineAt = getTodayDeadlineInArgentina();
+  const todayKey = getOperationalDateKey();
+  const deadlineAt = getDeadlineForOperationalDate(dateKey);
   const now = Date.now();
-  const isPastDeadline = now >= deadlineAt.getTime();
+  const isViewingToday = dateKey === todayKey;
+  const isPastDeadline = isViewingToday
+    ? now >= deadlineAt.getTime()
+    : dateKey < todayKey;
 
   return {
     date: dateKey,
@@ -152,7 +259,9 @@ export function computeDeliverySummaryFromOrders(
     overdue: isPastDeadline ? undelivered : 0,
     deliveredLate,
     cancelled,
-    minutesUntilDeadline: Math.max(0, Math.floor((deadlineAt.getTime() - now) / 60_000)),
+    minutesUntilDeadline: isViewingToday
+      ? Math.max(0, Math.floor((deadlineAt.getTime() - now) / 60_000))
+      : 0,
     isPastDeadline,
   };
 }

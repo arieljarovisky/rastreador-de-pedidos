@@ -549,7 +549,6 @@ export default function MarketplaceIntegrations({
         setMessageTone('error');
         setMessage('No se importó el pedido.');
       }
-      await refreshMl();
     } catch (err: unknown) {
       setMessageTone('error');
       setMessage(err instanceof Error ? err.message : 'No se pudo importar');

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Clock,
   CheckCircle2,
@@ -13,11 +13,13 @@ import {
   Users,
   MapPin,
   ChevronRight,
+  ChevronLeft,
   Bike,
   Layers,
 } from 'lucide-react';
 import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
+import OperationalDatePicker from './OperationalDatePicker.tsx';
 import {
   computeDeliverySummaryFromOrders,
   formatMinutesUntilDeadline,
@@ -25,6 +27,10 @@ import {
   getDeliveredTodayOrders,
   getDeliveredLateTodayOrders,
   getOrderDeliveredAt,
+  getOperationalDateKey,
+  shiftOperationalDateKey,
+  formatOperationalDateLabel,
+  formatOperationalDateShort,
   DELIVERY_DEADLINE_HOUR,
   DELIVERY_TIMEZONE_LABEL,
   formatArTime,
@@ -47,19 +53,36 @@ export default function OperationsDashboard({
   onSelectOrder,
   onGoToOperations,
 }: OperationsDashboardProps) {
-  const summary = useMemo(() => computeDeliverySummaryFromOrders(orders), [orders]);
-  const undelivered = useMemo(() => getUndeliveredTodayOrders(orders), [orders]);
-  const delivered = useMemo(() => getDeliveredTodayOrders(orders), [orders]);
-  const deliveredLate = useMemo(() => getDeliveredLateTodayOrders(orders), [orders]);
+  const todayKey = getOperationalDateKey();
+  const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
+  const isToday = selectedDateKey === todayKey;
+  const canGoForward = selectedDateKey < todayKey;
+
+  const summary = useMemo(
+    () => computeDeliverySummaryFromOrders(orders, selectedDateKey),
+    [orders, selectedDateKey]
+  );
+  const undelivered = useMemo(
+    () => getUndeliveredTodayOrders(orders, selectedDateKey),
+    [orders, selectedDateKey]
+  );
+  const delivered = useMemo(
+    () => getDeliveredTodayOrders(orders, selectedDateKey),
+    [orders, selectedDateKey]
+  );
+  const deliveredLate = useMemo(
+    () => getDeliveredLateTodayOrders(orders, selectedDateKey),
+    [orders, selectedDateKey]
+  );
 
   const statusBreakdown = useMemo(() => {
-    const undeliveredToday = getUndeliveredTodayOrders(orders);
+    const undeliveredToday = getUndeliveredTodayOrders(orders, selectedDateKey);
     return {
       pending: undeliveredToday.filter((o) => o.status === OrderStatus.PENDING).length,
       assigned: undeliveredToday.filter((o) => o.status === OrderStatus.ASSIGNED).length,
       delivering: undeliveredToday.filter((o) => o.status === OrderStatus.DELIVERING).length,
     };
-  }, [orders]);
+  }, [orders, selectedDateKey]);
 
   const sellerBreakdown = useMemo(() => {
     if (!isAgencyAdmin(userRole)) return [];
@@ -67,8 +90,8 @@ export default function OperationsDashboard({
     for (const order of orders) {
       if (!order.sellerId) continue;
       const isUndelivered =
-        getUndeliveredTodayOrders([order]).length > 0;
-      const isDelivered = getDeliveredTodayOrders([order]).length > 0;
+        getUndeliveredTodayOrders([order], selectedDateKey).length > 0;
+      const isDelivered = getDeliveredTodayOrders([order], selectedDateKey).length > 0;
       if (!isUndelivered && !isDelivered) continue;
       const entry = map.get(order.sellerId) ?? {
         name: order.sellerName ?? 'Sin nombre',
@@ -80,7 +103,7 @@ export default function OperationsDashboard({
       map.set(order.sellerId, entry);
     }
     return [...map.values()].sort((a, b) => b.undelivered - a.undelivered);
-  }, [orders, userRole]);
+  }, [orders, userRole, selectedDateKey]);
 
   const enRouteCount = repartidores.filter((r) => r.currentLocation).length;
   const progressPct =
@@ -94,26 +117,78 @@ export default function OperationsDashboard({
         : 'ok';
 
   const isAgency = isAgencyAdmin(userRole);
+  const dateLabel = formatOperationalDateLabel(selectedDateKey);
+  const dayScopeLabel = isToday ? 'hoy' : formatOperationalDateShort(selectedDateKey);
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden posta-surface" id="operations-dashboard">
       <div className="shrink-0 p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               {isAgency ? 'Posta Agencia' : 'Posta Envios'} · Panel del día
             </p>
             <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5">
               Control de entregas
             </h1>
-            <p className="text-[11px] text-[var(--color-text-muted)] mt-1 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" />
-              Corte {DELIVERY_DEADLINE_HOUR}:00 hs ({DELIVERY_TIMEZONE_LABEL}) ·{' '}
-              {summary.isPastDeadline
-                ? 'vencido'
-                : formatMinutesUntilDeadline(summary.minutesUntilDeadline)}
-              {' · ahora '}
-              {formatArTime()} hs
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, -1))}
+                className="p-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 transition shrink-0"
+                aria-label="Día anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="min-w-0">
+                <p className="text-sm font-display font-bold text-[var(--ink-soft)] leading-tight">
+                  {dateLabel}
+                </p>
+                <p className="text-[10px] font-mono text-[var(--color-text-muted)] truncate">
+                  {formatOperationalDateShort(selectedDateKey)}
+                </p>
+              </div>
+              <OperationalDatePicker
+                value={selectedDateKey}
+                maxDateKey={todayKey}
+                onChange={setSelectedDateKey}
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
+                disabled={!canGoForward}
+                className="p-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 transition shrink-0 disabled:opacity-30 disabled:pointer-events-none"
+                aria-label="Día siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              {!isToday && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDateKey(todayKey)}
+                  className="shrink-0 px-2 py-1 rounded border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 transition"
+                >
+                  Hoy
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-2 flex items-center gap-1.5 flex-wrap">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                Corte {DELIVERY_DEADLINE_HOUR}:00 hs ({DELIVERY_TIMEZONE_LABEL})
+                {isToday ? (
+                  <>
+                    {' · '}
+                    {summary.isPastDeadline
+                      ? 'vencido'
+                      : formatMinutesUntilDeadline(summary.minutesUntilDeadline)}
+                    {' · ahora '}
+                    {formatArTime()} hs
+                  </>
+                ) : (
+                  <> · día cerrado</>
+                )}
+              </span>
             </p>
           </div>
           {onGoToOperations && (
@@ -167,19 +242,27 @@ export default function OperationsDashboard({
       <div className="flex-1 min-h-0 flex flex-col gap-4 p-3 sm:p-4 overflow-y-auto lg:overflow-hidden">
         <div className="grid lg:grid-cols-3 gap-4 lg:flex-1 lg:min-h-0 items-stretch">
           <OrderListSection
-            title="Sin entregar hoy"
+            title={isToday ? 'Sin entregar hoy' : 'Sin entregar'}
             count={undelivered.length}
             orders={undelivered}
-            emptyMessage="Todos los pedidos del día fueron entregados."
+            emptyMessage={
+              isToday
+                ? 'Todos los pedidos del día fueron entregados.'
+                : `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
+            }
             tone="warn"
             onSelectOrder={onSelectOrder}
             showSeller={isAgency}
           />
           <OrderListSection
-            title="Entregados hoy"
+            title={isToday ? 'Entregados hoy' : 'Entregados'}
             count={delivered.length}
             orders={delivered}
-            emptyMessage="Todavía no hay entregas registradas hoy."
+            emptyMessage={
+              isToday
+                ? 'Todavía no hay entregas registradas hoy.'
+                : `No hubo entregas registradas el ${dayScopeLabel}.`
+            }
             tone="ok"
             onSelectOrder={onSelectOrder}
             showSeller={isAgency}
@@ -188,7 +271,11 @@ export default function OperationsDashboard({
             title="Entregados fuera de plazo"
             count={deliveredLate.length}
             orders={deliveredLate}
-            emptyMessage="Ningún pedido entregado después del corte de las 21:00."
+            emptyMessage={
+              isToday
+                ? 'Ningún pedido entregado después del corte de las 21:00.'
+                : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
+            }
             tone="danger"
             onSelectOrder={onSelectOrder}
             showSeller={isAgency}
