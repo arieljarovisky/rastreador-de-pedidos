@@ -181,12 +181,6 @@ router.delete('/:id', authenticate, requireAgencyAdmin(), async (req: Request, r
       });
       return;
     }
-    if (message === 'LEGACY_ZONE_PROTECTED') {
-      res.status(400).json({
-        error: 'Las zonas base de repartidores (Centro, Norte, Sur, Oeste) no se pueden eliminar.',
-      });
-      return;
-    }
     throw err;
   }
 });

@@ -1240,11 +1240,6 @@ export default function SettingsPage({
             />
             <p className="text-[9px] text-[var(--color-text-muted)] leading-relaxed -mt-1 mb-2">
               Creá zonas con los barrios que cada repartidor cubre. No afectan el precio del envío.
-              {repartidorZonesList.some((z) => isLegacyZoneId(z.id)) ? (
-                <span className="block mt-1">
-                  Las zonas base (Centro, Norte, Sur, Oeste) no se pueden eliminar mientras tengan repartidores.
-                </span>
-              ) : null}
             </p>
 
             {repartidorZonesList.length > 0 && !showZoneForm && (

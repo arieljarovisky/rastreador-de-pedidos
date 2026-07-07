@@ -254,12 +254,10 @@ export async function ensureCordonZonesForAgency(agencyId: string): Promise<void
     const legacy = await getZoneById(agencyId, legacyId);
     if (!legacy) continue;
 
-    const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
-      `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
+    await pool.query(
+      `UPDATE users SET delivery_zone = NULL WHERE agency_id = ? AND delivery_zone = ?`,
       [agencyId, legacyId]
     );
-    if (Number(usage[0]?.cnt ?? 0) > 0) continue;
-
     await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [legacyId, agencyId]);
   }
 
@@ -417,7 +415,12 @@ export async function deleteZone(agencyId: string, zoneId: string): Promise<void
   if (!existing) throw new Error('NOT_FOUND');
 
   if (isLegacyZoneId(zoneId)) {
-    throw new Error('LEGACY_ZONE_PROTECTED');
+    await pool.query(
+      `UPDATE users SET delivery_zone = NULL WHERE agency_id = ? AND delivery_zone = ?`,
+      [agencyId, zoneId]
+    );
+    await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [zoneId, agencyId]);
+    return;
   }
 
   if (isPricingZoneId(zoneId)) {
