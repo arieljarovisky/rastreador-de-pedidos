@@ -222,6 +222,22 @@ export async function ensureCordonZonesForAgency(agencyId: string): Promise<void
 
     await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [legacyId, agencyId]);
   }
+
+  // Zonas custom sin barrios (rectángulos viejos del preset anterior)
+  const [legacyBounds] = await pool.query<DeliveryZoneRow[]>(
+    `SELECT ${ZONE_SELECT} FROM delivery_zones
+     WHERE agency_id = ? AND (barrios IS NULL OR barrios = '[]' OR barrios = 'null')
+       AND id NOT IN (?, ?, ?, ?)`,
+    [agencyId, 'zona_caba', 'zona_cordon_1', 'zona_cordon_2', 'zona_cordon_3']
+  );
+  for (const row of legacyBounds) {
+    const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
+      `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
+      [agencyId, row.id]
+    );
+    if (Number(usage[0]?.cnt ?? 0) > 0) continue;
+    await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [row.id, agencyId]);
+  }
 }
 
 export async function createZone(

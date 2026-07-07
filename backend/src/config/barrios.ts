@@ -90,8 +90,8 @@ export const BARRIOS: Barrio[] = [
   { id: 'jose_c_paz', name: 'José C. Paz', area: 'GBA', south: -34.540, west: -58.780, north: -34.480, east: -58.720 },
   { id: 'san_miguel', name: 'San Miguel', area: 'GBA', south: -34.560, west: -58.720, north: -34.520, east: -58.660 },
   { id: 'almirante_brown', name: 'Almirante Brown', area: 'GBA', south: -34.820, west: -58.420, north: -34.760, east: -58.360 },
-  { id: 'la_matanza_norte', name: 'La Matanza Norte', area: 'GBA', south: -34.740, west: -58.650, north: -34.700, east: -58.580 },
-  { id: 'la_matanza_sur', name: 'La Matanza Sur', area: 'GBA', south: -34.780, west: -58.650, north: -34.740, east: -58.580 },
+  { id: 'la_matanza_norte', name: 'La Matanza Norte', area: 'GBA', south: -34.740, west: -58.720, north: -34.675, east: -58.480 },
+  { id: 'la_matanza_sur', name: 'La Matanza Sur', area: 'GBA', south: -34.870, west: -58.720, north: -34.740, east: -58.480 },
   // GBA — Cordón 3
   { id: 'zarate', name: 'Zárate', area: 'GBA', south: -34.120, west: -59.050, north: -34.040, east: -58.920 },
   { id: 'campana', name: 'Campana', area: 'GBA', south: -34.220, west: -58.980, north: -34.140, east: -58.880 },

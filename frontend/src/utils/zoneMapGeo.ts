@@ -169,11 +169,21 @@ export function collectZoneGeoFeatures(
   const unique = new Map<string, Feature>();
 
   const barrioIds = zone.barrios ?? [];
+
+  const allCaba =
+    barrioIds.length > 0 && barrioIds.every((id) => catalog.get(id)?.area === 'CABA');
+  if (allCaba) {
+    for (const feature of comunaFeatures) {
+      unique.set(featureKey(feature), feature);
+    }
+    return Array.from(unique.values());
+  }
+
   for (const barrioId of barrioIds) {
     const barrio = catalog.get(barrioId);
     if (!barrio) continue;
-    const feature = resolveBarrioGeoFeature(barrio);
-    if (!feature) continue;
+    let feature = resolveBarrioGeoFeature(barrio);
+    if (!feature) feature = barrioBoundsFeature(barrio);
     const key = BOUNDS_ONLY_BARRIOS.has(barrioId) ? `bounds:${barrioId}` : featureKey(feature);
     unique.set(key, feature);
   }
