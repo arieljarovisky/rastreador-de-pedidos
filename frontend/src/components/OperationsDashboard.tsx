@@ -11,7 +11,6 @@ import {
   Package,
   Truck,
   Users,
-  MapPin,
   ChevronRight,
   Bike,
   Layers,
@@ -103,7 +102,6 @@ export default function OperationsDashboard({
     return [...map.values()].sort((a, b) => b.undelivered - a.undelivered);
   }, [orders, userRole, selectedDateKey]);
 
-  const enRouteCount = repartidores.filter((r) => r.currentLocation).length;
   const progressPct =
     summary.total > 0 ? Math.round((summary.delivered / summary.total) * 100) : 0;
 
@@ -185,9 +183,6 @@ export default function OperationsDashboard({
           />
           <KpiCard label="En ruta" value={statusBreakdown.delivering} tone="warn" icon={Truck} />
           <KpiCard label="Pendientes" value={statusBreakdown.pending + statusBreakdown.assigned} tone="neutral" icon={Package} />
-          {isAgency && (
-            <KpiCard label="Repartidores GPS" value={enRouteCount} sub={`/${repartidores.length}`} tone="accent" icon={MapPin} />
-          )}
         </div>
 
         {summary.total > 0 && (
