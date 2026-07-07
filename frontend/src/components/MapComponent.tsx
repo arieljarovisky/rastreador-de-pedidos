@@ -27,6 +27,38 @@ const MAP_SVG = {
   warn: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`,
 } as const;
 
+const MAP_STATUS_LABELS: Record<OrderStatus, string> = {
+  [OrderStatus.PENDING]: 'PENDIENTE',
+  [OrderStatus.ASSIGNED]: 'ASIGNADO',
+  [OrderStatus.DELIVERING]: 'EN VIAJE',
+  [OrderStatus.DELIVERED]: 'ENTREGADO',
+  [OrderStatus.CANCELLED]: 'CANCELADO',
+};
+
+function isActiveDeliveryStatus(status: OrderStatus): boolean {
+  return status === OrderStatus.ASSIGNED || status === OrderStatus.DELIVERING;
+}
+
+function getOrderStatusColor(order: Order, statusColors: ReturnType<typeof getPostaStatusColors>): {
+  color: string;
+  label: string;
+  glow: boolean;
+} {
+  if (order.status === OrderStatus.ASSIGNED) {
+    return { color: statusColors.assigned, label: 'A', glow: false };
+  }
+  if (order.status === OrderStatus.DELIVERING) {
+    return { color: statusColors.delivering, label: 'E', glow: true };
+  }
+  if (order.status === OrderStatus.DELIVERED) {
+    return { color: statusColors.delivered, label: '✓', glow: false };
+  }
+  if (order.status === OrderStatus.CANCELLED) {
+    return { color: statusColors.cancelled, label: '✕', glow: false };
+  }
+  return { color: statusColors.pending, label: 'P', glow: false };
+}
+
 function getRepartidorPosition(
   order: Order,
   repartidores: User[],
@@ -38,7 +70,9 @@ function getRepartidorPosition(
       r.username === order.repartidorId ||
       repartidorIdentityMatches(r, order.repartidorId ?? '')
   );
-  if (liveLocation) return [liveLocation.lat, liveLocation.lng];
+  if (liveLocation && isActiveDeliveryStatus(order.status)) {
+    return [liveLocation.lat, liveLocation.lng];
+  }
   if (rep?.currentLocation) return [rep.currentLocation.lat, rep.currentLocation.lng];
   if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 0) {
     const last = order.locationHistory[order.locationHistory.length - 1];
@@ -429,28 +463,11 @@ export default function MapComponent({
 
     orders.forEach((order) => {
       const isSelected = order.id === activeOrderId;
+      const statusStyle = getOrderStatusColor(order, statusColors);
+      let { color, label, glow } = statusStyle;
+      const badgeColor = statusStyle.color;
 
-      // Color según estado del pedido
-      let color: string = statusColors.pending;
-      let label = 'P';
-      let glow = false;
-
-      if (order.status === OrderStatus.ASSIGNED) {
-        color = statusColors.assigned;
-        label = 'A';
-      } else if (order.status === OrderStatus.DELIVERING) {
-        color = statusColors.delivering;
-        label = 'E';
-        glow = true;
-      } else if (order.status === OrderStatus.DELIVERED) {
-        color = statusColors.delivered;
-        label = '✓';
-      } else if (order.status === OrderStatus.CANCELLED) {
-        color = statusColors.cancelled;
-        label = '✕';
-      }
-
-      if (isSelected) {
+      if (isSelected && isActiveDeliveryStatus(order.status)) {
         color = mapColors.destination;
         glow = true;
       }
@@ -460,8 +477,8 @@ export default function MapComponent({
             <div class="font-sans p-1 text-[11px] max-w-[200px]" style="color:var(--text)">
               <div class="flex items-center gap-1 font-bold border-b pb-1 mb-1" style="color:var(--text-muted);border-color:var(--line)">
                 <span>${MAP_SVG.package} ${order.id}</span>
-                <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] text-white font-bold uppercase tracking-wider font-mono" style="background-color:${color}">
-                  ${order.status.toUpperCase()}
+                <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] text-white font-bold uppercase tracking-wider font-mono" style="background-color:${badgeColor}">
+                  ${MAP_STATUS_LABELS[order.status]}
                 </span>
               </div>
               <p class="font-bold mt-1" style="color:var(--text)">${order.clientName}</p>
@@ -553,7 +570,7 @@ export default function MapComponent({
 
     let fleetRepartidores = dedupeRepartidores(repartidores);
 
-    if (liveRepartidorLocation && activeOrder?.repartidorId) {
+    if (liveRepartidorLocation && activeOrder?.repartidorId && isActiveDeliveryStatus(activeOrder.status)) {
       fleetRepartidores = fleetRepartidores.map((rep) =>
         repartidorIdentityMatches(rep, activeOrder.repartidorId!)
           ? {
@@ -720,7 +737,7 @@ export default function MapComponent({
     const repPos = getRepartidorPosition(activeOrder, repartidoresRef.current, liveRepartidorLocation);
     const dest: [number, number] = [activeOrder.lat, activeOrder.lng];
 
-    if (repPos) {
+    if (repPos && isActiveDeliveryStatus(activeOrder.status)) {
       map.fitBounds(L.latLngBounds([repPos, dest]), { padding: [50, 50], animate: true });
     } else if (
       activeOrder.status === OrderStatus.ASSIGNED &&
