@@ -98,6 +98,15 @@ export function formatOperationalDateShort(dateKey: string): string {
   }).format(arLocalToUtc(year, month, day, 12));
 }
 
+export function formatOperationalWeekday(dateKey: string): string {
+  const { year, month, day } = parseOperationalDateKey(dateKey);
+  const label = new Intl.DateTimeFormat('es-AR', {
+    timeZone: DELIVERY_TIMEZONE,
+    weekday: 'long',
+  }).format(arLocalToUtc(year, month, day, 12));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export function toOperationalDateKey(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }

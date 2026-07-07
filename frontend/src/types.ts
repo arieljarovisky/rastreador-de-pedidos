@@ -202,3 +202,44 @@ export interface AppNotification {
     | 'deadline_missed';
   orderId?: string;
 }
+
+export interface AgencyShippingRates {
+  flex: number;
+  express: number;
+  standard: number;
+  currency: 'ARS';
+}
+
+export interface BillingLedgerEntry {
+  id: string;
+  agencyId: string;
+  sellerId: string;
+  sellerName: string | null;
+  orderId: string | null;
+  entryType: 'charge' | 'payment' | 'adjustment';
+  amount: number;
+  description: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface BillingSummary {
+  currency: 'ARS';
+  dateFrom: string;
+  dateTo: string;
+  sellerId: string | null;
+  sellerName: string | null;
+  totalSpent: number;
+  totalPaid: number;
+  balance: number;
+  chargedShipments: number;
+  rates: AgencyShippingRates;
+  byShippingType: Array<{ shippingType: string; count: number; amount: number }>;
+  sellers?: Array<{
+    sellerId: string;
+    sellerName: string;
+    totalSpent: number;
+    balance: number;
+    chargedShipments: number;
+  }>;
+}

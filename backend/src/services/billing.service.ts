@@ -1,0 +1,397 @@
+import { randomUUID } from 'crypto';
+import { RowDataPacket } from 'mysql2';
+import { pool } from '../config/database.js';
+import { Order, OrderStatus, User, UserRole } from '../types/index.js';
+import { isAgencyAdmin } from '../utils/roles.js';
+import { getOrderById } from './orders.service.js';
+
+export interface AgencyShippingRates {
+  flex: number;
+  express: number;
+  standard: number;
+  currency: 'ARS';
+}
+
+export interface BillingLedgerEntry {
+  id: string;
+  agencyId: string;
+  sellerId: string;
+  sellerName: string | null;
+  orderId: string | null;
+  entryType: 'charge' | 'payment' | 'adjustment';
+  amount: number;
+  description: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface BillingSummary {
+  currency: 'ARS';
+  dateFrom: string;
+  dateTo: string;
+  sellerId: string | null;
+  sellerName: string | null;
+  totalSpent: number;
+  totalPaid: number;
+  balance: number;
+  chargedShipments: number;
+  rates: AgencyShippingRates;
+  byShippingType: Array<{ shippingType: string; count: number; amount: number }>;
+  sellers?: Array<{
+    sellerId: string;
+    sellerName: string;
+    totalSpent: number;
+    balance: number;
+    chargedShipments: number;
+  }>;
+}
+
+const DEFAULT_RATES: AgencyShippingRates = {
+  flex: 2800,
+  express: 3200,
+  standard: 2500,
+  currency: 'ARS',
+};
+
+interface AgencyRateRow extends RowDataPacket {
+  shipping_rate_flex: string | null;
+  shipping_rate_express: string | null;
+  shipping_rate_standard: string | null;
+}
+
+function toMoney(value: string | number | null | undefined): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+
+function resolveRateForOrder(rates: AgencyShippingRates, shippingType: string | null | undefined): number {
+  if (shippingType === 'flex') return rates.flex;
+  if (shippingType === 'express') return rates.express;
+  return rates.standard;
+}
+
+function shippingTypeLabel(shippingType: string | null | undefined): string {
+  if (shippingType === 'flex') return 'Flex';
+  if (shippingType === 'express') return 'Express';
+  return 'Estándar';
+}
+
+export async function getAgencyShippingRates(agencyId: string): Promise<AgencyShippingRates> {
+  const [rows] = await pool.query<AgencyRateRow[]>(
+    `SELECT shipping_rate_flex, shipping_rate_express, shipping_rate_standard
+     FROM agencies WHERE id = ? LIMIT 1`,
+    [agencyId]
+  );
+  const row = rows[0];
+  if (!row) return { ...DEFAULT_RATES };
+  return {
+    flex: toMoney(row.shipping_rate_flex ?? DEFAULT_RATES.flex),
+    express: toMoney(row.shipping_rate_express ?? DEFAULT_RATES.express),
+    standard: toMoney(row.shipping_rate_standard ?? DEFAULT_RATES.standard),
+    currency: 'ARS',
+  };
+}
+
+export async function updateAgencyShippingRates(
+  user: User,
+  rates: Partial<AgencyShippingRates>
+): Promise<AgencyShippingRates> {
+  if (!isAgencyAdmin(user.role) || !user.agencyId) {
+    throw new Error('FORBIDDEN');
+  }
+  const current = await getAgencyShippingRates(user.agencyId);
+  const next = {
+    flex: rates.flex ?? current.flex,
+    express: rates.express ?? current.express,
+    standard: rates.standard ?? current.standard,
+  };
+  await pool.query(
+    `UPDATE agencies
+     SET shipping_rate_flex = ?, shipping_rate_express = ?, shipping_rate_standard = ?
+     WHERE id = ?`,
+    [next.flex, next.express, next.standard, user.agencyId]
+  );
+  return { ...next, currency: 'ARS' };
+}
+
+export async function chargeOrderOnDelivery(order: Order): Promise<boolean> {
+  if (order.status !== OrderStatus.DELIVERED) return false;
+  if (!order.sellerId || !order.agencyId) return false;
+
+  const [existing] = await pool.query<Array<{ billed_at: Date | null } & RowDataPacket>>(
+    'SELECT billed_at FROM orders WHERE id = ? LIMIT 1',
+    [order.id]
+  );
+  if (existing[0]?.billed_at) return false;
+
+  const rates = await getAgencyShippingRates(order.agencyId);
+  const amount = resolveRateForOrder(rates, order.shippingType);
+  const now = new Date();
+  const entryId = randomUUID();
+  const label = shippingTypeLabel(order.shippingType);
+  const description = `Envío ${order.id} · ${label} · ${order.clientName}`;
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query(
+      `INSERT INTO billing_ledger_entries
+        (id, agency_id, seller_id, order_id, entry_type, amount, description, created_by, created_at)
+       VALUES (?, ?, ?, ?, 'charge', ?, ?, 'Sistema', ?)`,
+      [entryId, order.agencyId, order.sellerId, order.id, amount, description, now]
+    );
+    await conn.query(
+      'UPDATE orders SET shipping_cost = ?, billed_at = ? WHERE id = ? AND billed_at IS NULL',
+      [amount, now, order.id]
+    );
+    await conn.commit();
+    return true;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+async function backfillDeliveredCharges(limit = 40): Promise<void> {
+  const [rows] = await pool.query<
+    Array<{ id: string } & RowDataPacket>
+  >(
+    `SELECT id FROM orders
+     WHERE status = 'delivered' AND billed_at IS NULL AND seller_id IS NOT NULL AND agency_id IS NOT NULL
+     ORDER BY updated_at DESC
+     LIMIT ?`,
+    [limit]
+  );
+  for (const row of rows) {
+    const order = await getOrderById(row.id);
+    if (order) await chargeOrderOnDelivery(order);
+  }
+}
+
+function resolveSellerScope(
+  user: User,
+  sellerId?: string | null
+): { agencyId: string; sellerId: string | null } {
+  if (user.role === UserRole.STORE_ADMIN) {
+    if (!user.agencyId) throw new Error('NO_AGENCY');
+    return { agencyId: user.agencyId, sellerId: user.id };
+  }
+  if (!isAgencyAdmin(user.role) || !user.agencyId) throw new Error('FORBIDDEN');
+  return { agencyId: user.agencyId, sellerId: sellerId ?? null };
+}
+
+async function getSellerName(sellerId: string | null): Promise<string | null> {
+  if (!sellerId) return null;
+  const [rows] = await pool.query<Array<{ name: string } & RowDataPacket>>(
+    'SELECT name FROM users WHERE id = ? LIMIT 1',
+    [sellerId]
+  );
+  return rows[0]?.name ?? null;
+}
+
+export async function getBillingSummary(
+  user: User,
+  options: { dateFrom: string; dateTo: string; sellerId?: string | null }
+): Promise<BillingSummary> {
+  await backfillDeliveredCharges();
+  const scope = resolveSellerScope(user, options.sellerId);
+  const rates = await getAgencyShippingRates(scope.agencyId);
+  const sellerName = await getSellerName(scope.sellerId);
+
+  const params: Array<string> = [scope.agencyId, `${options.dateFrom} 00:00:00`, `${options.dateTo} 23:59:59.999`];
+  let sellerFilter = '';
+  if (scope.sellerId) {
+    sellerFilter = ' AND seller_id = ?';
+    params.push(scope.sellerId);
+  }
+
+  const [spentRows] = await pool.query<
+    Array<{ total: string | null; count: string | null } & RowDataPacket>
+  >(
+    `SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
+     FROM billing_ledger_entries
+     WHERE agency_id = ? AND entry_type = 'charge'
+       AND created_at >= ? AND created_at <= ?${sellerFilter}`,
+    params
+  );
+
+  const [paidRows] = await pool.query<Array<{ total: string | null } & RowDataPacket>>(
+    `SELECT COALESCE(SUM(amount), 0) AS total
+     FROM billing_ledger_entries
+     WHERE agency_id = ? AND entry_type = 'payment'
+       AND created_at >= ? AND created_at <= ?${sellerFilter}`,
+    params
+  );
+
+  const balanceParams: Array<string> = [scope.agencyId];
+  let balanceSellerFilter = '';
+  if (scope.sellerId) {
+    balanceSellerFilter = ' AND seller_id = ?';
+    balanceParams.push(scope.sellerId);
+  }
+  const [balanceRows] = await pool.query<Array<{ balance: string | null } & RowDataPacket>>(
+    `SELECT COALESCE(SUM(CASE entry_type
+       WHEN 'charge' THEN amount
+       WHEN 'payment' THEN -amount
+       WHEN 'adjustment' THEN amount
+       ELSE 0 END), 0) AS balance
+     FROM billing_ledger_entries
+     WHERE agency_id = ?${balanceSellerFilter}`,
+    balanceParams
+  );
+
+  const [byTypeRows] = await pool.query<
+    Array<{ shipping_type: string | null; count: string; amount: string } & RowDataPacket>
+  >(
+    `SELECT COALESCE(o.shipping_type, 'standard') AS shipping_type,
+            COUNT(*) AS count,
+            COALESCE(SUM(b.amount), 0) AS amount
+     FROM billing_ledger_entries b
+     INNER JOIN orders o ON o.id = b.order_id
+     WHERE b.agency_id = ? AND b.entry_type = 'charge'
+       AND b.created_at >= ? AND b.created_at <= ?${sellerFilter}
+     GROUP BY COALESCE(o.shipping_type, 'standard')
+     ORDER BY amount DESC`,
+    params
+  );
+
+  let sellers: BillingSummary['sellers'];
+  if (!scope.sellerId && isAgencyAdmin(user.role)) {
+    const [sellerRows] = await pool.query<
+      Array<{ seller_id: string; seller_name: string; total_spent: string; balance: string; shipments: string } & RowDataPacket>
+    >(
+      `SELECT b.seller_id,
+              u.name AS seller_name,
+              COALESCE(SUM(CASE WHEN b.entry_type = 'charge' AND b.created_at >= ? AND b.created_at <= ? THEN b.amount ELSE 0 END), 0) AS total_spent,
+              COALESCE(SUM(CASE b.entry_type WHEN 'charge' THEN b.amount WHEN 'payment' THEN -b.amount WHEN 'adjustment' THEN b.amount ELSE 0 END), 0) AS balance,
+              COALESCE(SUM(CASE WHEN b.entry_type = 'charge' AND b.created_at >= ? AND b.created_at <= ? THEN 1 ELSE 0 END), 0) AS shipments
+       FROM billing_ledger_entries b
+       INNER JOIN users u ON u.id = b.seller_id
+       WHERE b.agency_id = ?
+       GROUP BY b.seller_id, u.name
+       HAVING total_spent > 0 OR balance > 0
+       ORDER BY total_spent DESC, balance DESC`,
+      [`${options.dateFrom} 00:00:00`, `${options.dateTo} 23:59:59.999`, `${options.dateFrom} 00:00:00`, `${options.dateTo} 23:59:59.999`, scope.agencyId]
+    );
+    sellers = sellerRows.map((row) => ({
+      sellerId: row.seller_id,
+      sellerName: row.seller_name,
+      totalSpent: toMoney(row.total_spent),
+      balance: toMoney(row.balance),
+      chargedShipments: Number(row.shipments),
+    }));
+  }
+
+  return {
+    currency: 'ARS',
+    dateFrom: options.dateFrom,
+    dateTo: options.dateTo,
+    sellerId: scope.sellerId,
+    sellerName,
+    totalSpent: toMoney(spentRows[0]?.total),
+    totalPaid: toMoney(paidRows[0]?.total),
+    balance: toMoney(balanceRows[0]?.balance),
+    chargedShipments: Number(spentRows[0]?.count ?? 0),
+    rates,
+    byShippingType: byTypeRows.map((row) => ({
+      shippingType: row.shipping_type ?? 'standard',
+      count: Number(row.count),
+      amount: toMoney(row.amount),
+    })),
+    sellers,
+  };
+}
+
+export async function listBillingLedger(
+  user: User,
+  options: { dateFrom: string; dateTo: string; sellerId?: string | null; limit?: number; offset?: number }
+): Promise<BillingLedgerEntry[]> {
+  const scope = resolveSellerScope(user, options.sellerId);
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+  const offset = Math.max(options.offset ?? 0, 0);
+
+  const params: Array<string | number> = [
+    scope.agencyId,
+    `${options.dateFrom} 00:00:00`,
+    `${options.dateTo} 23:59:59.999`,
+  ];
+  let sellerFilter = '';
+  if (scope.sellerId) {
+    sellerFilter = ' AND b.seller_id = ?';
+    params.push(scope.sellerId);
+  }
+  params.push(limit, offset);
+
+  const [rows] = await pool.query<
+    Array<{
+      id: string;
+      agency_id: string;
+      seller_id: string;
+      seller_name: string | null;
+      order_id: string | null;
+      entry_type: 'charge' | 'payment' | 'adjustment';
+      amount: string;
+      description: string;
+      created_by: string | null;
+      created_at: Date;
+    } & RowDataPacket>
+  >(
+    `SELECT b.id, b.agency_id, b.seller_id, u.name AS seller_name, b.order_id,
+            b.entry_type, b.amount, b.description, b.created_by, b.created_at
+     FROM billing_ledger_entries b
+     LEFT JOIN users u ON u.id = b.seller_id
+     WHERE b.agency_id = ?
+       AND b.created_at >= ? AND b.created_at <= ?${sellerFilter}
+     ORDER BY b.created_at DESC
+     LIMIT ? OFFSET ?`,
+    params
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    agencyId: row.agency_id,
+    sellerId: row.seller_id,
+    sellerName: row.seller_name,
+    orderId: row.order_id,
+    entryType: row.entry_type,
+    amount: toMoney(row.amount),
+    description: row.description,
+    createdBy: row.created_by,
+    createdAt: new Date(row.created_at).toISOString(),
+  }));
+}
+
+export async function recordBillingPayment(
+  user: User,
+  options: { sellerId: string; amount: number; description?: string }
+): Promise<BillingLedgerEntry> {
+  if (!isAgencyAdmin(user.role) || !user.agencyId) throw new Error('FORBIDDEN');
+  if (!options.sellerId || options.amount <= 0) throw new Error('INVALID_PAYMENT');
+
+  const [sellerRows] = await pool.query<Array<{ agency_id: string } & RowDataPacket>>(
+    'SELECT agency_id FROM users WHERE id = ? AND role = ? LIMIT 1',
+    [options.sellerId, UserRole.STORE_ADMIN]
+  );
+  const seller = sellerRows[0];
+  if (!seller || seller.agency_id !== user.agencyId) throw new Error('SELLER_NOT_FOUND');
+
+  const now = new Date();
+  const id = randomUUID();
+  const description = options.description?.trim() || 'Pago registrado por la agencia';
+  await pool.query(
+    `INSERT INTO billing_ledger_entries
+      (id, agency_id, seller_id, order_id, entry_type, amount, description, created_by, created_at)
+     VALUES (?, ?, ?, NULL, 'payment', ?, ?, ?, ?)`,
+    [id, user.agencyId, options.sellerId, options.amount, description, user.name, now]
+  );
+
+  const entries = await listBillingLedger(user, {
+    dateFrom: '1970-01-01',
+    dateTo: '2099-12-31',
+    sellerId: options.sellerId,
+    limit: 1,
+  });
+  return entries[0]!;
+}

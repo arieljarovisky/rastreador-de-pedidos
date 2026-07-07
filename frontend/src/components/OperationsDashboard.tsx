@@ -13,7 +13,6 @@ import {
   Users,
   MapPin,
   ChevronRight,
-  ChevronLeft,
   Bike,
   Layers,
 } from 'lucide-react';
@@ -29,7 +28,6 @@ import {
   getOrderDeliveredAt,
   getOperationalDateKey,
   shiftOperationalDateKey,
-  formatOperationalDateLabel,
   formatOperationalDateShort,
   DELIVERY_DEADLINE_HOUR,
   DELIVERY_TIMEZONE_LABEL,
@@ -117,7 +115,6 @@ export default function OperationsDashboard({
         : 'ok';
 
   const isAgency = isAgencyAdmin(userRole);
-  const dateLabel = formatOperationalDateLabel(selectedDateKey);
   const dayScopeLabel = isToday ? 'hoy' : formatOperationalDateShort(selectedDateKey);
 
   return (
@@ -131,47 +128,17 @@ export default function OperationsDashboard({
             <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5">
               Control de entregas
             </h1>
-            <div className="flex items-center gap-2 mt-2">
-              <button
-                type="button"
-                onClick={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, -1))}
-                className="p-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 transition shrink-0"
-                aria-label="Día anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <div className="min-w-0">
-                <p className="text-sm font-display font-bold text-[var(--ink-soft)] leading-tight">
-                  {dateLabel}
-                </p>
-                <p className="text-[10px] font-mono text-[var(--color-text-muted)] truncate">
-                  {formatOperationalDateShort(selectedDateKey)}
-                </p>
-              </div>
-              <OperationalDatePicker
-                value={selectedDateKey}
-                maxDateKey={todayKey}
-                onChange={setSelectedDateKey}
-              />
-              <button
-                type="button"
-                onClick={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
-                disabled={!canGoForward}
-                className="p-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 transition shrink-0 disabled:opacity-30 disabled:pointer-events-none"
-                aria-label="Día siguiente"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              {!isToday && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedDateKey(todayKey)}
-                  className="shrink-0 px-2 py-1 rounded border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 transition"
-                >
-                  Hoy
-                </button>
-              )}
-            </div>
+            <OperationalDatePicker
+              layout="navigator"
+              value={selectedDateKey}
+              maxDateKey={todayKey}
+              isToday={isToday}
+              canGoNextDay={canGoForward}
+              onChange={setSelectedDateKey}
+              onPreviousDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, -1))}
+              onNextDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
+              onGoToday={() => setSelectedDateKey(todayKey)}
+            />
             <p className="text-[11px] text-[var(--color-text-muted)] mt-2 flex items-center gap-1.5 flex-wrap">
               <Clock className="w-3.5 h-3.5 shrink-0" />
               <span>

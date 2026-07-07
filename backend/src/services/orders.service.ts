@@ -496,7 +496,19 @@ export async function applyMercadoLibreSyncState(
     [orderId, options.status, 'Mercado Libre', options.comment, now]
   );
 
-  return getOrderById(orderId);
+  const updated = await getOrderById(orderId);
+  if (
+    updated &&
+    statusChanged &&
+    options.status === OrderStatus.DELIVERED
+  ) {
+    const { chargeOrderOnDelivery } = await import('./billing.service.js');
+    await chargeOrderOnDelivery(updated).catch((err) => {
+      console.warn('[billing] No se pudo facturar envío ML entregado:', err);
+    });
+  }
+
+  return updated;
 }
 
 export async function assignOrderToSeller(
@@ -619,6 +631,13 @@ export async function updateOrderStatus(
 
   const updated = await getOrderById(orderId);
   if (!updated) throw new Error('NOT_FOUND');
+
+  if (status === OrderStatus.DELIVERED) {
+    const { chargeOrderOnDelivery } = await import('./billing.service.js');
+    await chargeOrderOnDelivery(updated).catch((err) => {
+      console.warn('[billing] No se pudo facturar envío entregado:', err);
+    });
+  }
 
   return {
     ...updated,

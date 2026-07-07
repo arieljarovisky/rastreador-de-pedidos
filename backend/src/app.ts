@@ -18,6 +18,7 @@ import { isMercadoLibreConfigured } from './services/mercadolibre.service.js';
 import { isTiendaNubeConfigured } from './services/tiendanube.service.js';
 import deliveryZonesRoutes from './routes/delivery-zones.routes.js';
 import appRoutes from './routes/app.routes.js';
+import billingRoutes from './routes/billing.routes.js';
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/simulator', simulatorRoutes);
 app.use('/api/geocode', geocodeRoutes);
 app.use('/api/integrations', integrationsRoutes);
+app.use('/api/billing', billingRoutes);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const downloadsDir = path.join(__dirname, '..', 'downloads');

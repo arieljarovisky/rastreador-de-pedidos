@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS agencies (
   cuit VARCHAR(13) NULL,
   city VARCHAR(100) NULL,
   ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency',
+  shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00,
+  shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00,
+  shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00,
   departure_address VARCHAR(500) NULL,
   departure_lat DECIMAL(10, 7) NULL,
   departure_lng DECIMAL(10, 7) NULL,
@@ -66,6 +69,8 @@ CREATE TABLE IF NOT EXISTS orders (
   external_source VARCHAR(32) NULL,
   external_order_id VARCHAR(100) NULL,
   shipping_type VARCHAR(32) NULL,
+  shipping_cost DECIMAL(12,2) NULL,
+  billed_at DATETIME(3) NULL,
   client_name VARCHAR(255) NOT NULL,
   client_phone VARCHAR(50) NOT NULL DEFAULT '',
   address VARCHAR(500) NOT NULL,
@@ -172,4 +177,22 @@ CREATE TABLE IF NOT EXISTS push_tokens (
   UNIQUE KEY uk_push_token (expo_push_token),
   INDEX idx_push_user (user_id),
   CONSTRAINT fk_push_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS billing_ledger_entries (
+  id VARCHAR(36) PRIMARY KEY,
+  agency_id VARCHAR(36) NOT NULL,
+  seller_id VARCHAR(36) NOT NULL,
+  order_id VARCHAR(36) NULL,
+  entry_type ENUM('charge', 'payment', 'adjustment') NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  description VARCHAR(500) NOT NULL,
+  created_by VARCHAR(255) NULL,
+  created_at DATETIME(3) NOT NULL,
+  INDEX idx_billing_agency_date (agency_id, created_at),
+  INDEX idx_billing_seller_date (seller_id, created_at),
+  INDEX idx_billing_order (order_id),
+  CONSTRAINT fk_billing_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_billing_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_billing_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

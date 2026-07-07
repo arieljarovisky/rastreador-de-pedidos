@@ -10,10 +10,11 @@ import LoginScreen, { type AgencyRegisterData } from './components/LoginScreen.t
 import AdminDashboard from './components/AdminDashboard.tsx';
 import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
+import ShippingAccountPage from './components/ShippingAccountPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
-import { LogOut, Bell, Settings, LayoutDashboard, Map } from 'lucide-react';
+import { LogOut, Bell, Settings, LayoutDashboard, Map, Wallet } from 'lucide-react';
 import BootSplash from './components/ui/BootSplash.tsx';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
@@ -24,13 +25,13 @@ import { mergeRepartidorLocation, mergeRepartidoresFromServer, dedupeRepartidore
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 
-type AppTab = 'panel' | 'dashboard' | 'notifications' | 'settings';
+type AppTab = 'panel' | 'dashboard' | 'account' | 'notifications' | 'settings';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
 
 function readSavedTab(): AppTab {
   const saved = localStorage.getItem(ACTIVE_TAB_KEY);
-  if (saved === 'panel' || saved === 'dashboard' || saved === 'notifications' || saved === 'settings') {
+  if (saved === 'panel' || saved === 'dashboard' || saved === 'account' || saved === 'notifications' || saved === 'settings') {
     return saved;
   }
   // Compat: pestaña "Panel" antigua guardaba "dashboard"
@@ -1211,16 +1212,20 @@ export default function App() {
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
   const showSettings =
     user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false);
+  const showAccount = showSettings;
 
   useEffect(() => {
     if (!user) return;
     if (mobileTab === 'settings' && !showSettings) {
       setMobileTab('panel');
     }
+    if (mobileTab === 'account' && !showAccount) {
+      setMobileTab('panel');
+    }
     if (user.role === UserRole.REPARTIDOR && mobileTab === 'panel') {
       setMobileTab('dashboard');
     }
-  }, [user, mobileTab, showSettings, setMobileTab]);
+  }, [user, mobileTab, showSettings, showAccount, setMobileTab]);
 
   if (loading && !user) {
     return <BootSplash message="Sincronizando sistema" />;
@@ -1339,6 +1344,18 @@ export default function App() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setMobileTab('account')}
+                    title="Cuenta de envíos y gastos"
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                      mobileTab === 'account'
+                        ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
+                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                    }`}
+                  >
+                    <Wallet className="w-3.5 h-3.5" /> Cuenta
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setMobileTab('settings')}
                     title="Configuración"
                     className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
@@ -1417,6 +1434,17 @@ export default function App() {
               <Map className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
               <span>Mapa</span>
             </button>
+            <button
+              onClick={() => setMobileTab('account')}
+              className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+                mobileTab === 'account'
+                  ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+              }`}
+            >
+              <Wallet className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
+              <span>Cuenta</span>
+            </button>
           </>
         )}
         {!showSettings && (
@@ -1465,17 +1493,17 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
         className={`flex-1 min-h-0 relative ${
-          mobileTab === 'settings'
+          mobileTab === 'settings' || mobileTab === 'account'
             ? 'overflow-y-auto scrollbar-thin px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
             : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
       >
-        <div className={`app-shell ${mobileTab === 'settings' ? '' : 'h-full'}`}>
+        <div className={`app-shell ${mobileTab === 'settings' || mobileTab === 'account' ? '' : 'h-full'}`}>
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col ${
-              mobileTab === 'settings' ? 'w-full' : 'xl:flex-row h-full overflow-hidden'
-            } ${mobileTab !== 'settings' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
+              mobileTab === 'settings' || mobileTab === 'account' ? 'w-full' : 'xl:flex-row h-full overflow-hidden'
+            } ${mobileTab !== 'settings' && mobileTab !== 'account' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
               <>
@@ -1521,6 +1549,16 @@ export default function App() {
                   />
                 </div>
               </>
+            )}
+
+            {mobileTab === 'account' && token && (
+              <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)]">
+                <ShippingAccountPage
+                  token={token}
+                  user={user}
+                  sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+                />
+              </div>
             )}
 
             {mobileTab === 'settings' && (
