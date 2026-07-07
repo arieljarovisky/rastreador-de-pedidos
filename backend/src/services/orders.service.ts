@@ -480,6 +480,12 @@ export async function applyMercadoLibreSyncState(
     }
   }
 
+  const statusChanged = order.status !== options.status;
+  const repartidorChanged = order.repartidorId !== repartidorId;
+  if (!statusChanged && !repartidorChanged) {
+    return order;
+  }
+
   const now = new Date();
   await pool.query(
     'UPDATE orders SET status = ?, repartidor_id = ?, updated_at = ? WHERE id = ?',
