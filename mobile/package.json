@@ -10,6 +10,7 @@
     "build:apk": "npx eas-cli build --platform android --profile release-apk --non-interactive --wait",
     "build:apk:local": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk-local.ps1",
     "save:apk": "node scripts/save-apk-to-backend.mjs",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "release:android": "npm run build:apk && npm run save:apk"
   },
   "dependencies": {
