@@ -97,18 +97,23 @@ async function resolveOrderShippingRate(order: Order): Promise<number> {
 }
 
 export async function listAgencyZoneShippingRates(agencyId: string): Promise<ZoneShippingRates[]> {
-  const zones = await listZonesForAgency(agencyId);
-  return zones.map((zone) => {
-    const rates = zone.shippingRates ?? DEFAULT_RATES;
-    return {
-      zoneId: zone.id,
-      zoneName: zone.name,
-      flex: rates.flex,
-      express: rates.express,
-      standard: rates.standard,
-      currency: 'ARS' as const,
-    };
-  });
+  try {
+    const zones = await listZonesForAgency(agencyId);
+    return zones.map((zone) => {
+      const rates = zone.shippingRates ?? DEFAULT_RATES;
+      return {
+        zoneId: zone.id,
+        zoneName: zone.name,
+        flex: rates.flex,
+        express: rates.express,
+        standard: rates.standard,
+        currency: 'ARS' as const,
+      };
+    });
+  } catch (err) {
+    console.warn('[billing] No se pudieron cargar tarifas por zona:', err);
+    return [];
+  }
 }
 
 function shippingTypeLabel(shippingType: string | null | undefined): string {
@@ -118,19 +123,27 @@ function shippingTypeLabel(shippingType: string | null | undefined): string {
 }
 
 export async function getAgencyDefaultShippingRates(agencyId: string): Promise<AgencyShippingRates> {
-  const [rows] = await pool.query<AgencyRateRow[]>(
-    `SELECT shipping_rate_flex, shipping_rate_express, shipping_rate_standard
-     FROM agencies WHERE id = ? LIMIT 1`,
-    [agencyId]
-  );
-  const row = rows[0];
-  if (!row) return { ...DEFAULT_RATES };
-  return {
-    flex: toMoney(row.shipping_rate_flex ?? DEFAULT_RATES.flex),
-    express: toMoney(row.shipping_rate_express ?? DEFAULT_RATES.express),
-    standard: toMoney(row.shipping_rate_standard ?? DEFAULT_RATES.standard),
-    currency: 'ARS',
-  };
+  try {
+    const [rows] = await pool.query<AgencyRateRow[]>(
+      `SELECT shipping_rate_flex, shipping_rate_express, shipping_rate_standard
+       FROM agencies WHERE id = ? LIMIT 1`,
+      [agencyId]
+    );
+    const row = rows[0];
+    if (!row) return { ...DEFAULT_RATES };
+    return {
+      flex: toMoney(row.shipping_rate_flex ?? DEFAULT_RATES.flex),
+      express: toMoney(row.shipping_rate_express ?? DEFAULT_RATES.express),
+      standard: toMoney(row.shipping_rate_standard ?? DEFAULT_RATES.standard),
+      currency: 'ARS',
+    };
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    if (code === 'ER_BAD_FIELD_ERROR' || code === 'ER_NO_SUCH_TABLE') {
+      return { ...DEFAULT_RATES };
+    }
+    throw err;
+  }
 }
 
 export async function updateAgencyDefaultShippingRates(
@@ -251,8 +264,10 @@ export async function getBillingSummary(
 
   const params: Array<string> = [scope.agencyId, `${options.dateFrom} 00:00:00`, `${options.dateTo} 23:59:59.999`];
   let sellerFilter = '';
+  let sellerFilterB = '';
   if (scope.sellerId) {
     sellerFilter = ' AND seller_id = ?';
+    sellerFilterB = ' AND b.seller_id = ?';
     params.push(scope.sellerId);
   }
 
@@ -300,7 +315,7 @@ export async function getBillingSummary(
      FROM billing_ledger_entries b
      INNER JOIN orders o ON o.id = b.order_id
      WHERE b.agency_id = ? AND b.entry_type = 'charge'
-       AND b.created_at >= ? AND b.created_at <= ?${sellerFilter}
+       AND b.created_at >= ? AND b.created_at <= ?${sellerFilterB}
      GROUP BY COALESCE(o.shipping_type, 'standard')
      ORDER BY amount DESC`,
     params
