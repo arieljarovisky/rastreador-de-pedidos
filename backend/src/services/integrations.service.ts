@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
+import { AGENCY_ML_USERNAME_PREFIX } from './agency-ml.service.js';
 
 export type IntegrationPlatform = 'mercadolibre' | 'tiendanube';
 
@@ -70,10 +71,38 @@ export async function listMercadoLibreIntegrationsForAgency(
     `SELECT si.* FROM store_integrations si
      INNER JOIN users u ON u.id = si.user_id
      WHERE si.platform = 'mercadolibre' AND u.agency_id = ? AND u.role = 'store_admin'
+       AND u.username NOT LIKE ?
      ORDER BY u.name`,
-    [agencyId]
+    [agencyId, `${AGENCY_ML_USERNAME_PREFIX}%`]
   );
   return rows.map(rowToIntegration);
+}
+
+export async function getAgencyMercadoLibreIntegration(
+  agencyId: string
+): Promise<StoreIntegration | null> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT si.* FROM store_integrations si
+     INNER JOIN users u ON u.id = si.user_id
+     WHERE si.platform = 'mercadolibre' AND u.agency_id = ? AND u.username LIKE ?
+     LIMIT 1`,
+    [agencyId, `${AGENCY_ML_USERNAME_PREFIX}%`]
+  );
+  return rows[0] ? rowToIntegration(rows[0]) : null;
+}
+
+export async function listMercadoLibreIntegrationsForAgencyScan(
+  agencyId: string
+): Promise<Array<{ integration: StoreIntegration; isAgencyAccount: boolean }>> {
+  const contexts: Array<{ integration: StoreIntegration; isAgencyAccount: boolean }> = [];
+  const agencyIntegration = await getAgencyMercadoLibreIntegration(agencyId);
+  if (agencyIntegration) {
+    contexts.push({ integration: agencyIntegration, isAgencyAccount: true });
+  }
+  for (const integration of await listMercadoLibreIntegrationsForAgency(agencyId)) {
+    contexts.push({ integration, isAgencyAccount: false });
+  }
+  return contexts;
 }
 
 export async function getIntegration(

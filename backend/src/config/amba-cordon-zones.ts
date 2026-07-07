@@ -84,4 +84,15 @@ export const AMBA_CORDON_ZONES: DeliveryZone[] = [
   buildZone('zona_cordon_3', '3° Cordón', CORDON_ZONE_COLORS.cordon3, CORDON_ZONE_BARRIOS.zona_cordon_3),
 ];
 
+export const PRICING_ZONE_IDS = AMBA_CORDON_ZONES.map((z) => z.id);
+
+export function isPricingZoneId(zoneId: string): boolean {
+  if (PRICING_ZONE_IDS.includes(zoneId)) return true;
+  return PRICING_ZONE_IDS.some((id) => zoneId.endsWith(`_${id}`));
+}
+
+export function isAssignmentZoneId(zoneId: string): boolean {
+  return !isPricingZoneId(zoneId);
+}
+
 export { LEGACY_ZONE_IDS };

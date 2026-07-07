@@ -6,8 +6,9 @@ import { DbUserRow, LocationPoint, PickupPoint, User, UserRole, OrderStatus } fr
 import { listPickupPointsForUser } from './pickup-points.service.js';
 import { getAgencyDeparture, getAgencyById, updateAgencyDeparture as updateAgencyDepartureRecord } from './agencies.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
-import { isValidZoneForAgency } from './delivery-zones.service.js';
+import { isValidAssignmentZoneForAgency, isValidZoneForAgency } from './delivery-zones.service.js';
 import { isValidEmail } from '../utils/email.js';
+import { AGENCY_ML_USERNAME_PREFIX } from './agency-ml.service.js';
 
 const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng, delivery_zone`;
@@ -220,7 +221,10 @@ export async function createUser(data: {
     throw new Error('NAME_REQUIRED');
   }
   if (data.deliveryZone && data.agencyId) {
-    const valid = await isValidZoneForAgency(data.agencyId, data.deliveryZone);
+    const valid =
+      data.role === UserRole.REPARTIDOR
+        ? await isValidAssignmentZoneForAgency(data.agencyId, data.deliveryZone)
+        : await isValidZoneForAgency(data.agencyId, data.deliveryZone);
     if (!valid) throw new Error('INVALID_ZONE');
   } else if (data.deliveryZone) {
     throw new Error('INVALID_ZONE');
@@ -270,7 +274,7 @@ export async function updateRepartidorZone(
   }
   if (deliveryZone) {
     if (!rep.agencyId) throw new Error('INVALID_ZONE');
-    const valid = await isValidZoneForAgency(rep.agencyId, deliveryZone);
+    const valid = await isValidAssignmentZoneForAgency(rep.agencyId, deliveryZone);
     if (!valid) throw new Error('INVALID_ZONE');
   }
   await pool.query('UPDATE users SET delivery_zone = ? WHERE id = ?', [deliveryZone, repartidorId]);
@@ -281,8 +285,10 @@ export async function updateRepartidorZone(
 
 export async function listSellers(agencyId: string): Promise<User[]> {
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE role = ? AND agency_id = ? ORDER BY name`,
-    [UserRole.STORE_ADMIN, agencyId]
+    `SELECT ${USER_COLUMNS} FROM users
+     WHERE role = ? AND agency_id = ? AND username NOT LIKE ?
+     ORDER BY name`,
+    [UserRole.STORE_ADMIN, agencyId, `${AGENCY_ML_USERNAME_PREFIX}%`]
   );
   const sellers = rows.map(rowToUser);
   return Promise.all(sellers.map((seller) => enrichUser(seller)));

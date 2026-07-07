@@ -16,6 +16,7 @@ import {
   parseMercadoLibreScanCode,
   resolveMercadoLibreFlexFromScan,
   findImportedMercadoLibreFlex,
+  findImportedMercadoLibreFlexGlobal,
   resolveMercadoLibreShipmentId,
   syncMercadoLibreFlexOnScan,
   fetchMercadoLibreShipment,
@@ -31,7 +32,7 @@ import {
 } from './tiendanube.service.js';
 import {
   getIntegration,
-  listMercadoLibreIntegrationsForAgency,
+  listMercadoLibreIntegrationsForAgencyScan,
   type IntegrationPlatform,
 } from './integrations.service.js';
 import { assertSellerInAgency, getRepartidorByMercadoLibreUserId, getUserById } from './users.service.js';
@@ -40,6 +41,9 @@ import { sleep } from '../utils/sleep.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
 import { env } from '../config/env.js';
+import {
+  ensureAgencyMlBridgeUser,
+} from './agency-ml.service.js';
 
 function formatImportError(externalId: string, reason: string): string {
   if (reason === 'GEOCODE_UNAVAILABLE') {
@@ -81,16 +85,22 @@ type RawShipment = MercadoLibreFlexShipment | TiendaNubeExpressShipment;
 
 async function markImported(
   userId: string,
-  shipments: RawShipment[]
+  shipments: RawShipment[],
+  options?: { agencyMode?: boolean }
 ): Promise<MarketplaceShipmentPreview[]> {
   const previews: MarketplaceShipmentPreview[] = [];
   for (const s of shipments) {
     const existing =
       s.platform === 'mercadolibre'
-        ? await findImportedMercadoLibreFlex(userId, {
-            externalId: s.externalId,
-            mlOrderId: (s as MercadoLibreFlexShipment).mlOrderId,
-          })
+        ? options?.agencyMode
+          ? await findImportedMercadoLibreFlexGlobal({
+              externalId: s.externalId,
+              mlOrderId: (s as MercadoLibreFlexShipment).mlOrderId,
+            })
+          : await findImportedMercadoLibreFlex(userId, {
+              externalId: s.externalId,
+              mlOrderId: (s as MercadoLibreFlexShipment).mlOrderId,
+            })
         : await findOrderByExternal(userId, s.platform, s.externalId);
     previews.push({
       ...s,
@@ -226,14 +236,25 @@ type ImportFlexResult =
   | { kind: 'synced'; order: Order }
   | { kind: 'error'; message: string; fatal?: boolean };
 
+interface ImportFlexOptions {
+  mlIntegrationUserId: string;
+  agencyMode?: boolean;
+}
+
 async function importMercadoLibreFlexShipment(
   user: User,
-  shipment: MercadoLibreFlexShipment
+  shipment: MercadoLibreFlexShipment,
+  options?: ImportFlexOptions
 ): Promise<ImportFlexResult> {
+  const mlUserId = options?.mlIntegrationUserId ?? user.id;
+  const agencyMode = options?.agencyMode ?? false;
+
   try {
-    const existing = await findImportedMercadoLibreFlex(user.id, shipment);
+    const existing = agencyMode
+      ? await findImportedMercadoLibreFlexGlobal(shipment)
+      : await findImportedMercadoLibreFlex(mlUserId, shipment);
     if (existing) {
-      const synced = await syncMercadoLibreOrderAfterImport(user.id, existing, shipment);
+      const synced = await syncMercadoLibreOrderAfterImport(mlUserId, existing, shipment);
       const sellerId = await getSellerIdForOrder(synced.id);
       emitOrderUpdated(synced, sellerId);
       return { kind: 'synced', order: synced };
@@ -263,9 +284,12 @@ async function importMercadoLibreFlexShipment(
       externalSource: 'mercadolibre',
       externalOrderId: shipment.externalId,
       shippingType: 'flex',
+      historyComment: agencyMode
+        ? `Importado desde ML (cuenta de la agencia) · envío #${shipment.externalId}`
+        : undefined,
     });
 
-    order = await syncMercadoLibreOrderAfterImport(user.id, order, shipment);
+    order = await syncMercadoLibreOrderAfterImport(mlUserId, order, shipment);
     const sellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, sellerId);
     return { kind: 'imported', order };
@@ -283,9 +307,11 @@ async function importMercadoLibreFlexShipment(
 export async function importMercadoLibreByRefs(
   user: User,
   refs: string[],
-  options?: { notify?: boolean }
+  options?: { notify?: boolean; flexOptions?: ImportFlexOptions }
 ): Promise<{ imported: number; skipped: number; orders: string[]; errors: string[] }> {
-  const integration = await getValidMercadoLibreIntegration(user.id);
+  const flexOptions = options?.flexOptions;
+  const mlUserId = flexOptions?.mlIntegrationUserId ?? user.id;
+  const integration = await getValidMercadoLibreIntegration(mlUserId);
   let imported = 0;
   let skipped = 0;
   const orderIds: string[] = [];
@@ -318,7 +344,7 @@ export async function importMercadoLibreByRefs(
     }
     seenShipments.add(flex.externalId);
 
-    const result = await importMercadoLibreFlexShipment(user, flex);
+    const result = await importMercadoLibreFlexShipment(user, flex, flexOptions);
     if (result.kind === 'imported') {
       imported++;
       orderIds.push(result.order.id);
@@ -368,6 +394,117 @@ export async function listImportableShipments(
       : undefined;
   const express = await listTiendaNubeExpressShipments(userId, dateRange);
   return markImported(userId, express);
+}
+
+export async function listAgencyImportableShipments(
+  user: User,
+  platform: IntegrationPlatform,
+  options?: MarketplaceListOptions
+): Promise<MarketplaceShipmentPreview[]> {
+  if (!isAgencyAdmin(user.role) || !user.agencyId) {
+    throw new Error('FORBIDDEN');
+  }
+  if (platform !== 'mercadolibre') {
+    throw new Error('FORBIDDEN');
+  }
+
+  const bridge = await ensureAgencyMlBridgeUser(user.agencyId);
+  const integration = await getValidMercadoLibreIntegration(bridge.id);
+  void integration;
+
+  const flex = await listMercadoLibreFlexShipments(bridge.id, {
+    dateFrom: options?.dateFrom,
+    dateTo: options?.dateTo,
+  });
+  return markImported(bridge.id, flex, { agencyMode: true });
+}
+
+export async function importAgencyMarketplaceShipments(
+  user: User,
+  platform: IntegrationPlatform,
+  externalIds?: string[],
+  options?: MarketplaceListOptions
+): Promise<{ imported: number; skipped: number; orders: string[]; errors: string[] }> {
+  if (!isAgencyAdmin(user.role) || !user.agencyId) {
+    throw new Error('FORBIDDEN');
+  }
+  if (platform !== 'mercadolibre') {
+    throw new Error('FORBIDDEN');
+  }
+
+  const bridge = await ensureAgencyMlBridgeUser(user.agencyId);
+  const flexOptions: ImportFlexOptions = {
+    mlIntegrationUserId: bridge.id,
+    agencyMode: true,
+  };
+
+  if (options?.mlRefs?.length) {
+    return importMercadoLibreByRefs(user, options.mlRefs, {
+      notify: true,
+      flexOptions,
+    });
+  }
+
+  const all = await listAgencyImportableShipments(user, platform, options);
+  const matchesExternalId = (s: MarketplaceShipmentPreview, id: string) =>
+    s.externalId === id || s.mlOrderId === id;
+
+  let toImport = all.filter((s) => !s.alreadyImported && s.mlShipmentStatus !== 'delivered');
+  if (externalIds?.length) {
+    toImport = all.filter(
+      (s) => externalIds.some((id) => matchesExternalId(s, id)) && !s.alreadyImported
+    );
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  const orderIds: string[] = [];
+  const errors: string[] = [];
+  const seenMlShipments = new Set<string>();
+
+  for (const shipment of toImport) {
+    if (seenMlShipments.has(shipment.externalId)) {
+      skipped++;
+      continue;
+    }
+    seenMlShipments.add(shipment.externalId);
+
+    const result = await importMercadoLibreFlexShipment(
+      user,
+      shipment as MercadoLibreFlexShipment,
+      flexOptions
+    );
+    if (result.kind === 'imported') {
+      imported++;
+      orderIds.push(result.order.id);
+    } else if (result.kind === 'synced') {
+      skipped++;
+      orderIds.push(result.order.id);
+    } else {
+      errors.push(result.message);
+      skipped++;
+      if (result.fatal) break;
+    }
+  }
+
+  if (imported > 0) {
+    const title = imported === 1 ? 'Envío importado' : 'Envíos importados';
+    const body =
+      imported === 1
+        ? `Se importó 1 pedido de Mercado Libre Flex (agencia) como ${orderIds[0]}.`
+        : `Se importaron ${imported} pedidos de Mercado Libre Flex (agencia).`;
+
+    await createNotification({
+      id: `n_import_agency_${Date.now()}_${user.id}`,
+      userId: user.id,
+      title,
+      body,
+      type: 'info',
+      orderId: orderIds[0],
+    });
+  }
+
+  return { imported, skipped, orders: orderIds, errors };
 }
 
 export async function importMarketplaceShipments(
@@ -439,7 +576,11 @@ export async function importMarketplaceShipments(
       }
       seenMlShipments.add(shipment.externalId);
 
-      const result = await importMercadoLibreFlexShipment(user, shipment as MercadoLibreFlexShipment);
+      const result = await importMercadoLibreFlexShipment(
+        user,
+        shipment as MercadoLibreFlexShipment,
+        { mlIntegrationUserId: user.id }
+      );
       if (result.kind === 'imported') {
         imported++;
         orderIds.push(result.order.id);
@@ -705,19 +846,19 @@ export async function importMercadoLibreByScanForAgency(
     }
   }
 
-  let integrations = await listMercadoLibreIntegrationsForAgency(user.agencyId);
+  let integrationContexts = await listMercadoLibreIntegrationsForAgencyScan(user.agencyId);
   if (sellerId) {
     await assertSellerInAgency(sellerId, user.agencyId);
     const selected = await getIntegration(sellerId, 'mercadolibre');
     if (!selected) throw new Error('ML_SELLER_NOT_CONNECTED');
-    integrations = [selected];
+    integrationContexts = [{ integration: selected, isAgencyAccount: false }];
   }
 
-  if (integrations.length === 0) {
-    throw new Error('ML_NO_SELLERS_CONNECTED');
+  if (integrationContexts.length === 0) {
+    throw new Error('ML_NOT_CONNECTED');
   }
 
-  for (const integration of integrations) {
+  for (const { integration, isAgencyAccount } of integrationContexts) {
     let validIntegration = integration;
     try {
       validIntegration = await getValidMercadoLibreIntegration(integration.userId);
@@ -728,14 +869,16 @@ export async function importMercadoLibreByScanForAgency(
     const flex = await resolveMercadoLibreFlexFromScan(validIntegration, candidates);
     if (!flex) continue;
 
-    const existing = await findImportedMercadoLibreFlex(validIntegration.userId, flex);
+    const existing = isAgencyAccount
+      ? await findImportedMercadoLibreFlexGlobal(flex)
+      : await findImportedMercadoLibreFlex(validIntegration.userId, flex);
     if (existing) {
-      const seller = await getUserById(validIntegration.userId);
+      const seller = isAgencyAccount ? null : await getUserById(validIntegration.userId);
       return returnRescan(
         existing,
         flex.mlOrderId,
-        seller?.name ?? 'Vendedor',
-        validIntegration.userId,
+        seller?.name ?? 'Agencia',
+        existing.sellerId ?? validIntegration.userId,
         flex.externalId
       );
     }
@@ -749,7 +892,7 @@ export async function importMercadoLibreByScanForAgency(
       lng = geocoded.lng;
     }
 
-    const seller = await getUserById(validIntegration.userId);
+    const seller = isAgencyAccount ? null : await getUserById(validIntegration.userId);
     let order = await createOrder(user, {
       clientName: flex.clientName,
       clientPhone: flex.clientPhone,
@@ -757,11 +900,13 @@ export async function importMercadoLibreByScanForAgency(
       lat,
       lng,
       notes: flex.notes,
-      sellerId: validIntegration.userId,
+      sellerId: isAgencyAccount ? undefined : validIntegration.userId,
       externalSource: flex.platform,
       externalOrderId: flex.externalId,
       shippingType: flex.shippingType,
-      historyComment: `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,
+      historyComment: isAgencyAccount
+        ? `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (cuenta de la agencia)`
+        : `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,
       historyLat: scanLocation?.lat,
       historyLng: scanLocation?.lng,
     });
@@ -770,7 +915,7 @@ export async function importMercadoLibreByScanForAgency(
     const assignedSellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, assignedSellerId);
     await notifySellerOnLabelScan(
-      assignedSellerId ?? validIntegration.userId,
+      assignedSellerId ?? (isAgencyAccount ? null : validIntegration.userId),
       user,
       order,
       flex.mlOrderId,
@@ -782,8 +927,8 @@ export async function importMercadoLibreByScanForAgency(
       {
         order,
         alreadyImported: false,
-        sellerId: validIntegration.userId,
-        sellerName: seller?.name ?? 'Vendedor',
+        sellerId: isAgencyAccount ? '' : validIntegration.userId,
+        sellerName: seller?.name ?? 'Agencia',
         externalOrderId: flex.externalId,
       },
       flex.externalId

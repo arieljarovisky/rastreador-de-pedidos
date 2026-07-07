@@ -6,6 +6,7 @@ import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 import { env } from '../config/env.js';
 import {
   deleteIntegration,
+  getAgencyMercadoLibreIntegration,
   getIntegration,
   integrationStatusPublic,
   listIntegrationsForUser,
@@ -24,6 +25,8 @@ import {
 import {
   importMarketplaceShipments,
   importMercadoLibreByScanForAgency,
+  importAgencyMarketplaceShipments,
+  listAgencyImportableShipments,
   listImportableShipments,
   parseScanLocation,
 } from '../services/marketplace-import.service.js';
@@ -44,6 +47,7 @@ import {
   type TiendaNubeCustomerRedactPayload,
   type TiendaNubeStoreRedactPayload,
 } from '../services/tiendanube-privacy.service.js';
+import { ensureAgencyMlBridgeUser } from '../services/agency-ml.service.js';
 
 const router = Router();
 
@@ -118,23 +122,38 @@ function parseOAuthClient(value: unknown): OAuthClient {
 
 router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
   const integrations = await listIntegrationsForUser(req.user!.id);
+  const ml = integrations.find((i) => i.platform === 'mercadolibre');
+  const tn = integrations.find((i) => i.platform === 'tiendanube');
   res.json({
     mercadolibre: {
       configured: isMercadoLibreConfigured(),
-      connected: integrations.some((i) => i.platform === 'mercadolibre'),
+      connected: Boolean(ml),
       webhookUrl: getMercadoLibreWebhookUrl(),
       webhookTopics: [...ML_WEBHOOK_TOPICS],
-      account: integrations.find((i) => i.platform === 'mercadolibre')
-        ? integrationStatusPublic(integrations.find((i) => i.platform === 'mercadolibre')!)
-        : null,
+      account: ml ? integrationStatusPublic(ml) : null,
     },
     tiendanube: {
       configured: isTiendaNubeConfigured(),
-      connected: integrations.some((i) => i.platform === 'tiendanube'),
+      connected: Boolean(tn),
       privacyWebhooks: getTiendaNubePrivacyWebhookUrls(),
-      account: integrations.find((i) => i.platform === 'tiendanube')
-        ? integrationStatusPublic(integrations.find((i) => i.platform === 'tiendanube')!)
-        : null,
+      account: tn ? integrationStatusPublic(tn) : null,
+    },
+  });
+});
+
+router.get('/agency/status', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Sin agencia asociada.' });
+    return;
+  }
+  const agencyMl = await getAgencyMercadoLibreIntegration(req.user.agencyId);
+  res.json({
+    mercadolibre: {
+      configured: isMercadoLibreConfigured(),
+      connected: Boolean(agencyMl),
+      webhookUrl: getMercadoLibreWebhookUrl(),
+      webhookTopics: [...ML_WEBHOOK_TOPICS],
+      account: agencyMl ? integrationStatusPublic(agencyMl) : null,
     },
   });
 });
@@ -162,6 +181,25 @@ router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_AD
       ? req.query.redirect_uri.trim()
       : undefined;
   const state = signOAuthState(req.user!.id, 'mercadolibre', client, redirectUri);
+  res.json({ url: getMercadoLibreAuthUrl(state) });
+});
+
+router.get('/agency/mercadolibre/connect', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  if (!isMercadoLibreConfigured()) {
+    res.status(503).json({ error: 'Mercado Libre no está configurado en el servidor (ML_APP_ID, ML_APP_SECRET).' });
+    return;
+  }
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Sin agencia asociada.' });
+    return;
+  }
+  const bridge = await ensureAgencyMlBridgeUser(req.user.agencyId);
+  const client = parseOAuthClient(req.query.client);
+  const redirectUri =
+    client === 'mobile' && typeof req.query.redirect_uri === 'string'
+      ? req.query.redirect_uri.trim()
+      : undefined;
+  const state = signOAuthState(bridge.id, 'mercadolibre', client, redirectUri);
   res.json({ url: getMercadoLibreAuthUrl(state) });
 });
 
@@ -339,9 +377,10 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
       res.status(400).json({ error: 'El código escaneado no es válido. Usá la etiqueta de Mercado Libre Flex.' });
       return;
     }
-    if (message === 'ML_NO_SELLERS_CONNECTED') {
+    if (message === 'ML_NOT_CONNECTED' || message === 'ML_NO_SELLERS_CONNECTED') {
       res.status(400).json({
-        error: 'Ningún vendedor de tu agencia tiene Mercado Libre conectado.',
+        error:
+          'Conectá Mercado Libre en Configuración (cuenta de la agencia) o vinculá un vendedor con ML.',
       });
       return;
     }
@@ -352,7 +391,7 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
     if (message === 'ML_SCAN_NOT_FOUND') {
       res.status(404).json({
         error:
-          'No se encontró un envío Flex con ese código entre los vendedores de tu agencia. Verificá la etiqueta o que el vendedor tenga ML vinculado.',
+          'No se encontró un envío Flex con ese código. Verificá la etiqueta o que la agencia o un vendedor tenga ML vinculado.',
       });
       return;
     }
@@ -370,6 +409,93 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
     }
     if (message === 'NOT_FOUND') {
       res.status(404).json({ error: 'Pedido no encontrado en tu agencia.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para importar envíos.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.delete('/agency/mercadolibre', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Sin agencia asociada.' });
+    return;
+  }
+  const bridge = await ensureAgencyMlBridgeUser(req.user.agencyId);
+  const existing = await getIntegration(bridge.id, 'mercadolibre');
+  if (!existing) {
+    res.status(404).json({ error: 'No hay cuenta de Mercado Libre conectada para la agencia.' });
+    return;
+  }
+  await deleteIntegration(bridge.id, 'mercadolibre');
+  res.status(204).send();
+});
+
+router.get('/agency/mercadolibre/shipments', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  try {
+    const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : undefined;
+    const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : undefined;
+    const shipments = await listAgencyImportableShipments(req.user!, 'mercadolibre', {
+      dateFrom,
+      dateTo,
+    });
+    res.json(shipments);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'ML_INVALID_DATE') {
+      res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
+      return;
+    }
+    if (message === 'ML_INVALID_DATE_RANGE') {
+      res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
+      return;
+    }
+    if (message === 'ML_NOT_CONNECTED') {
+      res.status(400).json({ error: 'Conectá la cuenta de Mercado Libre de la agencia antes de importar envíos.' });
+      return;
+    }
+    if (message === 'ML_API_ERROR') {
+      res.status(502).json({ error: 'No se pudo consultar Mercado Libre. Reconectá la cuenta de la agencia.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para importar envíos.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.post('/agency/mercadolibre/import', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const { externalIds, mlRefs, dateFrom, dateTo } = req.body as {
+    externalIds?: string[];
+    mlRefs?: string[];
+    dateFrom?: string;
+    dateTo?: string;
+  };
+
+  try {
+    const result = await importAgencyMarketplaceShipments(req.user!, 'mercadolibre', externalIds, {
+      dateFrom,
+      dateTo,
+      mlRefs,
+    });
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'ML_INVALID_DATE') {
+      res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
+      return;
+    }
+    if (message === 'ML_INVALID_DATE_RANGE') {
+      res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
+      return;
+    }
+    if (message === 'ML_NOT_CONNECTED') {
+      res.status(400).json({ error: 'Conectá la cuenta de Mercado Libre de la agencia antes de importar envíos.' });
       return;
     }
     if (message === 'FORBIDDEN') {

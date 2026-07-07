@@ -4,7 +4,7 @@ import { pool } from '../config/database.js';
 import { Order, OrderStatus, User, UserRole } from '../types/index.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { getOrderById } from './orders.service.js';
-import { findZoneForPoint, listZonesForAgency } from './delivery-zones.service.js';
+import { findPricingZoneForPoint, listPricingZonesForAgency } from './delivery-zones.service.js';
 
 export interface AgencyShippingRates {
   flex: number;
@@ -84,7 +84,7 @@ function resolveRateForOrder(rates: AgencyShippingRates, shippingType: string | 
 async function resolveOrderShippingRate(order: Order): Promise<number> {
   if (!order.agencyId) return DEFAULT_RATES.standard;
 
-  const zone = await findZoneForPoint(order.agencyId, order.lat, order.lng);
+  const zone = await findPricingZoneForPoint(order.agencyId, order.lat, order.lng);
   if (zone?.shippingRates) {
     return resolveRateForOrder(
       { ...zone.shippingRates, currency: 'ARS' },
@@ -98,7 +98,7 @@ async function resolveOrderShippingRate(order: Order): Promise<number> {
 
 export async function listAgencyZoneShippingRates(agencyId: string): Promise<ZoneShippingRates[]> {
   try {
-    const zones = await listZonesForAgency(agencyId);
+    const zones = await listPricingZonesForAgency(agencyId);
     return zones.map((zone) => {
       const rates = zone.shippingRates ?? DEFAULT_RATES;
       return {

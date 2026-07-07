@@ -269,9 +269,18 @@ export async function createOrder(
     throw new Error('FORBIDDEN');
   }
 
-  if (data.externalSource && data.externalOrderId && sellerId) {
-    const existing = await findOrderByExternal(sellerId, data.externalSource, data.externalOrderId);
-    if (existing) throw new Error('EXTERNAL_ORDER_EXISTS');
+  if (data.externalSource && data.externalOrderId) {
+    if (sellerId) {
+      const existing = await findOrderByExternal(sellerId, data.externalSource, data.externalOrderId);
+      if (existing) throw new Error('EXTERNAL_ORDER_EXISTS');
+    } else if (agencyId) {
+      const existing = await findOrderByExternalForAgency(
+        agencyId,
+        data.externalSource,
+        data.externalOrderId
+      );
+      if (existing) throw new Error('EXTERNAL_ORDER_EXISTS');
+    }
   }
 
   await pool.query(
@@ -337,6 +346,20 @@ export async function findOrderByExternalGlobal(
   const [rows] = await pool.query<OrderWithRepartidorRow[]>(
     `${ORDER_SELECT} WHERE o.external_source = ? AND o.external_order_id = ? LIMIT 1`,
     [externalSource, externalOrderId]
+  );
+  if (!rows[0]) return null;
+  const orders = await enrichOrders([rows[0]]);
+  return orders[0] ?? null;
+}
+
+export async function findOrderByExternalForAgency(
+  agencyId: string,
+  externalSource: string,
+  externalOrderId: string
+): Promise<Order | null> {
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT} WHERE o.agency_id = ? AND o.external_source = ? AND o.external_order_id = ? LIMIT 1`,
+    [agencyId, externalSource, externalOrderId]
   );
   if (!rows[0]) return null;
   const orders = await enrichOrders([rows[0]]);

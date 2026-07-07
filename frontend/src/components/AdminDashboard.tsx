@@ -12,7 +12,7 @@ import {
   Store, Bike, AlertTriangle, Check, X,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
-import { findZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
+import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge from './ui/StatusBadge.tsx';
@@ -1124,7 +1124,7 @@ export default function AdminDashboard({
                     <span className="truncate">{order.address}</span>
                   </p>
                   {isAgencyAdmin(userRole) && (() => {
-                    const orderZone = findZoneForPoint(deliveryZones, order.lat, order.lng, barrios);
+                    const orderZone = findAssignmentZoneForPoint(deliveryZones, order.lat, order.lng, barrios);
                     if (!orderZone) return null;
                     return (
                       <p className="text-[9px] mt-1 font-mono font-bold uppercase tracking-wider flex items-center gap-1" style={{ color: orderZone.color }}>
@@ -1607,7 +1607,7 @@ export default function AdminDashboard({
                       <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] p-2 rounded space-y-1">
                         <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)]">Asignar repartidor al viaje:</p>
                         {(() => {
-                          const orderZone = findZoneForPoint(deliveryZones, selectedOrder.lat, selectedOrder.lng, barrios);
+                          const orderZone = findAssignmentZoneForPoint(deliveryZones, selectedOrder.lat, selectedOrder.lng, barrios);
                           const suggestedRep = orderZone
                             ? repartidores.find((r) => r.deliveryZone === orderZone.id)
                             : null;

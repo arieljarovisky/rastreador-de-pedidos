@@ -1,6 +1,7 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { DEFAULT_DELIVERY_ZONES, DeliveryZone, LEGACY_ZONE_IDS } from '../config/delivery-zones.js';
+import { isPricingZoneId } from '../config/amba-cordon-zones.js';
 import { pointInZoneBarrios, resolveBarriosToBounds } from '../config/barrios.js';
 
 interface DeliveryZoneRow extends RowDataPacket {
@@ -68,6 +69,47 @@ export async function listZonesForAgency(agencyId: string): Promise<DeliveryZone
   return rows.map(rowToZone);
 }
 
+export async function listPricingZonesForAgency(agencyId: string): Promise<DeliveryZone[]> {
+  const zones = await listZonesForAgency(agencyId);
+  return zones.filter((z) => isPricingZoneId(z.id));
+}
+
+export async function listAssignmentZonesForAgency(agencyId: string): Promise<DeliveryZone[]> {
+  const zones = await listZonesForAgency(agencyId);
+  return zones.filter((z) => !isPricingZoneId(z.id));
+}
+
+function matchZoneForPoint(zones: DeliveryZone[], lat: number, lng: number): DeliveryZone | null {
+  for (const zone of zones) {
+    if (zone.barrios?.length) {
+      if (pointInZoneBarrios(lat, lng, zone.barrios)) return zone;
+      continue;
+    }
+    if (lat >= zone.south && lat <= zone.north && lng >= zone.west && lng <= zone.east) {
+      return zone;
+    }
+  }
+  return null;
+}
+
+export async function findPricingZoneForPoint(
+  agencyId: string,
+  lat: number,
+  lng: number
+): Promise<DeliveryZone | null> {
+  const zones = await listPricingZonesForAgency(agencyId);
+  return matchZoneForPoint(zones, lat, lng);
+}
+
+export async function findAssignmentZoneForPoint(
+  agencyId: string,
+  lat: number,
+  lng: number
+): Promise<DeliveryZone | null> {
+  const zones = await listAssignmentZonesForAgency(agencyId);
+  return matchZoneForPoint(zones, lat, lng);
+}
+
 export async function getZoneById(agencyId: string, zoneId: string): Promise<DeliveryZone | null> {
   const [rows] = await pool.query<DeliveryZoneRow[]>(
     `SELECT ${ZONE_SELECT}
@@ -83,22 +125,20 @@ export async function isValidZoneForAgency(agencyId: string, zoneId: string): Pr
   return zone !== null;
 }
 
+export async function isValidAssignmentZoneForAgency(
+  agencyId: string,
+  zoneId: string
+): Promise<boolean> {
+  if (isPricingZoneId(zoneId)) return false;
+  return isValidZoneForAgency(agencyId, zoneId);
+}
+
 export async function findZoneForPoint(
   agencyId: string,
   lat: number,
   lng: number
 ): Promise<DeliveryZone | null> {
-  const zones = await listZonesForAgency(agencyId);
-  for (const zone of zones) {
-    if (zone.barrios?.length) {
-      if (pointInZoneBarrios(lat, lng, zone.barrios)) return zone;
-      continue;
-    }
-    if (lat >= zone.south && lat <= zone.north && lng >= zone.west && lng <= zone.east) {
-      return zone;
-    }
-  }
-  return null;
+  return findPricingZoneForPoint(agencyId, lat, lng);
 }
 
 const ZONE_COLORS = ['#3b82f6', '#8b5cf6', '#ef4444', '#f59e0b', '#ec4899', '#10b981', '#06b6d4', '#84cc16'];
@@ -319,6 +359,7 @@ export async function updateZone(
 ): Promise<DeliveryZone> {
   const existing = await getZoneById(agencyId, zoneId);
   if (!existing) throw new Error('NOT_FOUND');
+  if (isPricingZoneId(zoneId)) throw new Error('PRICING_ZONE_PROTECTED');
 
   let barrios = data.barrios !== undefined ? data.barrios.filter(Boolean) : existing.barrios;
   let south = data.south ?? existing.south;
@@ -374,6 +415,7 @@ export async function updateZone(
 export async function deleteZone(agencyId: string, zoneId: string): Promise<void> {
   const existing = await getZoneById(agencyId, zoneId);
   if (!existing) throw new Error('NOT_FOUND');
+  if (isPricingZoneId(zoneId)) throw new Error('PRICING_ZONE_PROTECTED');
 
   const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
     `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
@@ -393,6 +435,7 @@ export async function updateZoneShippingRates(
 ): Promise<DeliveryZone> {
   const existing = await getZoneById(agencyId, zoneId);
   if (!existing) throw new Error('NOT_FOUND');
+  if (!isPricingZoneId(zoneId)) throw new Error('ASSIGNMENT_ZONE_NO_RATES');
 
   const currentRates = existing.shippingRates ?? DEFAULT_ZONE_RATES;
   const next = {

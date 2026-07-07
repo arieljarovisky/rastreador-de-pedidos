@@ -14,6 +14,7 @@ import {
   fetchMercadoLibreResource,
   fetchMercadoLibreMissedFeeds,
   findImportedMercadoLibreFlex,
+  findImportedMercadoLibreFlexGlobal,
   findImportedMercadoLibreRefGlobal,
   formatMlShipmentStatusLabel,
   getValidMercadoLibreIntegration,
@@ -32,6 +33,7 @@ import {
   updateOrderStatusFromMarketplace,
 } from './orders.service.js';
 import { getRepartidorByMercadoLibreUserId, getUserById } from './users.service.js';
+import { getAgencyOperatorForImport, isAgencyMlBridgeUser } from './agency-ml.service.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
 import { syncMercadoLibreOrderAfterImport } from './marketplace-import.service.js';
@@ -104,7 +106,10 @@ async function importFlexShipment(
   const seller = await getUserById(integration.userId);
   if (!seller) return null;
 
-  const existing = await findImportedMercadoLibreFlex(integration.userId, shipment);
+  const agencyMode = isAgencyMlBridgeUser(seller);
+  const existing = agencyMode
+    ? await findImportedMercadoLibreFlexGlobal(shipment)
+    : await findImportedMercadoLibreFlex(integration.userId, shipment);
   if (existing) return existing.id;
 
   let lat = shipment.lat;
@@ -116,7 +121,11 @@ async function importFlexShipment(
     lng = geocoded.lng;
   }
 
-  let order = await createOrder(seller, {
+  const orderCreator = agencyMode
+    ? (await getAgencyOperatorForImport(seller.agencyId!)) ?? seller
+    : seller;
+
+  let order = await createOrder(orderCreator, {
     clientName: shipment.clientName,
     clientPhone: shipment.clientPhone,
     address: shipment.address,
@@ -126,17 +135,23 @@ async function importFlexShipment(
     externalSource: 'mercadolibre',
     externalOrderId: shipment.externalId,
     shippingType: 'flex',
+    sellerId: agencyMode ? undefined : seller.id,
+    historyComment: agencyMode
+      ? `Importado automáticamente desde ML (cuenta de la agencia) · envío #${shipment.externalId}`
+      : undefined,
   });
 
   order = await syncMercadoLibreOrderAfterImport(integration.userId, order, shipment);
 
   const sellerId = await getSellerIdForOrder(order.id);
-  await notifySellerFlexEvent(
-    sellerId,
-    order,
-    'Nuevo envío Flex (Mercado Libre)',
-    `Se importó automáticamente el envío ML #${shipment.externalId} (orden #${shipment.mlOrderId}) como ${order.id}.`
-  );
+  if (sellerId) {
+    await notifySellerFlexEvent(
+      sellerId,
+      order,
+      'Nuevo envío Flex (Mercado Libre)',
+      `Se importó automáticamente el envío ML #${shipment.externalId} (orden #${shipment.mlOrderId}) como ${order.id}.`
+    );
+  }
 
   emitOrderUpdated(order, sellerId);
   return order.id;

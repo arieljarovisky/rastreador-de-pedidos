@@ -1,3 +1,5 @@
+import { CORDON_ZONE_IDS, isCordonZoneId } from './ambaCordonZones.js';
+
 export interface DeliveryZone {
   id: string;
   name: string;
@@ -42,11 +44,37 @@ export function getDeliveryZone(
   return zones.find((z) => z.id === zoneId);
 }
 
+export function isPricingZoneId(zoneId: string): boolean {
+  return isCordonZoneId(zoneId);
+}
+
+export function isAssignmentZone(zone: DeliveryZone): boolean {
+  return !isPricingZoneId(zone.id);
+}
+
+export function pricingZones(zones: DeliveryZone[]): DeliveryZone[] {
+  return zones.filter((z) => isPricingZoneId(z.id));
+}
+
+export function assignmentZones(zones: DeliveryZone[]): DeliveryZone[] {
+  return zones.filter((z) => isAssignmentZone(z));
+}
+
+const PRICING_ZONE_ORDER = new Map(CORDON_ZONE_IDS.map((id, i) => [id, i]));
+
+export function sortPricingZones(zones: DeliveryZone[]): DeliveryZone[] {
+  return [...zones].sort((a, b) => {
+    const ai = PRICING_ZONE_ORDER.get(a.id as (typeof CORDON_ZONE_IDS)[number]) ?? 99;
+    const bi = PRICING_ZONE_ORDER.get(b.id as (typeof CORDON_ZONE_IDS)[number]) ?? 99;
+    return ai - bi;
+  });
+}
+
 function pointInBarrio(lat: number, lng: number, barrio: Barrio): boolean {
   return lat >= barrio.south && lat <= barrio.north && lng >= barrio.west && lng <= barrio.east;
 }
 
-export function findZoneForPoint(
+function matchZoneForPoint(
   zones: DeliveryZone[],
   lat: number,
   lng: number,
@@ -68,6 +96,34 @@ export function findZoneForPoint(
     }
   }
   return null;
+}
+
+export function findPricingZoneForPoint(
+  zones: DeliveryZone[],
+  lat: number,
+  lng: number,
+  barrioCatalog: Barrio[] = []
+): DeliveryZone | null {
+  return matchZoneForPoint(pricingZones(zones), lat, lng, barrioCatalog);
+}
+
+export function findAssignmentZoneForPoint(
+  zones: DeliveryZone[],
+  lat: number,
+  lng: number,
+  barrioCatalog: Barrio[] = []
+): DeliveryZone | null {
+  return matchZoneForPoint(assignmentZones(zones), lat, lng, barrioCatalog);
+}
+
+/** Tarifa de envío según cordón geográfico. */
+export function findZoneForPoint(
+  zones: DeliveryZone[],
+  lat: number,
+  lng: number,
+  barrioCatalog: Barrio[] = []
+): DeliveryZone | null {
+  return findPricingZoneForPoint(zones, lat, lng, barrioCatalog);
 }
 
 export function zoneLabel(zones: DeliveryZone[], zoneId: string | null | undefined): string {

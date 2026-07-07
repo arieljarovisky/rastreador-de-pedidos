@@ -105,6 +105,10 @@ router.put('/:id', authenticate, requireAgencyAdmin(), async (req: Request, res:
       res.status(404).json({ error: 'Zona no encontrada.' });
       return;
     }
+    if (message === 'PRICING_ZONE_PROTECTED') {
+      res.status(400).json({ error: 'Las zonas de cordón (CABA y cordones) no se pueden editar. Solo sus tarifas.' });
+      return;
+    }
     if (message === 'NAME_REQUIRED') {
       res.status(400).json({ error: 'El nombre es obligatorio.' });
       return;
@@ -148,6 +152,10 @@ router.put('/:id/rates', authenticate, requireAgencyAdmin(), async (req: Request
       res.status(400).json({ error: 'Las tarifas deben ser números positivos.' });
       return;
     }
+    if (message === 'ASSIGNMENT_ZONE_NO_RATES') {
+      res.status(400).json({ error: 'Las tarifas solo aplican a CABA y cordones.' });
+      return;
+    }
     throw err;
   }
 });
@@ -169,6 +177,10 @@ router.delete('/:id', authenticate, requireAgencyAdmin(), async (req: Request, r
       res.status(409).json({
         error: 'No se puede eliminar: hay repartidores asignados a esta zona. Reasignálos primero.',
       });
+      return;
+    }
+    if (message === 'PRICING_ZONE_PROTECTED') {
+      res.status(400).json({ error: 'Las zonas de cordón (CABA y cordones) no se pueden eliminar.' });
       return;
     }
     throw err;

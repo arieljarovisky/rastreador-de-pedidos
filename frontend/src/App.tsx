@@ -65,6 +65,9 @@ export default function App() {
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
+  const [agencyIntegrationStatus, setAgencyIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
+  const [agencyIntegrationStatusLoading, setAgencyIntegrationStatusLoading] = useState(false);
+  const [agencyIntegrationStatusError, setAgencyIntegrationStatusError] = useState<string | null>(null);
   const [repartidorMlStatus, setRepartidorMlStatus] = useState<RepartidorMercadoLibreStatus | null>(null);
   const [repartidorMlLoading, setRepartidorMlLoading] = useState(false);
 
@@ -211,6 +214,17 @@ export default function App() {
         const intRes = await fetch(apiUrl('/api/integrations/status'), { headers });
         if (intRes.ok) {
           setIntegrationStatus(await intRes.json());
+        }
+      }
+
+      if (isAgencyAdmin(currentUser?.role)) {
+        const agencyIntRes = await fetch(apiUrl('/api/integrations/agency/status'), { headers });
+        if (agencyIntRes.ok) {
+          const data = await agencyIntRes.json();
+          setAgencyIntegrationStatus({
+            mercadolibre: data.mercadolibre,
+            tiendanube: { configured: false, connected: false, account: null },
+          });
         }
       }
 
@@ -977,6 +991,101 @@ export default function App() {
     }
   }, [token]);
 
+  const fetchAgencyIntegrationStatus = useCallback(async () => {
+    if (!token) return;
+    setAgencyIntegrationStatusLoading(true);
+    setAgencyIntegrationStatusError(null);
+    try {
+      const res = await fetch(apiUrl('/api/integrations/agency/status'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgencyIntegrationStatus({
+          mercadolibre: data.mercadolibre,
+          tiendanube: { configured: false, connected: false, account: null },
+        });
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      setAgencyIntegrationStatusError(
+        body.error || `No se pudo consultar ML de la agencia (${res.status}).`
+      );
+    } catch {
+      setAgencyIntegrationStatusError(
+        'No se pudo contactar al servidor. Revisá la conexión e intentá de nuevo.'
+      );
+    } finally {
+      setAgencyIntegrationStatusLoading(false);
+    }
+  }, [token]);
+
+  const connectAgencyMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
+    if (!token || platform !== 'mercadolibre') throw new Error('Solo Mercado Libre está disponible para la agencia.');
+    const res = await fetch(apiUrl('/api/integrations/agency/mercadolibre/connect'), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudo iniciar la conexión');
+    window.location.href = body.url;
+  };
+
+  const disconnectAgencyMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
+    if (!token || platform !== 'mercadolibre') return;
+    const res = await fetch(apiUrl('/api/integrations/agency/mercadolibre'), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 204) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'No se pudo desconectar');
+    }
+    await fetchAgencyIntegrationStatus();
+  };
+
+  const fetchAgencyMarketplaceShipments = async (
+    platform: 'mercadolibre' | 'tiendanube',
+    options?: { dateFrom?: string; dateTo?: string }
+  ): Promise<MarketplaceShipmentPreview[]> => {
+    if (!token || platform !== 'mercadolibre') throw new Error('Solo Mercado Libre está disponible para la agencia.');
+    const params = new URLSearchParams();
+    if (options?.dateFrom) params.set('dateFrom', options.dateFrom);
+    if (options?.dateTo) params.set('dateTo', options.dateTo);
+    const query = params.toString();
+    const res = await fetch(
+      apiUrl(`/api/integrations/agency/mercadolibre/shipments${query ? `?${query}` : ''}`),
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudieron cargar los envíos');
+    return body;
+  };
+
+  const importAgencyMarketplaceShipments = async (
+    platform: 'mercadolibre' | 'tiendanube',
+    externalIds?: string[],
+    options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
+  ) => {
+    if (!token || platform !== 'mercadolibre') throw new Error('Solo Mercado Libre está disponible para la agencia.');
+    const res = await fetch(apiUrl('/api/integrations/agency/mercadolibre/import'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        externalIds,
+        mlRefs: options?.mlRefs,
+        dateFrom: options?.dateFrom,
+        dateTo: options?.dateTo,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudo importar');
+    fetchData();
+    return body as { imported: number; skipped: number; errors?: string[] };
+  };
+
   const fetchRepartidorMlStatus = useCallback(async () => {
     if (!token) return;
     setRepartidorMlLoading(true);
@@ -1647,6 +1756,24 @@ export default function App() {
                     user.role === UserRole.STORE_ADMIN || user.role === UserRole.LOGISTICS_ADMIN
                       ? confirmDeleteAllOrders
                       : undefined
+                  }
+                  agencyIntegrationStatus={agencyIntegrationStatus}
+                  agencyIntegrationStatusLoading={agencyIntegrationStatusLoading}
+                  agencyIntegrationStatusError={agencyIntegrationStatusError}
+                  onRefreshAgencyIntegrationStatus={
+                    isAgencyAdmin(user.role) ? fetchAgencyIntegrationStatus : undefined
+                  }
+                  onConnectAgencyMarketplace={
+                    isAgencyAdmin(user.role) ? connectAgencyMarketplace : undefined
+                  }
+                  onDisconnectAgencyMarketplace={
+                    isAgencyAdmin(user.role) ? disconnectAgencyMarketplace : undefined
+                  }
+                  onFetchAgencyMarketplaceShipments={
+                    isAgencyAdmin(user.role) ? fetchAgencyMarketplaceShipments : undefined
+                  }
+                  onImportAgencyMarketplaceShipments={
+                    isAgencyAdmin(user.role) ? importAgencyMarketplaceShipments : undefined
                   }
                 />
               </div>
