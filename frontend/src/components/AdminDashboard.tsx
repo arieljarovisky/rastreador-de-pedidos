@@ -17,6 +17,7 @@ import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge from './ui/StatusBadge.tsx';
 import MapComponent from './MapComponent.tsx';
+import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 
 interface AdminDashboardProps {
@@ -270,6 +271,7 @@ export default function AdminDashboard({
 
   const closeCreateShipmentModal = useCallback(() => {
     setShowCreateForm(false);
+    setShowLocationMap(false);
   }, []);
 
   useEffect(() => {
@@ -290,6 +292,7 @@ export default function AdminDashboard({
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeMessage, setGeocodeMessage] = useState<string | null>(null);
   const [coordsConfirmed, setCoordsConfirmed] = useState(false);
+  const [showLocationMap, setShowLocationMap] = useState(false);
 
   // Estados para Asignación Rápida
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
@@ -300,6 +303,7 @@ export default function AdminDashboard({
     setLat(preset.lat);
     setLng(preset.lng);
     setCoordsConfirmed(true);
+    setShowLocationMap(true);
     setGeocodeMessage(`Ubicación: ${preset.name.split('(')[0].trim()}`);
   };
 
@@ -317,12 +321,14 @@ export default function AdminDashboard({
       setGeocodeMessage('Escribí la dirección antes de ubicarla.');
       return;
     }
+    setShowLocationMap(true);
     setGeocodeLoading(true);
     setGeocodeMessage(null);
     try {
       await resolveAddressCoords(address);
     } catch (err: unknown) {
       setCoordsConfirmed(false);
+      setShowLocationMap(false);
       const message = err instanceof Error ? err.message : 'No se pudo ubicar la dirección.';
       setGeocodeMessage(message);
     } finally {
@@ -364,6 +370,7 @@ export default function AdminDashboard({
       setNotes('');
       setCoordsConfirmed(false);
       setGeocodeMessage(null);
+      setShowLocationMap(false);
       closeCreateShipmentModal();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al crear el pedido.';
@@ -701,6 +708,7 @@ export default function AdminDashboard({
                         setAddress(e.target.value);
                         setCoordsConfirmed(false);
                         setGeocodeMessage(null);
+                        setShowLocationMap(false);
                       }}
                       onBlur={() => {
                         if (address.trim().length > 8 && !coordsConfirmed) {
@@ -736,6 +744,32 @@ export default function AdminDashboard({
                     <p className="mt-0.5 text-[9px] text-[var(--color-text-faint)] font-mono">
                       Coordenadas: {lat.toFixed(4)}, {lng.toFixed(4)}
                     </p>
+                  )}
+                  {showLocationMap && (
+                    <div className="mt-2 relative">
+                      {geocodeLoading && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/45 backdrop-blur-[1px]">
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-white">
+                            Ubicando en el mapa...
+                          </span>
+                        </div>
+                      )}
+                      <LocationPreviewMap
+                        lat={lat}
+                        lng={lng}
+                        onLocationChange={(newLat, newLng) => {
+                          setLat(newLat);
+                          setLng(newLng);
+                          setCoordsConfirmed(true);
+                          setGeocodeMessage('Ubicación ajustada en el mapa');
+                        }}
+                      />
+                      {coordsConfirmed && !geocodeLoading && (
+                        <p className="mt-1 text-[9px] text-[var(--color-text-muted)] font-mono">
+                          Arrastrá el pin para afinar la ubicación si hace falta.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
