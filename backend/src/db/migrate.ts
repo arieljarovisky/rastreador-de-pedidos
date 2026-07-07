@@ -189,6 +189,9 @@ export async function runMigrations(): Promise<void> {
         north DECIMAL(10, 7) NOT NULL,
         east DECIMAL(10, 7) NOT NULL,
         barrios JSON NULL,
+        shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00,
+        shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00,
+        shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00,
         created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
         INDEX idx_delivery_zones_agency (agency_id),
         CONSTRAINT fk_delivery_zones_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
@@ -198,6 +201,22 @@ export async function runMigrations(): Promise<void> {
 
   if (!(await columnExists('delivery_zones', 'barrios'))) {
     await pool.query('ALTER TABLE delivery_zones ADD COLUMN barrios JSON NULL AFTER east');
+  }
+
+  if (!(await columnExists('delivery_zones', 'shipping_rate_flex'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00 AFTER barrios'
+    );
+  }
+  if (!(await columnExists('delivery_zones', 'shipping_rate_express'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00 AFTER shipping_rate_flex'
+    );
+  }
+  if (!(await columnExists('delivery_zones', 'shipping_rate_standard'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00 AFTER shipping_rate_express'
+    );
   }
 
   const [agencyRows] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
@@ -344,21 +363,5 @@ export async function runMigrations(): Promise<void> {
         CONSTRAINT fk_billing_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-  }
-
-  if (!(await columnExists('delivery_zones', 'shipping_rate_flex'))) {
-    await pool.query(
-      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00 AFTER barrios'
-    );
-  }
-  if (!(await columnExists('delivery_zones', 'shipping_rate_express'))) {
-    await pool.query(
-      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00 AFTER shipping_rate_flex'
-    );
-  }
-  if (!(await columnExists('delivery_zones', 'shipping_rate_standard'))) {
-    await pool.query(
-      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00 AFTER shipping_rate_express'
-    );
   }
 }
