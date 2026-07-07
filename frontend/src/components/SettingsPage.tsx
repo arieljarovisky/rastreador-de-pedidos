@@ -1079,36 +1079,75 @@ export default function SettingsPage({
                             />
                           </label>
                         </div>
-                        <button
-                          type="button"
-                          disabled={savingZoneRateId === zone.id}
-                          className={`${btnPrimary} !w-auto text-[10px] py-1.5 px-2.5 inline-flex items-center gap-1`}
-                          onClick={async () => {
-                            setSavingZoneRateId(zone.id);
-                            setZoneRatesMessage(null);
-                            try {
-                              await onUpdateZoneShippingRates(zone.id, {
-                                flex: Number(draft.flex),
-                                express: Number(draft.express),
-                                standard: Number(draft.standard),
-                              });
-                              setZoneRatesMessage(`Tarifas de ${zone.name} guardadas.`);
-                            } catch (err: unknown) {
-                              setZoneRatesMessage(
-                                err instanceof Error ? err.message : 'No se pudieron guardar las tarifas.'
-                              );
-                            } finally {
-                              setSavingZoneRateId(null);
-                            }
-                          }}
-                        >
-                          {savingZoneRateId === zone.id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Save className="w-3 h-3" />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={savingZoneRateId === zone.id}
+                            className={`${btnPrimary} !w-auto text-[10px] py-1.5 px-2.5 inline-flex items-center gap-1`}
+                            onClick={async () => {
+                              setSavingZoneRateId(zone.id);
+                              setZoneRatesMessage(null);
+                              try {
+                                await onUpdateZoneShippingRates(zone.id, {
+                                  flex: Number(draft.flex),
+                                  express: Number(draft.express),
+                                  standard: Number(draft.standard),
+                                });
+                                setZoneRatesMessage(`Tarifas de ${zone.name} guardadas.`);
+                              } catch (err: unknown) {
+                                setZoneRatesMessage(
+                                  err instanceof Error ? err.message : 'No se pudieron guardar las tarifas.'
+                                );
+                              } finally {
+                                setSavingZoneRateId(null);
+                              }
+                            }}
+                          >
+                            {savingZoneRateId === zone.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Save className="w-3 h-3" />
+                            )}
+                            Guardar
+                          </button>
+                          {onDeleteDeliveryZone && (
+                            <button
+                              type="button"
+                              disabled={deletingZoneId === zone.id || savingZoneRateId === zone.id}
+                              className="text-[10px] py-1.5 px-2 inline-flex items-center gap-1 text-[var(--color-danger)] hover:opacity-80 disabled:opacity-40"
+                              title="Eliminar zona de cordón"
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: 'Eliminar zona de cordón',
+                                  message: `¿Eliminar "${zone.name}"?\n\nLos destinos en esa área usarán la tarifa "Fuera de zona".`,
+                                  variant: 'danger',
+                                  confirmText: 'Eliminar',
+                                  cancelText: 'Cancelar',
+                                });
+                                if (!ok) return;
+                                setDeletingZoneId(zone.id);
+                                setZoneRatesMessage(null);
+                                try {
+                                  await onDeleteDeliveryZone(zone.id);
+                                  setZoneRatesMessage(`Zona ${zone.name} eliminada.`);
+                                } catch (err: unknown) {
+                                  setZoneRatesMessage(
+                                    err instanceof Error ? err.message : 'No se pudo eliminar la zona.'
+                                  );
+                                } finally {
+                                  setDeletingZoneId(null);
+                                }
+                              }}
+                            >
+                              {deletingZoneId === zone.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3 h-3" />
+                              )}
+                              Eliminar
+                            </button>
                           )}
-                          Guardar
-                        </button>
+                        </div>
                       </div>
                     );
                   })}

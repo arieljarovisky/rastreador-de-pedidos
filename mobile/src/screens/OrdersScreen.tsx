@@ -208,7 +208,7 @@ export default function OrdersScreen({ navigation }: Props) {
               title={tab === 'assigned' ? 'Sin envíos asignados' : 'Nada disponible ahora'}
               message={
                 tab === 'assigned'
-                  ? 'Escaneá etiquetas ML para cargar envíos o tomá uno de Disponibles.'
+                  ? 'Escaneá en Mercado Envíos Flex (el último escaneo queda asignado) o tomá uno de Disponibles.'
                   : 'Cuando haya pedidos nuevos van a aparecer acá automáticamente.'
               }
               action={

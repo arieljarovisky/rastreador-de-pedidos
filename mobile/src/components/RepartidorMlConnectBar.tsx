@@ -98,7 +98,7 @@ export default function RepartidorMlConnectBar() {
         </View>
       ) : (
         <View style={styles.disconnectedRow}>
-          <Text style={styles.muted}>Sin conectar — los escaneos no se informan a ML</Text>
+          <Text style={styles.muted}>Sin conectar — Flex no podrá sincronizar tus envíos con Posta</Text>
           <Button
             label="Conectar ML"
             onPress={connect}

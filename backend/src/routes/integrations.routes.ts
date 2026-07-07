@@ -24,11 +24,9 @@ import {
 } from '../services/tiendanube.service.js';
 import {
   importMarketplaceShipments,
-  importMercadoLibreByScanForAgency,
   importAgencyMarketplaceShipments,
   listAgencyImportableShipments,
   listImportableShipments,
-  parseScanLocation,
 } from '../services/marketplace-import.service.js';
 import { parseTiendaNubeDateRange } from '../services/tiendanube.service.js';
 import {
@@ -350,73 +348,12 @@ router.post('/tiendanube/webhooks/customers-data-request', (req: Request, res: R
   });
 });
 
-router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  const { code, sellerId, lat, lng } = req.body as {
-    code?: string;
-    sellerId?: string;
-    lat?: number;
-    lng?: number;
-  };
-  if (!code?.trim()) {
-    res.status(400).json({ error: 'Escaneá o ingresá el código de la etiqueta.' });
-    return;
-  }
-
-  try {
-    const scanLocation = parseScanLocation(lat, lng);
-    const result = await importMercadoLibreByScanForAgency(
-      req.user!,
-      code.trim(),
-      sellerId,
-      scanLocation
-    );
-    res.status(result.alreadyImported ? 200 : 201).json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    if (message === 'ML_SCAN_INVALID') {
-      res.status(400).json({ error: 'El código escaneado no es válido. Usá la etiqueta de Mercado Libre Flex.' });
-      return;
-    }
-    if (message === 'ML_NOT_CONNECTED' || message === 'ML_NO_SELLERS_CONNECTED') {
-      res.status(400).json({
-        error:
-          'Conectá Mercado Libre en Configuración (cuenta de la agencia) o vinculá un vendedor con ML.',
-      });
-      return;
-    }
-    if (message === 'ML_SELLER_NOT_CONNECTED') {
-      res.status(400).json({ error: 'Ese vendedor no tiene Mercado Libre conectado.' });
-      return;
-    }
-    if (message === 'ML_SCAN_NOT_FOUND') {
-      res.status(404).json({
-        error:
-          'No se encontró un envío Flex con ese código. Verificá la etiqueta o que la agencia o un vendedor tenga ML vinculado.',
-      });
-      return;
-    }
-    if (message === 'GEOCODE_UNAVAILABLE') {
-      res.status(503).json({ error: 'No se pudo ubicar la dirección en el mapa. Intentá de nuevo.' });
-      return;
-    }
-    if (message === 'EXTERNAL_ORDER_EXISTS') {
-      res.status(409).json({ error: 'Ese pedido de Mercado Libre ya fue importado.' });
-      return;
-    }
-    if (message === 'SELLER_NOT_FOUND') {
-      res.status(400).json({ error: 'Vendedor no encontrado en tu agencia.' });
-      return;
-    }
-    if (message === 'NOT_FOUND') {
-      res.status(404).json({ error: 'Pedido no encontrado en tu agencia.' });
-      return;
-    }
-    if (message === 'FORBIDDEN') {
-      res.status(403).json({ error: 'No tenés permiso para importar envíos.' });
-      return;
-    }
-    throw err;
-  }
+router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR), (_req: Request, res: Response) => {
+  res.status(403).json({
+    error:
+      'El escaneo de etiquetas se hace solo en la app Mercado Envíos Flex. Posta se actualiza automáticamente cuando escaneás ahí.',
+    code: 'SCAN_ONLY_IN_FLEX_APP',
+  });
 });
 
 router.delete('/agency/mercadolibre', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {

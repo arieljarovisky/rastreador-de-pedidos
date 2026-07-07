@@ -460,24 +460,63 @@ export async function assignOrderToRepartidorFromMarketplace(
   repartidorId: string,
   comment: string
 ): Promise<Order | null> {
-  const order = await getOrderById(orderId);
-  if (!order) return null;
-  if (order.status !== OrderStatus.PENDING || order.repartidorId) return order;
-
   const repartidor = await getRepartidorById(repartidorId);
-  if (!repartidor || repartidor.agencyId !== order.agencyId) return order;
+  if (!repartidor) return null;
+  try {
+    return await assignOrderToScanningRepartidor(repartidor, orderId, comment);
+  } catch {
+    return getOrderById(orderId);
+  }
+}
+
+/**
+ * Asigna (o reasigna) un pedido al repartidor que escaneó en Mercado Envíos Flex.
+ * Varios repartidores pueden escanear la misma etiqueta; gana el último escaneo.
+ */
+export async function assignOrderToScanningRepartidor(
+  repartidor: User,
+  orderId: string,
+  comment = 'Asignado por escaneo de etiqueta ML'
+): Promise<Order> {
+  if (repartidor.role !== UserRole.REPARTIDOR) {
+    const existing = await getOrderById(orderId);
+    if (!existing) throw new Error('NOT_FOUND');
+    return existing;
+  }
+
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error('NOT_FOUND');
+  if (!belongsToUserAgency(repartidor, order.agencyId)) throw new Error('NOT_AVAILABLE');
+
+  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+    return order;
+  }
+
+  if (order.repartidorId === repartidor.id) {
+    return order;
+  }
+
+  if (
+    order.status !== OrderStatus.PENDING &&
+    order.status !== OrderStatus.ASSIGNED &&
+    order.status !== OrderStatus.DELIVERING
+  ) {
+    return order;
+  }
 
   const now = new Date();
   await pool.query(
     'UPDATE orders SET status = ?, repartidor_id = ?, updated_at = ? WHERE id = ?',
-    [OrderStatus.ASSIGNED, repartidorId, now, orderId]
+    [OrderStatus.ASSIGNED, repartidor.id, now, orderId]
   );
   await pool.query(
     `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
     [orderId, OrderStatus.ASSIGNED, repartidor.name, comment, now]
   );
 
-  return getOrderById(orderId);
+  const updated = await getOrderById(orderId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
 }
 
 /** Aplica estado y repartidor sincronizados desde Mercado Libre (importación / webhook). */

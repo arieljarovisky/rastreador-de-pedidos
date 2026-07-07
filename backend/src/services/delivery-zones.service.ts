@@ -415,14 +415,15 @@ export async function updateZone(
 export async function deleteZone(agencyId: string, zoneId: string): Promise<void> {
   const existing = await getZoneById(agencyId, zoneId);
   if (!existing) throw new Error('NOT_FOUND');
-  if (isPricingZoneId(zoneId)) throw new Error('PRICING_ZONE_PROTECTED');
 
-  const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
-    `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
-    [agencyId, zoneId]
-  );
-  if (Number(usage[0]?.cnt ?? 0) > 0) {
-    throw new Error('ZONE_IN_USE');
+  if (!isPricingZoneId(zoneId)) {
+    const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
+      `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
+      [agencyId, zoneId]
+    );
+    if (Number(usage[0]?.cnt ?? 0) > 0) {
+      throw new Error('ZONE_IN_USE');
+    }
   }
 
   await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [zoneId, agencyId]);

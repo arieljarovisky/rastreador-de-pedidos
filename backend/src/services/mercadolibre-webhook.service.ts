@@ -190,6 +190,8 @@ async function resolveFlexOrderForShipment(
   mlShipment: Awaited<ReturnType<typeof fetchMercadoLibreShipment>>
 ): Promise<Order | null> {
   const mlOrderId = mlShipment.order_id ? String(mlShipment.order_id) : null;
+  const owner = await getUserById(integration.userId);
+  const agencyMode = owner ? isAgencyMlBridgeUser(owner) : false;
 
   let existing = await findOrderByExternalGlobal('mercadolibre', mlShipmentId);
   if (!existing && mlOrderId) {
@@ -201,7 +203,9 @@ async function resolveFlexOrderForShipment(
       mlShipmentId
     );
     if (flexByShipment) {
-      existing = await findImportedMercadoLibreFlex(integration.userId, flexByShipment);
+      existing = agencyMode
+        ? await findImportedMercadoLibreFlexGlobal(flexByShipment)
+        : await findImportedMercadoLibreFlex(integration.userId, flexByShipment);
     }
   }
 
@@ -210,7 +214,9 @@ async function resolveFlexOrderForShipment(
     if (flexShipment) {
       const importedId = await importFlexShipment(integration, flexShipment);
       if (importedId) {
-        existing = await findImportedMercadoLibreFlex(integration.userId, flexShipment);
+        existing = agencyMode
+          ? await findImportedMercadoLibreFlexGlobal(flexShipment)
+          : await findImportedMercadoLibreFlex(integration.userId, flexShipment);
       }
     }
   }
@@ -355,7 +361,9 @@ async function handleFlexHandshakeResource(
   );
 
   const driverNote = repartidor
-    ? `Handshake Flex · colectado por ${repartidor.name}`
+    ? existing.repartidorId && existing.repartidorId !== repartidor.id
+      ? `Handshake Flex · transferido a ${repartidor.name}`
+      : `Handshake Flex · colectado por ${repartidor.name}`
     : assignment?.driver_id
       ? `Handshake Flex · transportista ML #${assignment.driver_id}`
       : 'Handshake Flex · colecta o transferencia registrada en ML';
@@ -368,27 +376,42 @@ async function handleFlexHandshakeResource(
   }
 
   let assignedToRepartidor = false;
-  if (
-    repartidor &&
-    existing.status === OrderStatus.PENDING &&
-    !existing.repartidorId
-  ) {
+  if (repartidor) {
+    const repartidorIdBefore = existing.repartidorId;
+    const isTransfer = Boolean(repartidorIdBefore && repartidorIdBefore !== repartidor.id);
+    const assignComment = isTransfer
+      ? `Reasignado por escaneo en Mercado Envíos Flex (último escaneo)`
+      : 'Asignado automáticamente por escaneo en Mercado Envíos Flex';
     const assignedOrder = await assignOrderToRepartidorFromMarketplace(
       existing.id,
       repartidor.id,
-      'Asignado automáticamente por escaneo en Mercado Envíos Flex'
+      assignComment
     );
     if (assignedOrder?.repartidorId === repartidor.id) {
       existing = assignedOrder;
-      assignedToRepartidor = true;
-      await createNotification({
-        id: `n_ml_flex_assign_${Date.now()}_${existing.id}`,
-        userId: repartidor.id,
-        title: 'Pedido asignado (Flex)',
-        body: `Se te asignó el pedido ${existing.id} por escaneo en Mercado Envíos Flex.`,
-        type: 'order_assigned',
-        orderId: existing.id,
-      });
+      assignedToRepartidor = repartidorIdBefore !== repartidor.id;
+      if (assignedToRepartidor) {
+        await createNotification({
+          id: `n_ml_flex_assign_${Date.now()}_${existing.id}`,
+          userId: repartidor.id,
+          title: isTransfer ? 'Pedido transferido (Flex)' : 'Pedido asignado (Flex)',
+          body: isTransfer
+            ? `El envío ${existing.id} quedó asignado a vos por el último escaneo en Mercado Envíos Flex.`
+            : `Se te asignó el pedido ${existing.id} por escaneo en Mercado Envíos Flex.`,
+          type: 'order_assigned',
+          orderId: existing.id,
+        });
+        if (isTransfer && repartidorIdBefore) {
+          await createNotification({
+            id: `n_ml_flex_unassign_${Date.now()}_${existing.id}`,
+            userId: repartidorIdBefore,
+            title: 'Pedido transferido (Flex)',
+            body: `El envío ${existing.id} fue escaneado por ${repartidor.name} y ya no está asignado a vos.`,
+            type: 'info',
+            orderId: existing.id,
+          });
+        }
+      }
     }
   }
 

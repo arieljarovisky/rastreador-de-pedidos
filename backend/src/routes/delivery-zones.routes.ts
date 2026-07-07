@@ -179,10 +179,6 @@ router.delete('/:id', authenticate, requireAgencyAdmin(), async (req: Request, r
       });
       return;
     }
-    if (message === 'PRICING_ZONE_PROTECTED') {
-      res.status(400).json({ error: 'Las zonas de cordón (CABA y cordones) no se pueden eliminar.' });
-      return;
-    }
     throw err;
   }
 });

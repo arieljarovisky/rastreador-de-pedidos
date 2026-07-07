@@ -118,7 +118,8 @@ export default function RepartidorProfileScreen(_props: Props) {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Mercado Libre Flex</Text>
         <Text style={styles.hint}>
-          Conectá tu cuenta para que tus escaneos en Mercado Envíos Flex se sincronicen con Posta.
+          Conectá tu cuenta para que tus escaneos en Mercado Envíos Flex se sincronicen con Posta. Si
+          varios repartidores escanean el mismo paquete, queda asignado al último.
         </Text>
         {!status?.mercadolibre.configured ? (
           <Text style={styles.warn}>ML no está configurado en el servidor de Posta.</Text>

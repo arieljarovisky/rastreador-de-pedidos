@@ -235,7 +235,7 @@ export default function RepartidorDashboard({
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[11px] text-[var(--color-warn)]">Sin conectar — los escaneos no se informan a ML</p>
+                <p className="text-[11px] text-[var(--color-warn)]">Sin conectar — Flex no podrá sincronizar tus envíos con Posta</p>
                 <button
                   type="button"
                   onClick={() => {

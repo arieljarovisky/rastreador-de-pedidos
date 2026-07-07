@@ -5,6 +5,7 @@ import {
   findOrderByExternal,
   findOrderByExternalGlobal,
   getSellerIdForOrder,
+  assignOrderToScanningRepartidor,
   recordMercadoLibreLabelScan,
   assertOrderAccessibleForLabelScan,
   updateOrderStatus,
@@ -727,14 +728,27 @@ async function notifySellerOnLabelScan(
 /** Asigna el pedido al repartidor que escaneó (colecta Flex → Mis envíos). */
 async function assignScannedOrderToRepartidorIfNeeded(user: User, order: Order): Promise<Order> {
   if (user.role !== UserRole.REPARTIDOR) return order;
-  if (order.status !== OrderStatus.PENDING || order.repartidorId) return order;
-  return updateOrderStatus(
-    user,
-    order.id,
-    OrderStatus.ASSIGNED,
-    undefined,
-    'Asignado por escaneo de etiqueta ML'
-  );
+  try {
+    const updated = await assignOrderToScanningRepartidor(
+      user,
+      order.id,
+      'Asignado por escaneo de etiqueta ML'
+    );
+    if (updated.repartidorId === user.id && updated.repartidorId !== order.repartidorId) {
+      await createNotification({
+        id: `n_scan_assign_${Date.now()}_${order.id}`,
+        userId: user.id,
+        title: 'Pedido asignado',
+        body: `Se te asignó el envío ${updated.id} (${updated.clientName}) por escaneo de etiqueta.`,
+        type: 'order_assigned',
+        orderId: updated.id,
+      });
+    }
+    return updated;
+  } catch (err) {
+    if (err instanceof Error && err.message === 'NOT_AVAILABLE') return order;
+    throw err;
+  }
 }
 
 async function attachMercadoLibreFlexSync(
