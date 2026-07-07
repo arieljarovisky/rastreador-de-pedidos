@@ -195,18 +195,26 @@ export async function chargeOrderOnDelivery(order: Order): Promise<boolean> {
 }
 
 async function backfillDeliveredCharges(limit = 40): Promise<void> {
-  const [rows] = await pool.query<
-    Array<{ id: string } & RowDataPacket>
-  >(
-    `SELECT id FROM orders
-     WHERE status = 'delivered' AND billed_at IS NULL AND seller_id IS NOT NULL AND agency_id IS NOT NULL
-     ORDER BY updated_at DESC
-     LIMIT ?`,
-    [limit]
-  );
-  for (const row of rows) {
-    const order = await getOrderById(row.id);
-    if (order) await chargeOrderOnDelivery(order);
+  try {
+    const [rows] = await pool.query<
+      Array<{ id: string } & RowDataPacket>
+    >(
+      `SELECT id FROM orders
+       WHERE status = 'delivered' AND billed_at IS NULL AND seller_id IS NOT NULL AND agency_id IS NOT NULL
+       ORDER BY updated_at DESC
+       LIMIT ?`,
+      [limit]
+    );
+    for (const row of rows) {
+      try {
+        const order = await getOrderById(row.id);
+        if (order) await chargeOrderOnDelivery(order);
+      } catch (err) {
+        console.warn(`[billing] No se pudo facturar pedido ${row.id}:`, err);
+      }
+    }
+  } catch (err) {
+    console.warn('[billing] Backfill de cargos omitido:', err);
   }
 }
 

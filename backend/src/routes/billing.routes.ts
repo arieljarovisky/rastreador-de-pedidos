@@ -50,6 +50,7 @@ router.get(
         return;
       }
       res.status(500).json({ error: 'No se pudo cargar el resumen de cuenta.' });
+      console.error('[billing] GET /summary error:', err);
     }
   }
 );
@@ -75,6 +76,7 @@ router.get(
         return;
       }
       res.status(500).json({ error: 'No se pudo cargar el historial.' });
+      console.error('[billing] GET /ledger error:', err);
     }
   }
 );

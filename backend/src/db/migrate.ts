@@ -219,6 +219,55 @@ export async function runMigrations(): Promise<void> {
     );
   }
 
+  if (!(await columnExists('agencies', 'ml_flex_mode'))) {
+    await pool.query(
+      `ALTER TABLE agencies ADD COLUMN ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency' AFTER name`
+    );
+  }
+  if (!(await columnExists('agencies', 'shipping_rate_flex'))) {
+    await pool.query(
+      'ALTER TABLE agencies ADD COLUMN shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00 AFTER ml_flex_mode'
+    );
+  }
+  if (!(await columnExists('agencies', 'shipping_rate_express'))) {
+    await pool.query(
+      'ALTER TABLE agencies ADD COLUMN shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00 AFTER shipping_rate_flex'
+    );
+  }
+  if (!(await columnExists('agencies', 'shipping_rate_standard'))) {
+    await pool.query(
+      'ALTER TABLE agencies ADD COLUMN shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00 AFTER shipping_rate_express'
+    );
+  }
+  if (!(await columnExists('orders', 'shipping_cost'))) {
+    await pool.query('ALTER TABLE orders ADD COLUMN shipping_cost DECIMAL(12,2) NULL AFTER shipping_type');
+  }
+  if (!(await columnExists('orders', 'billed_at'))) {
+    await pool.query('ALTER TABLE orders ADD COLUMN billed_at DATETIME(3) NULL AFTER shipping_cost');
+    await pool.query('CREATE INDEX idx_orders_billed_at ON orders (billed_at)');
+  }
+  if (!(await tableExists('billing_ledger_entries'))) {
+    await pool.query(`
+      CREATE TABLE billing_ledger_entries (
+        id VARCHAR(36) PRIMARY KEY,
+        agency_id VARCHAR(36) NOT NULL,
+        seller_id VARCHAR(36) NOT NULL,
+        order_id VARCHAR(36) NULL,
+        entry_type ENUM('charge', 'payment', 'adjustment') NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        description VARCHAR(500) NOT NULL,
+        created_by VARCHAR(255) NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_billing_agency_date (agency_id, created_at),
+        INDEX idx_billing_seller_date (seller_id, created_at),
+        INDEX idx_billing_order (order_id),
+        CONSTRAINT fk_billing_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
+        CONSTRAINT fk_billing_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_billing_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
   const [agencyRows] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
     'SELECT id FROM agencies'
   );
@@ -237,12 +286,6 @@ export async function runMigrations(): Promise<void> {
         INDEX idx_dismissals_notification (notification_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-  }
-
-  if (!(await columnExists('agencies', 'ml_flex_mode'))) {
-    await pool.query(
-      `ALTER TABLE agencies ADD COLUMN ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency' AFTER name`
-    );
   }
 
   if (!(await columnExists('agencies', 'contact_email'))) {
@@ -315,52 +358,6 @@ export async function runMigrations(): Promise<void> {
         UNIQUE KEY uk_push_token (expo_push_token),
         INDEX idx_push_user (user_id),
         CONSTRAINT fk_push_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-  }
-
-  if (!(await columnExists('agencies', 'shipping_rate_flex'))) {
-    await pool.query(
-      'ALTER TABLE agencies ADD COLUMN shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00 AFTER ml_flex_mode'
-    );
-  }
-  if (!(await columnExists('agencies', 'shipping_rate_express'))) {
-    await pool.query(
-      'ALTER TABLE agencies ADD COLUMN shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00 AFTER shipping_rate_flex'
-    );
-  }
-  if (!(await columnExists('agencies', 'shipping_rate_standard'))) {
-    await pool.query(
-      'ALTER TABLE agencies ADD COLUMN shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00 AFTER shipping_rate_express'
-    );
-  }
-
-  if (!(await columnExists('orders', 'shipping_cost'))) {
-    await pool.query('ALTER TABLE orders ADD COLUMN shipping_cost DECIMAL(12,2) NULL AFTER shipping_type');
-  }
-  if (!(await columnExists('orders', 'billed_at'))) {
-    await pool.query('ALTER TABLE orders ADD COLUMN billed_at DATETIME(3) NULL AFTER shipping_cost');
-    await pool.query('CREATE INDEX idx_orders_billed_at ON orders (billed_at)');
-  }
-
-  if (!(await tableExists('billing_ledger_entries'))) {
-    await pool.query(`
-      CREATE TABLE billing_ledger_entries (
-        id VARCHAR(36) PRIMARY KEY,
-        agency_id VARCHAR(36) NOT NULL,
-        seller_id VARCHAR(36) NOT NULL,
-        order_id VARCHAR(36) NULL,
-        entry_type ENUM('charge', 'payment', 'adjustment') NOT NULL,
-        amount DECIMAL(12,2) NOT NULL,
-        description VARCHAR(500) NOT NULL,
-        created_by VARCHAR(255) NULL,
-        created_at DATETIME(3) NOT NULL,
-        INDEX idx_billing_agency_date (agency_id, created_at),
-        INDEX idx_billing_seller_date (seller_id, created_at),
-        INDEX idx_billing_order (order_id),
-        CONSTRAINT fk_billing_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
-        CONSTRAINT fk_billing_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
-        CONSTRAINT fk_billing_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }
