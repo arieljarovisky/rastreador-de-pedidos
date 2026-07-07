@@ -162,6 +162,58 @@ export async function syncMercadoLibreOrderAfterImport(
   }
 }
 
+const ML_LIVE_SYNC_LIMIT = 12;
+
+function isOpenMercadoLibreOrder(order: Order): boolean {
+  return (
+    order.externalSource === 'mercadolibre' &&
+    Boolean(order.externalOrderId) &&
+    order.status !== OrderStatus.DELIVERED &&
+    order.status !== OrderStatus.CANCELLED &&
+    !order.archived
+  );
+}
+
+/** Consulta ML y actualiza pedidos Flex abiertos (respaldo si no llegaron webhooks). */
+export async function syncOpenMercadoLibreOrdersInList(orders: Order[]): Promise<Order[]> {
+  const openMl = orders.filter(isOpenMercadoLibreOrder);
+  if (openMl.length === 0) return orders;
+
+  const toSync = openMl.slice(0, ML_LIVE_SYNC_LIMIT);
+  const updates = new Map<string, Order>();
+
+  await Promise.all(
+    toSync.map(async (order) => {
+      const sellerId = order.sellerId ?? (await getSellerIdForOrder(order.id));
+      if (!sellerId || !order.externalOrderId) return;
+
+      const updated = await syncMercadoLibreOrderAfterImport(sellerId, order, {
+        externalId: order.externalOrderId,
+      });
+      if (
+        updated.status !== order.status ||
+        updated.repartidorId !== order.repartidorId
+      ) {
+        emitOrderUpdated(updated, sellerId);
+      }
+      updates.set(order.id, updated);
+    })
+  );
+
+  if (updates.size === 0) return orders;
+  return orders.map((order) => updates.get(order.id) ?? order);
+}
+
+export async function syncMercadoLibreOrderLiveStatus(
+  sellerUserId: string,
+  order: Order
+): Promise<Order> {
+  if (!isOpenMercadoLibreOrder(order) || !order.externalOrderId) return order;
+  return syncMercadoLibreOrderAfterImport(sellerUserId, order, {
+    externalId: order.externalOrderId,
+  });
+}
+
 export interface MarketplaceListOptions {
   dateFrom?: string;
   dateTo?: string;

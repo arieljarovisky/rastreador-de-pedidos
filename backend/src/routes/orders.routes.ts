@@ -18,6 +18,10 @@ import {
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../services/mercadolibre.service.js';
+import {
+  syncOpenMercadoLibreOrdersInList,
+  syncMercadoLibreOrderLiveStatus,
+} from '../services/marketplace-import.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
 import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
 
@@ -27,6 +31,8 @@ function mercadoLibreLabelErrorMessage(code: string): string {
       return 'El vendedor no tiene Mercado Libre conectado.';
     case 'ML_NO_SHIPMENT':
       return 'No se encontró un envío asociado a esta orden de Mercado Libre.';
+    case 'ML_ALREADY_DELIVERED':
+      return 'Este envío ya fue entregado en Mercado Libre.';
     case 'ML_LABEL_NOT_READY':
       return 'La etiqueta aún no está lista para imprimir. Verificá el estado del envío en Mercado Libre.';
     case 'ML_LABEL_NOT_FOUND':
@@ -52,7 +58,11 @@ router.get('/delivery-summary', authenticate, requireRoles(
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
   const orders = await listOrdersForUser(req.user!);
-  res.json(orders);
+  const synced =
+    req.user!.role === UserRole.REPARTIDOR
+      ? orders
+      : await syncOpenMercadoLibreOrdersInList(orders);
+  res.json(synced);
 });
 
 router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
@@ -158,7 +168,26 @@ router.get('/:id/mercadolibre-label', authenticate, async (req: Request, res: Re
     res.send(pdf);
   } catch (err) {
     const code = err instanceof Error ? err.message : 'ML_LABEL_UNAVAILABLE';
-    const status = code === 'ML_NOT_CONNECTED' ? 400 : 502;
+    if (code === 'ML_ALREADY_DELIVERED' || code === 'ML_LABEL_NOT_READY') {
+      try {
+        const synced = await syncMercadoLibreOrderLiveStatus(sellerId, order);
+        if (synced.status !== order.status) {
+          emitOrderUpdated(synced, sellerId);
+        }
+        if (synced.status === OrderStatus.DELIVERED) {
+          res.status(409).json({
+            error:
+              'Este envío ya fue entregado en Mercado Libre. El estado se actualizó en Posta.',
+            code: 'ML_ALREADY_DELIVERED',
+            order: synced,
+          });
+          return;
+        }
+      } catch {
+        // seguir con el mensaje de etiqueta
+      }
+    }
+    const status = code === 'ML_NOT_CONNECTED' ? 400 : code === 'ML_ALREADY_DELIVERED' ? 409 : 502;
     res.status(status).json({ error: mercadoLibreLabelErrorMessage(code) });
   }
 });

@@ -882,9 +882,11 @@ export default function App() {
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          throw new Error(
-            (body as { error?: string }).error ?? 'No se pudo obtener la etiqueta de Mercado Libre.'
-          );
+          const payload = body as { error?: string; code?: string; order?: Order };
+          if (payload.code === 'ML_ALREADY_DELIVERED' && payload.order) {
+            mergeOrder(payload.order);
+          }
+          throw new Error(payload.error ?? 'No se pudo obtener la etiqueta de Mercado Libre.');
         }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -898,7 +900,7 @@ export default function App() {
         });
       }
     },
-    [token, showAlert]
+    [token, showAlert, mergeOrder]
   );
 
   const fetchIntegrationStatus = useCallback(async () => {

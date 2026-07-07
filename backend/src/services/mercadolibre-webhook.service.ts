@@ -405,6 +405,10 @@ export async function processMercadoLibreNotification(
   const resource = payload.resource?.trim();
   if (!resource) return;
 
+  console.log(
+    `[ml-webhook] ${payload.topic} user=${payload.user_id} resource=${resource}`
+  );
+
   const parsed = parseMercadoLibreNotificationResource(resource);
   const orderFromResource = resource.match(/\/orders\/(\d+)/i)?.[1];
   const mlOrderId = parsed.mlOrderId ?? orderFromResource;

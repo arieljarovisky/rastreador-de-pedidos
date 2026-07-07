@@ -911,8 +911,15 @@ export async function getMercadoLibreShippingLabelPdf(
     }
     if (!res.ok) {
       const body = await res.text();
+      const bodyLower = body.toLowerCase();
       console.warn('[ml-label] Error ML', res.status, body.slice(0, 400));
-      if (body.includes('not_printable_status')) {
+      if (
+        bodyLower.includes('delivered') &&
+        (bodyLower.includes('not_printable') || bodyLower.includes('shplab'))
+      ) {
+        throw new Error('ML_ALREADY_DELIVERED');
+      }
+      if (bodyLower.includes('not_printable')) {
         throw new Error('ML_LABEL_NOT_READY');
       }
       if (res.status === 404) {
