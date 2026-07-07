@@ -240,6 +240,9 @@ export default function App() {
       next[index] = order;
       return next;
     });
+    if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+      setActiveOrderId((current) => (current === order.id ? null : current));
+    }
     setLastSyncAt(new Date());
   }, []);
 

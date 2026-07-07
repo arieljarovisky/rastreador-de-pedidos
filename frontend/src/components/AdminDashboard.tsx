@@ -48,6 +48,7 @@ const DIRECTORY_PRESETS = [
 
 const MAP_ZONES_STORAGE_KEY = 'lupo_map_show_zones';
 const MAP_REPS_STORAGE_KEY = 'lupo_map_repartidor_ids';
+const MAP_DELIVERED_STORAGE_KEY = 'lupo_map_show_delivered';
 const ORDERS_HEADER_COLLAPSED_KEY = 'posta_orders_header_collapsed';
 
 function loadOrdersHeaderCollapsed(): boolean {
@@ -73,6 +74,14 @@ function loadShowMapZones(): boolean {
     // ignore storage errors
   }
   return true;
+}
+
+function loadShowDeliveredOnMap(): boolean {
+  try {
+    return localStorage.getItem(MAP_DELIVERED_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 function loadMapRepartidorPrefs(): MapRepartidorPrefs {
@@ -156,6 +165,7 @@ export default function AdminDashboard({
   });
   const [mapFilterOpen, setMapFilterOpen] = useState(false);
   const [showMapZones, setShowMapZones] = useState(loadShowMapZones);
+  const [showDeliveredOnMap, setShowDeliveredOnMap] = useState(loadShowDeliveredOnMap);
   const mapFilterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -165,6 +175,14 @@ export default function AdminDashboard({
       // ignore storage errors
     }
   }, [showMapZones]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_DELIVERED_STORAGE_KEY, showDeliveredOnMap ? '1' : '0');
+    } catch {
+      // ignore storage errors
+    }
+  }, [showDeliveredOnMap]);
 
   useEffect(() => {
     try {
@@ -380,9 +398,14 @@ export default function AdminDashboard({
     const visible = sellerFilterId
       ? orders.filter((o) => !o.archived && o.sellerId === sellerFilterId)
       : orders.filter((o) => !o.archived);
-    if (allRepartidoresOnMap || mapRepartidorIds.size === 0) return visible;
-    return visible.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
-  }, [orders, mapRepartidorIds, allRepartidoresOnMap, sellerFilterId]);
+    const onMap = showDeliveredOnMap
+      ? visible
+      : visible.filter(
+          (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
+        );
+    if (allRepartidoresOnMap || mapRepartidorIds.size === 0) return onMap;
+    return onMap.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
+  }, [orders, mapRepartidorIds, allRepartidoresOnMap, sellerFilterId, showDeliveredOnMap]);
 
   const mapFilterLabel = useMemo(() => {
     if (repartidores.length === 0) return 'Sin repartidores';
@@ -1187,6 +1210,20 @@ export default function AdminDashboard({
             >
               <Layers className="w-4 h-4 shrink-0" />
               {showMapZones ? 'Ocultar áreas' : 'Ver áreas'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowDeliveredOnMap((visible) => !visible)}
+              title={showDeliveredOnMap ? 'Ocultar entregados en el mapa' : 'Mostrar entregados en el mapa'}
+              className={`w-full flex items-center justify-center gap-1.5 rounded-[var(--radius-posta)] px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-[10px] font-semibold ${
+                showDeliveredOnMap
+                  ? 'bg-[var(--color-ok)]/90 border-[var(--color-ok)] text-[#F6F0E4] hover:brightness-110'
+                  : 'bg-[var(--surface-panel)]/95 border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:border-[var(--color-ok)]'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              {showDeliveredOnMap ? 'Ocultar listos' : 'Ver listos'}
             </button>
 
             <div className="relative">
