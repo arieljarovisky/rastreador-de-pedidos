@@ -150,6 +150,31 @@ interface MapComponentProps {
 }
 
 // Configuración de Pines Personalizados con SVGs para evitar enlaces rotos de Leaflet
+function bindOrderMarkerSelect(
+  marker: L.Marker,
+  orderId: string,
+  onSelect?: (orderId: string) => void
+) {
+  marker.off('click');
+  marker.off('popupopen');
+
+  marker.on('click', () => {
+    onSelect?.(orderId);
+    marker.openPopup();
+  });
+
+  marker.on('popupopen', () => {
+    setTimeout(() => {
+      const btn = document.getElementById(`btn-map-select-${orderId}`);
+      if (btn && onSelect) {
+        btn.onclick = () => {
+          onSelect(orderId);
+        };
+      }
+    }, 50);
+  });
+}
+
 const createSvgIcon = (color: string, iconText: string, glow: boolean = false) => {
   const shadowClass = glow ? 'filter drop-shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse' : 'filter drop-shadow-md';
   return L.divIcon({
@@ -491,28 +516,16 @@ export default function MapComponent({
           `;
 
       if (markersRef.current[order.id]) {
-        markersRef.current[order.id].setLatLng([order.lat, order.lng]);
-        markersRef.current[order.id].setIcon(icon);
-        markersRef.current[order.id].setPopupContent(popupHtml);
+        const marker = markersRef.current[order.id];
+        marker.setLatLng([order.lat, order.lng]);
+        marker.setIcon(icon);
+        marker.setPopupContent(popupHtml);
+        bindOrderMarkerSelect(marker, order.id, onSelectOrder);
       } else {
-        // Crear nuevo
         const marker = L.marker([order.lat, order.lng], { icon })
           .addTo(map)
           .bindPopup(popupHtml);
-
-        // Vincular popup event para click
-        marker.on('popupopen', () => {
-          setTimeout(() => {
-            const btn = document.getElementById(`btn-map-select-${order.id}`);
-            if (btn && onSelectOrder) {
-              btn.onclick = () => {
-                onSelectOrder(order.id);
-                marker.closePopup();
-              };
-            }
-          }, 50);
-        });
-
+        bindOrderMarkerSelect(marker, order.id, onSelectOrder);
         markersRef.current[order.id] = marker;
       }
 
@@ -711,6 +724,15 @@ export default function MapComponent({
       cancelled = true;
     };
   }, [activeOrderId, orders, repartidores, liveRepartidorLocation, theme, mapColors.route]);
+
+  // Abrir popup del pedido seleccionado (desde lista o mapa)
+  useEffect(() => {
+    if (!activeOrderId) return;
+    const marker = markersRef.current[activeOrderId];
+    if (marker && !marker.isPopupOpen()) {
+      marker.openPopup();
+    }
+  }, [activeOrderId]);
 
   // Centrar solo al elegir un pedido
   useEffect(() => {

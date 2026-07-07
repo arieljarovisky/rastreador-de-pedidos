@@ -251,15 +251,24 @@ export default function App() {
   }, [token, user?.role]);
 
   const mergeOrder = useCallback((order: Order) => {
+    let deselectOrderId: string | null = null;
     setOrders((prev) => {
       const index = prev.findIndex((o) => o.id === order.id);
       if (index === -1) return [order, ...prev];
+      const previous = prev[index];
+      const becameClosed =
+        (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) &&
+        previous.status !== OrderStatus.DELIVERED &&
+        previous.status !== OrderStatus.CANCELLED;
+      if (becameClosed) {
+        deselectOrderId = order.id;
+      }
       const next = [...prev];
       next[index] = order;
       return next;
     });
-    if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
-      setActiveOrderId((current) => (current === order.id ? null : current));
+    if (deselectOrderId) {
+      setActiveOrderId((current) => (current === deselectOrderId ? null : current));
     }
     setLastSyncAt(new Date());
   }, []);
