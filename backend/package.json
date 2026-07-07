@@ -16,6 +16,7 @@
     "db:clone-prod": "tsx src/db/clone-prod-database.ts",
     "db:reset:prod": "node dist/db/reset.js",
     "db:clear-orders": "tsx src/db/clear-orders.ts",
+    "db:reset-password": "tsx src/db/reset-password.ts",
     "lint": "node ./node_modules/typescript/lib/tsc.js --noEmit"
   },
   "dependencies": {

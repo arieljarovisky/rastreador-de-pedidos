@@ -11,6 +11,9 @@ interface SellerPickupPanelProps {
   sellers: User[];
   pickupPoints?: PickupPoint[];
   initialSellerId?: string;
+  selectedSellerId?: string;
+  onSellerChange?: (sellerId: string) => void;
+  allSellersOptionLabel?: string;
   compact?: boolean;
   lockSellerSelection?: boolean;
   collapsible?: boolean;
@@ -20,19 +23,32 @@ export default function SellerPickupPanel({
   sellers,
   pickupPoints = [],
   initialSellerId = '',
+  selectedSellerId,
+  onSellerChange,
+  allSellersOptionLabel,
   compact = false,
   lockSellerSelection = false,
   collapsible = false,
 }: SellerPickupPanelProps) {
-  const [sellerId, setSellerId] = useState(initialSellerId);
+  const isControlled = onSellerChange !== undefined;
+  const [internalSellerId, setInternalSellerId] = useState(initialSellerId);
+  const sellerId = isControlled ? (selectedSellerId ?? '') : internalSellerId;
+
+  const handleSellerChange = (nextId: string) => {
+    if (isControlled) {
+      onSellerChange(nextId);
+    } else {
+      setInternalSellerId(nextId);
+    }
+  };
   const [expanded, setExpanded] = useState(() => {
     if (!collapsible || typeof window === 'undefined') return true;
     return window.matchMedia('(min-width: 1024px)').matches;
   });
 
   useEffect(() => {
-    if (initialSellerId) setSellerId(initialSellerId);
-  }, [initialSellerId]);
+    if (!isControlled && initialSellerId) setInternalSellerId(initialSellerId);
+  }, [initialSellerId, isControlled]);
 
   const selectedSeller = useMemo(
     () => sellers.find((s) => s.id === sellerId) ?? null,
@@ -81,7 +97,9 @@ export default function SellerPickupPanel({
           </div>
           {(expanded || !collapsible) && (
             <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
-              Los envíos Flex se sincronizan automáticamente desde Mercado Libre.
+              {allSellersOptionLabel
+                ? 'Filtrá los envíos por vendedor de la agencia.'
+                : 'Los envíos Flex se sincronizan automáticamente desde Mercado Libre.'}
             </p>
           )}
         </div>
@@ -95,10 +113,12 @@ export default function SellerPickupPanel({
             </label>
             <select
               value={sellerId}
-              onChange={(e) => setSellerId(e.target.value)}
+              onChange={(e) => handleSellerChange(e.target.value)}
               className="w-full bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] px-3 py-2 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
             >
-              <option value="">Seleccioná un vendedor…</option>
+              <option value="">
+                {allSellersOptionLabel ?? 'Seleccioná un vendedor…'}
+              </option>
               {sellers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} (@{s.username})

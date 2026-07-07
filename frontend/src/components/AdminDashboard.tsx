@@ -149,6 +149,7 @@ export default function AdminDashboard({
   // Estados para Filtros (mapa)
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sellerFilterId, setSellerFilterId] = useState<string>('');
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
     return new Set();
@@ -342,6 +343,9 @@ export default function AdminDashboard({
 
   // Filtrar pedidos
   const activeOrders = orders.filter((o) => !o.archived);
+  const sellerScopedOrders = sellerFilterId
+    ? activeOrders.filter((o) => o.sellerId === sellerFilterId)
+    : activeOrders;
 
   const filteredOrders = orders.filter((order) => {
     const isArchivedView = statusFilter === 'archived';
@@ -351,14 +355,16 @@ export default function AdminDashboard({
       return false;
     }
 
+    const matchesSeller = !sellerFilterId || order.sellerId === sellerFilterId;
     const matchesStatus = statusFilter === 'all' || statusFilter === 'archived' || order.status === statusFilter;
     const matchesSearch =
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (order.repartidorName && order.repartidorName.toLowerCase().includes(searchQuery.toLowerCase()));
+      (order.repartidorName && order.repartidorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (order.sellerName && order.sellerName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    return matchesStatus && matchesSearch;
+    return matchesSeller && matchesStatus && matchesSearch;
   });
 
   const allRepartidoresOnMap = useMemo(
@@ -371,10 +377,12 @@ export default function AdminDashboard({
   const mapRepartidores = repartidores;
 
   const mapOrders = useMemo(() => {
-    const visible = orders.filter((o) => !o.archived);
+    const visible = sellerFilterId
+      ? orders.filter((o) => !o.archived && o.sellerId === sellerFilterId)
+      : orders.filter((o) => !o.archived);
     if (allRepartidoresOnMap || mapRepartidorIds.size === 0) return visible;
     return visible.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
-  }, [orders, mapRepartidorIds, allRepartidoresOnMap]);
+  }, [orders, mapRepartidorIds, allRepartidoresOnMap, sellerFilterId]);
 
   const mapFilterLabel = useMemo(() => {
     if (repartidores.length === 0) return 'Sin repartidores';
@@ -555,11 +563,14 @@ export default function AdminDashboard({
 
   // Contadores para resúmenes estadísticos rápidos
   const stats = {
-    total: activeOrders.length,
-    pending: activeOrders.filter((o) => o.status === OrderStatus.PENDING).length,
-    delivering: activeOrders.filter((o) => o.status === OrderStatus.DELIVERING).length,
-    delivered: activeOrders.filter((o) => o.status === OrderStatus.DELIVERED).length,
-    archived: orders.filter((o) => o.archived).length,
+    total: sellerScopedOrders.length,
+    pending: sellerScopedOrders.filter((o) => o.status === OrderStatus.PENDING).length,
+    delivering: sellerScopedOrders.filter((o) => o.status === OrderStatus.DELIVERING).length,
+    delivered: sellerScopedOrders.filter((o) => o.status === OrderStatus.DELIVERED).length,
+    archived: (sellerFilterId
+      ? orders.filter((o) => o.archived && o.sellerId === sellerFilterId)
+      : orders.filter((o) => o.archived)
+    ).length,
   };
 
   return (
@@ -691,6 +702,9 @@ export default function AdminDashboard({
               collapsible
               sellers={sellers}
               pickupPoints={pickupPoints}
+              selectedSellerId={sellerFilterId}
+              onSellerChange={setSellerFilterId}
+              allSellersOptionLabel="Todos los vendedores"
             />
           )}
 
