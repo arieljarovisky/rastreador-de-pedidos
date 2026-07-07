@@ -10,15 +10,12 @@ import {
   Receipt,
   Loader2,
   Save,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { BillingLedgerEntry, BillingSummary, User, UserRole, isAgencyAdmin } from '../types.js';
 import { apiUrl } from '../api.ts';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import {
   getOperationalDateKey,
-  shiftOperationalDateKey,
   formatOperationalDateShort,
 } from '../utils/deliverySummary.js';
 
@@ -41,6 +38,18 @@ function currentMonthRange(): { dateFrom: string; dateTo: string } {
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+  return {
+    dateFrom: `${y}-${m}-01`,
+    dateTo: `${y}-${m}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+function monthRangeForOffset(monthOffset = 0): { dateFrom: string; dateTo: string } {
+  const now = new Date();
+  const anchor = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const y = anchor.getFullYear();
+  const m = String(anchor.getMonth() + 1).padStart(2, '0');
+  const lastDay = new Date(y, anchor.getMonth() + 1, 0).getDate();
   return {
     dateFrom: `${y}-${m}-01`,
     dateTo: `${y}-${m}-${String(lastDay).padStart(2, '0')}`,
@@ -75,6 +84,20 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const [paymentNote, setPaymentNote] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const todayKey = getOperationalDateKey();
+
+  const applyMonthPreset = (offset: number) => {
+    const range = monthRangeForOffset(offset);
+    setDateFrom(range.dateFrom);
+    setDateTo(range.dateTo);
+  };
+
+  const activePreset =
+    dateFrom === monthRangeForOffset(0).dateFrom && dateTo === monthRangeForOffset(0).dateTo
+      ? 'current'
+      : dateFrom === monthRangeForOffset(-1).dateFrom && dateTo === monthRangeForOffset(-1).dateTo
+        ? 'previous'
+        : null;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -107,9 +130,14 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
     void loadData();
   }, [loadData]);
 
-  const shiftRange = (days: number) => {
-    setDateFrom((d) => shiftOperationalDateKey(d, days));
-    setDateTo((d) => shiftOperationalDateKey(d, days));
+  const handleDateFromChange = (key: string) => {
+    setDateFrom(key);
+    if (key > dateTo) setDateTo(key);
+  };
+
+  const handleDateToChange = (key: string) => {
+    setDateTo(key);
+    if (key < dateFrom) setDateFrom(key);
   };
 
   const saveRates = async () => {
@@ -194,48 +222,65 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2">
-          <button
-            type="button"
-            onClick={() => shiftRange(-7)}
-            className="p-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
-            aria-label="Semana anterior"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <label className="flex flex-col gap-0.5 min-w-[8.5rem]">
-            <span className="mono-label">Desde</span>
-            <input type="date" className={inputClass} value={dateFrom} max={dateTo} onChange={(e) => setDateFrom(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-0.5 min-w-[8.5rem]">
-            <span className="mono-label">Hasta</span>
-            <input type="date" className={inputClass} value={dateTo} min={dateFrom} max={getOperationalDateKey()} onChange={(e) => setDateTo(e.target.value)} />
-          </label>
-          <OperationalDatePicker value={dateFrom} maxDateKey={getOperationalDateKey()} onChange={(key) => { setDateFrom(key); setDateTo(key); }} />
-          <button
-            type="button"
-            onClick={() => shiftRange(7)}
-            disabled={dateTo >= getOperationalDateKey()}
-            className="p-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] disabled:opacity-30"
-            aria-label="Semana siguiente"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          {isAgency && (
-            <label className="flex flex-col gap-0.5 min-w-[10rem] flex-1">
-              <span className="mono-label">Vendedor</span>
-              <select
-                className={inputClass}
-                value={selectedSellerId}
-                onChange={(e) => setSelectedSellerId(e.target.value)}
-              >
-                <option value="">Todos los vendedores</option>
-                {sellers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </label>
-          )}
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => applyMonthPreset(0)}
+              className={`px-2.5 py-1 rounded-lg border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+                activePreset === 'current'
+                  ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                  : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+              }`}
+            >
+              Este mes
+            </button>
+            <button
+              type="button"
+              onClick={() => applyMonthPreset(-1)}
+              className={`px-2.5 py-1 rounded-lg border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+                activePreset === 'previous'
+                  ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                  : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+              }`}
+            >
+              Mes anterior
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3 p-3 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50">
+            <OperationalDatePicker
+              layout="field"
+              label="Desde"
+              value={dateFrom}
+              maxDateKey={dateTo}
+              onChange={handleDateFromChange}
+            />
+            <span className="hidden sm:inline text-[var(--color-text-faint)] pb-2 font-mono">→</span>
+            <OperationalDatePicker
+              layout="field"
+              label="Hasta"
+              value={dateTo}
+              minDateKey={dateFrom}
+              maxDateKey={todayKey}
+              onChange={handleDateToChange}
+            />
+            {isAgency && (
+              <label className="flex flex-col gap-0.5 min-w-[10rem] flex-1 sm:min-w-[12rem]">
+                <span className="mono-label">Vendedor</span>
+                <select
+                  className={inputClass}
+                  value={selectedSellerId}
+                  onChange={(e) => setSelectedSellerId(e.target.value)}
+                >
+                  <option value="">Todos los vendedores</option>
+                  {sellers.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
         </div>
 
         {message && (

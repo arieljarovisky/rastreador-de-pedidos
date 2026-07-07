@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   buildOperationalMonthGrid,
@@ -23,7 +24,9 @@ interface OperationalDatePickerProps {
   value: string;
   onChange: (dateKey: string) => void;
   maxDateKey?: string;
-  layout?: 'icon' | 'navigator';
+  minDateKey?: string;
+  layout?: 'icon' | 'navigator' | 'field';
+  label?: string;
   onPreviousDay?: () => void;
   onNextDay?: () => void;
   canGoNextDay?: boolean;
@@ -34,13 +37,15 @@ interface OperationalDatePickerProps {
 function CalendarPopover({
   value,
   maxDateKey,
+  minDateKey,
   onPick,
-  className = 'absolute left-0 top-full z-50 mt-2 w-[min(18rem,calc(100vw-2rem))]',
+  style,
 }: {
   value: string;
   maxDateKey: string;
+  minDateKey?: string;
   onPick: (dateKey: string) => void;
-  className?: string;
+  style: React.CSSProperties;
 }) {
   const [viewMonthKey, setViewMonthKey] = useState(() => getOperationalMonthKey(value));
   const maxMonthKey = getOperationalMonthKey(maxDateKey);
@@ -55,7 +60,8 @@ function CalendarPopover({
     <div
       role="dialog"
       aria-label="Calendario operativo"
-      className={`rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-2xl p-3 ${className}`}
+      style={style}
+      className="w-[18rem] max-w-[calc(100vw-2rem)] rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel)] shadow-2xl p-3"
     >
       <div className="flex items-center justify-between gap-2 mb-3">
         <button
@@ -66,7 +72,7 @@ function CalendarPopover({
         >
           <ChevronLeft className="w-3.5 h-3.5" />
         </button>
-        <p className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] text-center min-w-0 truncate px-1">
+        <p className="text-[11px] font-display font-semibold text-[var(--ink-soft)] text-center min-w-0 truncate px-1">
           {formatOperationalMonthLabel(viewMonthKey)}
         </p>
         <button
@@ -81,12 +87,12 @@ function CalendarPopover({
       </div>
 
       <div className="grid grid-cols-7 gap-1 mb-1">
-        {WEEKDAY_LABELS.map((label) => (
+        {WEEKDAY_LABELS.map((day) => (
           <span
-            key={label}
-            className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-faint)] text-center py-0.5"
+            key={day}
+            className="h-7 flex items-center justify-center text-[9px] font-mono font-bold uppercase text-[var(--color-text-faint)]"
           >
-            {label}
+            {day}
           </span>
         ))}
       </div>
@@ -94,28 +100,30 @@ function CalendarPopover({
       <div className="grid grid-cols-7 gap-1">
         {monthCells.map((dateKey, index) => {
           if (!dateKey) {
-            return <span key={`empty-${index}`} className="aspect-square" aria-hidden />;
+            return <span key={`empty-${index}`} className="h-9" aria-hidden />;
           }
 
           const isSelected = dateKey === value;
           const isToday = dateKey === maxDateKey;
           const isFuture = dateKey > maxDateKey;
+          const isBeforeMin = minDateKey ? dateKey < minDateKey : false;
+          const isDisabled = isFuture || isBeforeMin;
           const day = parseOperationalDateKey(dateKey).day;
 
           return (
             <button
               key={dateKey}
               type="button"
-              disabled={isFuture}
+              disabled={isDisabled}
               onClick={() => onPick(dateKey)}
               className={[
-                'aspect-square rounded-lg text-[11px] font-mono font-bold transition',
+                'h-9 w-full rounded-lg text-[12px] font-mono font-bold transition flex items-center justify-center',
                 isSelected
                   ? 'bg-[var(--color-accent)] text-white shadow-md'
                   : isToday
                     ? 'border border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10'
-                    : 'text-[var(--ink-soft)] hover:bg-[var(--surface-panel-2)] border border-transparent',
-                isFuture ? 'opacity-25 pointer-events-none' : '',
+                    : 'text-[var(--color-text)] hover:bg-[var(--surface-panel-2)] border border-transparent',
+                isDisabled ? 'opacity-25 pointer-events-none' : '',
               ].join(' ')}
             >
               {day}
@@ -140,11 +148,56 @@ function CalendarPopover({
   );
 }
 
+function useCalendarPopoverPosition(anchorRef: React.RefObject<HTMLElement | null>, open: boolean) {
+  const [style, setStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+
+  useEffect(() => {
+    if (!open || !anchorRef.current) return;
+
+    const update = () => {
+      const rect = anchorRef.current!.getBoundingClientRect();
+      const width = 288;
+      const margin = 12;
+      let left = rect.left;
+      if (left + width > window.innerWidth - margin) {
+        left = window.innerWidth - width - margin;
+      }
+      if (left < margin) left = margin;
+
+      let top = rect.bottom + 8;
+      const estimatedHeight = 340;
+      if (top + estimatedHeight > window.innerHeight - margin) {
+        top = Math.max(margin, rect.top - estimatedHeight - 8);
+      }
+
+      setStyle({
+        position: 'fixed',
+        top,
+        left,
+        zIndex: 10002,
+        visibility: 'visible',
+      });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, anchorRef]);
+
+  return style;
+}
+
 export default function OperationalDatePicker({
   value,
   onChange,
   maxDateKey = getOperationalDateKey(),
+  minDateKey,
   layout = 'icon',
+  label = 'Fecha',
   onPreviousDay,
   onNextDay,
   canGoNextDay = false,
@@ -152,14 +205,17 @@ export default function OperationalDatePicker({
   isToday = value === maxDateKey,
 }: OperationalDatePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const popoverStyle = useCalendarPopoverPosition(anchorRef, open);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if ((target as Element).closest?.('[data-operational-calendar]')) return;
+      setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -178,9 +234,48 @@ export default function OperationalDatePicker({
 
   const pickDate = (dateKey: string) => {
     if (dateKey > maxDateKey) return;
+    if (minDateKey && dateKey < minDateKey) return;
     onChange(dateKey);
     setOpen(false);
   };
+
+  const calendarPortal =
+    open &&
+    createPortal(
+      <div data-operational-calendar>
+        <CalendarPopover
+          value={value}
+          maxDateKey={maxDateKey}
+          minDateKey={minDateKey}
+          onPick={pickDate}
+          style={popoverStyle}
+        />
+      </div>,
+      document.body
+    );
+
+  if (layout === 'field') {
+    return (
+      <div ref={rootRef} className="flex flex-col gap-0.5 min-w-[9.5rem] flex-1 sm:flex-none sm:min-w-[10.5rem]">
+        <span className="mono-label">{label}</span>
+        <button
+          ref={anchorRef}
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-expanded={open}
+          className={`posta-input px-2.5 py-2 text-xs flex items-center justify-between gap-2 text-left transition ${
+            open ? 'border-[var(--color-accent)]' : ''
+          }`}
+        >
+          <span className="font-mono text-[var(--ink-soft)] truncate">
+            {formatOperationalDateShort(value)}
+          </span>
+          <Calendar className={`w-3.5 h-3.5 shrink-0 ${open ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`} />
+        </button>
+        {calendarPortal}
+      </div>
+    );
+  }
 
   if (layout === 'navigator') {
     const dateLabel = formatOperationalDateLabel(value);
@@ -206,6 +301,7 @@ export default function OperationalDatePicker({
           </button>
 
           <button
+            ref={anchorRef}
             type="button"
             onClick={() => setOpen((prev) => !prev)}
             aria-expanded={open}
@@ -274,14 +370,7 @@ export default function OperationalDatePicker({
           </div>
         )}
 
-        {open && (
-          <CalendarPopover
-            value={value}
-            maxDateKey={maxDateKey}
-            onPick={pickDate}
-            className="absolute left-0 right-0 sm:right-auto sm:w-[18rem] top-full z-50 mt-2"
-          />
-        )}
+        {calendarPortal}
       </div>
     );
   }
@@ -289,6 +378,7 @@ export default function OperationalDatePicker({
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
+        ref={anchorRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={`p-1.5 rounded-lg border transition shrink-0 ${
@@ -301,15 +391,7 @@ export default function OperationalDatePicker({
       >
         <Calendar className="w-4 h-4" />
       </button>
-
-      {open && (
-        <CalendarPopover
-          value={value}
-          maxDateKey={maxDateKey}
-          onPick={pickDate}
-          className="absolute left-0 top-full z-50 mt-1.5 w-[min(18rem,calc(100vw-2rem))]"
-        />
-      )}
+      {calendarPortal}
     </div>
   );
 }
