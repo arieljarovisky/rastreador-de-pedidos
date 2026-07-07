@@ -281,80 +281,86 @@ export default function OperationalDatePicker({
     const dateLabel = formatOperationalDateLabel(value);
     const weekday = formatOperationalWeekday(value);
     const shortDate = formatOperationalDateShort(value);
+    const dayNum = parseOperationalDateKey(value).day;
 
     return (
-      <div ref={rootRef} className="relative mt-3 max-w-xl">
+      <div ref={rootRef} className="relative w-full">
         <div
-          className={`flex items-stretch rounded-[var(--radius-posta)] border overflow-hidden shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] ${
+          className={`flex items-stretch w-full rounded-[var(--radius-posta)] border overflow-hidden ${
             isToday
-              ? 'border-[var(--color-accent)]/35 bg-gradient-to-r from-[var(--color-accent)]/8 via-[var(--surface-panel-2)] to-[var(--surface-panel-2)]'
-              : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)]/90'
+              ? 'border-[var(--color-accent)]/35 bg-[var(--color-accent)]/5'
+              : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)]/80'
           }`}
         >
           <button
             type="button"
             onClick={onPreviousDay}
-            className="group px-3 sm:px-3.5 py-3 border-r border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/80 transition shrink-0"
+            className="flex items-center justify-center w-10 sm:w-11 shrink-0 border-r border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/60 transition"
             aria-label="Día anterior"
           >
-            <ChevronLeft className="w-4 h-4 transition group-active:-translate-x-0.5" />
+            <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <button
-            ref={anchorRef}
-            type="button"
-            onClick={() => setOpen((prev) => !prev)}
-            aria-expanded={open}
-            aria-label="Abrir calendario"
-            className="flex-1 min-w-0 flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left hover:bg-[var(--surface-panel)]/50 transition"
-          >
+          <div className="flex-1 min-w-0 flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2">
             <div
-              className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center shrink-0 border ${
+              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border ${
                 isToday
-                  ? 'bg-[var(--color-accent)]/15 border-[var(--color-accent)]/30 text-[var(--color-accent)]'
-                  : 'bg-[var(--surface-panel)] border-[var(--surface-border)] text-[var(--color-text-muted)]'
+                  ? 'bg-[var(--color-accent)] text-[#F6F0E4] border-[var(--color-accent)]'
+                  : 'bg-[var(--surface-panel)] border-[var(--surface-border)] text-[var(--ink-soft)]'
               }`}
             >
-              <span className="text-[8px] font-mono font-bold uppercase leading-none tracking-wider opacity-80">
+              <span className="text-[8px] font-mono font-bold uppercase leading-none tracking-wide opacity-90">
                 {weekday.slice(0, 3)}
               </span>
-              <span className="text-base font-display font-bold leading-none mt-0.5">
-                {parseOperationalDateKey(value).day}
+              <span className="text-lg sm:text-xl font-display font-bold leading-none mt-0.5">
+                {dayNum}
               </span>
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm sm:text-base font-display font-bold text-[var(--ink-soft)] leading-tight">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm sm:text-base font-display font-bold text-[var(--ink-soft)] truncate">
                   {dateLabel}
                 </span>
                 {isToday ? (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 text-[var(--color-accent)] text-[8px] font-mono font-bold uppercase tracking-wider">
-                    Día en curso
+                  <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 text-[var(--color-accent)] text-[8px] font-mono font-bold uppercase tracking-wider">
+                    En curso
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-[var(--surface-panel)] border border-[var(--surface-border)] text-[var(--color-text-muted)] text-[8px] font-mono font-bold uppercase tracking-wider">
+                  <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--surface-panel)] border border-[var(--surface-border)] text-[var(--color-text-muted)] text-[8px] font-mono font-bold uppercase tracking-wider">
                     Histórico
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate flex items-center gap-1.5">
-                <Calendar className="w-3 h-3 shrink-0 opacity-70" />
-                <span>{shortDate}</span>
-                <span className="text-[var(--color-text-faint)]">·</span>
-                <span className="text-[var(--color-text-faint)]">Tocá para elegir fecha</span>
+              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate">
+                {weekday}, {shortDate}
               </p>
             </div>
-          </button>
+
+            <button
+              ref={anchorRef}
+              type="button"
+              onClick={() => setOpen((prev) => !prev)}
+              aria-expanded={open}
+              aria-label="Abrir calendario"
+              className={`shrink-0 flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg border transition ${
+                open
+                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+                  : 'border-[var(--surface-border)] bg-[var(--surface-panel)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:border-[var(--color-accent)]/35'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+            </button>
+          </div>
 
           <button
             type="button"
             onClick={onNextDay}
             disabled={!canGoNextDay}
-            className="group px-3 sm:px-3.5 py-3 border-l border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/80 transition shrink-0 disabled:opacity-25 disabled:pointer-events-none"
+            className="flex items-center justify-center w-10 sm:w-11 shrink-0 border-l border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/60 transition disabled:opacity-25 disabled:pointer-events-none"
             aria-label="Día siguiente"
           >
-            <ChevronRight className="w-4 h-4 transition group-active:translate-x-0.5" />
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 

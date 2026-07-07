@@ -119,48 +119,15 @@ export default function OperationsDashboard({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden posta-surface" id="operations-dashboard">
-      <div className="shrink-0 p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-2">
+      <div className="shrink-0 p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               {isAgency ? 'Posta Agencia' : 'Posta Envios'} · Panel del día
             </p>
-            <div className="flex flex-col xl:flex-row xl:items-start xl:gap-4 mt-0.5">
-              <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] shrink-0">
-                Control de entregas
-              </h1>
-              <div className="min-w-0 flex-1 xl:max-w-xl">
-                <OperationalDatePicker
-                  layout="navigator"
-                  value={selectedDateKey}
-                  maxDateKey={todayKey}
-                  isToday={isToday}
-                  canGoNextDay={canGoForward}
-                  onChange={setSelectedDateKey}
-                  onPreviousDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, -1))}
-                  onNextDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
-                  onGoToday={() => setSelectedDateKey(todayKey)}
-                />
-              </div>
-            </div>
-            <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 flex items-center gap-1.5 flex-wrap">
-              <Clock className="w-3.5 h-3.5 shrink-0" />
-              <span>
-                Corte {DELIVERY_DEADLINE_HOUR}:00 hs ({DELIVERY_TIMEZONE_LABEL})
-                {isToday ? (
-                  <>
-                    {' · '}
-                    {summary.isPastDeadline
-                      ? 'vencido'
-                      : formatMinutesUntilDeadline(summary.minutesUntilDeadline)}
-                    {' · ahora '}
-                    {formatArTime()} hs
-                  </>
-                ) : (
-                  <> · día cerrado</>
-                )}
-              </span>
-            </p>
+            <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5">
+              Control de entregas
+            </h1>
           </div>
           {onGoToOperations && (
             <button
@@ -173,6 +140,37 @@ export default function OperationsDashboard({
             </button>
           )}
         </div>
+
+        <OperationalDatePicker
+          layout="navigator"
+          value={selectedDateKey}
+          maxDateKey={todayKey}
+          isToday={isToday}
+          canGoNextDay={canGoForward}
+          onChange={setSelectedDateKey}
+          onPreviousDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, -1))}
+          onNextDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
+          onGoToday={() => setSelectedDateKey(todayKey)}
+        />
+
+        <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 flex-wrap">
+          <Clock className="w-3.5 h-3.5 shrink-0" />
+          <span>
+            Corte {DELIVERY_DEADLINE_HOUR}:00 hs ({DELIVERY_TIMEZONE_LABEL})
+            {isToday ? (
+              <>
+                {' · '}
+                {summary.isPastDeadline
+                  ? 'vencido'
+                  : formatMinutesUntilDeadline(summary.minutesUntilDeadline)}
+                {' · ahora '}
+                {formatArTime()} hs
+              </>
+            ) : (
+              <> · día cerrado</>
+            )}
+          </span>
+        </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 sm:gap-2">
           <KpiCard label="Total pedidos" value={summary.total} tone="accent" icon={Layers} />
