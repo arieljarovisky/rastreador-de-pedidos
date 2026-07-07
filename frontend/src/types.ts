@@ -210,6 +210,15 @@ export interface AgencyShippingRates {
   currency: 'ARS';
 }
 
+export interface ZoneShippingRates {
+  zoneId: string;
+  zoneName: string;
+  flex: number;
+  express: number;
+  standard: number;
+  currency: 'ARS';
+}
+
 export interface BillingLedgerEntry {
   id: string;
   agencyId: string;
@@ -233,7 +242,8 @@ export interface BillingSummary {
   totalPaid: number;
   balance: number;
   chargedShipments: number;
-  rates: AgencyShippingRates;
+  zoneRates: ZoneShippingRates[];
+  defaultRates: AgencyShippingRates;
   byShippingType: Array<{ shippingType: string; count: number; amount: number }>;
   sellers?: Array<{
     sellerId: string;

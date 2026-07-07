@@ -5,6 +5,7 @@ import {
   createZone,
   updateZone,
   deleteZone,
+  updateZoneShippingRates,
 } from '../services/delivery-zones.service.js';
 import { listBarrios } from '../config/barrios.js';
 
@@ -118,6 +119,33 @@ router.put('/:id', authenticate, requireAgencyAdmin(), async (req: Request, res:
     }
     if (message === 'INVALID_COLOR') {
       res.status(400).json({ error: 'El color debe ser un código hexadecimal (#RRGGBB).' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.put('/:id/rates', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const agencyId = requireAgencyId(req, res);
+  if (!agencyId) return;
+
+  const { flex, express, standard } = req.body as {
+    flex?: number;
+    express?: number;
+    standard?: number;
+  };
+
+  try {
+    const zone = await updateZoneShippingRates(agencyId, req.params.id, { flex, express, standard });
+    res.json(zone);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Zona no encontrada.' });
+      return;
+    }
+    if (message === 'INVALID_RATES') {
+      res.status(400).json({ error: 'Las tarifas deben ser números positivos.' });
       return;
     }
     throw err;

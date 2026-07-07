@@ -23,10 +23,13 @@ import {
   Search,
   ChevronDown,
   Smartphone,
+  Wallet,
+  Save,
+  Loader2,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
-import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
+import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, zoneShippingRates, DEFAULT_ZONE_SHIPPING_RATES, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 const REPARTIDORES_PAGE_SIZE = 8;
@@ -104,6 +107,15 @@ interface SettingsPageProps {
       barrios?: string[];
     }
   ) => Promise<DeliveryZone>;
+  onUpdateZoneShippingRates?: (
+    zoneId: string,
+    rates: { flex: number; express: number; standard: number }
+  ) => Promise<DeliveryZone>;
+  onUpdateDefaultShippingRates?: (rates: {
+    flex: number;
+    express: number;
+    standard: number;
+  }) => Promise<{ flex: number; express: number; standard: number }>;
   onDeleteDeliveryZone?: (zoneId: string) => Promise<void>;
   onUpdateDeparture?: (data: LocationPoint) => Promise<void>;
   onCreateSeller?: (data: {
@@ -163,6 +175,8 @@ export default function SettingsPage({
   barrios = [],
   onCreateDeliveryZone,
   onUpdateDeliveryZone,
+  onUpdateZoneShippingRates,
+  onUpdateDefaultShippingRates,
   onDeleteDeliveryZone,
   onUpdateDeparture,
   onCreateSeller,
@@ -242,6 +256,13 @@ export default function SettingsPage({
   const [barrioSearch, setBarrioSearch] = useState('');
   const [zoneFormLoading, setZoneFormLoading] = useState(false);
   const [zoneFormMessage, setZoneFormMessage] = useState<string | null>(null);
+  const [zoneRateDrafts, setZoneRateDrafts] = useState<Record<string, { flex: string; express: string; standard: string }>>({});
+  const [savingZoneRateId, setSavingZoneRateId] = useState<string | null>(null);
+  const [zoneRatesMessage, setZoneRatesMessage] = useState<string | null>(null);
+  const [defaultRateFlex, setDefaultRateFlex] = useState(String(DEFAULT_ZONE_SHIPPING_RATES.flex));
+  const [defaultRateExpress, setDefaultRateExpress] = useState(String(DEFAULT_ZONE_SHIPPING_RATES.express));
+  const [defaultRateStandard, setDefaultRateStandard] = useState(String(DEFAULT_ZONE_SHIPPING_RATES.standard));
+  const [savingDefaultRates, setSavingDefaultRates] = useState(false);
   const [deletingZoneId, setDeletingZoneId] = useState<string | null>(null);
   const [repartidorSearch, setRepartidorSearch] = useState('');
   const [repartidoresLimit, setRepartidoresLimit] = useState(REPARTIDORES_PAGE_SIZE);
@@ -364,6 +385,19 @@ export default function SettingsPage({
     () => repartidores.filter((r) => r.deliveryZone).length,
     [repartidores]
   );
+
+  useEffect(() => {
+    const next: Record<string, { flex: string; express: string; standard: string }> = {};
+    for (const zone of deliveryZones) {
+      const rates = zoneShippingRates(zone);
+      next[zone.id] = {
+        flex: String(rates.flex),
+        express: String(rates.express),
+        standard: String(rates.standard),
+      };
+    }
+    setZoneRateDrafts(next);
+  }, [deliveryZones]);
 
   return (
     <div className="w-full bg-[var(--surface-bg)] pb-6">
@@ -1177,6 +1211,174 @@ export default function SettingsPage({
                   </p>
                 )}
               </form>
+            )}
+
+            {deliveryZones.length > 0 && onUpdateZoneShippingRates && (
+              <div className="mt-4 pt-3 border-t border-[var(--surface-border)] space-y-2">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">
+                      Tarifas por zona
+                    </p>
+                    <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5">
+                      Precio por envío entregado según zona y tipo (Flex, Express, Estándar).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {deliveryZones.map((zone) => {
+                    const draft = zoneRateDrafts[zone.id] ?? {
+                      flex: String(DEFAULT_ZONE_SHIPPING_RATES.flex),
+                      express: String(DEFAULT_ZONE_SHIPPING_RATES.express),
+                      standard: String(DEFAULT_ZONE_SHIPPING_RATES.standard),
+                    };
+                    return (
+                      <div
+                        key={zone.id}
+                        className="rounded-[5px] border border-[var(--surface-border)] bg-[var(--paper)] p-2 space-y-2"
+                        style={{ boxShadow: `inset 3px 0 0 ${zone.color}` }}
+                      >
+                        <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate">{zone.name}</p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Flex</span>
+                            <input
+                              className={inputClass}
+                              inputMode="decimal"
+                              value={draft.flex}
+                              onChange={(e) =>
+                                setZoneRateDrafts((prev) => ({
+                                  ...prev,
+                                  [zone.id]: { ...draft, flex: e.target.value },
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Express</span>
+                            <input
+                              className={inputClass}
+                              inputMode="decimal"
+                              value={draft.express}
+                              onChange={(e) =>
+                                setZoneRateDrafts((prev) => ({
+                                  ...prev,
+                                  [zone.id]: { ...draft, express: e.target.value },
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Estándar</span>
+                            <input
+                              className={inputClass}
+                              inputMode="decimal"
+                              value={draft.standard}
+                              onChange={(e) =>
+                                setZoneRateDrafts((prev) => ({
+                                  ...prev,
+                                  [zone.id]: { ...draft, standard: e.target.value },
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={savingZoneRateId === zone.id}
+                          className={`${btnPrimary} !w-auto text-[10px] py-1.5 px-2.5 inline-flex items-center gap-1`}
+                          onClick={async () => {
+                            setSavingZoneRateId(zone.id);
+                            setZoneRatesMessage(null);
+                            try {
+                              await onUpdateZoneShippingRates(zone.id, {
+                                flex: Number(draft.flex),
+                                express: Number(draft.express),
+                                standard: Number(draft.standard),
+                              });
+                              setZoneRatesMessage(`Tarifas de ${zone.name} guardadas.`);
+                            } catch (err: unknown) {
+                              setZoneRatesMessage(
+                                err instanceof Error ? err.message : 'No se pudieron guardar las tarifas.'
+                              );
+                            } finally {
+                              setSavingZoneRateId(null);
+                            }
+                          }}
+                        >
+                          {savingZoneRateId === zone.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Save className="w-3 h-3" />
+                          )}
+                          Guardar
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {onUpdateDefaultShippingRates && (
+                  <div className="rounded-[5px] border border-dashed border-[var(--surface-border)] bg-[var(--surface-panel-2)]/40 p-2 space-y-2">
+                    <p className="text-[11px] font-medium text-[var(--ink-soft)]">Fuera de zona</p>
+                    <p className="text-[9px] text-[var(--color-text-muted)]">
+                      Se aplica cuando el destino no cae en ninguna zona definida.
+                    </p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <label className="flex flex-col gap-0.5">
+                        <span className="mono-label">Flex</span>
+                        <input className={inputClass} inputMode="decimal" value={defaultRateFlex} onChange={(e) => setDefaultRateFlex(e.target.value)} />
+                      </label>
+                      <label className="flex flex-col gap-0.5">
+                        <span className="mono-label">Express</span>
+                        <input className={inputClass} inputMode="decimal" value={defaultRateExpress} onChange={(e) => setDefaultRateExpress(e.target.value)} />
+                      </label>
+                      <label className="flex flex-col gap-0.5">
+                        <span className="mono-label">Estándar</span>
+                        <input className={inputClass} inputMode="decimal" value={defaultRateStandard} onChange={(e) => setDefaultRateStandard(e.target.value)} />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={savingDefaultRates}
+                      className={`${btnPrimary} !w-auto text-[10px] py-1.5 px-2.5 inline-flex items-center gap-1`}
+                      onClick={async () => {
+                        setSavingDefaultRates(true);
+                        setZoneRatesMessage(null);
+                        try {
+                          await onUpdateDefaultShippingRates({
+                            flex: Number(defaultRateFlex),
+                            express: Number(defaultRateExpress),
+                            standard: Number(defaultRateStandard),
+                          });
+                          setZoneRatesMessage('Tarifas fuera de zona guardadas.');
+                        } catch (err: unknown) {
+                          setZoneRatesMessage(
+                            err instanceof Error ? err.message : 'No se pudieron guardar las tarifas.'
+                          );
+                        } finally {
+                          setSavingDefaultRates(false);
+                        }
+                      }}
+                    >
+                      {savingDefaultRates ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                      Guardar fuera de zona
+                    </button>
+                  </div>
+                )}
+
+                {zoneRatesMessage && (
+                  <p
+                    className={`text-[10px] font-mono ${
+                      zoneRatesMessage.includes('guardad') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+                    }`}
+                  >
+                    {zoneRatesMessage}
+                  </p>
+                )}
+              </div>
             )}
           </SettingsFleetColumn>
         )}

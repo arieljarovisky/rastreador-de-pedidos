@@ -1390,6 +1390,7 @@ export default function AdminDashboard({
             departurePoint={departurePoint}
             pickupPoints={pickupPoints}
             deliveryZones={deliveryZones}
+            barrios={barrios}
             activeOrderId={activeOrderId}
             onSelectOrder={onSelectOrder}
             showDeliveryZones={showMapZones}

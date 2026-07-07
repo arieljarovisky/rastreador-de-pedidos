@@ -4,8 +4,18 @@ import { pool } from '../config/database.js';
 import { Order, OrderStatus, User, UserRole } from '../types/index.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { getOrderById } from './orders.service.js';
+import { findZoneForPoint, listZonesForAgency } from './delivery-zones.service.js';
 
 export interface AgencyShippingRates {
+  flex: number;
+  express: number;
+  standard: number;
+  currency: 'ARS';
+}
+
+export interface ZoneShippingRates {
+  zoneId: string;
+  zoneName: string;
   flex: number;
   express: number;
   standard: number;
@@ -35,7 +45,8 @@ export interface BillingSummary {
   totalPaid: number;
   balance: number;
   chargedShipments: number;
-  rates: AgencyShippingRates;
+  zoneRates: ZoneShippingRates[];
+  defaultRates: AgencyShippingRates;
   byShippingType: Array<{ shippingType: string; count: number; amount: number }>;
   sellers?: Array<{
     sellerId: string;
@@ -70,13 +81,43 @@ function resolveRateForOrder(rates: AgencyShippingRates, shippingType: string | 
   return rates.standard;
 }
 
+async function resolveOrderShippingRate(order: Order): Promise<number> {
+  if (!order.agencyId) return DEFAULT_RATES.standard;
+
+  const zone = await findZoneForPoint(order.agencyId, order.lat, order.lng);
+  if (zone?.shippingRates) {
+    return resolveRateForOrder(
+      { ...zone.shippingRates, currency: 'ARS' },
+      order.shippingType
+    );
+  }
+
+  const fallback = await getAgencyDefaultShippingRates(order.agencyId);
+  return resolveRateForOrder(fallback, order.shippingType);
+}
+
+export async function listAgencyZoneShippingRates(agencyId: string): Promise<ZoneShippingRates[]> {
+  const zones = await listZonesForAgency(agencyId);
+  return zones.map((zone) => {
+    const rates = zone.shippingRates ?? DEFAULT_RATES;
+    return {
+      zoneId: zone.id,
+      zoneName: zone.name,
+      flex: rates.flex,
+      express: rates.express,
+      standard: rates.standard,
+      currency: 'ARS' as const,
+    };
+  });
+}
+
 function shippingTypeLabel(shippingType: string | null | undefined): string {
   if (shippingType === 'flex') return 'Flex';
   if (shippingType === 'express') return 'Express';
   return 'Estándar';
 }
 
-export async function getAgencyShippingRates(agencyId: string): Promise<AgencyShippingRates> {
+export async function getAgencyDefaultShippingRates(agencyId: string): Promise<AgencyShippingRates> {
   const [rows] = await pool.query<AgencyRateRow[]>(
     `SELECT shipping_rate_flex, shipping_rate_express, shipping_rate_standard
      FROM agencies WHERE id = ? LIMIT 1`,
@@ -92,14 +133,14 @@ export async function getAgencyShippingRates(agencyId: string): Promise<AgencySh
   };
 }
 
-export async function updateAgencyShippingRates(
+export async function updateAgencyDefaultShippingRates(
   user: User,
   rates: Partial<AgencyShippingRates>
 ): Promise<AgencyShippingRates> {
   if (!isAgencyAdmin(user.role) || !user.agencyId) {
     throw new Error('FORBIDDEN');
   }
-  const current = await getAgencyShippingRates(user.agencyId);
+  const current = await getAgencyDefaultShippingRates(user.agencyId);
   const next = {
     flex: rates.flex ?? current.flex,
     express: rates.express ?? current.express,
@@ -124,8 +165,7 @@ export async function chargeOrderOnDelivery(order: Order): Promise<boolean> {
   );
   if (existing[0]?.billed_at) return false;
 
-  const rates = await getAgencyShippingRates(order.agencyId);
-  const amount = resolveRateForOrder(rates, order.shippingType);
+  const amount = await resolveOrderShippingRate(order);
   const now = new Date();
   const entryId = randomUUID();
   const label = shippingTypeLabel(order.shippingType);
@@ -197,7 +237,8 @@ export async function getBillingSummary(
 ): Promise<BillingSummary> {
   await backfillDeliveredCharges();
   const scope = resolveSellerScope(user, options.sellerId);
-  const rates = await getAgencyShippingRates(scope.agencyId);
+  const zoneRates = await listAgencyZoneShippingRates(scope.agencyId);
+  const defaultRates = await getAgencyDefaultShippingRates(scope.agencyId);
   const sellerName = await getSellerName(scope.sellerId);
 
   const params: Array<string> = [scope.agencyId, `${options.dateFrom} 00:00:00`, `${options.dateTo} 23:59:59.999`];
@@ -294,7 +335,8 @@ export async function getBillingSummary(
     totalPaid: toMoney(paidRows[0]?.total),
     balance: toMoney(balanceRows[0]?.balance),
     chargedShipments: Number(spentRows[0]?.count ?? 0),
-    rates,
+    zoneRates,
+    defaultRates,
     byShippingType: byTypeRows.map((row) => ({
       shippingType: row.shipping_type ?? 'standard',
       count: Number(row.count),

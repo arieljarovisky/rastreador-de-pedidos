@@ -4,8 +4,9 @@ import { UserRole } from '../types/index.js';
 import {
   getBillingSummary,
   listBillingLedger,
-  getAgencyShippingRates,
-  updateAgencyShippingRates,
+  getAgencyDefaultShippingRates,
+  listAgencyZoneShippingRates,
+  updateAgencyDefaultShippingRates,
   recordBillingPayment,
 } from '../services/billing.service.js';
 
@@ -81,19 +82,22 @@ router.get(
 router.get(
   '/rates',
   authenticate,
-  requireRoles(UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN),
+  requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN),
   async (req: Request, res: Response) => {
     if (!req.user?.agencyId) {
       res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
       return;
     }
-    const rates = await getAgencyShippingRates(req.user.agencyId);
-    res.json(rates);
+    const [zoneRates, defaultRates] = await Promise.all([
+      listAgencyZoneShippingRates(req.user.agencyId),
+      getAgencyDefaultShippingRates(req.user.agencyId),
+    ]);
+    res.json({ zoneRates, defaultRates });
   }
 );
 
 router.put(
-  '/rates',
+  '/rates/default',
   authenticate,
   requireRoles(UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN),
   async (req: Request, res: Response) => {
@@ -103,7 +107,7 @@ router.put(
         express?: number;
         standard?: number;
       };
-      const rates = await updateAgencyShippingRates(req.user!, { flex, express, standard });
+      const rates = await updateAgencyDefaultShippingRates(req.user!, { flex, express, standard });
       res.json(rates);
     } catch (err: unknown) {
       const code = err instanceof Error ? err.message : 'ERROR';

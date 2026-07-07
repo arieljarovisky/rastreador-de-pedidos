@@ -119,27 +119,31 @@ export default function OperationsDashboard({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden posta-surface" id="operations-dashboard">
-      <div className="shrink-0 p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3">
+      <div className="shrink-0 p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-2">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               {isAgency ? 'Posta Agencia' : 'Posta Envios'} · Panel del día
             </p>
-            <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5">
-              Control de entregas
-            </h1>
-            <OperationalDatePicker
-              layout="navigator"
-              value={selectedDateKey}
-              maxDateKey={todayKey}
-              isToday={isToday}
-              canGoNextDay={canGoForward}
-              onChange={setSelectedDateKey}
-              onPreviousDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, -1))}
-              onNextDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
-              onGoToday={() => setSelectedDateKey(todayKey)}
-            />
-            <p className="text-[11px] text-[var(--color-text-muted)] mt-2 flex items-center gap-1.5 flex-wrap">
+            <div className="flex flex-col xl:flex-row xl:items-start xl:gap-4 mt-0.5">
+              <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] shrink-0">
+                Control de entregas
+              </h1>
+              <div className="min-w-0 flex-1 xl:max-w-xl">
+                <OperationalDatePicker
+                  layout="navigator"
+                  value={selectedDateKey}
+                  maxDateKey={todayKey}
+                  isToday={isToday}
+                  canGoNextDay={canGoForward}
+                  onChange={setSelectedDateKey}
+                  onPreviousDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, -1))}
+                  onNextDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
+                  onGoToday={() => setSelectedDateKey(todayKey)}
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 flex items-center gap-1.5 flex-wrap">
               <Clock className="w-3.5 h-3.5 shrink-0" />
               <span>
                 Corte {DELIVERY_DEADLINE_HOUR}:00 hs ({DELIVERY_TIMEZONE_LABEL})
@@ -170,7 +174,7 @@ export default function OperationsDashboard({
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 sm:gap-2">
           <KpiCard label="Total pedidos" value={summary.total} tone="accent" icon={Layers} />
           <KpiCard label="Entregados" value={summary.delivered} tone="ok" icon={CheckCircle2} />
           <KpiCard label="Sin entregar" value={summary.undelivered} tone={summary.undelivered > 0 ? 'warn' : 'neutral'} icon={Package} />
@@ -206,8 +210,14 @@ export default function OperationsDashboard({
         )}
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col gap-4 p-3 sm:p-4 overflow-y-auto lg:overflow-hidden">
-        <div className="grid lg:grid-cols-3 gap-4 lg:flex-1 lg:min-h-0 items-stretch">
+      <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden flex flex-col p-3 sm:p-4 pt-2 sm:pt-3">
+        <div
+          className={`flex-1 min-h-0 grid gap-3 ${
+            isAgency && sellerBreakdown.length > 0
+              ? 'grid-cols-1 lg:grid-cols-3 xl:grid-cols-4'
+              : 'grid-cols-1 lg:grid-cols-3'
+          }`}
+        >
           <OrderListSection
             title={isToday ? 'Sin entregar hoy' : 'Sin entregar'}
             count={undelivered.length}
@@ -248,30 +258,14 @@ export default function OperationsDashboard({
             showSeller={isAgency}
             showDeliveredAt
           />
+
+          {isAgency && sellerBreakdown.length > 0 && (
+            <SellerBreakdownSection rows={sellerBreakdown} className="hidden xl:flex" />
+          )}
         </div>
 
         {isAgency && sellerBreakdown.length > 0 && (
-          <section className="shrink-0 border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden">
-            <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
-              <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                Por vendedor
-              </h2>
-            </div>
-            <div className="divide-y divide-[var(--surface-border)]/60">
-              {sellerBreakdown.map((row) => (
-                <div key={row.name} className="flex items-center justify-between px-3 py-2.5 text-sm">
-                  <span className="font-medium text-[var(--ink-soft)] truncate">{row.name}</span>
-                  <div className="flex items-center gap-3 shrink-0 font-mono text-[11px]">
-                    <span className="text-[var(--color-ok)]">{row.delivered} ok</span>
-                    <span className={row.undelivered > 0 ? 'text-[var(--color-warn)] font-bold' : 'text-[var(--color-text-muted)]'}>
-                      {row.undelivered} pend.
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          <SellerBreakdownSection rows={sellerBreakdown} className="shrink-0 mt-3 xl:hidden max-h-[9rem]" />
         )}
       </div>
     </div>
@@ -341,7 +335,7 @@ function OrderListSection({
 
   return (
     <section
-      className={`border rounded-[var(--radius-posta)] overflow-hidden flex flex-col h-full min-h-[10rem] lg:min-h-0 ${borderTone}`}
+      className={`border rounded-[var(--radius-posta)] overflow-hidden flex flex-col min-h-0 h-full ${borderTone}`}
     >
       <div className="shrink-0 px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex justify-between items-center">
         <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
@@ -360,7 +354,7 @@ function OrderListSection({
               <button
                 type="button"
                 onClick={() => onSelectOrder?.(order.id)}
-                className="w-full text-left px-3 py-2.5 hover:bg-[var(--surface-panel-2)]/60 transition"
+                className="w-full text-left px-3 py-2 hover:bg-[var(--surface-panel-2)]/60 transition"
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-[10px] font-mono text-[var(--color-text-faint)]">{order.id}</span>
@@ -390,6 +384,40 @@ function OrderListSection({
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+function SellerBreakdownSection({
+  rows,
+  className = '',
+}: {
+  rows: Array<{ name: string; undelivered: number; delivered: number }>;
+  className?: string;
+}) {
+  return (
+    <section
+      className={`border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden flex flex-col min-h-0 h-full ${className}`}
+    >
+      <div className="shrink-0 px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
+        <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+          Por vendedor
+        </h2>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-[var(--surface-border)]/60 scrollbar-thin">
+        {rows.map((row) => (
+          <div key={row.name} className="flex items-center justify-between px-3 py-2 text-sm">
+            <span className="font-medium text-[var(--ink-soft)] truncate">{row.name}</span>
+            <div className="flex items-center gap-2 shrink-0 font-mono text-[10px]">
+              <span className="text-[var(--color-ok)]">{row.delivered} ok</span>
+              <span className={row.undelivered > 0 ? 'text-[var(--color-warn)] font-bold' : 'text-[var(--color-text-muted)]'}>
+                {row.undelivered} pend.
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

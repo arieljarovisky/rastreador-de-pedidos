@@ -6,7 +6,8 @@
 import { useEffect, useRef } from 'react';
 import { Satellite } from 'lucide-react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
-import { getDeliveryZone, type DeliveryZone } from '../config/deliveryZones.js';
+import { type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
+import { collectZoneGeoFeatures, featureLabel, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
 import { dedupeRepartidores, repartidorIdentityMatches, repartidorMarkerKey } from '../utils/repartidorLocation.js';
@@ -101,6 +102,7 @@ interface MapComponentProps {
   departurePoint?: LocationPoint | null;
   pickupPoints?: PickupPoint[];
   deliveryZones?: DeliveryZone[];
+  barrios?: Barrio[];
   activeOrderId: string | null;
   onSelectOrder?: (orderId: string) => void;
   interactive?: boolean;
@@ -165,6 +167,7 @@ export default function MapComponent({
   departurePoint = null,
   pickupPoints = [],
   deliveryZones = [],
+  barrios = [],
   activeOrderId,
   onSelectOrder,
   interactive = true,
@@ -183,7 +186,7 @@ export default function MapComponent({
   const polylinesRef = useRef<{ [key: string]: L.Polyline }>({});
   const markerAnimRef = useRef<Record<string, number>>({});
   const lastRouteFetchRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
-  const zoneLayersRef = useRef<L.Rectangle[]>([]);
+  const zoneLayersRef = useRef<L.Layer[]>([]);
   const hubMarkerRef = useRef<L.Marker | null>(null);
   const initialFitDoneRef = useRef(false);
   const lastCenteredOrderIdRef = useRef<string | null>(null);
@@ -313,7 +316,7 @@ export default function MapComponent({
       `);
   }, [departurePoint, showDepartureHub, mapColors]);
 
-  // Zonas de entrega asignadas a repartidores
+  // Zonas de entrega pintadas por polígonos (partidos / comunas)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -321,43 +324,82 @@ export default function MapComponent({
     zoneLayersRef.current.forEach((layer) => layer.remove());
     zoneLayersRef.current = [];
 
-    if (!showDeliveryZones) return;
+    if (!showDeliveryZones || deliveryZones.length === 0) return;
 
-    const zoneReps = new Map<string, string[]>();
-    repartidores.forEach((rep) => {
-      if (!rep.deliveryZone) return;
-      const list = zoneReps.get(rep.deliveryZone) ?? [];
-      list.push(rep.name.split(' ')[0]);
-      zoneReps.set(rep.deliveryZone, list);
-    });
+    let cancelled = false;
 
-    zoneReps.forEach((names, zoneId) => {
-      const zone = getDeliveryZone(deliveryZones, zoneId);
-      if (!zone) return;
+    void (async () => {
+      try {
+        await loadAmbaGeoJson();
+      } catch {
+        return;
+      }
+      if (cancelled) return;
 
-      const rect = L.rectangle(
-        [
-          [zone.south, zone.west],
-          [zone.north, zone.east],
-        ],
-        {
-          color: zone.color,
-          weight: 2,
-          fillColor: zone.color,
-          fillOpacity: 0.1,
-          dashArray: '10, 6',
+      const zoneReps = new Map<string, string[]>();
+      repartidores.forEach((rep) => {
+        if (!rep.deliveryZone) return;
+        const list = zoneReps.get(rep.deliveryZone) ?? [];
+        list.push(rep.name.split(' ')[0]);
+        zoneReps.set(rep.deliveryZone, list);
+      });
+
+      for (const zone of deliveryZones) {
+        const features = collectZoneGeoFeatures(zone, barrios);
+        const repNames = zoneReps.get(zone.id) ?? [];
+
+        if (features.length === 0) {
+          if (!zone.barrios?.length) {
+            const rect = L.rectangle(
+              [
+                [zone.south, zone.west],
+                [zone.north, zone.east],
+              ],
+              {
+                color: zone.color,
+                weight: 1.5,
+                fillColor: zone.color,
+                fillOpacity: 0.2,
+                dashArray: '6, 4',
+              }
+            )
+              .addTo(map)
+              .bindTooltip(
+                `<strong>${zone.name}</strong>${repNames.length ? `<br/>${MAP_SVG.bike} ${repNames.join(', ')}` : ''}`,
+                { sticky: true, direction: 'center', className: 'zone-map-tooltip' }
+              );
+            zoneLayersRef.current.push(rect);
+          }
+          continue;
         }
-      )
-        .addTo(map)
-        .bindTooltip(`<strong>${zone.name}</strong><br/>${MAP_SVG.bike} ${names.join(', ')}`, {
-          sticky: true,
-          direction: 'center',
-          className: 'zone-map-tooltip',
-        });
 
-      zoneLayersRef.current.push(rect);
-    });
-  }, [repartidores, showDeliveryZones, deliveryZones]);
+        const layer = L.geoJSON(features, {
+          style: {
+            color: zone.color,
+            weight: 1.2,
+            fillColor: zone.color,
+            fillOpacity: 0.5,
+            opacity: 0.9,
+          },
+          onEachFeature: (feature, featureLayer) => {
+            const label = featureLabel(feature, barrios, zone.barrios ?? []);
+            featureLayer.bindTooltip(
+              `<strong>${label}</strong><br/><span style="opacity:0.85">${zone.name}</span>${
+                repNames.length ? `<br/>${MAP_SVG.bike} ${repNames.join(', ')}` : ''
+              }`,
+              { permanent: true, direction: 'center', className: 'zone-polygon-label' }
+            );
+          },
+        }).addTo(map);
+
+        zoneLayersRef.current.push(layer);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [repartidores, showDeliveryZones, deliveryZones, barrios]);
 
   // Observer de redimensionamiento
   useEffect(() => {

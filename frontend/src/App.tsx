@@ -645,6 +645,51 @@ export default function App() {
     return updated;
   };
 
+  const handleUpdateZoneShippingRates = async (
+    zoneId: string,
+    rates: { flex: number; express: number; standard: number }
+  ) => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl(`/api/delivery-zones/${zoneId}/rates`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(rates),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudieron guardar las tarifas');
+    }
+    const updated = await res.json();
+    setDeliveryZones((prev) =>
+      prev.map((z) => (z.id === zoneId ? updated : z)).sort((a, b) => a.name.localeCompare(b.name))
+    );
+    return updated;
+  };
+
+  const handleUpdateDefaultShippingRates = async (rates: {
+    flex: number;
+    express: number;
+    standard: number;
+  }) => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl('/api/billing/rates/default'), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(rates),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudieron guardar las tarifas');
+    }
+    return res.json();
+  };
+
   const handleDeleteDeliveryZone = async (zoneId: string) => {
     if (!token) throw new Error('Sin sesión');
     const res = await fetch(apiUrl(`/api/delivery-zones/${zoneId}`), {
@@ -1574,6 +1619,8 @@ export default function App() {
                   barrios={barrios}
                   onCreateDeliveryZone={isAgencyAdmin(user.role) ? handleCreateDeliveryZone : undefined}
                   onUpdateDeliveryZone={isAgencyAdmin(user.role) ? handleUpdateDeliveryZone : undefined}
+                  onUpdateZoneShippingRates={isAgencyAdmin(user.role) ? handleUpdateZoneShippingRates : undefined}
+                  onUpdateDefaultShippingRates={isAgencyAdmin(user.role) ? handleUpdateDefaultShippingRates : undefined}
                   onDeleteDeliveryZone={isAgencyAdmin(user.role) ? handleDeleteDeliveryZone : undefined}
                   onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
                   onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}

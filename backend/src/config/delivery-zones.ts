@@ -7,6 +7,11 @@ export interface DeliveryZone {
   north: number;
   east: number;
   barrios?: string[];
+  shippingRates?: {
+    flex: number;
+    express: number;
+    standard: number;
+  };
 }
 
 /** Zonas predefinidas para CABA y GBA (se copian a cada agencia al crear/migrar) */

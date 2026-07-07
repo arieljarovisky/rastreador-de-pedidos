@@ -13,6 +13,16 @@ interface DeliveryZoneRow extends RowDataPacket {
   north: number;
   east: number;
   barrios: string | string[] | null;
+  shipping_rate_flex: string | number | null;
+  shipping_rate_express: string | number | null;
+  shipping_rate_standard: string | number | null;
+}
+
+const DEFAULT_ZONE_RATES = { flex: 2800, express: 3200, standard: 2500 };
+
+function toRate(value: string | number | null | undefined, fallback: number): number {
+  const n = Number(value ?? fallback);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : fallback;
 }
 
 function parseBarrios(raw: string | string[] | null): string[] | undefined {
@@ -35,15 +45,23 @@ function rowToZone(row: DeliveryZoneRow): DeliveryZone {
     west: Number(row.west),
     north: Number(row.north),
     east: Number(row.east),
+    shippingRates: {
+      flex: toRate(row.shipping_rate_flex, DEFAULT_ZONE_RATES.flex),
+      express: toRate(row.shipping_rate_express, DEFAULT_ZONE_RATES.express),
+      standard: toRate(row.shipping_rate_standard, DEFAULT_ZONE_RATES.standard),
+    },
   };
   const barrios = parseBarrios(row.barrios);
   if (barrios) zone.barrios = barrios;
   return zone;
 }
 
+const ZONE_SELECT = `id, agency_id, name, color, south, west, north, east, barrios,
+  shipping_rate_flex, shipping_rate_express, shipping_rate_standard`;
+
 export async function listZonesForAgency(agencyId: string): Promise<DeliveryZone[]> {
   const [rows] = await pool.query<DeliveryZoneRow[]>(
-    `SELECT id, agency_id, name, color, south, west, north, east, barrios
+    `SELECT ${ZONE_SELECT}
      FROM delivery_zones WHERE agency_id = ? ORDER BY name`,
     [agencyId]
   );
@@ -52,7 +70,7 @@ export async function listZonesForAgency(agencyId: string): Promise<DeliveryZone
 
 export async function getZoneById(agencyId: string, zoneId: string): Promise<DeliveryZone | null> {
   const [rows] = await pool.query<DeliveryZoneRow[]>(
-    `SELECT id, agency_id, name, color, south, west, north, east, barrios
+    `SELECT ${ZONE_SELECT}
      FROM delivery_zones WHERE agency_id = ? AND id = ?`,
     [agencyId, zoneId]
   );
@@ -278,4 +296,35 @@ export async function deleteZone(agencyId: string, zoneId: string): Promise<void
   }
 
   await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [zoneId, agencyId]);
+}
+
+export async function updateZoneShippingRates(
+  agencyId: string,
+  zoneId: string,
+  rates: { flex?: number; express?: number; standard?: number }
+): Promise<DeliveryZone> {
+  const existing = await getZoneById(agencyId, zoneId);
+  if (!existing) throw new Error('NOT_FOUND');
+
+  const currentRates = existing.shippingRates ?? DEFAULT_ZONE_RATES;
+  const next = {
+    flex: rates.flex ?? currentRates.flex,
+    express: rates.express ?? currentRates.express,
+    standard: rates.standard ?? currentRates.standard,
+  };
+
+  if (next.flex < 0 || next.express < 0 || next.standard < 0) {
+    throw new Error('INVALID_RATES');
+  }
+
+  await pool.query(
+    `UPDATE delivery_zones
+     SET shipping_rate_flex = ?, shipping_rate_express = ?, shipping_rate_standard = ?
+     WHERE id = ? AND agency_id = ?`,
+    [next.flex, next.express, next.standard, zoneId, agencyId]
+  );
+
+  const zone = await getZoneById(agencyId, zoneId);
+  if (!zone) throw new Error('NOT_FOUND');
+  return zone;
 }

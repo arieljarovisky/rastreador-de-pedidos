@@ -7,6 +7,21 @@ export interface DeliveryZone {
   north: number;
   east: number;
   barrios?: string[];
+  shippingRates?: {
+    flex: number;
+    express: number;
+    standard: number;
+  };
+}
+
+export const DEFAULT_ZONE_SHIPPING_RATES = {
+  flex: 2800,
+  express: 3200,
+  standard: 2500,
+};
+
+export function zoneShippingRates(zone: DeliveryZone) {
+  return zone.shippingRates ?? DEFAULT_ZONE_SHIPPING_RATES;
 }
 
 export interface Barrio {

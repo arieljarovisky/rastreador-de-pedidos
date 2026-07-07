@@ -345,4 +345,20 @@ export async function runMigrations(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }
+
+  if (!(await columnExists('delivery_zones', 'shipping_rate_flex'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00 AFTER barrios'
+    );
+  }
+  if (!(await columnExists('delivery_zones', 'shipping_rate_express'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00 AFTER shipping_rate_flex'
+    );
+  }
+  if (!(await columnExists('delivery_zones', 'shipping_rate_standard'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00 AFTER shipping_rate_express'
+    );
+  }
 }

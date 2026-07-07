@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Receipt,
   Loader2,
-  Save,
 } from 'lucide-react';
 import { BillingLedgerEntry, BillingSummary, User, UserRole, isAgencyAdmin } from '../types.js';
 import { apiUrl } from '../api.ts';
@@ -75,10 +74,6 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const [ledger, setLedger] = useState<BillingLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rateFlex, setRateFlex] = useState('2800');
-  const [rateExpress, setRateExpress] = useState('3200');
-  const [rateStandard, setRateStandard] = useState('2500');
-  const [savingRates, setSavingRates] = useState(false);
   const [paymentSellerId, setPaymentSellerId] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
@@ -116,9 +111,6 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       if (!ledgerRes.ok) throw new Error(ledgerBody.error || 'No se pudo cargar el historial.');
       setSummary(summaryBody as BillingSummary);
       setLedger(ledgerBody as BillingLedgerEntry[]);
-      setRateFlex(String(summaryBody.rates?.flex ?? 2800));
-      setRateExpress(String(summaryBody.rates?.express ?? 3200));
-      setRateStandard(String(summaryBody.rates?.standard ?? 2500));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar la cuenta.');
     } finally {
@@ -138,33 +130,6 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const handleDateToChange = (key: string) => {
     setDateTo(key);
     if (key < dateFrom) setDateFrom(key);
-  };
-
-  const saveRates = async () => {
-    setSavingRates(true);
-    setMessage(null);
-    try {
-      const res = await fetch(apiUrl('/api/billing/rates'), {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          flex: Number(rateFlex),
-          express: Number(rateExpress),
-          standard: Number(rateStandard),
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'No se pudieron guardar las tarifas.');
-      setMessage('Tarifas actualizadas.');
-      await loadData();
-    } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : 'Error al guardar tarifas.');
-    } finally {
-      setSavingRates(false);
-    }
   };
 
   const recordPayment = async () => {
@@ -403,68 +368,62 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
             </section>
 
             {isAgency && (
-              <div className="grid lg:grid-cols-2 gap-4">
-                <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3 space-y-3">
-                  <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
-                    Tarifas por envío entregado
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <label className="flex flex-col gap-0.5">
-                      <span className="mono-label">Flex (ML)</span>
-                      <input className={inputClass} inputMode="decimal" value={rateFlex} onChange={(e) => setRateFlex(e.target.value)} />
-                    </label>
-                    <label className="flex flex-col gap-0.5">
-                      <span className="mono-label">Express (TN)</span>
-                      <input className={inputClass} inputMode="decimal" value={rateExpress} onChange={(e) => setRateExpress(e.target.value)} />
-                    </label>
-                    <label className="flex flex-col gap-0.5">
-                      <span className="mono-label">Estándar</span>
-                      <input className={inputClass} inputMode="decimal" value={rateStandard} onChange={(e) => setRateStandard(e.target.value)} />
-                    </label>
-                  </div>
-                  <button type="button" className="btn-primary px-3 py-1.5 inline-flex items-center gap-1" disabled={savingRates} onClick={() => void saveRates()}>
-                    {savingRates ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                    Guardar tarifas
-                  </button>
-                </section>
-
-                <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3 space-y-3">
-                  <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
-                    Registrar pago de vendedor
-                  </h2>
-                  <label className="flex flex-col gap-0.5">
-                    <span className="mono-label">Vendedor</span>
-                    <select className={inputClass} value={paymentSellerId} onChange={(e) => setPaymentSellerId(e.target.value)}>
-                      <option value="">Elegir vendedor</option>
-                      {sellers.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-0.5">
-                    <span className="mono-label">Monto (ARS)</span>
-                    <input className={inputClass} inputMode="decimal" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Ej. 50000" />
-                  </label>
-                  <label className="flex flex-col gap-0.5">
-                    <span className="mono-label">Nota (opcional)</span>
-                    <input className={inputClass} value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} placeholder="Transferencia, efectivo…" />
-                  </label>
-                  <button type="button" className="btn-secondary px-3 py-1.5" disabled={recordingPayment || !paymentSellerId || !paymentAmount} onClick={() => void recordPayment()}>
-                    {recordingPayment ? 'Registrando…' : 'Registrar pago'}
-                  </button>
-                </section>
-              </div>
+              <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3 space-y-3">
+                <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
+                  Registrar pago de vendedor
+                </h2>
+                <label className="flex flex-col gap-0.5">
+                  <span className="mono-label">Vendedor</span>
+                  <select className={inputClass} value={paymentSellerId} onChange={(e) => setPaymentSellerId(e.target.value)}>
+                    <option value="">Elegir vendedor</option>
+                    {sellers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="mono-label">Monto (ARS)</span>
+                  <input className={inputClass} inputMode="decimal" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Ej. 50000" />
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="mono-label">Nota (opcional)</span>
+                  <input className={inputClass} value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} placeholder="Transferencia, efectivo…" />
+                </label>
+                <button type="button" className="btn-secondary px-3 py-1.5" disabled={recordingPayment || !paymentSellerId || !paymentAmount} onClick={() => void recordPayment()}>
+                  {recordingPayment ? 'Registrando…' : 'Registrar pago'}
+                </button>
+              </section>
             )}
 
-            {!isAgency && (
-              <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3">
-                <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] mb-2">
-                  Tarifas vigentes
-                </h2>
-                <div className="grid grid-cols-3 gap-2 text-[11px] font-mono">
-                  <p><span className="text-[var(--color-text-muted)]">Flex:</span> {formatArs(summary.rates.flex)}</p>
-                  <p><span className="text-[var(--color-text-muted)]">Express:</span> {formatArs(summary.rates.express)}</p>
-                  <p><span className="text-[var(--color-text-muted)]">Estándar:</span> {formatArs(summary.rates.standard)}</p>
+            {summary.zoneRates.length > 0 && (
+              <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden">
+                <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
+                  <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
+                    Tarifas vigentes por zona
+                  </h2>
+                  <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5">
+                    Configurá los precios en Ajustes → Zonas de entrega.
+                  </p>
+                </div>
+                <div className="divide-y divide-[var(--surface-border)]/60">
+                  {summary.zoneRates.map((zone) => (
+                    <div key={zone.zoneId} className="px-3 py-2.5">
+                      <p className="text-sm font-medium text-[var(--ink-soft)] mb-1">{zone.zoneName}</p>
+                      <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
+                        <p><span className="text-[var(--color-text-muted)]">Flex:</span> {formatArs(zone.flex)}</p>
+                        <p><span className="text-[var(--color-text-muted)]">Express:</span> {formatArs(zone.express)}</p>
+                        <p><span className="text-[var(--color-text-muted)]">Estándar:</span> {formatArs(zone.standard)}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="px-3 py-2.5 bg-[var(--surface-panel-2)]/30">
+                    <p className="text-sm font-medium text-[var(--ink-soft)] mb-1">Fuera de zona</p>
+                    <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
+                      <p><span className="text-[var(--color-text-muted)]">Flex:</span> {formatArs(summary.defaultRates.flex)}</p>
+                      <p><span className="text-[var(--color-text-muted)]">Express:</span> {formatArs(summary.defaultRates.express)}</p>
+                      <p><span className="text-[var(--color-text-muted)]">Estándar:</span> {formatArs(summary.defaultRates.standard)}</p>
+                    </div>
+                  </div>
                 </div>
               </section>
             )}
