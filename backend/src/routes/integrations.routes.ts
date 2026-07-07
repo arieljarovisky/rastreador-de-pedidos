@@ -56,16 +56,38 @@ interface OAuthStatePayload {
   platform: IntegrationPlatform;
   client?: OAuthClient;
   redirectUri?: string;
+  returnOrigin?: string;
+  integrationScope?: 'agency';
+}
+
+function isAllowedReturnOrigin(origin: string): boolean {
+  const normalized = origin.replace(/\/$/, '');
+  const allowed = new Set([
+    ...env.corsOrigins.map((value) => value.replace(/\/$/, '')),
+    env.frontendUrl.replace(/\/$/, ''),
+  ]);
+  return allowed.has(normalized);
+}
+
+function resolveReturnOrigin(req: Request): string | undefined {
+  const fromQuery =
+    typeof req.query.return_origin === 'string' ? req.query.return_origin.trim() : '';
+  const fromHeader = req.get('origin')?.trim() ?? '';
+  const candidate = fromQuery || fromHeader;
+  if (!candidate || !isAllowedReturnOrigin(candidate)) return undefined;
+  return candidate.replace(/\/$/, '');
 }
 
 function signOAuthState(
   userId: string,
   platform: IntegrationPlatform,
   client: OAuthClient = 'web',
-  redirectUri?: string
+  redirectUri?: string,
+  returnOrigin?: string,
+  integrationScope?: 'agency'
 ): string {
   return jwt.sign(
-    { userId, platform, client, redirectUri } satisfies OAuthStatePayload,
+    { userId, platform, client, redirectUri, returnOrigin, integrationScope } satisfies OAuthStatePayload,
     env.jwtSecret,
     { expiresIn: '15m' }
   );
@@ -77,14 +99,25 @@ function verifyOAuthState(state: string): OAuthStatePayload {
   return payload;
 }
 
-function redirectToFrontend(platform: IntegrationPlatform, status: 'connected' | 'error', message?: string) {
+function redirectToFrontend(
+  platform: IntegrationPlatform,
+  status: 'connected' | 'error',
+  message?: string,
+  returnOrigin?: string,
+  integrationScope?: 'agency'
+) {
+  const base =
+    returnOrigin && isAllowedReturnOrigin(returnOrigin)
+      ? returnOrigin.replace(/\/$/, '')
+      : env.frontendUrl.replace(/\/$/, '');
   const params = new URLSearchParams({
     tab: 'settings',
     integration: platform,
     status,
   });
   if (message) params.set('message', message);
-  return `${env.frontendUrl}/app?${params}`;
+  if (integrationScope === 'agency') params.set('integration_scope', 'agency');
+  return `${base}/app?${params}`;
 }
 
 function redirectToMobile(
@@ -107,11 +140,13 @@ function redirectAfterOAuth(
   status: 'connected' | 'error',
   client: OAuthClient = 'web',
   message?: string,
-  redirectUri?: string
+  redirectUri?: string,
+  returnOrigin?: string,
+  integrationScope?: 'agency'
 ) {
   return client === 'mobile'
     ? redirectToMobile(platform, status, message, redirectUri)
-    : redirectToFrontend(platform, status, message);
+    : redirectToFrontend(platform, status, message, returnOrigin, integrationScope);
 }
 
 function parseOAuthClient(value: unknown): OAuthClient {
@@ -178,7 +213,8 @@ router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_AD
     client === 'mobile' && typeof req.query.redirect_uri === 'string'
       ? req.query.redirect_uri.trim()
       : undefined;
-  const state = signOAuthState(req.user!.id, 'mercadolibre', client, redirectUri);
+  const returnOrigin = resolveReturnOrigin(req);
+  const state = signOAuthState(req.user!.id, 'mercadolibre', client, redirectUri, returnOrigin);
   res.json({ url: getMercadoLibreAuthUrl(state) });
 });
 
@@ -197,7 +233,15 @@ router.get('/agency/mercadolibre/connect', authenticate, requireAgencyAdmin(), a
     client === 'mobile' && typeof req.query.redirect_uri === 'string'
       ? req.query.redirect_uri.trim()
       : undefined;
-  const state = signOAuthState(bridge.id, 'mercadolibre', client, redirectUri);
+  const returnOrigin = resolveReturnOrigin(req);
+  const state = signOAuthState(
+    bridge.id,
+    'mercadolibre',
+    client,
+    redirectUri,
+    returnOrigin,
+    'agency'
+  );
   res.json({ url: getMercadoLibreAuthUrl(state) });
 });
 
@@ -205,11 +249,15 @@ router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
   const { code, state, error } = req.query;
   let client: OAuthClient = 'web';
   let mobileRedirectUri: string | undefined;
+  let returnOrigin: string | undefined;
+  let integrationScope: 'agency' | undefined;
   if (typeof state === 'string') {
     try {
       const payload = verifyOAuthState(state);
       client = parseOAuthClient(payload.client);
       mobileRedirectUri = payload.redirectUri;
+      returnOrigin = payload.returnOrigin;
+      integrationScope = payload.integrationScope;
     } catch {
       // state inválido o expirado
     }
@@ -217,7 +265,15 @@ router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
 
   if (error || !code || typeof code !== 'string' || !state || typeof state !== 'string') {
     res.redirect(
-      redirectAfterOAuth('mercadolibre', 'error', client, 'Autorización cancelada', mobileRedirectUri)
+      redirectAfterOAuth(
+        'mercadolibre',
+        'error',
+        client,
+        'Autorización cancelada',
+        mobileRedirectUri,
+        returnOrigin,
+        integrationScope
+      )
     );
     return;
   }
@@ -226,8 +282,20 @@ router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
     const payload = verifyOAuthState(state);
     client = parseOAuthClient(payload.client);
     mobileRedirectUri = payload.redirectUri;
+    returnOrigin = payload.returnOrigin;
+    integrationScope = payload.integrationScope;
     await exchangeMercadoLibreCode(payload.userId, code);
-    res.redirect(redirectAfterOAuth('mercadolibre', 'connected', client, undefined, mobileRedirectUri));
+    res.redirect(
+      redirectAfterOAuth(
+        'mercadolibre',
+        'connected',
+        client,
+        undefined,
+        mobileRedirectUri,
+        returnOrigin,
+        integrationScope
+      )
+    );
   } catch {
     res.redirect(
       redirectAfterOAuth(
@@ -235,7 +303,9 @@ router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
         'error',
         client,
         'No se pudo conectar Mercado Libre',
-        mobileRedirectUri
+        mobileRedirectUri,
+        returnOrigin,
+        integrationScope
       )
     );
   }
@@ -253,7 +323,8 @@ router.get('/tiendanube/connect', authenticate, requireRoles(UserRole.STORE_ADMI
     client === 'mobile' && typeof req.query.redirect_uri === 'string'
       ? req.query.redirect_uri.trim()
       : undefined;
-  const state = signOAuthState(req.user!.id, 'tiendanube', client, redirectUri);
+  const returnOrigin = resolveReturnOrigin(req);
+  const state = signOAuthState(req.user!.id, 'tiendanube', client, redirectUri, returnOrigin);
   res.json({ url: getTiendaNubeAuthUrl(state) });
 });
 
@@ -261,11 +332,13 @@ router.get('/tiendanube/callback', async (req: Request, res: Response) => {
   const { code, state, error } = req.query;
   let client: OAuthClient = 'web';
   let mobileRedirectUri: string | undefined;
+  let returnOrigin: string | undefined;
   if (typeof state === 'string') {
     try {
       const payload = verifyOAuthState(state);
       client = parseOAuthClient(payload.client);
       mobileRedirectUri = payload.redirectUri;
+      returnOrigin = payload.returnOrigin;
     } catch {
       // state inválido o expirado
     }
@@ -273,7 +346,14 @@ router.get('/tiendanube/callback', async (req: Request, res: Response) => {
 
   if (error || !code || typeof code !== 'string' || !state || typeof state !== 'string') {
     res.redirect(
-      redirectAfterOAuth('tiendanube', 'error', client, 'Autorización cancelada', mobileRedirectUri)
+      redirectAfterOAuth(
+        'tiendanube',
+        'error',
+        client,
+        'Autorización cancelada',
+        mobileRedirectUri,
+        returnOrigin
+      )
     );
     return;
   }
@@ -282,11 +362,21 @@ router.get('/tiendanube/callback', async (req: Request, res: Response) => {
     const payload = verifyOAuthState(state);
     client = parseOAuthClient(payload.client);
     mobileRedirectUri = payload.redirectUri;
+    returnOrigin = payload.returnOrigin;
     await exchangeTiendaNubeCode(payload.userId, code);
-    res.redirect(redirectAfterOAuth('tiendanube', 'connected', client, undefined, mobileRedirectUri));
+    res.redirect(
+      redirectAfterOAuth('tiendanube', 'connected', client, undefined, mobileRedirectUri, returnOrigin)
+    );
   } catch {
     res.redirect(
-      redirectAfterOAuth('tiendanube', 'error', client, 'No se pudo conectar Tienda Nube', mobileRedirectUri)
+      redirectAfterOAuth(
+        'tiendanube',
+        'error',
+        client,
+        'No se pudo conectar Tienda Nube',
+        mobileRedirectUri,
+        returnOrigin
+      )
     );
   }
 });

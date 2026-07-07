@@ -20,7 +20,7 @@ import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
-import { apiUrl } from './api.ts';
+import { apiUrl, oauthReturnOriginQuery } from './api.ts';
 import { mergeRepartidorLocation, mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
@@ -82,20 +82,23 @@ export default function App() {
     const status = params.get('status');
     const message = params.get('message');
     const tab = params.get('tab');
+    const integrationScope = params.get('integration_scope');
     if (tab === 'settings') setMobileTabState('settings');
     if (integration && status) {
       setMobileTabState('settings');
       const platformLabel = integration === 'mercadolibre' ? 'Mercado Libre' : 'Tienda Nube';
+      const scopeLabel =
+        integrationScope === 'agency' ? ' (cuenta central de la agencia)' : '';
       if (status === 'connected') {
         void showAlert({
           title: 'Cuenta conectada',
-          message: `Tu cuenta de ${platformLabel} fue vinculada correctamente.`,
+          message: `Tu cuenta de ${platformLabel}${scopeLabel} fue vinculada correctamente.`,
           variant: 'success',
         });
       } else {
         void showAlert({
           title: 'Error de conexión',
-          message: message || `No se pudo conectar ${platformLabel}.`,
+          message: message || `No se pudo conectar ${platformLabel}${scopeLabel}.`,
           variant: 'error',
         });
       }
@@ -1022,9 +1025,12 @@ export default function App() {
 
   const connectAgencyMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
     if (!token || platform !== 'mercadolibre') throw new Error('Solo Mercado Libre está disponible para la agencia.');
-    const res = await fetch(apiUrl('/api/integrations/agency/mercadolibre/connect'), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(
+      apiUrl(`/api/integrations/agency/mercadolibre/connect?${oauthReturnOriginQuery()}`),
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'No se pudo iniciar la conexión');
     window.location.href = body.url;
@@ -1105,9 +1111,12 @@ export default function App() {
 
   const connectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
     if (!token) throw new Error('Sin sesión');
-    const res = await fetch(apiUrl(`/api/integrations/${platform}/connect`), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(
+      apiUrl(`/api/integrations/${platform}/connect?${oauthReturnOriginQuery()}`),
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'No se pudo iniciar la conexión');
     window.location.href = body.url;
