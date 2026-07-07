@@ -409,6 +409,26 @@
   display: none !important;
 }
 
+.zone-centroid-label-tip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-family: var(--font-mono, ui-monospace, monospace) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  text-align: center !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.65) !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+}
+
+.zone-centroid-label-tip::before {
+  display: none !important;
+}
+
 .zone-map-tooltip {
   background: color-mix(in srgb, var(--panel) 92%, transparent) !important;
   border: 1px solid var(--line) !important;

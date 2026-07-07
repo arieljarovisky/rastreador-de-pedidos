@@ -1,3 +1,5 @@
+import type { Barrio, DeliveryZone } from './deliveryZones.js';
+
 /** Zonas cordón AMBA — ids y barrios (espejo del backend). */
 export const CORDON_ZONE_IDS = ['zona_caba', 'zona_cordon_1', 'zona_cordon_2', 'zona_cordon_3'] as const;
 
@@ -11,6 +13,16 @@ export const LEGACY_ZONE_IDS = [
 
 const LEGACY_SET = new Set<string>(LEGACY_ZONE_IDS);
 const CORDON_SET = new Set<string>(CORDON_ZONE_IDS);
+
+export const CORDON_ZONE_META: Record<
+  (typeof CORDON_ZONE_IDS)[number],
+  { name: string; color: string }
+> = {
+  zona_caba: { name: 'CABA', color: '#F5C518' },
+  zona_cordon_1: { name: '1° Cordón', color: '#1B4332' },
+  zona_cordon_2: { name: '2° Cordón', color: '#1D3557' },
+  zona_cordon_3: { name: '3° Cordón', color: '#84CC16' },
+};
 
 export function isLegacyZoneId(zoneId: string): boolean {
   return LEGACY_SET.has(zoneId);
@@ -68,16 +80,62 @@ export const CORDON_ZONE_BARRIOS: Record<string, string[]> = {
   ],
 };
 
+function boundsFromBarrios(barrioIds: string[], catalog: Barrio[]): {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+} {
+  const items = barrioIds
+    .map((id) => catalog.find((b) => b.id === id))
+    .filter((b): b is Barrio => Boolean(b));
+  if (items.length === 0) {
+    return { south: -35.1, west: -59.2, north: -34.4, east: -58.3 };
+  }
+  return {
+    south: Math.min(...items.map((b) => b.south)),
+    west: Math.min(...items.map((b) => b.west)),
+    north: Math.max(...items.map((b) => b.north)),
+    east: Math.max(...items.map((b) => b.east)),
+  };
+}
+
 export function barriosForMapZone(
   zoneId: string,
-  apiBarrios?: string[],
-  cabaBarrioIds?: string[]
+  apiBarrios: string[] | undefined,
+  cabaBarrioIds: string[]
 ): string[] {
   if (apiBarrios?.length) return apiBarrios;
-  if (zoneId === 'zona_caba') return cabaBarrioIds ?? [];
+  if (zoneId === 'zona_caba') return cabaBarrioIds;
   return CORDON_ZONE_BARRIOS[zoneId] ?? [];
 }
 
-export function zonesForMapPaint<T extends { id: string; barrios?: string[] }>(zones: T[]): T[] {
-  return zones.filter((z) => !isLegacyZoneId(z.id));
+/** Siempre devuelve las 4 zonas cordón para pintar el mapa (aunque falten en la API). */
+export function buildCordonMapZones(apiZones: DeliveryZone[], barrioCatalog: Barrio[]): DeliveryZone[] {
+  const apiById = new Map(apiZones.map((z) => [z.id, z]));
+  const cabaBarrioIds = barrioCatalog.filter((b) => b.area === 'CABA').map((b) => b.id);
+
+  return CORDON_ZONE_IDS.map((zoneId) => {
+    const api = apiById.get(zoneId);
+    const meta = CORDON_ZONE_META[zoneId];
+    const zoneBarrios = barriosForMapZone(zoneId, api?.barrios, cabaBarrioIds);
+    const bounds = boundsFromBarrios(zoneBarrios, barrioCatalog);
+
+    return {
+      id: zoneId,
+      name: api?.name ?? meta.name,
+      color: api?.color ?? meta.color,
+      south: api?.south ?? bounds.south,
+      west: api?.west ?? bounds.west,
+      north: api?.north ?? bounds.north,
+      east: api?.east ?? bounds.east,
+      barrios: zoneBarrios,
+      shippingRates: api?.shippingRates,
+    };
+  });
+}
+
+/** @deprecated Usar buildCordonMapZones */
+export function zonesForMapPaint<T extends { id: string }>(zones: T[]): T[] {
+  return zones.filter((z) => isCordonZoneId(z.id));
 }

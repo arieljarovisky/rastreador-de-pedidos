@@ -7,8 +7,14 @@ import { useEffect, useRef } from 'react';
 import { Satellite } from 'lucide-react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
-import { barriosForMapZone, zonesForMapPaint } from '../config/ambaCordonZones.js';
-import { collectZoneGeoFeatures, featureLabel, loadAmbaGeoJson, sortZonesForMapPaint } from '../utils/zoneMapGeo.js';
+import { buildCordonMapZones } from '../config/ambaCordonZones.js';
+import {
+  collectZoneGeoFeatures,
+  featureLabel,
+  loadAmbaGeoJson,
+  sortZonesForMapPaint,
+  ZONE_DETAIL_LABEL_MIN_ZOOM,
+} from '../utils/zoneMapGeo.js';
 import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
 import { dedupeRepartidores, repartidorIdentityMatches, repartidorMarkerKey } from '../utils/repartidorLocation.js';
@@ -188,6 +194,7 @@ export default function MapComponent({
   const markerAnimRef = useRef<Record<string, number>>({});
   const lastRouteFetchRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const zoneLayersRef = useRef<L.Layer[]>([]);
+  const zoneZoomHandlerRef = useRef<(() => void) | null>(null);
   const hubMarkerRef = useRef<L.Marker | null>(null);
   const initialFitDoneRef = useRef(false);
   const lastCenteredOrderIdRef = useRef<string | null>(null);
@@ -322,12 +329,27 @@ export default function MapComponent({
     const map = mapInstanceRef.current;
     if (!map) return;
 
+    if (zoneZoomHandlerRef.current) {
+      map.off('zoomend', zoneZoomHandlerRef.current);
+      zoneZoomHandlerRef.current = null;
+    }
+
     zoneLayersRef.current.forEach((layer) => layer.remove());
     zoneLayersRef.current = [];
 
-    if (!showDeliveryZones || deliveryZones.length === 0) return;
+    if (!showDeliveryZones) return;
 
     let cancelled = false;
+
+    const syncZoneLabelVisibility = () => {
+      const showDetail = map.getZoom() >= ZONE_DETAIL_LABEL_MIN_ZOOM;
+      map.getContainer().querySelectorAll<HTMLElement>('.zone-centroid-label-tip').forEach((el) => {
+        el.style.display = showDetail ? 'none' : '';
+      });
+      map.getContainer().querySelectorAll<HTMLElement>('.zone-polygon-label').forEach((el) => {
+        el.style.display = showDetail ? '' : 'none';
+      });
+    };
 
     void (async () => {
       try {
@@ -345,13 +367,12 @@ export default function MapComponent({
         zoneReps.set(rep.deliveryZone, list);
       });
 
-      const cabaBarrioIds = barrios.filter((b) => b.area === 'CABA').map((b) => b.id);
-      const paintZones = sortZonesForMapPaint(zonesForMapPaint(deliveryZones));
+      const paintZones = sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios));
+      const showDetailOnCreate = map.getZoom() >= ZONE_DETAIL_LABEL_MIN_ZOOM;
 
       for (const zone of paintZones) {
-        const zoneBarrios = barriosForMapZone(zone.id, zone.barrios, cabaBarrioIds);
-        const zoneForGeo: DeliveryZone = zoneBarrios.length ? { ...zone, barrios: zoneBarrios } : zone;
-        const features = collectZoneGeoFeatures(zoneForGeo, barrios);
+        const zoneBarrios = zone.barrios ?? [];
+        const features = collectZoneGeoFeatures(zone, barrios);
         const repNames = zoneReps.get(zone.id) ?? [];
 
         if (features.length === 0) continue;
@@ -361,26 +382,61 @@ export default function MapComponent({
             color: zone.color,
             weight: 1.2,
             fillColor: zone.color,
-            fillOpacity: 0.5,
-            opacity: 0.9,
+            fillOpacity: 0.55,
+            opacity: 0.95,
           },
           onEachFeature: (feature, featureLayer) => {
+            if (zone.id === 'zona_caba') return;
             const label = featureLabel(feature, barrios, zoneBarrios);
             featureLayer.bindTooltip(
               `<strong>${label}</strong><br/><span style="opacity:0.85">${zone.name}</span>${
                 repNames.length ? `<br/>${MAP_SVG.bike} ${repNames.join(', ')}` : ''
               }`,
-              { permanent: true, direction: 'center', className: 'zone-polygon-label' }
+              {
+                permanent: showDetailOnCreate,
+                direction: 'center',
+                className: 'zone-polygon-label',
+                opacity: showDetailOnCreate ? 1 : 0,
+              }
             );
           },
         }).addTo(map);
 
         zoneLayersRef.current.push(layer);
+
+        const bounds = layer.getBounds();
+        if (bounds.isValid()) {
+          const center = bounds.getCenter();
+          const centroidMarker = L.marker(center, {
+            interactive: false,
+            icon: L.divIcon({
+              className: 'zone-centroid-label',
+              html: '',
+              iconSize: [0, 0],
+            }),
+          })
+            .addTo(map)
+            .bindTooltip(zone.name, {
+              permanent: true,
+              direction: 'center',
+              className: 'zone-centroid-label-tip',
+            });
+
+          zoneLayersRef.current.push(centroidMarker);
+        }
       }
+
+      zoneZoomHandlerRef.current = syncZoneLabelVisibility;
+      map.on('zoomend', syncZoneLabelVisibility);
+      syncZoneLabelVisibility();
     })();
 
     return () => {
       cancelled = true;
+      if (zoneZoomHandlerRef.current) {
+        map.off('zoomend', zoneZoomHandlerRef.current);
+        zoneZoomHandlerRef.current = null;
+      }
     };
   }, [repartidores, showDeliveryZones, deliveryZones, barrios]);
 

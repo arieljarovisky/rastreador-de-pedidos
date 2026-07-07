@@ -36,6 +36,9 @@ const BOUNDS_ONLY_BARRIOS = new Set(['la_matanza_norte', 'la_matanza_sur']);
 /** Orden de pintado: cordones exteriores primero, CABA al final. */
 export const ZONE_PAINT_ORDER = ['zona_cordon_3', 'zona_cordon_2', 'zona_cordon_1', 'zona_caba'] as const;
 
+/** A partir de este zoom se muestran nombres de partidos/comunas. */
+export const ZONE_DETAIL_LABEL_MIN_ZOOM = 12;
+
 let ambaGeo: FeatureCollection | null = null;
 let partidoByName = new Map<string, Feature>();
 let comunaFeatures: Feature[] = [];
@@ -169,6 +172,13 @@ export function collectZoneGeoFeatures(
   const unique = new Map<string, Feature>();
 
   const barrioIds = zone.barrios ?? [];
+
+  if (zone.id === 'zona_caba' && comunaFeatures.length > 0) {
+    for (const feature of comunaFeatures) {
+      unique.set(featureKey(feature), feature);
+    }
+    return Array.from(unique.values());
+  }
 
   const allCaba =
     barrioIds.length > 0 && barrioIds.every((id) => catalog.get(id)?.area === 'CABA');
