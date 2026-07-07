@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import {
   Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
   ChevronDown, ChevronUp, Layers, Package, Crown, Settings, ClipboardList, Map,
-  Store, Bike, AlertTriangle, Check,
+  Store, Bike, AlertTriangle, Check, X,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -266,6 +267,19 @@ export default function AdminDashboard({
 
   // Estados del Formulario de Pedidos
   const [showCreateForm, setShowCreateForm] = useState(false);
+
+  const closeCreateShipmentModal = useCallback(() => {
+    setShowCreateForm(false);
+  }, []);
+
+  useEffect(() => {
+    if (!showCreateForm) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeCreateShipmentModal();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [showCreateForm, closeCreateShipmentModal]);
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -350,7 +364,7 @@ export default function AdminDashboard({
       setNotes('');
       setCoordsConfirmed(false);
       setGeocodeMessage(null);
-      setShowCreateForm(false);
+      closeCreateShipmentModal();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al crear el pedido.';
       setGeocodeMessage(message);
@@ -596,7 +610,171 @@ export default function AdminDashboard({
     ).length,
   };
 
+  const createShipmentModal =
+    showCreateForm && userRole === UserRole.STORE_ADMIN
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            onClick={closeCreateShipmentModal}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-shipment-title"
+              className="relative w-full max-w-lg max-h-[min(92dvh,720px)] flex flex-col bg-[var(--surface-panel)] border border-[var(--surface-border)] rounded-xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--surface-border)] shrink-0">
+                <div className="min-w-0">
+                  <h3
+                    id="create-shipment-title"
+                    className="text-sm font-display font-bold text-[var(--color-text)] flex items-center gap-2"
+                  >
+                    <Package className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
+                    Cargar nuevo envío
+                  </h3>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                    Completá los datos del destino para registrar el pedido.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeCreateShipmentModal}
+                  className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel-2)]"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitOrder} className="flex flex-col min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Nombre Cliente *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Marcelo"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Celular / Teléfono</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: +5411531234"
+                      value={clientPhone}
+                      onChange={(e) => setClientPhone(e.target.value)}
+                      className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <span className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Sugerencias Rápidas de Destinos (Buenos Aires)</span>
+                  <div className="flex flex-wrap gap-1">
+                    {DIRECTORY_PRESETS.map((preset, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => applyPreset(preset)}
+                        className="text-[9px] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-text)] text-[var(--color-text-muted)] rounded px-1.5 py-0.5 transition font-mono inline-flex items-center gap-1"
+                      >
+                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                        {preset.name.split(' (')[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Dirección de Entrega *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: Av. Santa Fe 3200, Palermo"
+                      value={address}
+                      onChange={(e) => {
+                        setAddress(e.target.value);
+                        setCoordsConfirmed(false);
+                        setGeocodeMessage(null);
+                      }}
+                      onBlur={() => {
+                        if (address.trim().length > 8 && !coordsConfirmed) {
+                          void handleLocateAddress();
+                        }
+                      }}
+                      className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleLocateAddress()}
+                      disabled={geocodeLoading || !address.trim()}
+                      className="shrink-0 px-2.5 py-1.5 rounded bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[10px] font-bold uppercase text-[var(--ink-soft)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
+                    >
+                      {geocodeLoading ? '...' : 'Ubicar'}
+                    </button>
+                  </div>
+                  {geocodeMessage && (
+                    <p
+                      className={`mt-1 text-[10px] font-mono flex items-center gap-1 ${
+                        coordsConfirmed ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'
+                      }`}
+                    >
+                      {coordsConfirmed ? (
+                        <Check className="w-3 h-3 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                      )}
+                      {geocodeMessage}
+                    </p>
+                  )}
+                  {coordsConfirmed && (
+                    <p className="mt-0.5 text-[9px] text-[var(--color-text-faint)] font-mono">
+                      Coordenadas: {lat.toFixed(4)}, {lng.toFixed(4)}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Indicaciones / Notas</label>
+                  <textarea
+                    placeholder="Indicaciones para el timbre, ascensor, conserje..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={2}
+                    className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1 border-t border-[var(--surface-border)]">
+                  <button
+                    type="button"
+                    onClick={closeCreateShipmentModal}
+                    className="btn-secondary px-4 py-2"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={formLoading}
+                    className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold px-4 py-2 rounded-[var(--radius-posta)] text-[11px] uppercase tracking-wider transition disabled:opacity-50"
+                  >
+                    {formLoading ? 'Registrando...' : 'Confirmar envío'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
+    <>
     <div className="flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 h-full min-h-0 overflow-hidden" id="admin-dashboard">
       {contextMenu && (
         <OrderContextMenu
@@ -689,7 +867,7 @@ export default function AdminDashboard({
             
             {userRole === UserRole.STORE_ADMIN && (
               <button
-                onClick={() => setShowCreateForm(!showCreateForm)}
+                onClick={() => setShowCreateForm(true)}
                 id="btn-toggle-create-form"
                 className="px-2 py-1 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shrink-0"
               >
@@ -861,138 +1039,6 @@ export default function AdminDashboard({
         {/* LISTADO DE PEDIDOS / FORMULARIO CREACIÓN (CON SCROLL) */}
         <div className="flex-1 min-h-0 overflow-y-auto mt-1.5 space-y-1.5 pr-1 scrollbar-thin">
           
-          {/* Formulario de creación desplegable (HIGH DENSITY MODERN STYLE) */}
-          {showCreateForm && userRole === UserRole.STORE_ADMIN && (
-            <form onSubmit={handleSubmitOrder} className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-3.5 space-y-3 animate-slide-down shadow-xl">
-              <div className="flex items-center justify-between border-b border-[var(--surface-border)] pb-2 mb-2">
-                <h3 className="font-bold text-xs text-[var(--color-accent)] flex items-center gap-1">📝 Cargar nuevo envío</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateForm(false)}
-                  className="text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] text-[10px] uppercase font-mono tracking-wider font-bold"
-                >
-                  [Cancelar]
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Nombre Cliente *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Marcelo"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Celular / Teléfono</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: +5411531234"
-                    value={clientPhone}
-                    onChange={(e) => setClientPhone(e.target.value)}
-                    className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
-                  />
-                </div>
-              </div>
-
-              {/* Presets Rápidos de Direcciones */}
-              <div>
-                <span className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Sugerencias Rápidas de Destinos (Buenos Aires)</span>
-                <div className="flex flex-wrap gap-1">
-                  {DIRECTORY_PRESETS.map((preset, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => applyPreset(preset)}
-                      className="text-[9px] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-text)] text-[var(--color-text-muted)] rounded px-1.5 py-0.5 transition font-mono inline-flex items-center gap-1"
-                    >
-                      <MapPin className="w-2.5 h-2.5 shrink-0" />
-                      {preset.name.split(' (')[0]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Dirección de Entrega *</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Av. Santa Fe 3200, Palermo"
-                    value={address}
-                    onChange={(e) => {
-                      setAddress(e.target.value);
-                      setCoordsConfirmed(false);
-                      setGeocodeMessage(null);
-                    }}
-                    onBlur={() => {
-                      if (address.trim().length > 8 && !coordsConfirmed) {
-                        void handleLocateAddress();
-                      }
-                    }}
-                    className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleLocateAddress()}
-                    disabled={geocodeLoading || !address.trim()}
-                    className="shrink-0 px-2.5 py-1.5 rounded bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[10px] font-bold uppercase text-[var(--ink-soft)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
-                  >
-                    {geocodeLoading ? '...' : 'Ubicar'}
-                  </button>
-                </div>
-                {geocodeMessage && (
-                  <p
-                    className={`mt-1 text-[10px] font-mono flex items-center gap-1 ${
-                      coordsConfirmed ? 'text-[var(--color-ok)]' : 'text-[var(--color-warn)]'
-                    }`}
-                  >
-                    {coordsConfirmed ? (
-                      <Check className="w-3 h-3 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="w-3 h-3 shrink-0" />
-                    )}
-                    {geocodeMessage}
-                  </p>
-                )}
-                {coordsConfirmed && (
-                  <p className="mt-0.5 text-[9px] text-[var(--color-text-faint)] font-mono">
-                    Coordenadas: {lat.toFixed(4)}, {lng.toFixed(4)}
-                  </p>
-                )}
-              </div>
-
-              <div className="hidden">
-                <input type="hidden" value={lat} readOnly />
-                <input type="hidden" value={lng} readOnly />
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Indicaciones / Notas</label>
-                <textarea
-                  placeholder="Indicaciones para el timbre, ascensor, conserje..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                  className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all placeholder:text-[var(--color-text-faint)]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={formLoading}
-                className="w-full bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold py-2 rounded-[var(--radius-posta)] text-[11px] uppercase tracking-wider transition disabled:opacity-50 flex items-center justify-center gap-1.5"
-              >
-                {formLoading ? 'Registrando...' : 'Confirmar y Guardar Pedido'}
-              </button>
-            </form>
-          )}
-
           {/* Listado de pedidos filtrados (HIGH DENSITY STYLE) */}
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
@@ -1632,5 +1678,7 @@ export default function AdminDashboard({
         </div>
       </div>
     </div>
+    {createShipmentModal}
+    </>
   );
 }
