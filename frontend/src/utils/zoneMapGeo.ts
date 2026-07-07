@@ -13,6 +13,8 @@ type GeoProps = {
   provincia?: { nombre?: string };
 };
 
+const MATANZA_SPLIT_LAT = -34.74;
+
 /** Partidos cuyo nombre en IGN difiere del id interno. */
 const GBA_PARTIDO_OVERRIDES: Record<string, string> = {
   san_martin_gba: 'General San Martín',
@@ -28,16 +30,11 @@ const GBA_PARTIDO_OVERRIDES: Record<string, string> = {
   moron: 'Morón',
   lanus: 'Lanús',
   quilmes: 'Quilmes',
+  la_matanza_norte: 'La Matanza',
+  la_matanza_sur: 'La Matanza',
 };
 
-/** La Matanza está partida en norte/sur: se pinta con rectángulos aproximados. */
-const BOUNDS_ONLY_BARRIOS = new Set(['la_matanza_norte', 'la_matanza_sur']);
-
-/** Orden de pintado: cordones exteriores primero, CABA al final. */
 export const ZONE_PAINT_ORDER = ['zona_cordon_3', 'zona_cordon_2', 'zona_cordon_1', 'zona_caba'] as const;
-
-/** A partir de este zoom se muestran nombres de partidos/comunas. */
-export const ZONE_DETAIL_LABEL_MIN_ZOOM = 12;
 
 let ambaGeo: FeatureCollection | null = null;
 let partidoByName = new Map<string, Feature>();
@@ -94,22 +91,98 @@ function featureKey(feature: Feature): string {
   return props?.id ?? props?.nombre ?? JSON.stringify(feature.geometry?.type);
 }
 
-function barrioBoundsFeature(barrio: Barrio): Feature {
+function intersectEdgeWithLat(a: Position, b: Position, lat: number): Position {
+  const dy = b[1] - a[1];
+  if (Math.abs(dy) < 1e-12) return [a[0], lat];
+  const t = (lat - a[1]) / dy;
+  return [a[0] + t * (b[0] - a[0]), lat];
+}
+
+function closeRing(ring: Position[]): Position[] {
+  if (ring.length < 3) return ring;
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  if (first[0] === last[0] && first[1] === last[1]) return ring;
+  return [...ring, [first[0], first[1]]];
+}
+
+function clipRingNorth(ring: Position[], minLat: number): Position[] {
+  if (ring.length < 2) return [];
+  const open = ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+    ? ring.slice(0, -1)
+    : ring;
+  const result: Position[] = [];
+  for (let i = 0; i < open.length; i += 1) {
+    const curr = open[i];
+    const next = open[(i + 1) % open.length];
+    const currIn = curr[1] >= minLat;
+    const nextIn = next[1] >= minLat;
+    if (currIn) result.push(curr);
+    if (currIn !== nextIn) result.push(intersectEdgeWithLat(curr, next, minLat));
+  }
+  return closeRing(result);
+}
+
+function clipRingSouth(ring: Position[], maxLat: number): Position[] {
+  if (ring.length < 2) return [];
+  const open = ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+    ? ring.slice(0, -1)
+    : ring;
+  const result: Position[] = [];
+  for (let i = 0; i < open.length; i += 1) {
+    const curr = open[i];
+    const next = open[(i + 1) % open.length];
+    const currIn = curr[1] <= maxLat;
+    const nextIn = next[1] <= maxLat;
+    if (currIn) result.push(curr);
+    if (currIn !== nextIn) result.push(intersectEdgeWithLat(curr, next, maxLat));
+  }
+  return closeRing(result);
+}
+
+function clipGeometry(
+  geometry: Geometry,
+  mode: 'north' | 'south',
+  splitLat: number
+): Geometry | null {
+  const clipRing = mode === 'north'
+    ? (ring: Position[]) => clipRingNorth(ring, splitLat)
+    : (ring: Position[]) => clipRingSouth(ring, splitLat);
+
+  if (geometry.type === 'Polygon') {
+    const coords = geometry.coordinates
+      .map((ring) => clipRing(ring))
+      .filter((ring) => ring.length >= 4);
+    if (!coords.length) return null;
+    return { type: 'Polygon', coordinates: coords };
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    const polys = geometry.coordinates
+      .map((poly) => {
+        const coords = poly.map((ring) => clipRing(ring)).filter((ring) => ring.length >= 4);
+        return coords.length ? coords : null;
+      })
+      .filter((poly): poly is Position[][] => Boolean(poly));
+    if (!polys.length) return null;
+    return { type: 'MultiPolygon', coordinates: polys };
+  }
+
+  return null;
+}
+
+function clipMatanzaFeature(feature: Feature, mode: 'north' | 'south'): Feature | null {
+  if (!feature.geometry) return null;
+  const clipped = clipGeometry(feature.geometry, mode, MATANZA_SPLIT_LAT);
+  if (!clipped) return null;
   return {
     type: 'Feature',
-    properties: { nombre: barrio.name, categoria: 'Bounds' },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [
-        [
-          [barrio.west, barrio.south],
-          [barrio.east, barrio.south],
-          [barrio.east, barrio.north],
-          [barrio.west, barrio.north],
-          [barrio.west, barrio.south],
-        ],
-      ],
+    properties: {
+      ...(feature.properties as GeoProps),
+      nombre: mode === 'north' ? 'La Matanza Norte' : 'La Matanza Sur',
+      categoria: 'Partido',
     },
+    geometry: clipped,
   };
 }
 
@@ -148,8 +221,10 @@ export async function loadAmbaGeoJson(): Promise<FeatureCollection> {
 export function resolveBarrioGeoFeature(barrio: Barrio): Feature | null {
   if (!ambaGeo) return null;
 
-  if (BOUNDS_ONLY_BARRIOS.has(barrio.id)) {
-    return barrioBoundsFeature(barrio);
+  if (barrio.id === 'la_matanza_norte' || barrio.id === 'la_matanza_sur') {
+    const full = partidoByName.get(normalizeName('La Matanza'));
+    if (!full) return null;
+    return clipMatanzaFeature(full, barrio.id === 'la_matanza_norte' ? 'north' : 'south');
   }
 
   if (barrio.area === 'GBA') {
@@ -192,9 +267,12 @@ export function collectZoneGeoFeatures(
   for (const barrioId of barrioIds) {
     const barrio = catalog.get(barrioId);
     if (!barrio) continue;
-    let feature = resolveBarrioGeoFeature(barrio);
-    if (!feature) feature = barrioBoundsFeature(barrio);
-    const key = BOUNDS_ONLY_BARRIOS.has(barrioId) ? `bounds:${barrioId}` : featureKey(feature);
+    const feature = resolveBarrioGeoFeature(barrio);
+    if (!feature) continue;
+    const key =
+      barrioId === 'la_matanza_norte' || barrioId === 'la_matanza_sur'
+        ? `matanza:${barrioId}`
+        : featureKey(feature);
     unique.set(key, feature);
   }
 
@@ -210,24 +288,4 @@ export function sortZonesForMapPaint(zones: DeliveryZone[]): DeliveryZone[] {
     if (bi === -1) return 1;
     return ai - bi;
   });
-}
-
-export function featureLabel(feature: Feature, barrioCatalog: Barrio[], barrioIds: string[]): string {
-  const props = feature.properties as GeoProps | null;
-  if (props?.categoria === 'Bounds') return props.nombre ?? 'Zona';
-  if (props?.categoria === 'Partido') return props.nombre ?? 'Partido';
-  if (props?.categoria === 'Comuna') {
-    const catalog = new Map(barrioCatalog.map((b) => [b.id, b]));
-    const names = barrioIds
-      .map((id) => catalog.get(id))
-      .filter((barrio): barrio is Barrio => Boolean(barrio))
-      .filter((barrio) => {
-        const feat = resolveBarrioGeoFeature(barrio);
-        return feat && featureKey(feat) === featureKey(feature);
-      })
-      .map((barrio) => barrio.name);
-    if (names.length > 0) return names.join(' · ');
-    return props.nombre ?? 'Comuna';
-  }
-  return props?.nombre ?? 'Zona';
 }

@@ -4,10 +4,10 @@ import type { DeliveryZone } from './delivery-zones.js';
 
 /** Colores alineados al mapa de referencia AMBA (CABA + cordones). */
 export const CORDON_ZONE_COLORS = {
-  caba: '#F5C518',
-  cordon1: '#1B4332',
-  cordon2: '#1D3557',
-  cordon3: '#84CC16',
+  caba: '#F9E04B',
+  cordon1: '#6BCB9A',
+  cordon2: '#6BA4E8',
+  cordon3: '#B5E48C',
 } as const;
 
 const CABA_BARRIO_IDS = BARRIOS.filter((b) => b.area === 'CABA').map((b) => b.id);

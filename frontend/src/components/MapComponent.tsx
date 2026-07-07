@@ -8,13 +8,7 @@ import { Satellite } from 'lucide-react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import {
-  collectZoneGeoFeatures,
-  featureLabel,
-  loadAmbaGeoJson,
-  sortZonesForMapPaint,
-  ZONE_DETAIL_LABEL_MIN_ZOOM,
-} from '../utils/zoneMapGeo.js';
+import { collectZoneGeoFeatures, loadAmbaGeoJson, sortZonesForMapPaint } from '../utils/zoneMapGeo.js';
 import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
 import { dedupeRepartidores, repartidorIdentityMatches, repartidorMarkerKey } from '../utils/repartidorLocation.js';
@@ -194,7 +188,6 @@ export default function MapComponent({
   const markerAnimRef = useRef<Record<string, number>>({});
   const lastRouteFetchRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const zoneLayersRef = useRef<L.Layer[]>([]);
-  const zoneZoomHandlerRef = useRef<(() => void) | null>(null);
   const hubMarkerRef = useRef<L.Marker | null>(null);
   const initialFitDoneRef = useRef(false);
   const lastCenteredOrderIdRef = useRef<string | null>(null);
@@ -329,27 +322,12 @@ export default function MapComponent({
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    if (zoneZoomHandlerRef.current) {
-      map.off('zoomend', zoneZoomHandlerRef.current);
-      zoneZoomHandlerRef.current = null;
-    }
-
     zoneLayersRef.current.forEach((layer) => layer.remove());
     zoneLayersRef.current = [];
 
     if (!showDeliveryZones) return;
 
     let cancelled = false;
-
-    const syncZoneLabelVisibility = () => {
-      const showDetail = map.getZoom() >= ZONE_DETAIL_LABEL_MIN_ZOOM;
-      map.getContainer().querySelectorAll<HTMLElement>('.zone-centroid-label-tip').forEach((el) => {
-        el.style.display = showDetail ? 'none' : '';
-      });
-      map.getContainer().querySelectorAll<HTMLElement>('.zone-polygon-label').forEach((el) => {
-        el.style.display = showDetail ? '' : 'none';
-      });
-    };
 
     void (async () => {
       try {
@@ -359,86 +337,31 @@ export default function MapComponent({
       }
       if (cancelled) return;
 
-      const zoneReps = new Map<string, string[]>();
-      repartidores.forEach((rep) => {
-        if (!rep.deliveryZone) return;
-        const list = zoneReps.get(rep.deliveryZone) ?? [];
-        list.push(rep.name.split(' ')[0]);
-        zoneReps.set(rep.deliveryZone, list);
-      });
-
       const paintZones = sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios));
-      const showDetailOnCreate = map.getZoom() >= ZONE_DETAIL_LABEL_MIN_ZOOM;
 
       for (const zone of paintZones) {
-        const zoneBarrios = zone.barrios ?? [];
         const features = collectZoneGeoFeatures(zone, barrios);
-        const repNames = zoneReps.get(zone.id) ?? [];
-
         if (features.length === 0) continue;
 
         const layer = L.geoJSON(features, {
+          interactive: false,
           style: {
             color: zone.color,
-            weight: 1.2,
+            weight: 1,
             fillColor: zone.color,
-            fillOpacity: 0.55,
-            opacity: 0.95,
-          },
-          onEachFeature: (feature, featureLayer) => {
-            if (zone.id === 'zona_caba') return;
-            const label = featureLabel(feature, barrios, zoneBarrios);
-            featureLayer.bindTooltip(
-              `<strong>${label}</strong><br/><span style="opacity:0.85">${zone.name}</span>${
-                repNames.length ? `<br/>${MAP_SVG.bike} ${repNames.join(', ')}` : ''
-              }`,
-              {
-                permanent: showDetailOnCreate,
-                direction: 'center',
-                className: 'zone-polygon-label',
-                opacity: showDetailOnCreate ? 1 : 0,
-              }
-            );
+            fillOpacity: 0.38,
+            opacity: 0.85,
           },
         }).addTo(map);
 
         zoneLayersRef.current.push(layer);
-
-        const bounds = layer.getBounds();
-        if (bounds.isValid()) {
-          const center = bounds.getCenter();
-          const centroidMarker = L.marker(center, {
-            interactive: false,
-            icon: L.divIcon({
-              className: 'zone-centroid-label',
-              html: '',
-              iconSize: [0, 0],
-            }),
-          })
-            .addTo(map)
-            .bindTooltip(zone.name, {
-              permanent: true,
-              direction: 'center',
-              className: 'zone-centroid-label-tip',
-            });
-
-          zoneLayersRef.current.push(centroidMarker);
-        }
       }
-
-      zoneZoomHandlerRef.current = syncZoneLabelVisibility;
-      map.on('zoomend', syncZoneLabelVisibility);
-      syncZoneLabelVisibility();
     })();
 
     return () => {
       cancelled = true;
-      if (zoneZoomHandlerRef.current) {
-        map.off('zoomend', zoneZoomHandlerRef.current);
-        zoneZoomHandlerRef.current = null;
-      }
     };
-  }, [repartidores, showDeliveryZones, deliveryZones, barrios]);
+  }, [showDeliveryZones, deliveryZones, barrios]);
 
   // Observer de redimensionamiento
   useEffect(() => {
@@ -832,12 +755,36 @@ export default function MapComponent({
     initialFitDoneRef.current = true;
   }, [orders.length, activeOrderId]);
 
+  const zoneLegend = showDeliveryZones
+    ? sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios))
+    : [];
+
   return (
     <div className="relative w-full h-full rounded-lg overflow-hidden border border-[var(--surface-border)] shadow-2xl">
       <div className="absolute top-3 left-12 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1 rounded-[5px] text-[9px] font-mono border border-[var(--surface-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-bold flex items-center gap-1">
         <Satellite className="w-3 h-3 shrink-0" />
         MAPA REALTIME POSTA
       </div>
+      {zoneLegend.length > 0 && (
+        <div className="absolute bottom-3 right-3 z-[1000] bg-[var(--surface-panel)]/95 backdrop-blur-md border border-[var(--surface-border)] rounded-[var(--radius-posta)] px-3 py-2 shadow-lg min-w-[9.5rem]">
+          <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
+            Zonas de entrega
+          </p>
+          <ul className="space-y-1">
+            {zoneLegend.map((zone) => (
+              <li key={zone.id} className="flex items-center gap-2">
+                <span
+                  className="shrink-0 w-3.5 h-3.5 rounded-sm border border-white/20"
+                  style={{ backgroundColor: zone.color, opacity: 0.85 }}
+                />
+                <span className="text-[10px] font-medium text-[var(--color-text)] leading-tight">
+                  {zone.name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="absolute bottom-3 left-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1.5 rounded-[5px] text-[8px] font-mono border border-[var(--surface-border)] text-[var(--color-text-faint)]">
         <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta estimada al destino</div>
         <div><span className="inline-block w-3 h-0.5 border-t border-dashed border-[var(--color-accent)] mr-1 align-middle" /> Recorrido GPS en vivo</div>

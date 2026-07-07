@@ -18,11 +18,17 @@ export const CORDON_ZONE_META: Record<
   (typeof CORDON_ZONE_IDS)[number],
   { name: string; color: string }
 > = {
-  zona_caba: { name: 'CABA', color: '#F5C518' },
-  zona_cordon_1: { name: '1° Cordón', color: '#1B4332' },
-  zona_cordon_2: { name: '2° Cordón', color: '#1D3557' },
-  zona_cordon_3: { name: '3° Cordón', color: '#84CC16' },
+  zona_caba: { name: 'CABA', color: '#F9E04B' },
+  zona_cordon_1: { name: '1° Cordón', color: '#6BCB9A' },
+  zona_cordon_2: { name: '2° Cordón', color: '#6BA4E8' },
+  zona_cordon_3: { name: '3° Cordón', color: '#B5E48C' },
 };
+
+/** Colores del mapa (más claros para fondo oscuro). */
+export function mapColorForZone(zoneId: string, apiColor?: string): string {
+  const meta = CORDON_ZONE_META[zoneId as (typeof CORDON_ZONE_IDS)[number]];
+  return meta?.color ?? apiColor ?? '#94a3b8';
+}
 
 export function isLegacyZoneId(zoneId: string): boolean {
   return LEGACY_SET.has(zoneId);
@@ -124,7 +130,7 @@ export function buildCordonMapZones(apiZones: DeliveryZone[], barrioCatalog: Bar
     return {
       id: zoneId,
       name: api?.name ?? meta.name,
-      color: api?.color ?? meta.color,
+      color: mapColorForZone(zoneId, api?.color),
       south: api?.south ?? bounds.south,
       west: api?.west ?? bounds.west,
       north: api?.north ?? bounds.north,

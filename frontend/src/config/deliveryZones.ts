@@ -80,10 +80,10 @@ export function barrioNames(barrioCatalog: Barrio[], barrioIds: string[]): strin
 }
 
 export const ZONE_COLOR_PRESETS = [
-  '#F5C518', // CABA
-  '#1B4332', // 1° cordón
-  '#1D3557', // 2° cordón
-  '#84CC16', // 3° cordón
+  '#F9E04B',
+  '#6BCB9A',
+  '#6BA4E8',
+  '#B5E48C',
   '#3b82f6',
   '#8b5cf6',
   '#ef4444',
