@@ -271,9 +271,10 @@ export async function runMigrations(): Promise<void> {
   const [agencyRows] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
     'SELECT id FROM agencies'
   );
-  const { seedDefaultZonesForAgency } = await import('../services/delivery-zones.service.js');
+  const { seedDefaultZonesForAgency, ensureCordonZonesForAgency } = await import('../services/delivery-zones.service.js');
   for (const agency of agencyRows) {
     await seedDefaultZonesForAgency(agency.id);
+    await ensureCordonZonesForAgency(agency.id);
   }
 
   if (!(await tableExists('notification_dismissals'))) {

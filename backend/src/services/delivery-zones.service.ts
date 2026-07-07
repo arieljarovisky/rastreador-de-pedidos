@@ -1,6 +1,6 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
-import { DEFAULT_DELIVERY_ZONES, DeliveryZone } from '../config/delivery-zones.js';
+import { DEFAULT_DELIVERY_ZONES, DeliveryZone, LEGACY_ZONE_IDS } from '../config/delivery-zones.js';
 import { pointInZoneBarrios, resolveBarriosToBounds } from '../config/barrios.js';
 
 interface DeliveryZoneRow extends RowDataPacket {
@@ -145,10 +145,82 @@ export async function seedDefaultZonesForAgency(agencyId: string): Promise<void>
     if (!zoneId) continue;
 
     await pool.query(
-      `INSERT INTO delivery_zones (id, agency_id, name, color, south, west, north, east, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [zoneId, agencyId, zone.name, zone.color, zone.south, zone.west, zone.north, zone.east, now]
+      `INSERT INTO delivery_zones (id, agency_id, name, color, south, west, north, east, barrios, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        zoneId,
+        agencyId,
+        zone.name,
+        zone.color,
+        zone.south,
+        zone.west,
+        zone.north,
+        zone.east,
+        zone.barrios?.length ? JSON.stringify(zone.barrios) : null,
+        now,
+      ]
     );
+  }
+}
+
+/** Asegura zonas cordón AMBA (CABA + 3 anillos) y retira presets viejos sin uso. */
+export async function ensureCordonZonesForAgency(agencyId: string): Promise<void> {
+  const now = new Date();
+
+  for (const zone of DEFAULT_DELIVERY_ZONES) {
+    const existing = await getZoneById(agencyId, zone.id);
+    if (existing) {
+      await pool.query(
+        `UPDATE delivery_zones
+         SET name = ?, color = ?, south = ?, west = ?, north = ?, east = ?, barrios = ?
+         WHERE id = ? AND agency_id = ?`,
+        [
+          zone.name,
+          zone.color,
+          zone.south,
+          zone.west,
+          zone.north,
+          zone.east,
+          zone.barrios?.length ? JSON.stringify(zone.barrios) : null,
+          zone.id,
+          agencyId,
+        ]
+      );
+      continue;
+    }
+
+    const zoneId = await resolveSeedZoneId(agencyId, zone.id);
+    if (!zoneId) continue;
+
+    await pool.query(
+      `INSERT INTO delivery_zones (id, agency_id, name, color, south, west, north, east, barrios, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        zoneId,
+        agencyId,
+        zone.name,
+        zone.color,
+        zone.south,
+        zone.west,
+        zone.north,
+        zone.east,
+        zone.barrios?.length ? JSON.stringify(zone.barrios) : null,
+        now,
+      ]
+    );
+  }
+
+  for (const legacyId of LEGACY_ZONE_IDS) {
+    const legacy = await getZoneById(agencyId, legacyId);
+    if (!legacy) continue;
+
+    const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
+      `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
+      [agencyId, legacyId]
+    );
+    if (Number(usage[0]?.cnt ?? 0) > 0) continue;
+
+    await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [legacyId, agencyId]);
   }
 }
 

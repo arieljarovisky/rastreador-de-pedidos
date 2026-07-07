@@ -13,10 +13,28 @@ type GeoProps = {
   provincia?: { nombre?: string };
 };
 
+/** Partidos cuyo nombre en IGN difiere del id interno. */
 const GBA_PARTIDO_OVERRIDES: Record<string, string> = {
   san_martin_gba: 'General San Martín',
   tortuguitas: 'Malvinas Argentinas',
+  jose_c_paz: 'José C. Paz',
+  general_rodriguez: 'General Rodríguez',
+  presidente_peron: 'Presidente Perón',
+  canuelas: 'Cañuelas',
+  lujan: 'Luján',
+  zarate: 'Zárate',
+  esteban_echeverria: 'Esteban Echeverría',
+  ituzaingo: 'Ituzaingó',
+  moron: 'Morón',
+  lanus: 'Lanús',
+  quilmes: 'Quilmes',
 };
+
+/** La Matanza está partida en norte/sur: se pinta con rectángulos aproximados. */
+const BOUNDS_ONLY_BARRIOS = new Set(['la_matanza_norte', 'la_matanza_sur']);
+
+/** Orden de pintado: cordones exteriores primero, CABA al final. */
+export const ZONE_PAINT_ORDER = ['zona_cordon_3', 'zona_cordon_2', 'zona_cordon_1', 'zona_caba'] as const;
 
 let ambaGeo: FeatureCollection | null = null;
 let partidoByName = new Map<string, Feature>();
@@ -73,6 +91,25 @@ function featureKey(feature: Feature): string {
   return props?.id ?? props?.nombre ?? JSON.stringify(feature.geometry?.type);
 }
 
+function barrioBoundsFeature(barrio: Barrio): Feature {
+  return {
+    type: 'Feature',
+    properties: { nombre: barrio.name, categoria: 'Bounds' },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [barrio.west, barrio.south],
+          [barrio.east, barrio.south],
+          [barrio.east, barrio.north],
+          [barrio.west, barrio.north],
+          [barrio.west, barrio.south],
+        ],
+      ],
+    },
+  };
+}
+
 function indexAmbaGeo(collection: FeatureCollection): void {
   partidoByName = new Map();
   comunaFeatures = [];
@@ -108,6 +145,10 @@ export async function loadAmbaGeoJson(): Promise<FeatureCollection> {
 export function resolveBarrioGeoFeature(barrio: Barrio): Feature | null {
   if (!ambaGeo) return null;
 
+  if (BOUNDS_ONLY_BARRIOS.has(barrio.id)) {
+    return barrioBoundsFeature(barrio);
+  }
+
   if (barrio.area === 'GBA') {
     const partidoName = GBA_PARTIDO_OVERRIDES[barrio.id] ?? barrio.name;
     return partidoByName.get(normalizeName(partidoName)) ?? null;
@@ -133,14 +174,27 @@ export function collectZoneGeoFeatures(
     if (!barrio) continue;
     const feature = resolveBarrioGeoFeature(barrio);
     if (!feature) continue;
-    unique.set(featureKey(feature), feature);
+    const key = BOUNDS_ONLY_BARRIOS.has(barrioId) ? `bounds:${barrioId}` : featureKey(feature);
+    unique.set(key, feature);
   }
 
   return Array.from(unique.values());
 }
 
+export function sortZonesForMapPaint(zones: DeliveryZone[]): DeliveryZone[] {
+  return [...zones].sort((a, b) => {
+    const ai = ZONE_PAINT_ORDER.indexOf(a.id as (typeof ZONE_PAINT_ORDER)[number]);
+    const bi = ZONE_PAINT_ORDER.indexOf(b.id as (typeof ZONE_PAINT_ORDER)[number]);
+    if (ai === -1 && bi === -1) return a.name.localeCompare(b.name, 'es');
+    if (ai === -1) return -1;
+    if (bi === -1) return 1;
+    return ai - bi;
+  });
+}
+
 export function featureLabel(feature: Feature, barrioCatalog: Barrio[], barrioIds: string[]): string {
   const props = feature.properties as GeoProps | null;
+  if (props?.categoria === 'Bounds') return props.nombre ?? 'Zona';
   if (props?.categoria === 'Partido') return props.nombre ?? 'Partido';
   if (props?.categoria === 'Comuna') {
     const catalog = new Map(barrioCatalog.map((b) => [b.id, b]));

@@ -86,6 +86,24 @@ export const BARRIOS: Barrio[] = [
   { id: 'florencio_varela', name: 'Florencio Varela', area: 'GBA', south: -34.830, west: -58.300, north: -34.780, east: -58.240 },
   { id: 'ezeiza', name: 'Ezeiza', area: 'GBA', south: -34.870, west: -58.560, north: -34.820, east: -58.480 },
   { id: 'esteban_echeverria', name: 'Esteban Echeverría', area: 'GBA', south: -34.820, west: -58.520, north: -34.770, east: -58.460 },
+  // GBA — Cordón 2 (ampliación)
+  { id: 'jose_c_paz', name: 'José C. Paz', area: 'GBA', south: -34.540, west: -58.780, north: -34.480, east: -58.720 },
+  { id: 'san_miguel', name: 'San Miguel', area: 'GBA', south: -34.560, west: -58.720, north: -34.520, east: -58.660 },
+  { id: 'almirante_brown', name: 'Almirante Brown', area: 'GBA', south: -34.820, west: -58.420, north: -34.760, east: -58.360 },
+  { id: 'la_matanza_norte', name: 'La Matanza Norte', area: 'GBA', south: -34.740, west: -58.650, north: -34.700, east: -58.580 },
+  { id: 'la_matanza_sur', name: 'La Matanza Sur', area: 'GBA', south: -34.780, west: -58.650, north: -34.740, east: -58.580 },
+  // GBA — Cordón 3
+  { id: 'zarate', name: 'Zárate', area: 'GBA', south: -34.120, west: -59.050, north: -34.040, east: -58.920 },
+  { id: 'campana', name: 'Campana', area: 'GBA', south: -34.220, west: -58.980, north: -34.140, east: -58.880 },
+  { id: 'lujan', name: 'Luján', area: 'GBA', south: -34.600, west: -59.160, north: -34.520, east: -59.040 },
+  { id: 'general_rodriguez', name: 'General Rodríguez', area: 'GBA', south: -34.640, west: -58.980, north: -34.580, east: -58.880 },
+  { id: 'marcos_paz', name: 'Marcos Paz', area: 'GBA', south: -34.780, west: -58.860, north: -34.720, east: -58.780 },
+  { id: 'canuelas', name: 'Cañuelas', area: 'GBA', south: -35.050, west: -58.820, north: -34.980, east: -58.720 },
+  { id: 'san_vicente', name: 'San Vicente', area: 'GBA', south: -35.050, west: -58.520, north: -34.980, east: -58.420 },
+  { id: 'presidente_peron', name: 'Presidente Perón', area: 'GBA', south: -34.920, west: -58.420, north: -34.860, east: -58.340 },
+  { id: 'ensenada', name: 'Ensenada', area: 'GBA', south: -34.920, west: -58.020, north: -34.840, east: -57.920 },
+  { id: 'la_plata', name: 'La Plata', area: 'GBA', south: -34.980, west: -58.120, north: -34.880, east: -57.920 },
+  { id: 'berisso', name: 'Berisso', area: 'GBA', south: -34.900, west: -57.980, north: -34.840, east: -57.880 },
 ];
 
 const barrioById = new Map(BARRIOS.map((b) => [b.id, b]));
@@ -118,6 +136,9 @@ export function resolveBarriosToBounds(barrioIds: string[]): {
 }
 
 export function pointInBarrio(lat: number, lng: number, barrioId: string): boolean {
+  if (barrioId === 'la_matanza') {
+    return pointInBarrio(lat, lng, 'la_matanza_norte') || pointInBarrio(lat, lng, 'la_matanza_sur');
+  }
   const barrio = getBarrioById(barrioId);
   if (!barrio) return false;
   return lat >= barrio.south && lat <= barrio.north && lng >= barrio.west && lng <= barrio.east;

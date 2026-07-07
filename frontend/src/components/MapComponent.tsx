@@ -7,7 +7,7 @@ import { useEffect, useRef } from 'react';
 import { Satellite } from 'lucide-react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
-import { collectZoneGeoFeatures, featureLabel, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
+import { collectZoneGeoFeatures, featureLabel, loadAmbaGeoJson, sortZonesForMapPaint } from '../utils/zoneMapGeo.js';
 import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
 import { dedupeRepartidores, repartidorIdentityMatches, repartidorMarkerKey } from '../utils/repartidorLocation.js';
@@ -344,12 +344,38 @@ export default function MapComponent({
         zoneReps.set(rep.deliveryZone, list);
       });
 
-      for (const zone of deliveryZones) {
+      for (const zone of sortZonesForMapPaint(deliveryZones)) {
         const features = collectZoneGeoFeatures(zone, barrios);
         const repNames = zoneReps.get(zone.id) ?? [];
 
         if (features.length === 0) {
-          if (!zone.barrios?.length) {
+          if (zone.barrios?.length) {
+            for (const barrioId of zone.barrios) {
+              const barrio = barrios.find((b) => b.id === barrioId);
+              if (!barrio) continue;
+              const rect = L.rectangle(
+                [
+                  [barrio.south, barrio.west],
+                  [barrio.north, barrio.east],
+                ],
+                {
+                  color: zone.color,
+                  weight: 1.2,
+                  fillColor: zone.color,
+                  fillOpacity: 0.5,
+                  opacity: 0.9,
+                }
+              )
+                .addTo(map)
+                .bindTooltip(
+                  `<strong>${barrio.name}</strong><br/><span style="opacity:0.85">${zone.name}</span>${
+                    repNames.length ? `<br/>${MAP_SVG.bike} ${repNames.join(', ')}` : ''
+                  }`,
+                  { permanent: true, direction: 'center', className: 'zone-polygon-label' }
+                );
+              zoneLayersRef.current.push(rect);
+            }
+          } else {
             const rect = L.rectangle(
               [
                 [zone.south, zone.west],

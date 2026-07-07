@@ -1,7 +1,7 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { LocationPoint } from '../types/index.js';
-import { seedDefaultZonesForAgency } from './delivery-zones.service.js';
+import { seedDefaultZonesForAgency, ensureCordonZonesForAgency } from './delivery-zones.service.js';
 
 export interface Agency {
   id: string;
@@ -73,6 +73,7 @@ export async function createAgency(data: {
   const agency = await getAgencyById(id);
   if (!agency) throw new Error('CREATE_FAILED');
   await seedDefaultZonesForAgency(id);
+  await ensureCordonZonesForAgency(id);
   return agency;
 }
 
