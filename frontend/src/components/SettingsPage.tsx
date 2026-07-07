@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
-import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, zoneShippingRates, DEFAULT_ZONE_SHIPPING_RATES, assignmentZones, sortPricingZones, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
+import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, zoneShippingRates, DEFAULT_ZONE_SHIPPING_RATES, assignmentZones, sortPricingZones, pricingZoneDisplayName, isDeletableAssignmentZone, isLegacyZoneId, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 const REPARTIDORES_PAGE_SIZE = 8;
@@ -1034,7 +1034,9 @@ export default function SettingsPage({
                         className="rounded-[5px] border border-[var(--surface-border)] bg-[var(--paper)] p-2 space-y-2"
                         style={{ boxShadow: `inset 3px 0 0 ${zone.color}` }}
                       >
-                        <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate">{zone.name}</p>
+                        <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate">
+                          {pricingZoneDisplayName(zone)}
+                        </p>
                         <div className="grid grid-cols-3 gap-1.5">
                           <label className="flex flex-col gap-0.5">
                             <span className="mono-label">Flex</span>
@@ -1093,7 +1095,7 @@ export default function SettingsPage({
                                   express: Number(draft.express),
                                   standard: Number(draft.standard),
                                 });
-                                setZoneRatesMessage(`Tarifas de ${zone.name} guardadas.`);
+                                setZoneRatesMessage(`Tarifas de ${pricingZoneDisplayName(zone)} guardadas.`);
                               } catch (err: unknown) {
                                 setZoneRatesMessage(
                                   err instanceof Error ? err.message : 'No se pudieron guardar las tarifas.'
@@ -1119,7 +1121,7 @@ export default function SettingsPage({
                               onClick={async () => {
                                 const ok = await confirm({
                                   title: 'Eliminar zona de cordón',
-                                  message: `¿Eliminar "${zone.name}"?\n\nLos destinos en esa área usarán la tarifa "Fuera de zona".`,
+                                  message: `¿Eliminar "${pricingZoneDisplayName(zone)}"?\n\nLos destinos en esa área usarán la tarifa "Fuera de zona".`,
                                   variant: 'danger',
                                   confirmText: 'Eliminar',
                                   cancelText: 'Cancelar',
@@ -1129,7 +1131,7 @@ export default function SettingsPage({
                                 setZoneRatesMessage(null);
                                 try {
                                   await onDeleteDeliveryZone(zone.id);
-                                  setZoneRatesMessage(`Zona ${zone.name} eliminada.`);
+                                  setZoneRatesMessage(`Zona ${pricingZoneDisplayName(zone)} eliminada.`);
                                 } catch (err: unknown) {
                                   setZoneRatesMessage(
                                     err instanceof Error ? err.message : 'No se pudo eliminar la zona.'
@@ -1238,6 +1240,11 @@ export default function SettingsPage({
             />
             <p className="text-[9px] text-[var(--color-text-muted)] leading-relaxed -mt-1 mb-2">
               Creá zonas con los barrios que cada repartidor cubre. No afectan el precio del envío.
+              {repartidorZonesList.some((z) => isLegacyZoneId(z.id)) ? (
+                <span className="block mt-1">
+                  Las zonas base (Centro, Norte, Sur, Oeste) no se pueden eliminar mientras tengan repartidores.
+                </span>
+              ) : null}
             </p>
 
             {repartidorZonesList.length > 0 && !showZoneForm && (
@@ -1275,7 +1282,7 @@ export default function SettingsPage({
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {onDeleteDeliveryZone && (
+                        {onDeleteDeliveryZone && isDeletableAssignmentZone(zone) && (
                           <button
                             type="button"
                             disabled={deletingZoneId === zone.id}

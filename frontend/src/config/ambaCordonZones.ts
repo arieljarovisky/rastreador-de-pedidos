@@ -35,7 +35,8 @@ export function isLegacyZoneId(zoneId: string): boolean {
 }
 
 export function isCordonZoneId(zoneId: string): boolean {
-  return CORDON_SET.has(zoneId);
+  if (CORDON_SET.has(zoneId)) return true;
+  return CORDON_ZONE_IDS.some((id) => zoneId.endsWith(`_${id}`));
 }
 
 /** Barrios por cordón (fallback si la API aún no tiene `barrios` cargados). */

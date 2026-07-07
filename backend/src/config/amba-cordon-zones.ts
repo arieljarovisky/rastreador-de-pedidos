@@ -91,6 +91,10 @@ export function isPricingZoneId(zoneId: string): boolean {
   return PRICING_ZONE_IDS.some((id) => zoneId.endsWith(`_${id}`));
 }
 
+export function isLegacyZoneId(zoneId: string): boolean {
+  return LEGACY_ZONE_IDS.includes(zoneId);
+}
+
 export function isAssignmentZoneId(zoneId: string): boolean {
   return !isPricingZoneId(zoneId);
 }

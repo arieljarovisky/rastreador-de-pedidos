@@ -6,6 +6,7 @@ import {
   updateZone,
   deleteZone,
   updateZoneShippingRates,
+  ensureCordonZonesForAgency,
 } from '../services/delivery-zones.service.js';
 import { listBarrios } from '../config/barrios.js';
 
@@ -27,6 +28,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
   const agencyId = requireAgencyId(req, res);
   if (!agencyId) return;
 
+  await ensureCordonZonesForAgency(agencyId);
   const zones = await listZonesForAgency(agencyId);
   res.json(zones);
 });
@@ -176,6 +178,12 @@ router.delete('/:id', authenticate, requireAgencyAdmin(), async (req: Request, r
     if (message === 'ZONE_IN_USE') {
       res.status(409).json({
         error: 'No se puede eliminar: hay repartidores asignados a esta zona. Reasignálos primero.',
+      });
+      return;
+    }
+    if (message === 'LEGACY_ZONE_PROTECTED') {
+      res.status(400).json({
+        error: 'Las zonas base de repartidores (Centro, Norte, Sur, Oeste) no se pueden eliminar.',
       });
       return;
     }

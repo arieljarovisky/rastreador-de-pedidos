@@ -1,7 +1,7 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { DEFAULT_DELIVERY_ZONES, DeliveryZone, LEGACY_ZONE_IDS } from '../config/delivery-zones.js';
-import { isPricingZoneId } from '../config/amba-cordon-zones.js';
+import { isPricingZoneId, isLegacyZoneId } from '../config/amba-cordon-zones.js';
 import { pointInZoneBarrios, resolveBarriosToBounds } from '../config/barrios.js';
 
 interface DeliveryZoneRow extends RowDataPacket {
@@ -71,7 +71,7 @@ export async function listZonesForAgency(agencyId: string): Promise<DeliveryZone
 
 export async function listPricingZonesForAgency(agencyId: string): Promise<DeliveryZone[]> {
   const zones = await listZonesForAgency(agencyId);
-  return zones.filter((z) => isPricingZoneId(z.id));
+  return zones.filter((z) => isPricingZoneId(z.id) && !isLegacyZoneId(z.id));
 }
 
 export async function listAssignmentZonesForAgency(agencyId: string): Promise<DeliveryZone[]> {
@@ -416,14 +416,21 @@ export async function deleteZone(agencyId: string, zoneId: string): Promise<void
   const existing = await getZoneById(agencyId, zoneId);
   if (!existing) throw new Error('NOT_FOUND');
 
-  if (!isPricingZoneId(zoneId)) {
-    const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
-      `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
-      [agencyId, zoneId]
-    );
-    if (Number(usage[0]?.cnt ?? 0) > 0) {
-      throw new Error('ZONE_IN_USE');
-    }
+  if (isLegacyZoneId(zoneId)) {
+    throw new Error('LEGACY_ZONE_PROTECTED');
+  }
+
+  if (isPricingZoneId(zoneId)) {
+    await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [zoneId, agencyId]);
+    return;
+  }
+
+  const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
+    `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
+    [agencyId, zoneId]
+  );
+  if (Number(usage[0]?.cnt ?? 0) > 0) {
+    throw new Error('ZONE_IN_USE');
   }
 
   await pool.query('DELETE FROM delivery_zones WHERE id = ? AND agency_id = ?', [zoneId, agencyId]);

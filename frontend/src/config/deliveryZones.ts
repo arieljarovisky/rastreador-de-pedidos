@@ -1,4 +1,4 @@
-import { CORDON_ZONE_IDS, isCordonZoneId } from './ambaCordonZones.js';
+import { CORDON_ZONE_IDS, isCordonZoneId, isLegacyZoneId, CORDON_ZONE_META } from './ambaCordonZones.js';
 
 export interface DeliveryZone {
   id: string;
@@ -45,11 +45,22 @@ export function getDeliveryZone(
 }
 
 export function isPricingZoneId(zoneId: string): boolean {
-  return isCordonZoneId(zoneId);
+  return isCordonZoneId(zoneId) && !isLegacyZoneId(zoneId);
 }
 
 export function isAssignmentZone(zone: DeliveryZone): boolean {
   return !isPricingZoneId(zone.id);
+}
+
+export function isDeletableAssignmentZone(zone: DeliveryZone): boolean {
+  return isAssignmentZone(zone) && !isLegacyZoneId(zone.id);
+}
+
+export { isLegacyZoneId };
+
+export function pricingZoneDisplayName(zone: DeliveryZone): string {
+  const meta = CORDON_ZONE_META[zone.id as (typeof CORDON_ZONE_IDS)[number]];
+  return meta?.name ?? zone.name;
 }
 
 export function pricingZones(zones: DeliveryZone[]): DeliveryZone[] {
