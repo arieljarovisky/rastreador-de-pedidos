@@ -61,6 +61,7 @@ app.use(corsPreflight);
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.get('/api/health', (_req, res) => {
   res.json({

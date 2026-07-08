@@ -383,13 +383,28 @@ router.get('/tiendanube/callback', async (req: Request, res: Response) => {
 
 router.post('/mercadolibre/notifications', async (req: Request, res: Response) => {
   res.status(200).send('OK');
-  const payload = req.body as MercadoLibreNotificationPayload;
+  const body = req.body as
+    | MercadoLibreNotificationPayload
+    | Record<string, unknown>
+    | string
+    | undefined;
+  let payload: MercadoLibreNotificationPayload | undefined;
+  if (typeof body === 'string') {
+    try {
+      payload = JSON.parse(body) as MercadoLibreNotificationPayload;
+    } catch {
+      payload = undefined;
+    }
+  } else {
+    payload = body as MercadoLibreNotificationPayload;
+  }
   if (!payload?.resource || !payload?.user_id || !payload?.topic) {
     console.warn('[ml-webhook] POST ignorado: payload incompleto', {
       topic: payload?.topic,
       user_id: payload?.user_id,
       resource: payload?.resource,
       _id: payload?._id,
+      contentType: req.headers['content-type'],
     });
     return;
   }
