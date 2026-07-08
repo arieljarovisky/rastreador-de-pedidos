@@ -352,6 +352,29 @@ export async function findOrderByExternalGlobal(
   return orders[0] ?? null;
 }
 
+/** Busca un pedido ML por ID de envío o número de venta (en notas). */
+export async function findMercadoLibreOrderByPublicRef(ref: string): Promise<Order | null> {
+  const trimmed = ref.trim();
+  if (!trimmed) return null;
+
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 8) return null;
+
+  const candidates = [...new Set([trimmed, digits])];
+  for (const candidate of candidates) {
+    const byShipment = await findOrderByExternalGlobal('mercadolibre', candidate);
+    if (byShipment) return byShipment;
+  }
+
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT} WHERE o.external_source = 'mercadolibre' AND o.notes LIKE ? LIMIT 1`,
+    [`%Orden #${digits}%`]
+  );
+  if (!rows[0]) return null;
+  const orders = await enrichOrders([rows[0]]);
+  return orders[0] ?? null;
+}
+
 export async function findOrderByExternalForAgency(
   agencyId: string,
   externalSource: string,
