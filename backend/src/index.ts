@@ -33,7 +33,7 @@ async function start(): Promise<void> {
       `[startup] Webhook ML: ${getMercadoLibreWebhookUrl()} (tópicos: flex-handshakes, shipments, orders_v2)`
     );
 
-    if (env.mercadolibre.appId) {
+    if (env.mercadolibre.appOwnerAccessToken) {
       void replayMercadoLibreMissedFeeds({ topic: 'flex-handshakes', limit: 30 })
         .then(({ replayed, errors }) => {
           if (replayed > 0 || errors > 0) {
@@ -45,16 +45,10 @@ async function start(): Promise<void> {
         .catch((err) => {
           console.warn('[ml-webhook] missed_feeds flex-handshakes falló:', err);
         });
-
-      void replayMercadoLibreMissedFeeds({ topic: 'shipments', limit: 30 })
-        .then(({ replayed, errors }) => {
-          if (replayed > 0 || errors > 0) {
-            console.log(`[ml-webhook] missed_feeds shipments: ${replayed} reprocesadas, ${errors} errores`);
-          }
-        })
-        .catch((err) => {
-          console.warn('[ml-webhook] missed_feeds shipments falló:', err);
-        });
+    } else {
+      console.log(
+        '[startup] missed_feeds omitido (opcional): configurá ML_APP_OWNER_ACCESS_TOKEN si querés reprocesar notificaciones perdidas de ML'
+      );
     }
   });
 }

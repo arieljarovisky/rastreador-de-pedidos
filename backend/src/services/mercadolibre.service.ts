@@ -435,31 +435,37 @@ export async function fetchMercadoLibreFlexAssignment(
   );
 }
 
-/** Historial de notificaciones perdidas de la aplicación ML. */
+/** Historial de notificaciones perdidas de la aplicación ML (solo token del dueño de la app). */
 export async function fetchMercadoLibreMissedFeeds(
-  integration: StoreIntegration,
   options?: { topic?: string; offset?: number; limit?: number }
 ): Promise<MlMissedFeedMessage[]> {
-  if (!env.mercadolibre.appId) return [];
+  if (!env.mercadolibre.appId || !env.mercadolibre.appOwnerAccessToken) return [];
+
   const params = new URLSearchParams({ app_id: env.mercadolibre.appId });
   if (options?.topic) params.set('topic', options.topic);
   if (options?.offset != null) params.set('offset', String(options.offset));
   if (options?.limit != null) params.set('limit', String(options.limit));
-  try {
-    const data = await mlFetch<MlMissedFeedsResponse>(
-      integration,
-      `/missed_feeds?${params.toString()}`
+
+  const res = await fetch(`${ML_API}/missed_feeds?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${env.mercadolibre.appOwnerAccessToken}` },
+    signal: AbortSignal.timeout(ML_FETCH_TIMEOUT_MS),
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    console.warn(
+      '[ml-api] missed_feeds no disponible: el token debe ser del dueño de la app ML (ML_APP_OWNER_ACCESS_TOKEN)'
     );
-    return data.messages ?? [];
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn('[ml-api] missed_feeds falló', {
-      integrationUserId: integration.userId,
-      topic: options?.topic ?? 'all',
-      error: message,
-    });
     return [];
   }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.warn('[ml-api] missed_feeds error', { status: res.status, body: body.slice(0, 200) });
+    return [];
+  }
+
+  const data = (await res.json()) as MlMissedFeedsResponse;
+  return data.messages ?? [];
 }
 
 export function formatMlShipmentStatusLabel(shipment: Pick<MlShipment, 'status' | 'substatus'>): string {
