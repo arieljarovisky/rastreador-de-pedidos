@@ -383,6 +383,11 @@ router.get('/tiendanube/callback', async (req: Request, res: Response) => {
 
 router.post('/mercadolibre/notifications', async (req: Request, res: Response) => {
   res.status(200).send('OK');
+  console.log('[ml-webhook] POST hit', {
+    contentType: req.headers['content-type'],
+    hasBody: Boolean(req.body),
+    bodyType: typeof req.body,
+  });
   const body = req.body as
     | MercadoLibreNotificationPayload
     | Record<string, unknown>

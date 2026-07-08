@@ -22,6 +22,7 @@ import {
   syncMercadoLibreFlexOnScan,
   fetchMercadoLibreShipment,
   fetchMercadoLibreFlexAssignment,
+  resolveMercadoLibreFlexAssignment,
   formatMlShipmentStatusLabel,
   mapMercadoLibreShipmentToOrderStatus,
   type MercadoLibreFlexShipment,
@@ -263,19 +264,33 @@ export async function syncFlexScansForRepartidor(repartidor: User): Promise<numb
 
   const dateFrom = new Date(now - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
   let synced = 0;
+  let checked = 0;
+  let matched = 0;
+
+  let repartidorIntegration: StoreIntegration | null = null;
+  try {
+    repartidorIntegration = await getValidMercadoLibreIntegration(repartidor.id);
+  } catch {
+    console.warn('[ml-flex-sync] token ML del repartidor inválido', { repartidorId: repartidor.id });
+  }
 
   for (const { integration, isAgencyAccount } of contexts) {
     try {
       const validIntegration = await getValidMercadoLibreIntegration(integration.userId);
       const flexShipments = await listMercadoLibreFlexShipments(integration.userId, { dateFrom });
+      const assignmentIntegrations = [
+        ...(repartidorIntegration ? [repartidorIntegration] : []),
+        validIntegration,
+      ];
 
       for (const flex of flexShipments.slice(0, 25)) {
-        const assignment = await fetchMercadoLibreFlexAssignment(
-          validIntegration,
-          env.mercadolibre.siteId,
+        checked++;
+        const assignment = await resolveMercadoLibreFlexAssignment(
+          assignmentIntegrations,
           flex.externalId
         );
         if (String(assignment?.driver_id ?? '') !== String(mlCourierId)) continue;
+        matched++;
 
         console.log('[ml-flex-sync] envío asignado al repartidor en ML', {
           shipmentId: flex.externalId,
@@ -314,9 +329,13 @@ export async function syncFlexScansForRepartidor(repartidor: User): Promise<numb
     }
   }
 
-  if (synced > 0) {
-    console.log('[ml-flex-sync] sync completado', { repartidorId: repartidor.id, synced });
-  }
+  console.log('[ml-flex-sync] sync completado', {
+    repartidorId: repartidor.id,
+    mlCourierId,
+    checked,
+    matched,
+    synced,
+  });
 
   return synced;
 }

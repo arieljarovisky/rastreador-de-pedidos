@@ -167,7 +167,11 @@ export async function getValidMercadoLibreIntegration(userId: string): Promise<S
   return integration;
 }
 
-async function mlFetch<T>(integration: StoreIntegration, path: string): Promise<T> {
+async function mlFetch<T>(
+  integration: StoreIntegration,
+  path: string,
+  options?: { quietStatuses?: number[] }
+): Promise<T> {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(`${ML_API}${path}`, {
       headers: { Authorization: `Bearer ${integration.accessToken}` },
@@ -178,13 +182,15 @@ async function mlFetch<T>(integration: StoreIntegration, path: string): Promise<
       continue;
     }
     if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      console.warn('[ml-api] error', {
-        status: res.status,
-        path,
-        integrationUserId: integration.userId,
-        body: body.slice(0, 200),
-      });
+      if (!options?.quietStatuses?.includes(res.status)) {
+        const body = await res.text().catch(() => '');
+        console.warn('[ml-api] error', {
+          status: res.status,
+          path,
+          integrationUserId: integration.userId,
+          body: body.slice(0, 200),
+        });
+      }
       throw new Error(`ML_API_ERROR_${res.status}`);
     }
     return res.json() as Promise<T>;
@@ -423,16 +429,50 @@ export async function fetchMercadoLibreResource<T>(
   }
 }
 
+async function fetchMercadoLibreFlexAssignmentWithIntegration(
+  integration: StoreIntegration,
+  siteId: string,
+  shipmentId: string
+): Promise<MlFlexAssignment | null> {
+  for (const version of ['v2', 'v1'] as const) {
+    try {
+      const assignment = await mlFetch<MlFlexAssignment>(
+        integration,
+        `/flex/sites/${siteId}/shipments/${shipmentId}/assignment/${version}`,
+        { quietStatuses: [404] }
+      );
+      if (assignment?.driver_id != null) return assignment;
+    } catch {
+      // probar siguiente versión o integración
+    }
+  }
+  return null;
+}
+
 /** Consulta assignment/handshake Flex (tópico flex-handshakes). */
 export async function fetchMercadoLibreFlexAssignment(
   integration: StoreIntegration,
   siteId: string,
   shipmentId: string
 ): Promise<MlFlexAssignment | null> {
-  return fetchMercadoLibreResource<MlFlexAssignment>(
-    integration,
-    `/flex/sites/${siteId}/shipments/${shipmentId}/assignment/v1`
-  );
+  return fetchMercadoLibreFlexAssignmentWithIntegration(integration, siteId, shipmentId);
+}
+
+/** Prueba assignment con varias integraciones (repartidor primero, luego vendedor/agencia). */
+export async function resolveMercadoLibreFlexAssignment(
+  integrations: StoreIntegration[],
+  shipmentId: string,
+  siteId = env.mercadolibre.siteId
+): Promise<MlFlexAssignment | null> {
+  for (const integration of integrations) {
+    const assignment = await fetchMercadoLibreFlexAssignmentWithIntegration(
+      integration,
+      siteId,
+      shipmentId
+    );
+    if (assignment?.driver_id != null) return assignment;
+  }
+  return null;
 }
 
 /** Historial de notificaciones perdidas de la aplicación ML (solo token del dueño de la app). */
