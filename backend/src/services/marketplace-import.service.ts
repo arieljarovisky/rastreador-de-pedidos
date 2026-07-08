@@ -50,7 +50,9 @@ import {
 } from './agency-ml.service.js';
 
 const recentFlexSyncByRepartidor = new Map<string, number>();
-const FLEX_SYNC_COOLDOWN_MS = 25_000;
+const FLEX_SYNC_COOLDOWN_MS = 8_000;
+const FLEX_SYNC_FORCE_COOLDOWN_MS = 2_000;
+const FLEX_SYNC_SHIPMENT_LIMIT = 12;
 
 function formatImportError(externalId: string, reason: string): string {
   if (reason === 'GEOCODE_UNAVAILABLE') {
@@ -235,12 +237,16 @@ export async function syncMercadoLibreOrderLiveStatus(
  * Respaldo cuando ML no envía webhooks flex-handshakes:
  * consulta envíos Flex de la agencia y asigna los que ML tiene asignados al repartidor.
  */
-export async function syncFlexScansForRepartidor(repartidor: User): Promise<number> {
+export async function syncFlexScansForRepartidor(
+  repartidor: User,
+  options?: { force?: boolean }
+): Promise<number> {
   if (repartidor.role !== UserRole.REPARTIDOR || !repartidor.agencyId) return 0;
 
   const now = Date.now();
   const lastSync = recentFlexSyncByRepartidor.get(repartidor.id) ?? 0;
-  if (now - lastSync < FLEX_SYNC_COOLDOWN_MS) return 0;
+  const cooldown = options?.force ? FLEX_SYNC_FORCE_COOLDOWN_MS : FLEX_SYNC_COOLDOWN_MS;
+  if (now - lastSync < cooldown) return 0;
   recentFlexSyncByRepartidor.set(repartidor.id, now);
 
   const repartidorMl = await getIntegration(repartidor.id, 'mercadolibre');
@@ -263,7 +269,7 @@ export async function syncFlexScansForRepartidor(repartidor: User): Promise<numb
     return 0;
   }
 
-  const dateFrom = new Date(now - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const dateFrom = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   let synced = 0;
   let checked = 0;
   let matched = 0;
@@ -284,7 +290,7 @@ export async function syncFlexScansForRepartidor(repartidor: User): Promise<numb
         validIntegration,
       ];
 
-      for (const flex of flexShipments.slice(0, 25)) {
+      for (const flex of flexShipments.slice(0, FLEX_SYNC_SHIPMENT_LIMIT)) {
         checked++;
         const assignment = await resolveMercadoLibreFlexAssignment(
           assignmentIntegrations,

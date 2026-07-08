@@ -235,7 +235,7 @@ export default function RepartidorDashboard({
               )}
             </div>
             <p className="text-[10px] text-[var(--color-text-muted)] mb-1.5 leading-relaxed">
-              Escaneá en la app Mercado Envíos Flex; acá aparecen al sincronizar (el último escaneo queda asignado).
+              Escaneá en la app Mercado Envíos Flex; el pedido aparece acá al volver a Posta o en unos segundos.
             </p>
             {repartidorMlLoading ? (
               <p className="text-[11px] text-[var(--color-text-muted)]">Consultando…</p>

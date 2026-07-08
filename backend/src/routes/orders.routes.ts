@@ -57,6 +57,13 @@ router.get('/delivery-summary', authenticate, requireRoles(
   res.json(summary);
 });
 
+router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
+  await syncFlexScansForRepartidor(req.user!, { force: true });
+  const orders = await listOrdersForUser(req.user!);
+  const synced = await syncOpenMercadoLibreOrdersInList(orders);
+  res.json({ synced: synced.length, orders: synced });
+});
+
 router.get('/', authenticate, async (req: Request, res: Response) => {
   if (req.user!.role === UserRole.REPARTIDOR) {
     await syncFlexScansForRepartidor(req.user!);

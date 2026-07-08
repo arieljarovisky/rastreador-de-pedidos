@@ -185,10 +185,17 @@ export default function App() {
         localStorage.setItem('lupo_user', JSON.stringify(currentUser));
       }
 
-      const ordersRes = await fetch(apiUrl('/api/orders'), { headers });
+      const ordersEndpoint =
+        currentUser?.role === UserRole.REPARTIDOR
+          ? { url: '/api/orders/flex-sync', method: 'POST' as const }
+          : { url: '/api/orders', method: 'GET' as const };
+      const ordersRes = await fetch(apiUrl(ordersEndpoint.url), {
+        headers,
+        method: ordersEndpoint.method,
+      });
       if (ordersRes.ok) {
         const data = await ordersRes.json();
-        setOrders(data);
+        setOrders(Array.isArray(data) ? data : data.orders);
       }
 
       const notifsRes = await fetch(apiUrl('/api/notifications'), { headers });
@@ -369,7 +376,8 @@ export default function App() {
 
     fetchData();
 
-    const intervalMs = wsConnected ? 45000 : 8000;
+    const intervalMs =
+      user?.role === UserRole.REPARTIDOR ? 10_000 : wsConnected ? 45_000 : 8_000;
     const interval = setInterval(() => {
       if (navigator.onLine) {
         fetchData();
@@ -377,7 +385,17 @@ export default function App() {
     }, intervalMs);
 
     return () => clearInterval(interval);
-  }, [token, wsConnected, fetchData]);
+  }, [token, wsConnected, fetchData, user?.role]);
+
+  // Repartidor: al volver a la pestaña (p. ej. desde Mercado Envíos Flex), sincronizar al instante
+  useEffect(() => {
+    if (!token || user?.role !== UserRole.REPARTIDOR) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void fetchData();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [token, user?.role, fetchData]);
 
   // Refresco frecuente de la flota (posición de repartidores)
   useEffect(() => {

@@ -34,3 +34,6 @@ export const GPS_HEARTBEAT_MS = 30_000;
 
 /** Cada cuánto se refrescan los pedidos por polling de respaldo (ms). */
 export const POLL_INTERVAL_MS = 8000;
+
+/** Repartidor: sincroniza escaneos Flex con más frecuencia (ms). */
+export const REPARTIDOR_FLEX_POLL_MS = 10_000;

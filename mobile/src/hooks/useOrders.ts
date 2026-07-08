@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { api } from '../api';
-import { socketUrl, POLL_INTERVAL_MS } from '../config';
+import { socketUrl, POLL_INTERVAL_MS, REPARTIDOR_FLEX_POLL_MS } from '../config';
 import { Order, User, AppNotification } from '../types';
 import { normalizeOrder, normalizeOrders } from '../utils/normalizeOrder';
 import { mergeRepartidorLocation, mergeRepartidoresFromServer } from '../utils/repartidorLocation';
@@ -23,6 +24,8 @@ interface RepartidorLocationPayload {
 interface UseOrdersOptions {
   /** Vendedor: cargar repartidores y escuchar GPS en vivo */
   trackRepartidores?: boolean;
+  /** Repartidor: sincroniza escaneos Flex al cargar y con mayor frecuencia */
+  flexSync?: boolean;
   onNotificationCreated?: (notification: AppNotification) => void;
 }
 
@@ -40,7 +43,7 @@ export function useOrders(
   token: string | null,
   options: UseOrdersOptions = {}
 ): UseOrdersResult {
-  const { trackRepartidores = false, onNotificationCreated } = options;
+  const { trackRepartidores = false, flexSync = false, onNotificationCreated } = options;
   const [orders, setOrders] = useState<Order[]>([]);
   const [repartidores, setRepartidores] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,8 +106,11 @@ export function useOrders(
   const load = useCallback(async () => {
     if (!token) return;
     try {
+      const ordersPromise = flexSync
+        ? api.syncFlexOrders(token).then((r) => r.orders)
+        : api.getOrders(token);
       const requests: [Promise<Order[]>, Promise<User[] | null>] = [
-        api.getOrders(token),
+        ordersPromise,
         trackRepartidores ? api.getRepartidores(token) : Promise.resolve(null),
       ];
       const [ordersData, repsData] = await Promise.all(requests);
@@ -114,7 +120,7 @@ export function useOrders(
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los pedidos.');
     }
-  }, [token, trackRepartidores]);
+  }, [token, trackRepartidores, flexSync]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -196,12 +202,25 @@ export function useOrders(
   ]);
 
   useEffect(() => {
+    if (!token || !flexSync) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void load();
+    });
+    return () => sub.remove();
+  }, [token, flexSync, load]);
+
+  useEffect(() => {
     if (!token) return;
+    const pollMs = flexSync
+      ? REPARTIDOR_FLEX_POLL_MS
+      : connected
+        ? POLL_INTERVAL_MS * 5
+        : POLL_INTERVAL_MS;
     const interval = setInterval(() => {
       void load();
-    }, connected ? POLL_INTERVAL_MS * 5 : POLL_INTERVAL_MS);
+    }, pollMs);
     return () => clearInterval(interval);
-  }, [token, connected, load]);
+  }, [token, connected, load, flexSync]);
 
   return {
     orders,

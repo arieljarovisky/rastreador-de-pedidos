@@ -137,6 +137,15 @@ export const api = {
     return request<Order[]>('/api/orders', { token });
   },
 
+  /** Repartidor: fuerza sync de escaneos Flex y devuelve pedidos actualizados. */
+  syncFlexOrders(token: string): Promise<{ synced: number; orders: Order[] }> {
+    return request<{ synced: number; orders: Order[] }>('/api/orders/flex-sync', {
+      token,
+      method: 'POST',
+      timeoutMs: 45_000,
+    });
+  },
+
   getRepartidores(token: string): Promise<User[]> {
     return request<User[]>('/api/repartidores', { token });
   },

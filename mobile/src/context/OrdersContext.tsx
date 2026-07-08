@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 import { useOrders } from '../hooks/useOrders';
 import { useLocationReporter } from '../hooks/useLocationReporter';
 import { api } from '../api';
-import { Order, OrderStatus } from '../types';
+import { Order, OrderStatus, UserRole } from '../types';
 
 interface OrdersState {
   orders: Order[];
@@ -27,7 +27,9 @@ const OrdersContext = createContext<OrdersState | undefined>(undefined);
 
 export function OrdersProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth();
-  const { orders, loading, refreshing, connected, error, refresh } = useOrders(token);
+  const { orders, loading, refreshing, connected, error, refresh } = useOrders(token, {
+    flexSync: user?.role === UserRole.REPARTIDOR,
+  });
 
   const deliveringOrder = useMemo(
     () =>
