@@ -84,9 +84,30 @@ export default function App() {
     const tab = params.get('tab');
     const integrationScope = params.get('integration_scope');
     if (tab === 'settings') setMobileTabState('settings');
+    const subscriptionResult = params.get('subscription');
+    if (subscriptionResult === 'success') {
+      void showAlert({
+        title: 'Pago recibido',
+        message: 'Tu suscripción se activará en unos instantes cuando confirmemos el pago.',
+        variant: 'success',
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (subscriptionResult === 'failure') {
+      void showAlert({
+        title: 'Pago no completado',
+        message: 'El pago de suscripción no se completó. Podés intentarlo de nuevo desde Ajustes.',
+        variant: 'error',
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
     if (integration && status) {
       setMobileTabState('settings');
-      const platformLabel = integration === 'mercadolibre' ? 'Mercado Libre' : 'Tienda Nube';
+      const platformLabel =
+        integration === 'mercadolibre'
+          ? 'Mercado Libre'
+          : integration === 'mercadopago'
+            ? 'Mercado Pago'
+            : 'Tienda Nube';
       const scopeLabel =
         integrationScope === 'agency' ? ' (cuenta central de la agencia)' : '';
       if (status === 'connected') {
@@ -1058,6 +1079,29 @@ export default function App() {
     await fetchAgencyIntegrationStatus();
   };
 
+  const connectAgencyMercadoPago = async () => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(
+      apiUrl(`/api/mercadopago/oauth/connect?${oauthReturnOriginQuery()}`),
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudo iniciar la conexión');
+    window.location.href = body.url;
+  };
+
+  const disconnectAgencyMercadoPago = async () => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/mercadopago/oauth'), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 204) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'No se pudo desconectar');
+    }
+  };
+
   const fetchAgencyMarketplaceShipments = async (
     platform: 'mercadolibre' | 'tiendanube',
     options?: { dateFrom?: string; dateTo?: string }
@@ -1792,6 +1836,13 @@ export default function App() {
                   }
                   onImportAgencyMarketplaceShipments={
                     isAgencyAdmin(user.role) ? importAgencyMarketplaceShipments : undefined
+                  }
+                  token={token ?? undefined}
+                  onConnectAgencyMercadoPago={
+                    isAgencyAdmin(user.role) ? connectAgencyMercadoPago : undefined
+                  }
+                  onDisconnectAgencyMercadoPago={
+                    isAgencyAdmin(user.role) ? disconnectAgencyMercadoPago : undefined
                   }
                 />
               </div>

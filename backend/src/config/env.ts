@@ -77,4 +77,15 @@ export const env = {
       process.env.MOBILE_APP_VERSION?.trim() ||
       '1.0.0',
   },
+  mercadopago: {
+    clientId: process.env.MP_CLIENT_ID?.trim() || '',
+    clientSecret: process.env.MP_CLIENT_SECRET?.trim() || '',
+    redirectUri:
+      process.env.MP_REDIRECT_URI?.trim() ||
+      `${resolvePublicUrl()}/api/mercadopago/oauth/callback`,
+    /** Token de la cuenta Posta para cobrar suscripciones a agencias */
+    postaAccessToken: process.env.POSTA_MP_ACCESS_TOKEN?.trim() || '',
+    webhookSecret: process.env.MP_WEBHOOK_SECRET?.trim() || '',
+    trialDays: Number(process.env.SUBSCRIPTION_TRIAL_DAYS || '14') || 14,
+  },
 };

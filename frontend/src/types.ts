@@ -253,3 +253,42 @@ export interface BillingSummary {
     chargedShipments: number;
   }>;
 }
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  minRepartidores: number;
+  maxRepartidores: number | null;
+  priceArs: number;
+  sortOrder: number;
+}
+
+export interface AgencySubscriptionStatus {
+  status: 'trial' | 'active' | 'past_due' | 'cancelled';
+  isActive: boolean;
+  trialEndsAt: string | null;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  plan: SubscriptionPlan | null;
+  lastRepartidorCount: number;
+  repartidorCount: number;
+  recommendedPlan: SubscriptionPlan | null;
+  daysRemaining: number | null;
+  postaMercadoPagoConfigured?: boolean;
+}
+
+export interface AgencyMercadoPagoStatus {
+  configured: boolean;
+  connected: boolean;
+  webhookUrl?: string;
+  account: {
+    mpUserId: string;
+    nickname: string | null;
+    connectedAt: string;
+  } | null;
+}
+
+export interface BillingPaymentOptions {
+  balance: number;
+  mercadoPagoAvailable: boolean;
+}

@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
+  Alert,
+  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -8,22 +10,79 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../../context/AuthContext';
 import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
-import { OrderStatus } from '../../types';
+import { api } from '../../api';
+import { AgencyMercadoPagoStatus, AgencySubscriptionStatus, OrderStatus } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import IconLabelRow from '../../components/ui/IconLabelRow';
 import { zoneLabel } from '../../config/deliveryZones';
 import { AgencySettingsStackParamList } from '../../navigation/types';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
+import { getOAuthRedirectUri } from '../../oauth/redirectUri';
+
+WebBrowser.maybeCompleteAuthSession();
 
 type Props = NativeStackScreenProps<AgencySettingsStackParamList, 'AgencySettings'>;
 
 export default function AgencySettingsScreen({ navigation: _navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const { orders, repartidores, sellers, deliveryZones, refresh } = useAgencyOrdersContext();
+  const [subscription, setSubscription] = useState<AgencySubscriptionStatus | null>(null);
+  const [mpStatus, setMpStatus] = useState<AgencyMercadoPagoStatus | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
+  const [mpBusy, setMpBusy] = useState(false);
+
+  const loadPayments = useCallback(async () => {
+    if (!token) return;
+    const [sub, mp] = await Promise.all([
+      api.getSubscriptionStatus(token),
+      api.getAgencyMercadoPagoStatus(token),
+    ]);
+    setSubscription(sub);
+    setMpStatus(mp);
+  }, [token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPayments().catch(() => undefined);
+    }, [loadPayments])
+  );
+
+  const paySubscription = async () => {
+    if (!token) return;
+    setPayBusy(true);
+    try {
+      const { initPoint } = await api.createSubscriptionCheckout(token);
+      await Linking.openURL(initPoint);
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo iniciar el pago.');
+    } finally {
+      setPayBusy(false);
+    }
+  };
+
+  const connectMp = async () => {
+    if (!token) return;
+    setMpBusy(true);
+    try {
+      const redirectUri = getOAuthRedirectUri();
+      const { url } = await api.getMercadoPagoAgencyConnectUrl(token, 'mobile', redirectUri);
+      const session = await WebBrowser.openAuthSessionAsync(url, redirectUri);
+      if (session.type === 'success') {
+        await loadPayments();
+        Alert.alert('Listo', 'Mercado Pago conectado.');
+      }
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo conectar.');
+    } finally {
+      setMpBusy(false);
+    }
+  };
 
   const pending = orders.filter((o) => o.status === OrderStatus.PENDING).length;
   const enRoute = orders.filter((o) => o.status === OrderStatus.DELIVERING).length;
@@ -49,6 +108,58 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
         <Stat label="En ruta" value={String(enRoute)} />
         <Stat label="Repartidores" value={String(repartidores.length)} />
         <Stat label="Vendedores" value={String(sellers.length)} />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Suscripción Posta</Text>
+        <View style={styles.integrationCard}>
+          {subscription ? (
+            <>
+              <Text style={styles.integrationHint}>
+                Repartidores activos: {subscription.repartidorCount}
+                {subscription.recommendedPlan
+                  ? ` · Plan: ${subscription.recommendedPlan.name} (${formatArs(subscription.recommendedPlan.priceArs)}/mes)`
+                  : ''}
+              </Text>
+              {subscription.daysRemaining != null && (
+                <Text style={styles.rowMeta}>
+                  {subscription.isActive
+                    ? `Vence en ${subscription.daysRemaining} día(s)`
+                    : 'Suscripción vencida'}
+                </Text>
+              )}
+              {(!subscription.isActive || subscription.status === 'active') &&
+                subscription.postaMercadoPagoConfigured !== false && (
+                  <Button
+                    label={subscription.isActive ? 'Renovar suscripción' : 'Pagar suscripción'}
+                    onPress={paySubscription}
+                    loading={payBusy}
+                    style={{ marginTop: spacing.md }}
+                  />
+                )}
+            </>
+          ) : (
+            <Text style={styles.muted}>Cargando…</Text>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Mercado Pago (cobros a vendedores)</Text>
+        <View style={styles.integrationCard}>
+          <Text style={styles.integrationHint}>
+            {mpStatus?.connected
+              ? `Conectado${mpStatus.account?.nickname ? `: ${mpStatus.account.nickname}` : ''}`
+              : 'Conectá tu cuenta para que los vendedores paguen envíos desde la app.'}
+          </Text>
+          <Button
+            label={mpStatus?.connected ? 'Reconectar Mercado Pago' : 'Conectar Mercado Pago'}
+            onPress={connectMp}
+            loading={mpBusy}
+            disabled={!mpStatus?.configured}
+            style={{ marginTop: spacing.md }}
+          />
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -109,6 +220,14 @@ function Stat({ label, value }: { label: string; value: string }) {
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
+}
+
+function formatArs(amount: number): string {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 const styles = StyleSheet.create({

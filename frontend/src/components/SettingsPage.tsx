@@ -28,6 +28,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
+import AgencyPaymentsPanel from './AgencyPaymentsPanel.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, zoneShippingRates, DEFAULT_ZONE_SHIPPING_RATES, assignmentZones, sortPricingZones, pricingZoneDisplayName, isDeletableAssignmentZone, isLegacyZoneId, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
@@ -177,6 +178,9 @@ interface SettingsPageProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
+  token?: string;
+  onConnectAgencyMercadoPago?: () => Promise<void>;
+  onDisconnectAgencyMercadoPago?: () => Promise<void>;
 }
 
 export default function SettingsPage({
@@ -223,6 +227,9 @@ export default function SettingsPage({
   onDisconnectAgencyMarketplace,
   onFetchAgencyMarketplaceShipments,
   onImportAgencyMarketplaceShipments,
+  token,
+  onConnectAgencyMercadoPago,
+  onDisconnectAgencyMercadoPago,
 }: SettingsPageProps) {
   const userRole = user.role;
   const agency = isAgencyAdmin(userRole);
@@ -1765,6 +1772,16 @@ export default function SettingsPage({
 
 
       <div className="flex flex-col gap-3 w-full mt-3">
+        {agency && isAgencyAdmin(userRole) && token && (
+          <section className={sectionClass}>
+            <SettingsSectionHeader emoji="💳" title="Pagos y suscripción" meta="Posta + cobros a vendedores" />
+            <AgencyPaymentsPanel
+              token={token}
+              onConnectMercadoPago={onConnectAgencyMercadoPago}
+              onDisconnectMercadoPago={onDisconnectAgencyMercadoPago}
+            />
+          </section>
+        )}
         {agency && isAgencyAdmin(userRole) &&
           onRefreshAgencyIntegrationStatus &&
           onConnectAgencyMarketplace &&

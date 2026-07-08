@@ -9,6 +9,11 @@ import {
   updateAgencyDefaultShippingRates,
   recordBillingPayment,
 } from '../services/billing.service.js';
+import {
+  createSellerBillingCheckout,
+  getSellerOutstandingBalance,
+  isAgencyMpConnectedForSeller,
+} from '../services/billing-payment.service.js';
 
 const router = Router();
 
@@ -154,6 +159,63 @@ router.post(
         return;
       }
       res.status(500).json({ error: 'No se pudo registrar el pago.' });
+    }
+  }
+);
+
+router.get(
+  '/payment-options',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    if (!req.user?.agencyId) {
+      res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+      return;
+    }
+    const [balance, mpConnected] = await Promise.all([
+      getSellerOutstandingBalance(req.user.agencyId, req.user.id),
+      isAgencyMpConnectedForSeller(req.user.agencyId),
+    ]);
+    res.json({ balance, mercadoPagoAvailable: mpConnected });
+  }
+);
+
+router.post(
+  '/payments/checkout',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const amount =
+        typeof req.body?.amount === 'number'
+          ? req.body.amount
+          : typeof req.body?.amount === 'string'
+            ? Number(req.body.amount)
+            : undefined;
+      const checkout = await createSellerBillingCheckout(req.user!, { amount });
+      res.json(checkout);
+    } catch (err: unknown) {
+      const code = err instanceof Error ? err.message : 'ERROR';
+      if (code === 'FORBIDDEN') {
+        res.status(403).json({ error: 'No tenés permiso para pagar.' });
+        return;
+      }
+      if (code === 'AGENCY_MP_NOT_CONNECTED') {
+        res.status(400).json({
+          error: 'Tu agencia aún no conectó Mercado Pago. Pedile que lo configure en Ajustes.',
+        });
+        return;
+      }
+      if (code === 'NO_BALANCE') {
+        res.status(400).json({ error: 'No tenés saldo pendiente por pagar.' });
+        return;
+      }
+      if (code === 'AMOUNT_EXCEEDS_BALANCE') {
+        res.status(400).json({ error: 'El monto supera tu saldo pendiente.' });
+        return;
+      }
+      res.status(500).json({ error: 'No se pudo iniciar el pago.' });
+      console.error('[billing] POST /payments/checkout error:', err);
     }
   }
 );

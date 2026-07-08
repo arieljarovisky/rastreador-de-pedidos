@@ -9,6 +9,7 @@ import CreateOrderScreen from '../screens/seller/CreateOrderScreen';
 import SellerSettingsScreen from '../screens/seller/SellerSettingsScreen';
 import ImportShipmentsScreen from '../screens/seller/ImportShipmentsScreen';
 import NotificationsScreen from '../screens/seller/NotificationsScreen';
+import SellerShippingAccountScreen from '../screens/seller/SellerShippingAccountScreen';
 import PostaBottomTabBar from '../components/navigation/PostaBottomTabBar';
 import {
   SellerCreateStackParamList,
@@ -122,6 +123,11 @@ export default function SellerNavigator() {
           name="Notifications"
           component={NotificationsScreen}
           options={{ title: 'Notificaciones' }}
+        />
+        <Stack.Screen
+          name="SellerShippingAccount"
+          component={SellerShippingAccountScreen}
+          options={{ title: 'Cuenta de envíos' }}
         />
       </Stack.Navigator>
     </SellerOrdersProvider>

@@ -184,6 +184,57 @@ export interface AppNotification {
   orderId?: string;
 }
 
+export interface BillingLedgerEntry {
+  id: string;
+  agencyId: string;
+  sellerId: string;
+  sellerName: string | null;
+  orderId: string | null;
+  entryType: 'charge' | 'payment' | 'adjustment';
+  amount: number;
+  description: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface BillingSummary {
+  currency: 'ARS';
+  dateFrom: string;
+  dateTo: string;
+  totalSpent: number;
+  totalPaid: number;
+  balance: number;
+  chargedShipments: number;
+}
+
+export interface BillingPaymentOptions {
+  balance: number;
+  mercadoPagoAvailable: boolean;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  minRepartidores: number;
+  maxRepartidores: number | null;
+  priceArs: number;
+}
+
+export interface AgencySubscriptionStatus {
+  status: 'trial' | 'active' | 'past_due' | 'cancelled';
+  isActive: boolean;
+  repartidorCount: number;
+  recommendedPlan: SubscriptionPlan | null;
+  daysRemaining: number | null;
+  postaMercadoPagoConfigured?: boolean;
+}
+
+export interface AgencyMercadoPagoStatus {
+  configured: boolean;
+  connected: boolean;
+  account: { nickname: string | null; connectedAt: string } | null;
+}
+
 export function isAgencyAdmin(role: UserRole): boolean {
   return role === UserRole.SUPER_ADMIN || role === UserRole.LOGISTICS_ADMIN;
 }

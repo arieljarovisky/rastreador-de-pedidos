@@ -20,6 +20,13 @@ import deliveryZonesRoutes from './routes/delivery-zones.routes.js';
 import appRoutes from './routes/app.routes.js';
 import billingRoutes from './routes/billing.routes.js';
 import publicRoutes from './routes/public.routes.js';
+import mercadopagoRoutes from './routes/mercadopago.routes.js';
+import subscriptionsRoutes from './routes/subscriptions.routes.js';
+import {
+  isMercadoPagoOAuthConfigured,
+  isPostaMercadoPagoConfigured,
+} from './services/mercadopago.service.js';
+import { requireAgencySubscription } from './middleware/subscription.js';
 
 const app = express();
 
@@ -72,23 +79,30 @@ app.get('/api/health', (_req, res) => {
         hasAppSecret: Boolean(env.tiendanube.appSecret),
         redirectUri: env.tiendanube.redirectUri,
       },
+      mercadopago: {
+        oauthConfigured: isMercadoPagoOAuthConfigured(),
+        postaConfigured: isPostaMercadoPagoConfigured(),
+        redirectUri: env.mercadopago.redirectUri,
+      },
     },
   });
 });
 
 app.use('/api/app', appRoutes);
-app.use('/api/delivery-zones', deliveryZonesRoutes);
+app.use('/api/delivery-zones', requireAgencySubscription, deliveryZonesRoutes);
 
 app.use('/api/auth', authRoutes);
-app.use('/api/accounts', accountsRoutes);
-app.use('/api/orders', ordersRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/repartidores', repartidoresRoutes);
+app.use('/api/accounts', requireAgencySubscription, accountsRoutes);
+app.use('/api/orders', requireAgencySubscription, ordersRoutes);
+app.use('/api/users', requireAgencySubscription, usersRoutes);
+app.use('/api/repartidores', requireAgencySubscription, repartidoresRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/simulator', simulatorRoutes);
 app.use('/api/geocode', geocodeRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/mercadopago', mercadopagoRoutes);
+app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/public', publicRoutes);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

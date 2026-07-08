@@ -43,6 +43,7 @@ export type SellerStackParamList = {
   SellerOrderDetail: { orderId: string };
   ImportShipments: { platform: MarketplacePlatform };
   Notifications: undefined;
+  SellerShippingAccount: undefined;
 };
 
 export type AgencyHomeStackParamList = {

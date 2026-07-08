@@ -78,6 +78,8 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
+  const [mpPayLoading, setMpPayLoading] = useState(false);
+  const [mpAvailable, setMpAvailable] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const todayKey = getOperationalDateKey();
 
@@ -101,9 +103,12 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       const params = new URLSearchParams({ dateFrom, dateTo });
       if (isAgency && selectedSellerId) params.set('sellerId', selectedSellerId);
       const headers = { Authorization: `Bearer ${token}` };
-      const [summaryRes, ledgerRes] = await Promise.all([
+      const [summaryRes, ledgerRes, paymentOptsRes] = await Promise.all([
         fetch(apiUrl(`/api/billing/summary?${params}`), { headers }),
         fetch(apiUrl(`/api/billing/ledger?${params}&limit=80`), { headers }),
+        !isAgency
+          ? fetch(apiUrl('/api/billing/payment-options'), { headers })
+          : Promise.resolve(null),
       ]);
       const summaryBody = await summaryRes.json().catch(() => ({}));
       const ledgerBody = await ledgerRes.json().catch(() => ({}));
@@ -111,6 +116,12 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       if (!ledgerRes.ok) throw new Error(ledgerBody.error || 'No se pudo cargar el historial.');
       setSummary(summaryBody as BillingSummary);
       setLedger(ledgerBody as BillingLedgerEntry[]);
+      if (paymentOptsRes) {
+        const optsBody = await paymentOptsRes.json().catch(() => ({}));
+        if (paymentOptsRes.ok) {
+          setMpAvailable(Boolean(optsBody.mercadoPagoAvailable));
+        }
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar la cuenta.');
     } finally {
@@ -159,6 +170,27 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       setMessage(err instanceof Error ? err.message : 'Error al registrar pago.');
     } finally {
       setRecordingPayment(false);
+    }
+  };
+
+  const payWithMercadoPago = async () => {
+    setMpPayLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch(apiUrl('/api/billing/payments/checkout'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'No se pudo iniciar el pago.');
+      window.location.href = body.initPoint;
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : 'Error al iniciar pago.');
+      setMpPayLoading(false);
     }
   };
 
@@ -366,6 +398,25 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
                 </ul>
               )}
             </section>
+
+            {!isAgency && summary.balance > 0 && mpAvailable && (
+              <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3 space-y-2">
+                <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
+                  Pagar saldo con Mercado Pago
+                </h2>
+                <p className="text-[10px] text-[var(--color-text-muted)]">
+                  El pago va directo a la cuenta de Mercado Pago de tu agencia.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary px-3 py-1.5"
+                  disabled={mpPayLoading}
+                  onClick={() => void payWithMercadoPago()}
+                >
+                  {mpPayLoading ? 'Redirigiendo…' : `Pagar ${formatArs(summary.balance)}`}
+                </button>
+              </section>
+            )}
 
             {isAgency && (
               <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-3 space-y-3">

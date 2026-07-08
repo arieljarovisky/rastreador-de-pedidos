@@ -362,4 +362,156 @@ export async function runMigrations(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }
+
+  if (!(await tableExists('subscription_plans'))) {
+    await pool.query(`
+      CREATE TABLE subscription_plans (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        min_monthly_shipments INT NOT NULL DEFAULT 0,
+        max_monthly_shipments INT NULL,
+        price_ars DECIMAL(12,2) NOT NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    const plans = [
+      ['plan_10', 'Hasta 10 repartidores', 0, 10, 20000, 1],
+      ['plan_20', 'Hasta 20 repartidores', 11, 20, 35000, 2],
+      ['plan_50', 'Más de 20 repartidores', 21, null, 50000, 3],
+    ];
+    for (const [id, name, minS, maxS, price, sort] of plans) {
+      await pool.query(
+        `INSERT INTO subscription_plans (id, name, min_monthly_shipments, max_monthly_shipments, price_ars, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [id, name, minS, maxS, price, sort]
+      );
+    }
+  }
+
+  if (!(await tableExists('agency_subscriptions'))) {
+    await pool.query(`
+      CREATE TABLE agency_subscriptions (
+        agency_id VARCHAR(36) PRIMARY KEY,
+        plan_id VARCHAR(36) NULL,
+        status ENUM('trial', 'active', 'past_due', 'cancelled') NOT NULL DEFAULT 'trial',
+        trial_ends_at DATETIME(3) NULL,
+        current_period_start DATETIME(3) NULL,
+        current_period_end DATETIME(3) NULL,
+        last_shipment_count INT NOT NULL DEFAULT 0,
+        mp_payment_id VARCHAR(64) NULL,
+        updated_at DATETIME(3) NOT NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_sub_status (status),
+        INDEX idx_sub_period_end (current_period_end),
+        CONSTRAINT fk_sub_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
+        CONSTRAINT fk_sub_plan FOREIGN KEY (plan_id) REFERENCES subscription_plans(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await tableExists('agency_mercadopago_accounts'))) {
+    await pool.query(`
+      CREATE TABLE agency_mercadopago_accounts (
+        agency_id VARCHAR(36) PRIMARY KEY,
+        mp_user_id VARCHAR(64) NOT NULL,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT NULL,
+        token_expires_at DATETIME(3) NULL,
+        public_key VARCHAR(128) NULL,
+        nickname VARCHAR(255) NULL,
+        connected_at DATETIME(3) NOT NULL,
+        updated_at DATETIME(3) NOT NULL,
+        CONSTRAINT fk_mp_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await tableExists('billing_payment_intents'))) {
+    await pool.query(`
+      CREATE TABLE billing_payment_intents (
+        id VARCHAR(36) PRIMARY KEY,
+        agency_id VARCHAR(36) NOT NULL,
+        seller_id VARCHAR(36) NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        mp_preference_id VARCHAR(64) NULL,
+        mp_payment_id VARCHAR(64) NULL,
+        status ENUM('pending', 'approved', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
+        ledger_entry_id VARCHAR(36) NULL,
+        created_at DATETIME(3) NOT NULL,
+        updated_at DATETIME(3) NOT NULL,
+        UNIQUE KEY uk_mp_payment (mp_payment_id),
+        INDEX idx_intent_agency (agency_id),
+        INDEX idx_intent_seller (seller_id),
+        INDEX idx_intent_status (status),
+        CONSTRAINT fk_intent_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
+        CONSTRAINT fk_intent_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await tableExists('subscription_payment_intents'))) {
+    await pool.query(`
+      CREATE TABLE subscription_payment_intents (
+        id VARCHAR(36) PRIMARY KEY,
+        agency_id VARCHAR(36) NOT NULL,
+        plan_id VARCHAR(36) NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        shipment_count INT NOT NULL DEFAULT 0,
+        mp_preference_id VARCHAR(64) NULL,
+        mp_payment_id VARCHAR(64) NULL,
+        status ENUM('pending', 'approved', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
+        created_at DATETIME(3) NOT NULL,
+        updated_at DATETIME(3) NOT NULL,
+        UNIQUE KEY uk_sub_mp_payment (mp_payment_id),
+        INDEX idx_sub_intent_agency (agency_id),
+        CONSTRAINT fk_sub_intent_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
+        CONSTRAINT fk_sub_intent_plan FOREIGN KEY (plan_id) REFERENCES subscription_plans(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  const trialDays = Number(process.env.SUBSCRIPTION_TRIAL_DAYS || '14') || 14;
+  const [agenciesWithoutSub] = await pool.query<Array<{ id: string } & RowDataPacket>>(
+    `SELECT a.id FROM agencies a
+     LEFT JOIN agency_subscriptions s ON s.agency_id = a.id
+     WHERE s.agency_id IS NULL`
+  );
+  for (const row of agenciesWithoutSub) {
+    const trialEnd = new Date();
+    trialEnd.setDate(trialEnd.getDate() + trialDays);
+    await pool.query(
+      `INSERT INTO agency_subscriptions (agency_id, status, trial_ends_at, updated_at, created_at)
+       VALUES (?, 'trial', ?, ?, ?)`,
+      [row.id, trialEnd, new Date(), new Date()]
+    );
+  }
+
+  if (await tableExists('subscription_plans')) {
+    await pool.query(
+      `UPDATE subscription_plans SET active = 0
+       WHERE id NOT IN ('plan_10', 'plan_20', 'plan_50')`
+    );
+    const repartidorPlans = [
+      ['plan_10', 'Hasta 10 repartidores', 0, 10, 20000, 1],
+      ['plan_20', 'Hasta 20 repartidores', 11, 20, 35000, 2],
+      ['plan_50', 'Más de 20 repartidores', 21, null, 50000, 3],
+    ] as const;
+    for (const [id, name, minR, maxR, price, sort] of repartidorPlans) {
+      await pool.query(
+        `INSERT INTO subscription_plans
+          (id, name, min_monthly_shipments, max_monthly_shipments, price_ars, sort_order, active)
+         VALUES (?, ?, ?, ?, ?, ?, 1)
+         ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          min_monthly_shipments = VALUES(min_monthly_shipments),
+          max_monthly_shipments = VALUES(max_monthly_shipments),
+          price_ars = VALUES(price_ars),
+          sort_order = VALUES(sort_order),
+          active = 1`,
+        [id, name, minR, maxR, price, sort]
+      );
+    }
+  }
 }

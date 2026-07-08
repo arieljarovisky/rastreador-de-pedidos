@@ -10,6 +10,7 @@ import {
   clearRepartidorSession,
 } from '../services/users.service.js';
 import { createAgency } from '../services/agencies.service.js';
+import { ensureAgencySubscription } from '../services/subscriptions.service.js';
 import { UserRole } from '../types/index.js';
 import { isValidEmail } from '../utils/email.js';
 import { isValidCuit, normalizeCuit, formatCuit } from '../utils/cuit.js';
@@ -220,6 +221,7 @@ router.post('/register/agency', async (req: Request, res: Response) => {
       cuit: formatCuit(cuitDigits),
       city: city.trim(),
     });
+    await ensureAgencySubscription(agency.id);
     const user = await createUser({
       username: resolvedEmail,
       password,

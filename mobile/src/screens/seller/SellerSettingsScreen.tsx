@@ -174,6 +174,12 @@ export default function SellerSettingsScreen({ navigation }: Props) {
         onPress={() => navigation.navigate('Notifications')}
         style={{ marginTop: spacing.md }}
       />
+      <Button
+        label="Cuenta de envíos"
+        variant="ghost"
+        onPress={() => navigation.navigate('SellerShippingAccount')}
+        style={{ marginTop: spacing.sm }}
+      />
     </ScrollView>
   );
 }

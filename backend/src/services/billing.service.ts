@@ -442,15 +442,14 @@ export async function recordBillingPayment(
   const seller = sellerRows[0];
   if (!seller || seller.agency_id !== user.agencyId) throw new Error('SELLER_NOT_FOUND');
 
-  const now = new Date();
-  const id = randomUUID();
   const description = options.description?.trim() || 'Pago registrado por la agencia';
-  await pool.query(
-    `INSERT INTO billing_ledger_entries
-      (id, agency_id, seller_id, order_id, entry_type, amount, description, created_by, created_at)
-     VALUES (?, ?, ?, NULL, 'payment', ?, ?, ?, ?)`,
-    [id, user.agencyId, options.sellerId, options.amount, description, user.name, now]
-  );
+  const entryId = await applyAutomatedBillingPayment({
+    agencyId: user.agencyId,
+    sellerId: options.sellerId,
+    amount: options.amount,
+    description,
+    createdBy: user.name,
+  });
 
   const entries = await listBillingLedger(user, {
     dateFrom: '1970-01-01',
@@ -458,5 +457,25 @@ export async function recordBillingPayment(
     sellerId: options.sellerId,
     limit: 1,
   });
-  return entries[0]!;
+  return entries.find((e) => e.id === entryId) ?? entries[0]!;
+}
+
+export async function applyAutomatedBillingPayment(options: {
+  agencyId: string;
+  sellerId: string;
+  amount: number;
+  description: string;
+  createdBy: string;
+}): Promise<string> {
+  if (!options.sellerId || options.amount <= 0) throw new Error('INVALID_PAYMENT');
+
+  const now = new Date();
+  const id = randomUUID();
+  await pool.query(
+    `INSERT INTO billing_ledger_entries
+      (id, agency_id, seller_id, order_id, entry_type, amount, description, created_by, created_at)
+     VALUES (?, ?, ?, NULL, 'payment', ?, ?, ?, ?)`,
+    [id, options.agencyId, options.sellerId, options.amount, options.description, options.createdBy, now]
+  );
+  return id;
 }

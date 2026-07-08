@@ -11,6 +11,11 @@ import {
   OrderStatus,
   PickupPoint,
   User,
+  BillingSummary,
+  BillingLedgerEntry,
+  BillingPaymentOptions,
+  AgencySubscriptionStatus,
+  AgencyMercadoPagoStatus,
 } from './types';
 import type { DeliveryZone } from './config/deliveryZones';
 import type { Barrio } from './config/deliveryZones';
@@ -341,6 +346,60 @@ export const api = {
   /** URL autenticada para abrir etiqueta ML (requiere token en header al descargar). */
   mercadoLibreLabelUrl(orderId: string): string {
     return apiUrl(`/api/orders/${orderId}/mercadolibre-label`);
+  },
+
+  getBillingSummary(token: string, dateFrom: string, dateTo: string): Promise<BillingSummary> {
+    const params = new URLSearchParams({ dateFrom, dateTo });
+    return request<BillingSummary>(`/api/billing/summary?${params}`, { token });
+  },
+
+  getBillingLedger(token: string, dateFrom: string, dateTo: string): Promise<BillingLedgerEntry[]> {
+    const params = new URLSearchParams({ dateFrom, dateTo, limit: '40' });
+    return request<BillingLedgerEntry[]>(`/api/billing/ledger?${params}`, { token });
+  },
+
+  getBillingPaymentOptions(token: string): Promise<BillingPaymentOptions> {
+    return request<BillingPaymentOptions>('/api/billing/payment-options', { token });
+  },
+
+  createBillingCheckout(token: string): Promise<{ initPoint: string; amount: number }> {
+    return request<{ initPoint: string; amount: number }>('/api/billing/payments/checkout', {
+      method: 'POST',
+      token,
+      body: {},
+    });
+  },
+
+  getSubscriptionStatus(token: string): Promise<AgencySubscriptionStatus> {
+    return request<AgencySubscriptionStatus>('/api/subscriptions/status', { token });
+  },
+
+  createSubscriptionCheckout(token: string): Promise<{ initPoint: string; amount: number }> {
+    return request<{ initPoint: string; amount: number }>('/api/subscriptions/checkout', {
+      method: 'POST',
+      token,
+      body: {},
+    });
+  },
+
+  getAgencyMercadoPagoStatus(token: string): Promise<AgencyMercadoPagoStatus> {
+    return request<AgencyMercadoPagoStatus>('/api/mercadopago/status', { token });
+  },
+
+  getMercadoPagoAgencyConnectUrl(
+    token: string,
+    client: 'mobile' | 'web' = 'mobile',
+    redirectUri?: string
+  ): Promise<{ url: string }> {
+    const params = new URLSearchParams();
+    if (client === 'mobile') params.set('client', 'mobile');
+    if (redirectUri) params.set('redirect_uri', redirectUri);
+    const qs = params.toString() ? `?${params}` : '';
+    return request<{ url: string }>(`/api/mercadopago/oauth/connect${qs}`, { token });
+  },
+
+  disconnectAgencyMercadoPago(token: string): Promise<void> {
+    return request<void>('/api/mercadopago/oauth', { method: 'DELETE', token });
   },
 };
 
