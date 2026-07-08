@@ -58,10 +58,7 @@ router.get('/delivery-summary', authenticate, requireRoles(
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
   const orders = await listOrdersForUser(req.user!);
-  const synced =
-    req.user!.role === UserRole.REPARTIDOR
-      ? orders
-      : await syncOpenMercadoLibreOrdersInList(orders);
+  const synced = await syncOpenMercadoLibreOrdersInList(orders);
   res.json(synced);
 });
 
