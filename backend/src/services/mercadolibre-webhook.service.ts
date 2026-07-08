@@ -52,6 +52,10 @@ export interface MercadoLibreNotificationPayload {
 const recentNotifications = new Map<string, number>();
 const DEDUP_TTL_MS = 10 * 60 * 1000;
 
+function flexScanLog(step: string, data?: Record<string, unknown>): void {
+  console.log(`[ml-flex-scan] ${step}`, data ?? '');
+}
+
 export const ML_WEBHOOK_TOPICS = ['orders_v2', 'orders', 'shipments', 'flex-handshakes'] as const;
 
 function isDuplicateNotification(id: string | undefined): boolean {
@@ -103,20 +107,39 @@ async function importFlexShipment(
   integration: StoreIntegration,
   shipment: MercadoLibreFlexShipment
 ): Promise<string | null> {
+  flexScanLog('importando envío Flex', {
+    mlShipmentId: shipment.externalId,
+    mlOrderId: shipment.mlOrderId,
+    integrationUserId: integration.userId,
+  });
   const seller = await getUserById(integration.userId);
-  if (!seller) return null;
+  if (!seller) {
+    flexScanLog('importación abortada: vendedor no encontrado', {
+      integrationUserId: integration.userId,
+    });
+    return null;
+  }
 
   const agencyMode = isAgencyMlBridgeUser(seller);
   const existing = agencyMode
     ? await findImportedMercadoLibreFlexGlobal(shipment)
     : await findImportedMercadoLibreFlex(integration.userId, shipment);
-  if (existing) return existing.id;
+  if (existing) {
+    flexScanLog('envío ya importado', { orderId: existing.id, mlShipmentId: shipment.externalId });
+    return existing.id;
+  }
 
   let lat = shipment.lat;
   let lng = shipment.lng;
   if (lat === undefined || lng === undefined) {
     const geocoded = await geocodeAddress(shipment.address);
-    if (!geocoded) return null;
+    if (!geocoded) {
+      flexScanLog('importación abortada: geocodificación falló', {
+        mlShipmentId: shipment.externalId,
+        address: shipment.address,
+      });
+      return null;
+    }
     lat = geocoded.lat;
     lng = geocoded.lng;
   }
@@ -154,6 +177,7 @@ async function importFlexShipment(
   }
 
   emitOrderUpdated(order, sellerId);
+  flexScanLog('envío importado', { orderId: order.id, mlShipmentId: shipment.externalId });
   return order.id;
 }
 
@@ -189,6 +213,12 @@ async function resolveFlexOrderForShipment(
   mlShipmentId: string,
   mlShipment: Awaited<ReturnType<typeof fetchMercadoLibreShipment>>
 ): Promise<Order | null> {
+  flexScanLog('buscando pedido Posta para envío ML', {
+    mlShipmentId,
+    mlOrderId: mlShipment.order_id ?? null,
+    mlStatus: mlShipment.status,
+    logisticType: mlShipment.logistic_type,
+  });
   const mlOrderId = mlShipment.order_id ? String(mlShipment.order_id) : null;
   const owner = await getUserById(integration.userId);
   const agencyMode = owner ? isAgencyMlBridgeUser(owner) : false;
@@ -219,6 +249,17 @@ async function resolveFlexOrderForShipment(
           : await findImportedMercadoLibreFlex(integration.userId, flexShipment);
       }
     }
+  }
+
+  if (existing) {
+    flexScanLog('pedido Posta encontrado', {
+      orderId: existing.id,
+      mlShipmentId,
+      status: existing.status,
+      repartidorId: existing.repartidorId,
+    });
+  } else {
+    flexScanLog('pedido Posta no encontrado tras búsqueda/import', { mlShipmentId, mlOrderId });
   }
 
   return existing;
@@ -316,16 +357,43 @@ async function resolveRepartidorForFlexHandshake(
   integration: StoreIntegration,
   agencyId: string | null
 ): Promise<User | null> {
+  flexScanLog('resolviendo repartidor', {
+    driverId: assignment?.driver_id ?? null,
+    integrationUserId: integration.userId,
+    agencyId,
+  });
+
   if (assignment?.driver_id) {
     const byDriver = await getRepartidorByMercadoLibreUserId(assignment.driver_id, agencyId);
-    if (byDriver) return byDriver;
+    if (byDriver) {
+      flexScanLog('repartidor encontrado por driver_id', {
+        repartidorId: byDriver.id,
+        repartidorName: byDriver.name,
+        driverId: assignment.driver_id,
+      });
+      return byDriver;
+    }
+    flexScanLog('sin repartidor Posta para driver_id', {
+      driverId: assignment.driver_id,
+      agencyId,
+    });
   }
 
   const scanner = await getUserById(integration.userId);
   if (scanner?.role === UserRole.REPARTIDOR && scanner.agencyId === agencyId) {
+    flexScanLog('repartidor por cuenta ML del webhook', {
+      repartidorId: scanner.id,
+      repartidorName: scanner.name,
+    });
     return scanner;
   }
 
+  flexScanLog('no se pudo resolver repartidor', {
+    integrationUserId: integration.userId,
+    integrationUserRole: scanner?.role ?? null,
+    agencyId,
+    driverId: assignment?.driver_id ?? null,
+  });
   return null;
 }
 
@@ -334,10 +402,19 @@ async function handleFlexHandshakeResource(
   integration: StoreIntegration,
   resource: string
 ): Promise<void> {
+  flexScanLog('inicio handshake Flex', {
+    resource,
+    integrationUserId: integration.userId,
+    mlUserId: integration.externalUserId,
+  });
+
   const validIntegration = await getValidMercadoLibreIntegration(integration.userId);
   const parsed = parseMercadoLibreNotificationResource(resource);
   const shipmentId = parsed.shipmentId;
-  if (!shipmentId) return;
+  if (!shipmentId) {
+    flexScanLog('handshake ignorado: sin shipmentId en resource', { resource });
+    return;
+  }
 
   const assignment =
     (await fetchMercadoLibreResource<MlFlexAssignment>(validIntegration, resource)) ??
@@ -348,11 +425,26 @@ async function handleFlexHandshakeResource(
         )
       : null);
 
+  flexScanLog('assignment ML obtenido', {
+    shipmentId,
+    driverId: assignment?.driver_id ?? null,
+    siteId: parsed.siteId ?? null,
+  });
+
   const shipment = await fetchMercadoLibreShipment(validIntegration, shipmentId);
-  if (shipment.logistic_type !== 'self_service') return;
+  if (shipment.logistic_type !== 'self_service') {
+    flexScanLog('handshake ignorado: no es Flex (self_service)', {
+      shipmentId,
+      logisticType: shipment.logistic_type,
+    });
+    return;
+  }
 
   let existing = await resolveFlexOrderForShipment(validIntegration, shipmentId, shipment);
-  if (!existing) return;
+  if (!existing) {
+    flexScanLog('handshake sin pedido Posta — no se puede asignar', { shipmentId });
+    return;
+  }
 
   const repartidor = await resolveRepartidorForFlexHandshake(
     assignment,
@@ -390,6 +482,13 @@ async function handleFlexHandshakeResource(
     if (assignedOrder?.repartidorId === repartidor.id) {
       existing = assignedOrder;
       assignedToRepartidor = repartidorIdBefore !== repartidor.id;
+      flexScanLog('pedido asignado al repartidor', {
+        orderId: existing.id,
+        repartidorId: repartidor.id,
+        repartidorName: repartidor.name,
+        isTransfer,
+        status: existing.status,
+      });
       if (assignedToRepartidor) {
         await createNotification({
           id: `n_ml_flex_assign_${Date.now()}_${existing.id}`,
@@ -412,7 +511,20 @@ async function handleFlexHandshakeResource(
           });
         }
       }
+    } else {
+      flexScanLog('asignación no aplicada', {
+        orderId: existing.id,
+        repartidorId: repartidor.id,
+        assignedRepartidorId: assignedOrder?.repartidorId ?? null,
+        orderStatus: existing.status,
+      });
     }
+  } else {
+    flexScanLog('handshake sin repartidor — solo comentario en pedido', {
+      orderId: existing.id,
+      shipmentId,
+      driverId: assignment?.driver_id ?? null,
+    });
   }
 
   const sellerId = await getSellerIdForOrder(existing.id);
@@ -427,16 +539,29 @@ async function handleFlexHandshakeResource(
   );
 
   await syncOrderFromMlShipment(existing, shipment);
+  flexScanLog('handshake Flex completado', {
+    orderId: existing.id,
+    shipmentId,
+    repartidorId: existing.repartidorId,
+    status: existing.status,
+    assignedToRepartidor,
+  });
 }
 
 export async function processMercadoLibreNotification(
   payload: MercadoLibreNotificationPayload
 ): Promise<void> {
-  if (isDuplicateNotification(payload._id)) return;
+  if (isDuplicateNotification(payload._id)) {
+    console.log('[ml-webhook] Notificación duplicada ignorada', { _id: payload._id });
+    return;
+  }
 
   const integration = await findMercadoLibreIntegrationByMlUserId(payload.user_id);
   if (!integration) {
-    console.warn('[ml-webhook] Sin integración para user_id', payload.user_id);
+    console.warn('[ml-webhook] Sin integración para user_id', payload.user_id, {
+      topic: payload.topic,
+      resource: payload.resource,
+    });
     return;
   }
 

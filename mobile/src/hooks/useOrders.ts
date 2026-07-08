@@ -153,7 +153,18 @@ export function useOrders(
 
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
-    socket.on('order:updated', (order: Order) => mergeOrder(order));
+    socket.on('order:updated', (order: Order) => {
+      if (order.externalSource === 'mercadolibre' || order.shippingType === 'flex') {
+        console.log('[posta-flex] order:updated', {
+          orderId: order.id,
+          status: order.status,
+          repartidorId: order.repartidorId,
+          externalOrderId: order.externalOrderId,
+          shippingType: order.shippingType,
+        });
+      }
+      mergeOrder(order);
+    });
     socket.on('order:deleted', (p: { orderId: string }) => removeOrder(p.orderId));
     socket.on('order:location', (p: OrderLocationPayload) => applyLocation(p));
     if (trackRepartidores) {
