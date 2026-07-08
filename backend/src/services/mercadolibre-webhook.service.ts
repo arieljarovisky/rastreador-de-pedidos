@@ -782,29 +782,40 @@ export async function replayMercadoLibreMissedFeeds(options?: {
   }
 
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT user_id FROM store_integrations WHERE platform = 'mercadolibre' LIMIT 1`
+    `SELECT user_id FROM store_integrations WHERE platform = 'mercadolibre'`
   );
-  const anyUserId = rows[0]?.user_id as string | undefined;
-  if (!anyUserId) return { replayed: 0, errors: 0 };
+  if (rows.length === 0) return { replayed: 0, errors: 0 };
 
-  let validIntegration: StoreIntegration;
-  try {
-    validIntegration = await getValidMercadoLibreIntegration(anyUserId);
-  } catch {
-    return { replayed: 0, errors: 0 };
+  let messages: MercadoLibreNotificationPayload[] = [];
+
+  for (const row of rows) {
+    const userId = row.user_id as string;
+    try {
+      const validIntegration = await getValidMercadoLibreIntegration(userId);
+      const batch = await fetchMercadoLibreMissedFeeds(validIntegration, {
+        topic: options?.topic,
+        limit: options?.limit ?? 50,
+      });
+      if (batch.length > 0) {
+        messages = batch as MercadoLibreNotificationPayload[];
+        console.log('[ml-webhook] missed_feeds obtenido', {
+          topic: options?.topic ?? 'all',
+          count: batch.length,
+          integrationUserId: userId,
+        });
+        break;
+      }
+    } catch {
+      // probar siguiente integración
+    }
   }
-
-  const messages = await fetchMercadoLibreMissedFeeds(validIntegration, {
-    topic: options?.topic,
-    limit: options?.limit ?? 50,
-  });
 
   let replayed = 0;
   let errors = 0;
 
   for (const message of messages) {
     try {
-      await processMercadoLibreNotification(message as MercadoLibreNotificationPayload);
+      await processMercadoLibreNotification(message);
       replayed++;
     } catch {
       errors++;

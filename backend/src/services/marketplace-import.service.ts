@@ -44,7 +44,11 @@ import { emitOrderUpdated } from '../realtime/io.js';
 import { env } from '../config/env.js';
 import {
   ensureAgencyMlBridgeUser,
+  getAgencyOperatorForImport,
 } from './agency-ml.service.js';
+
+const recentFlexSyncByRepartidor = new Map<string, number>();
+const FLEX_SYNC_COOLDOWN_MS = 25_000;
 
 function formatImportError(externalId: string, reason: string): string {
   if (reason === 'GEOCODE_UNAVAILABLE') {
@@ -223,6 +227,98 @@ export async function syncMercadoLibreOrderLiveStatus(
   return syncMercadoLibreOrderAfterImport(sellerUserId, order, {
     externalId: order.externalOrderId,
   });
+}
+
+/**
+ * Respaldo cuando ML no envía webhooks flex-handshakes:
+ * consulta envíos Flex de la agencia y asigna los que ML tiene asignados al repartidor.
+ */
+export async function syncFlexScansForRepartidor(repartidor: User): Promise<number> {
+  if (repartidor.role !== UserRole.REPARTIDOR || !repartidor.agencyId) return 0;
+
+  const now = Date.now();
+  const lastSync = recentFlexSyncByRepartidor.get(repartidor.id) ?? 0;
+  if (now - lastSync < FLEX_SYNC_COOLDOWN_MS) return 0;
+  recentFlexSyncByRepartidor.set(repartidor.id, now);
+
+  const repartidorMl = await getIntegration(repartidor.id, 'mercadolibre');
+  const mlCourierId = repartidorMl?.externalUserId;
+  if (!mlCourierId) {
+    console.log('[ml-flex-sync] repartidor sin ML conectado', { repartidorId: repartidor.id });
+    return 0;
+  }
+
+  console.log('[ml-flex-sync] iniciando sync', {
+    repartidorId: repartidor.id,
+    mlCourierId,
+    agencyId: repartidor.agencyId,
+  });
+
+  const operator = await getAgencyOperatorForImport(repartidor.agencyId);
+  const contexts = await listMercadoLibreIntegrationsForAgencyScan(repartidor.agencyId);
+  if (contexts.length === 0) {
+    console.warn('[ml-flex-sync] agencia sin integraciones ML', { agencyId: repartidor.agencyId });
+    return 0;
+  }
+
+  const dateFrom = new Date(now - 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  let synced = 0;
+
+  for (const { integration, isAgencyAccount } of contexts) {
+    try {
+      const validIntegration = await getValidMercadoLibreIntegration(integration.userId);
+      const flexShipments = await listMercadoLibreFlexShipments(integration.userId, { dateFrom });
+
+      for (const flex of flexShipments.slice(0, 25)) {
+        const assignment = await fetchMercadoLibreFlexAssignment(
+          validIntegration,
+          env.mercadolibre.siteId,
+          flex.externalId
+        );
+        if (String(assignment?.driver_id ?? '') !== String(mlCourierId)) continue;
+
+        console.log('[ml-flex-sync] envío asignado al repartidor en ML', {
+          shipmentId: flex.externalId,
+          repartidorId: repartidor.id,
+        });
+
+        const sellerUser = await getUserById(integration.userId);
+        const owner =
+          isAgencyAccount && operator ? operator : sellerUser ?? operator ?? repartidor;
+
+        const result = await importMercadoLibreFlexShipment(owner, flex, {
+          mlIntegrationUserId: integration.userId,
+          agencyMode: isAgencyAccount,
+        });
+
+        if (result.kind !== 'imported' && result.kind !== 'synced') continue;
+
+        let order = result.order;
+        if (order.repartidorId !== repartidor.id) {
+          order = await assignOrderToScanningRepartidor(
+            repartidor,
+            order.id,
+            'Asignado por escaneo en Mercado Envíos Flex (sync)'
+          );
+        }
+
+        const sellerId = await getSellerIdForOrder(order.id);
+        emitOrderUpdated(order, sellerId);
+        synced++;
+      }
+    } catch (err) {
+      console.warn('[ml-flex-sync] error en integración', {
+        integrationUserId: integration.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (synced > 0) {
+    console.log('[ml-flex-sync] sync completado', { repartidorId: repartidor.id, synced });
+  }
+
+  return synced;
 }
 
 export interface MarketplaceListOptions {

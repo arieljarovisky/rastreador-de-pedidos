@@ -5,7 +5,7 @@ import { resetDatabase } from './db/reset-database.js';
 import { runMigrations } from './db/migrate.js';
 import { setupSocket } from './realtime/socket.js';
 import { startDeliveryScheduler } from './services/delivery-scheduler.js';
-import { replayMercadoLibreMissedFeeds } from './services/mercadolibre-webhook.service.js';
+import { replayMercadoLibreMissedFeeds, getMercadoLibreWebhookUrl } from './services/mercadolibre-webhook.service.js';
 
 async function start(): Promise<void> {
   if (process.env.DB_RESET_ON_START === 'true') {
@@ -29,15 +29,31 @@ async function start(): Promise<void> {
         `secret=${env.tiendanube.appSecret ? 'ok' : 'SIN secret'}`
     );
 
+    console.log(
+      `[startup] Webhook ML: ${getMercadoLibreWebhookUrl()} (tópicos: flex-handshakes, shipments, orders_v2)`
+    );
+
     if (env.mercadolibre.appId) {
-      void replayMercadoLibreMissedFeeds({ topic: 'shipments', limit: 30 })
+      void replayMercadoLibreMissedFeeds({ topic: 'flex-handshakes', limit: 30 })
         .then(({ replayed, errors }) => {
           if (replayed > 0 || errors > 0) {
-            console.log(`[ml-webhook] missed_feeds al arranque: ${replayed} reprocesadas, ${errors} errores`);
+            console.log(
+              `[ml-webhook] missed_feeds flex-handshakes: ${replayed} reprocesadas, ${errors} errores`
+            );
           }
         })
         .catch((err) => {
-          console.warn('[ml-webhook] missed_feeds al arranque falló:', err);
+          console.warn('[ml-webhook] missed_feeds flex-handshakes falló:', err);
+        });
+
+      void replayMercadoLibreMissedFeeds({ topic: 'shipments', limit: 30 })
+        .then(({ replayed, errors }) => {
+          if (replayed > 0 || errors > 0) {
+            console.log(`[ml-webhook] missed_feeds shipments: ${replayed} reprocesadas, ${errors} errores`);
+          }
+        })
+        .catch((err) => {
+          console.warn('[ml-webhook] missed_feeds shipments falló:', err);
         });
     }
   });

@@ -21,6 +21,7 @@ import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../s
 import {
   syncOpenMercadoLibreOrdersInList,
   syncMercadoLibreOrderLiveStatus,
+  syncFlexScansForRepartidor,
 } from '../services/marketplace-import.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
 import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
@@ -57,6 +58,9 @@ router.get('/delivery-summary', authenticate, requireRoles(
 });
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
+  if (req.user!.role === UserRole.REPARTIDOR) {
+    await syncFlexScansForRepartidor(req.user!);
+  }
   const orders = await listOrdersForUser(req.user!);
   const synced = await syncOpenMercadoLibreOrdersInList(orders);
   res.json(synced);

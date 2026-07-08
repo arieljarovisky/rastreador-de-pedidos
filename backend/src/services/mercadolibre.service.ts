@@ -177,7 +177,16 @@ async function mlFetch<T>(integration: StoreIntegration, path: string): Promise<
       await sleep(800 * (attempt + 1));
       continue;
     }
-    if (!res.ok) throw new Error('ML_API_ERROR');
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn('[ml-api] error', {
+        status: res.status,
+        path,
+        integrationUserId: integration.userId,
+        body: body.slice(0, 200),
+      });
+      throw new Error(`ML_API_ERROR_${res.status}`);
+    }
     return res.json() as Promise<T>;
   }
   throw new Error('ML_API_ERROR');
@@ -436,11 +445,21 @@ export async function fetchMercadoLibreMissedFeeds(
   if (options?.topic) params.set('topic', options.topic);
   if (options?.offset != null) params.set('offset', String(options.offset));
   if (options?.limit != null) params.set('limit', String(options.limit));
-  const data = await mlFetch<MlMissedFeedsResponse>(
-    integration,
-    `/missed_feeds?${params.toString()}`
-  );
-  return data.messages ?? [];
+  try {
+    const data = await mlFetch<MlMissedFeedsResponse>(
+      integration,
+      `/missed_feeds?${params.toString()}`
+    );
+    return data.messages ?? [];
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('[ml-api] missed_feeds falló', {
+      integrationUserId: integration.userId,
+      topic: options?.topic ?? 'all',
+      error: message,
+    });
+    return [];
+  }
 }
 
 export function formatMlShipmentStatusLabel(shipment: Pick<MlShipment, 'status' | 'substatus'>): string {
