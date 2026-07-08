@@ -314,6 +314,10 @@ header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;poin
 .plan .btn{justify-content:center;width:100%}
 .plan.best .btn-ink{color:var(--on-dark);border-color:var(--on-dark)}
 .plan.best .btn-ink:hover{background:var(--on-dark);color:var(--plan-best-bg)}
+.plan-price{font-family:var(--mono);font-size:2rem;font-weight:700;line-height:1.1;margin:6px 0 4px;color:var(--stamp)}
+.plan.best .plan-price{color:#F4A088}
+.plan-price small{display:block;font-size:.72rem;font-weight:400;color:var(--ink3);letter-spacing:.04em;margin-top:4px}
+.plan.best .plan-price small{color:var(--plan-best-muted)}
 .price-note{text-align:center;margin-top:24px;font-family:var(--mono);font-size:.78rem;color:var(--ink3);letter-spacing:.04em;text-transform:uppercase}
 
 /* FINAL */
@@ -806,47 +810,55 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   <div class="wrap">
     <div class="shead" style="max-width:none;text-align:center">
       <span class="eyebrow">Tarifas</span>
-      <h2>Una tarifa para cada tamaño.</h2>
-      <p style="margin-left:auto;margin-right:auto;max-width:48ch">Armamos el plan según tu volumen. Sin contratos eternos.</p>
+      <h2>Mismas funciones. Pagás según tu flota.</h2>
+      <p style="margin-left:auto;margin-right:auto;max-width:52ch">Todas las agencias tienen el mismo producto: mapa en vivo, app repartidor, integraciones y cobros con Mercado Pago. El precio mensual depende de cuántos repartidores tenés en Posta.</p>
     </div>
     <div class="plans">
       <div class="plan">
-        <span class="pk">Para tiendas</span>
-        <h3>Tienda</h3>
-        <p class="pd">Para vendedores que cargan e importan sus propios envíos.</p>
+        <span class="pk">Flota chica</span>
+        <h3>Hasta 10</h3>
+        <p class="pd">Para agencias que arrancan o operan con hasta diez repartidores.</p>
+        <p class="plan-price">$20.000<small>por mes · ARS</small></p>
         <ul>
-          <li><span class="ck">✓</span>Carga manual e importación</li>
+          <li><span class="ck">✓</span>Mapa y flota en tiempo real</li>
+          <li><span class="ck">✓</span>App repartidor con GPS</li>
           <li><span class="ck">✓</span>Mercado Libre y Tienda Nube</li>
-          <li><span class="ck">✓</span>Seguimiento en vivo</li>
+          <li><span class="ck">✓</span>Zonas, asignación y estadísticas</li>
+          <li><span class="ck">✓</span>Cobrá envíos a vendedores con tu MP</li>
         </ul>
-        <a href="/app" class="btn btn-ink">Iniciar sesión</a>
+        <a href="/app" class="btn btn-ink">Probar 14 días gratis</a>
       </div>
       <div class="plan best">
         <span class="stamp reco">Recomendado</span>
-        <span class="pk">Para agencias</span>
-        <h3>Agencia</h3>
-        <p class="pd">Para coordinar tu flota y repartidores con el mapa en vivo.</p>
+        <span class="pk">Flota mediana</span>
+        <h3>Hasta 20</h3>
+        <p class="pd">Para agencias en crecimiento con hasta veinte repartidores activos.</p>
+        <p class="plan-price">$35.000<small>por mes · ARS</small></p>
         <ul>
-          <li><span class="ck">✓</span>Todo lo del plan Tienda</li>
-          <li><span class="ck">✓</span>Asignación y mapa de flota</li>
-          <li><span class="ck">✓</span>Repartidores y zonas ilimitadas</li>
-          <li><span class="ck">✓</span>Estadísticas del día</li>
+          <li><span class="ck">✓</span>Mapa y flota en tiempo real</li>
+          <li><span class="ck">✓</span>App repartidor con GPS</li>
+          <li><span class="ck">✓</span>Mercado Libre y Tienda Nube</li>
+          <li><span class="ck">✓</span>Zonas, asignación y estadísticas</li>
+          <li><span class="ck">✓</span>Cobrá envíos a vendedores con tu MP</li>
         </ul>
-        <a href="/app" class="btn btn-stamp">Iniciar sesión</a>
+        <a href="/app" class="btn btn-stamp">Probar 14 días gratis</a>
       </div>
       <div class="plan">
-        <span class="pk">A medida</span>
-        <h3>Enterprise</h3>
-        <p class="pd">Volumen alto, zonas a medida e integraciones propias.</p>
+        <span class="pk">Flota grande</span>
+        <h3>Más de 20</h3>
+        <p class="pd">Para operaciones con más de veinte repartidores en la misma agencia.</p>
+        <p class="plan-price">$50.000<small>por mes · ARS</small></p>
         <ul>
-          <li><span class="ck">✓</span>Todo lo del plan Agencia</li>
-          <li><span class="ck">✓</span>Zonas y reglas personalizadas</li>
-          <li><span class="ck">✓</span>Soporte prioritario</li>
+          <li><span class="ck">✓</span>Mapa y flota en tiempo real</li>
+          <li><span class="ck">✓</span>App repartidor con GPS</li>
+          <li><span class="ck">✓</span>Mercado Libre y Tienda Nube</li>
+          <li><span class="ck">✓</span>Zonas, asignación y estadísticas</li>
+          <li><span class="ck">✓</span>Cobrá envíos a vendedores con tu MP</li>
         </ul>
-        <a href="/app" class="btn btn-ink">Contactanos</a>
+        <a href="/app" class="btn btn-ink">Probar 14 días gratis</a>
       </div>
     </div>
-    <p class="price-note">Te armamos el plan según tu operación · escribinos y lo vemos juntos</p>
+    <p class="price-note">14 días de prueba gratis · sin contrato anual · renovás según repartidores activos</p>
   </div>
 </section>
 
@@ -854,7 +866,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 <section class="wrap" id="empezar" style="padding-bottom:10px">
   <div class="final">
     <h2>¿Arrancamos?</h2>
-    <p>Creá tu cuenta y empezá a coordinar tu logística en minutos. Sin tarjeta.</p>
+    <p>Creá tu cuenta y empezá a coordinar tu logística en minutos. <strong>14 días gratis</strong>, después pagás según tu cantidad de repartidores.</p>
     <div class="final-cta">
       <a href="/app" class="btn btn-paper">Iniciar sesión <span class="arrow">→</span></a>
       <a href="#descargar" class="btn btn-oncolor">Descargar app repartidor</a>
