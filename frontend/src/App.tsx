@@ -1888,6 +1888,7 @@ export default function App() {
                 onRefreshRepartidorMlStatus={fetchRepartidorMlStatus}
                 onConnectRepartidorMercadoLibre={connectRepartidorMercadoLibre}
                 onDisconnectRepartidorMercadoLibre={disconnectRepartidorMercadoLibre}
+                onRefreshOrders={fetchData}
               />
             </div>
 

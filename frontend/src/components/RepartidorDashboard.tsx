@@ -41,6 +41,7 @@ interface RepartidorDashboardProps {
   onRefreshRepartidorMlStatus?: () => Promise<void>;
   onConnectRepartidorMercadoLibre?: () => Promise<void>;
   onDisconnectRepartidorMercadoLibre?: () => Promise<void>;
+  onRefreshOrders?: () => Promise<void>;
 }
 
 export default function RepartidorDashboard({
@@ -59,11 +60,13 @@ export default function RepartidorDashboard({
   onRefreshRepartidorMlStatus,
   onConnectRepartidorMercadoLibre,
   onDisconnectRepartidorMercadoLibre,
+  onRefreshOrders,
 }: RepartidorDashboardProps) {
   const { alert: showAlert } = useModal();
   const [activeTab, setActiveTab] = useState<'assigned' | 'available'>('assigned');
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [syncingOrders, setSyncingOrders] = useState(false);
   const lastGpsSentAt = useRef(0);
 
   const reportFleetGps = useCallback(
@@ -195,13 +198,44 @@ export default function RepartidorDashboard({
     }
   };
 
+  const handleSyncFlexOrders = async () => {
+    if (!onRefreshOrders) return;
+    setSyncingOrders(true);
+    try {
+      await onRefreshOrders();
+    } catch (err: unknown) {
+      void showAlert({
+        title: 'Error',
+        message: err instanceof Error ? err.message : 'No se pudieron sincronizar los envíos',
+        variant: 'error',
+      });
+    } finally {
+      setSyncingOrders(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden" id="repartidor-dashboard">
 
       {onConnectRepartidorMercadoLibre && (
           <div className="shrink-0 px-2 sm:px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5">
-              Tu cuenta Mercado Libre Flex
+            <div className="flex flex-wrap items-start justify-between gap-2 mb-1.5">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-faint)]">
+                Mercado Libre Flex
+              </p>
+              {onRefreshOrders && (
+                <button
+                  type="button"
+                  disabled={syncingOrders}
+                  onClick={() => void handleSyncFlexOrders()}
+                  className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:border-[var(--color-accent)]/40 disabled:opacity-60"
+                >
+                  {syncingOrders ? 'Sincronizando…' : 'Sincronizar escaneos'}
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-[var(--color-text-muted)] mb-1.5 leading-relaxed">
+              Escaneá en la app Mercado Envíos Flex; acá aparecen al sincronizar (el último escaneo queda asignado).
             </p>
             {repartidorMlLoading ? (
               <p className="text-[11px] text-[var(--color-text-muted)]">Consultando…</p>

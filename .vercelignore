@@ -1,4 +1,9 @@
 backend/
 mobile/
-.git/
+docs/
+**/.env
+**/.env.*
+!**/.env.example
 **/node_modules/
+**/*.log
+.git/
