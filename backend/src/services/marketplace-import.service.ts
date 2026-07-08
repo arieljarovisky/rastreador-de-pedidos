@@ -36,6 +36,7 @@ import {
   getIntegration,
   listMercadoLibreIntegrationsForAgencyScan,
   type IntegrationPlatform,
+  type StoreIntegration,
 } from './integrations.service.js';
 import { assertSellerInAgency, getRepartidorByMercadoLibreUserId, getUserById } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
