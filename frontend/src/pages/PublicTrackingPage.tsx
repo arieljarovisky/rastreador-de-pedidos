@@ -7,6 +7,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Loader2, MapPin, Moon, Package, RefreshCw, Search, Sun } from 'lucide-react';
 import PublicTrackingMap from '../components/PublicTrackingMap.tsx';
 import StatusBadge from '../components/ui/StatusBadge.tsx';
+import { apiUrl } from '../api.ts';
 import { OrderStatus } from '../types.ts';
 import { applyPostaTheme, readPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
 
@@ -68,12 +69,18 @@ export default function PublicTrackingPage() {
     }
 
     try {
-      const res = await fetch(`/api/public/track?ref=${encodeURIComponent(trimmed)}`);
+      const res = await fetch(apiUrl(`/api/public/track?ref=${encodeURIComponent(trimmed)}`));
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('INVALID_RESPONSE');
+      }
       const data = (await res.json()) as PublicTrackingData & { message?: string; error?: string };
 
       if (!res.ok) {
-        setTracking(null);
-        setError(data.message ?? 'No pudimos encontrar tu envío.');
+        if (!silent) {
+          setTracking(null);
+          setError(data.message ?? 'No pudimos encontrar tu envío.');
+        }
         return;
       }
 
@@ -85,8 +92,14 @@ export default function PublicTrackingPage() {
       url.searchParams.set('ref', trimmed);
       window.history.replaceState({}, '', url.toString());
     } catch {
-      setTracking(null);
-      setError('Error de conexión. Verificá tu internet e intentá de nuevo.');
+      if (!silent) {
+        setTracking(null);
+        setError(
+          import.meta.env.VITE_API_URL
+            ? 'No pudimos contactar al servidor. Intentá de nuevo en unos minutos.'
+            : 'No pudimos contactar al servidor. Si estás en producción, configurá VITE_API_URL en el deploy del frontend.'
+        );
+      }
     } finally {
       if (!silent) setLoading(false);
     }
