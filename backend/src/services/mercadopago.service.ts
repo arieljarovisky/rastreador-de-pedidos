@@ -133,10 +133,17 @@ export async function getMercadoPagoPayment(
   return (await res.json()) as MpPayment;
 }
 
-export function getBillingWebhookUrl(): string {
-  return `${env.publicUrl}/api/mercadopago/webhooks/billing`;
+/** URL única para el panel de MP (suscripciones + pagos de vendedores). */
+export function getMercadoPagoWebhookUrl(): string {
+  return `${env.publicUrl}/api/mercadopago/webhooks`;
 }
 
+/** @deprecated Usar getMercadoPagoWebhookUrl */
+export function getBillingWebhookUrl(): string {
+  return getMercadoPagoWebhookUrl();
+}
+
+/** @deprecated Usar getMercadoPagoWebhookUrl */
 export function getSubscriptionWebhookUrl(): string {
-  return `${env.publicUrl}/api/mercadopago/webhooks/subscription`;
+  return getMercadoPagoWebhookUrl();
 }

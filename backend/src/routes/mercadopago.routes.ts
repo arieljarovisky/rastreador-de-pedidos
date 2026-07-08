@@ -6,8 +6,7 @@ import {
   isMercadoPagoOAuthConfigured,
   isPostaMercadoPagoConfigured,
   getMercadoPagoOAuthUrl,
-  getBillingWebhookUrl,
-  getSubscriptionWebhookUrl,
+  getMercadoPagoWebhookUrl,
 } from '../services/mercadopago.service.js';
 import {
   agencyMpStatusPublic,
@@ -111,7 +110,7 @@ router.get('/status', authenticate, requireAgencyAdmin(), async (req: Request, r
   res.json({
     configured: isMercadoPagoOAuthConfigured(),
     connected: Boolean(account),
-    webhookUrl: getBillingWebhookUrl(),
+    webhookUrl: getMercadoPagoWebhookUrl(),
     account: agencyMpStatusPublic(account),
   });
 });
@@ -191,38 +190,43 @@ router.delete('/oauth', authenticate, requireAgencyAdmin(), async (req: Request,
   res.status(204).end();
 });
 
-router.post('/webhooks/billing', async (req: Request, res: Response) => {
-  res.status(200).send('OK');
-  const topic = req.query.topic ?? req.body?.type;
-  const paymentId =
-    req.body?.data?.id ?? req.query['data.id'] ?? req.query.id;
-  if (topic !== 'payment' && req.body?.type !== 'payment') return;
-  if (!paymentId) return;
-  try {
-    await processBillingPaymentWebhook(paymentId);
-  } catch (err) {
-    console.error('[mercadopago] billing webhook error:', err);
-  }
-});
-
-router.post('/webhooks/subscription', async (req: Request, res: Response) => {
-  res.status(200).send('OK');
-  if (!isPostaMercadoPagoConfigured()) return;
+async function handleMercadoPagoPaymentWebhook(req: Request): Promise<void> {
   const topic = req.query.topic ?? req.body?.type;
   const paymentId = req.body?.data?.id ?? req.query['data.id'] ?? req.query.id;
   if (topic !== 'payment' && req.body?.type !== 'payment') return;
   if (!paymentId) return;
+
   try {
     await processSubscriptionPaymentWebhook(paymentId);
   } catch (err) {
     console.error('[mercadopago] subscription webhook error:', err);
   }
+  try {
+    await processBillingPaymentWebhook(paymentId);
+  } catch (err) {
+    console.error('[mercadopago] billing webhook error:', err);
+  }
+}
+
+router.post('/webhooks', async (req: Request, res: Response) => {
+  res.status(200).send('OK');
+  void handleMercadoPagoPaymentWebhook(req);
+});
+
+/** Compatibilidad con URLs antiguas */
+router.post('/webhooks/billing', async (req: Request, res: Response) => {
+  res.status(200).send('OK');
+  void handleMercadoPagoPaymentWebhook(req);
+});
+
+router.post('/webhooks/subscription', async (req: Request, res: Response) => {
+  res.status(200).send('OK');
+  void handleMercadoPagoPaymentWebhook(req);
 });
 
 router.get('/webhooks', (_req: Request, res: Response) => {
   res.json({
-    billing: getBillingWebhookUrl(),
-    subscription: getSubscriptionWebhookUrl(),
+    webhookUrl: getMercadoPagoWebhookUrl(),
     postaConfigured: isPostaMercadoPagoConfigured(),
     oauthConfigured: isMercadoPagoOAuthConfigured(),
   });

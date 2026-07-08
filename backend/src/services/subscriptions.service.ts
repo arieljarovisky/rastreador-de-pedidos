@@ -6,7 +6,7 @@ import { UserRole } from '../types/index.js';
 import {
   createCheckoutPreference,
   getMercadoPagoPayment,
-  getSubscriptionWebhookUrl,
+  getMercadoPagoWebhookUrl,
   isPostaMercadoPagoConfigured,
 } from './mercadopago.service.js';
 
@@ -196,7 +196,7 @@ export async function createSubscriptionCheckout(
     title: `Posta · Suscripción ${plan.name}`,
     amount,
     externalReference: `sub:${intentId}`,
-    notificationUrl: getSubscriptionWebhookUrl(),
+    notificationUrl: getMercadoPagoWebhookUrl(),
     backUrls: {
       success: `${env.frontendUrl}/app?tab=settings&subscription=success`,
       failure: `${env.frontendUrl}/app?tab=settings&subscription=failure`,

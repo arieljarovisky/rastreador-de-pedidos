@@ -5,7 +5,7 @@ import { env } from '../config/env.js';
 import { User, UserRole } from '../types/index.js';
 import {
   createCheckoutPreference,
-  getBillingWebhookUrl,
+  getMercadoPagoWebhookUrl,
   getMercadoPagoPayment,
 } from './mercadopago.service.js';
 import {
@@ -61,7 +61,7 @@ export async function createSellerBillingCheckout(
     title: 'Saldo de envíos · Posta',
     amount,
     externalReference: `bill:${intentId}`,
-    notificationUrl: getBillingWebhookUrl(),
+    notificationUrl: getMercadoPagoWebhookUrl(),
     backUrls: {
       success: `${env.frontendUrl}/app?tab=account&payment=success`,
       failure: `${env.frontendUrl}/app?tab=account&payment=failure`,
