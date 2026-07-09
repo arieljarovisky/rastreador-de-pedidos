@@ -369,34 +369,57 @@ header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;poin
 .dl-warn{margin-top:14px;padding:12px 14px;border:1.5px dashed var(--stamp);border-radius:5px;background:var(--stampwash);font-family:var(--mono);font-size:.72rem;color:var(--ink2);line-height:1.5}
 
 /* DEMO BOOKING */
-.demo-section{background:var(--paper2);border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)}
-.demo-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:28px;align-items:start}
-.demo-card{background:var(--paper);border:1.5px solid var(--ink);border-radius:6px;padding:28px;box-shadow:5px 6px 0 var(--shadow)}
-.demo-card h3{font-size:1.35rem;margin-bottom:8px}
-.demo-card > p{font-size:.95rem;margin-bottom:22px}
-.demo-form{display:flex;flex-direction:column;gap:14px}
-.demo-field{display:flex;flex-direction:column;gap:6px}
-.demo-field label{font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);font-weight:700}
-.demo-field input,.demo-field textarea,.demo-field select{width:100%;padding:12px 14px;border:1.5px solid var(--edge2);border-radius:4px;background:var(--paper2);color:var(--ink);font-family:var(--body);font-size:.95rem;transition:border-color .15s,background .15s}
-.demo-field input:focus,.demo-field textarea:focus,.demo-field select:focus{outline:none;border-color:var(--stamp);background:var(--surface-hover)}
-.demo-field textarea{min-height:72px;resize:vertical}
-.demo-slots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
-.demo-slot{padding:11px 10px;border:1.5px solid var(--edge2);border-radius:4px;background:var(--paper2);font-family:var(--mono);font-size:.72rem;letter-spacing:.02em;color:var(--ink2);cursor:pointer;text-align:center;transition:background .15s,border-color .15s,color .15s,transform .12s}
+.demo-section{background:var(--paper2);border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);padding:clamp(40px,5vw,72px) 0}
+.demo-header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:22px;flex-wrap:wrap}
+.demo-header h2{font-size:clamp(1.75rem,3.2vw,2.35rem);margin-top:8px}
+.demo-sub{font-family:var(--mono);font-size:.7rem;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.demo-card{background:var(--paper);border:1.5px solid var(--ink);border-radius:6px;padding:22px 24px;box-shadow:5px 6px 0 var(--shadow)}
+.demo-perks-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px dashed var(--edge2)}
+.demo-chip{font-family:var(--mono);font-size:.6rem;letter-spacing:.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--edge2);border-radius:20px;color:var(--ink2);background:var(--paper2)}
+.demo-layout{display:grid;grid-template-columns:minmax(220px,260px) 1fr;gap:22px;align-items:start}
+.demo-picker{display:flex;flex-direction:column;gap:10px}
+.demo-cal{border:1.5px solid var(--ink);border-radius:6px;background:var(--paper2);padding:12px;box-shadow:3px 4px 0 var(--shadow)}
+.demo-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
+.demo-cal-title{font-family:var(--disp);font-weight:700;font-size:.92rem;text-transform:capitalize;color:var(--ink);flex:1;text-align:center}
+.demo-cal-nav{display:flex;gap:4px;flex-shrink:0}
+.demo-cal-nav button{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:1.5px solid var(--edge2);background:var(--paper);border-radius:4px;cursor:pointer;color:var(--ink);transition:background .15s,border-color .15s}
+.demo-cal-nav button:hover:not(:disabled){background:var(--stampwash);border-color:var(--stamp)}
+.demo-cal-nav button:disabled{opacity:.35;cursor:not-allowed}
+.demo-cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px}
+.demo-cal-weekdays span{font-family:var(--mono);font-size:.56rem;letter-spacing:.04em;text-align:center;color:var(--ink3);text-transform:uppercase}
+.demo-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.demo-cal-day{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border:none;background:none;border-radius:4px;font-family:var(--mono);font-size:.68rem;color:var(--ink2);cursor:pointer;transition:background .12s,color .12s}
+.demo-cal-day.is-other{visibility:hidden;pointer-events:none}
+.demo-cal-day.is-disabled{opacity:.28;cursor:not-allowed}
+.demo-cal-day.is-selected{background:var(--stamp);color:var(--on-dark);font-weight:700}
+.demo-cal-day:not(.is-disabled):not(.is-other):not(.is-selected):hover{background:var(--stampwash);color:var(--stamp2)}
+.demo-selected-date{font-family:var(--mono);font-size:.68rem;color:var(--ink3);letter-spacing:.03em;min-height:1.1em;text-align:center}
+.demo-selected-date.is-set{color:var(--stamp2);font-weight:700}
+.demo-book{display:flex;flex-direction:column;gap:12px}
+.demo-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.demo-form{display:contents}
+.demo-field{display:flex;flex-direction:column;gap:5px}
+.demo-field label{font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);font-weight:700}
+.demo-field input{width:100%;padding:10px 12px;border:1.5px solid var(--edge2);border-radius:4px;background:var(--paper2);color:var(--ink);font-family:var(--body);font-size:.9rem;transition:border-color .15s,background .15s}
+.demo-field input:focus{outline:none;border-color:var(--stamp);background:var(--surface-hover)}
+.demo-slots-wrap{display:flex;flex-direction:column;gap:6px;min-height:0}
+.demo-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;max-height:112px;overflow-y:auto;padding-right:2px}
+.demo-slots.is-empty{display:flex;align-items:center;justify-content:center;min-height:72px;background:var(--paper2);border:1.5px dashed var(--edge2);border-radius:4px}
+.demo-slots.is-empty::after{content:attr(data-empty);font-family:var(--mono);font-size:.66rem;color:var(--ink3);letter-spacing:.03em;text-align:center;padding:8px}
+.demo-slot{padding:8px 4px;border:1.5px solid var(--edge2);border-radius:4px;background:var(--paper2);font-family:var(--mono);font-size:.65rem;letter-spacing:.01em;color:var(--ink2);cursor:pointer;text-align:center;transition:background .15s,border-color .15s,color .15s}
 .demo-slot:hover{border-color:var(--ink);color:var(--ink)}
 .demo-slot.is-selected{background:var(--stampwash);border-color:var(--stamp);color:var(--stamp2);font-weight:700}
-.demo-slot:disabled{opacity:.45;cursor:not-allowed}
-.demo-status{font-family:var(--mono);font-size:.72rem;color:var(--ink3);letter-spacing:.03em;min-height:1.2em;margin-top:4px}
+.demo-form-foot{display:flex;align-items:center;gap:14px;margin-top:2px;flex-wrap:wrap}
+.demo-form-foot .btn{flex:1;min-width:180px;justify-content:center;padding:12px 18px;font-size:.78rem}
+.demo-status{font-family:var(--mono);font-size:.68rem;color:var(--ink3);letter-spacing:.03em;min-height:1.1em;flex:1}
 .demo-status.is-error{color:var(--stamp2)}
 .demo-status.is-ok{color:var(--ok)}
-.demo-success{border:1.5px dashed var(--ok);border-radius:6px;padding:22px;background:rgba(46,107,69,.08)}
-.demo-success h3{color:var(--ok);font-size:1.25rem;margin-bottom:10px}
-.demo-success p{font-size:.95rem;margin-bottom:14px}
-.demo-links{display:flex;flex-direction:column;gap:10px;margin-top:16px}
-.demo-links a{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--stamp);text-decoration:underline;text-underline-offset:3px}
-.demo-perks{list-style:none;display:flex;flex-direction:column;gap:12px;margin-top:18px}
-.demo-perks li{display:flex;gap:10px;font-size:.92rem;color:var(--ink2)}
-.demo-perks .ck{font-family:var(--mono);font-weight:700;color:var(--stamp);flex:0 0 auto}
-.demo-unavail{border:1.5px dashed var(--edge2);border-radius:6px;padding:18px;font-family:var(--mono);font-size:.78rem;color:var(--ink3);line-height:1.55}
+.demo-success{border:1.5px dashed var(--ok);border-radius:6px;padding:20px;background:rgba(46,107,69,.08)}
+.demo-success h3{color:var(--ok);font-size:1.15rem;margin-bottom:8px}
+.demo-success p{font-size:.92rem;margin-bottom:12px}
+.demo-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+.demo-links a{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--stamp);text-decoration:underline;text-underline-offset:3px}
+.demo-unavail{border:1.5px dashed var(--edge2);border-radius:6px;padding:16px;font-family:var(--mono);font-size:.76rem;color:var(--ink3);line-height:1.55}
 
 /* FOOTER */
 footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:48px 0 34px}
@@ -466,8 +489,10 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   .stop .seal{margin:0}
   .kpis{grid-template-columns:repeat(2,1fr)}
   .dl-steps{grid-template-columns:1fr}
-  .demo-grid{grid-template-columns:1fr}
-  .demo-slots{grid-template-columns:repeat(2,1fr)}
+  .demo-layout{grid-template-columns:1fr}
+  .demo-row-2{grid-template-columns:1fr}
+  .demo-slots{grid-template-columns:repeat(3,1fr);max-height:none}
+  .demo-slots.is-empty{min-height:56px}
   .foot{grid-template-columns:1fr}
   .foot-bot{text-align:left;margin-top:8px}
 }
@@ -853,60 +878,77 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 <!-- AGENDAR DEMO -->
 <section class="section demo-section" id="demo">
   <div class="wrap">
-    <div class="shead">
-      <span class="eyebrow">Demo en vivo</span>
-      <h2>Agendá una reunión de 30 minutos.</h2>
-      <p>Elegí día y horario. Te creamos el evento en Google Calendar con link de Google Meet y te mandamos la invitación por email.</p>
+    <div class="demo-header">
+      <div>
+        <span class="eyebrow">Demo en vivo</span>
+        <h2>30 minutos con Posta</h2>
+      </div>
+      <p class="demo-sub">Google Meet · lun–vie · ART</p>
     </div>
 
-    <div class="demo-grid">
-      <div>
-        <div class="ficha r2" style="box-shadow:5px 6px 0 var(--shadow)">
-          <span class="tab">Qué incluye</span>
-          <h3 style="margin-top:20px">Recorrido guiado de Posta</h3>
-          <ul class="demo-perks">
-            <li><span class="ck">✓</span>Panel de agencia, mapa en vivo y asignación de repartidores.</li>
-            <li><span class="ck">✓</span>App repartidor, GPS y flujo de entrega de punta a punta.</li>
-            <li><span class="ck">✓</span>Integraciones con Mercado Libre y Tienda Nube.</li>
-            <li><span class="ck">✓</span>Tus preguntas sobre operación, zonas y tarifas.</li>
-          </ul>
-        </div>
+    <div class="demo-card" id="demoCard">
+      <div class="demo-perks-row" aria-hidden="true">
+        <span class="demo-chip">Mapa en vivo</span>
+        <span class="demo-chip">App repartidor</span>
+        <span class="demo-chip">Mercado Libre</span>
+        <span class="demo-chip">Tienda Nube</span>
+        <span class="demo-chip">Q&amp;A operación</span>
       </div>
 
-      <div class="demo-card" id="demoCard">
-        <div id="demoFormWrap">
-          <h3>Reservá tu horario</h3>
-          <p>Horario Argentina (ART) · lun a vie · 30 minutos · Google Meet</p>
-          <form class="demo-form" id="demoForm" novalidate>
-            <div class="demo-field">
-              <label for="demoName">Nombre</label>
-              <input id="demoName" name="name" type="text" autocomplete="name" required placeholder="Tu nombre">
+      <div id="demoFormWrap">
+        <form class="demo-form" id="demoForm" novalidate>
+          <div class="demo-layout">
+            <div class="demo-picker">
+              <div class="demo-cal" id="demoCal">
+                <div class="demo-cal-head">
+                  <div class="demo-cal-nav">
+                    <button type="button" id="demoCalPrev" aria-label="Mes anterior">‹</button>
+                  </div>
+                  <span class="demo-cal-title" id="demoCalTitle">—</span>
+                  <div class="demo-cal-nav">
+                    <button type="button" id="demoCalNext" aria-label="Mes siguiente">›</button>
+                  </div>
+                </div>
+                <div class="demo-cal-weekdays" aria-hidden="true">
+                  <span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sa</span><span>Do</span>
+                </div>
+                <div class="demo-cal-grid" id="demoCalGrid" role="grid" aria-label="Elegir fecha"></div>
+              </div>
+              <input type="hidden" id="demoDate" name="date">
+              <p class="demo-selected-date" id="demoSelectedDate">Elegí un día disponible</p>
             </div>
-            <div class="demo-field">
-              <label for="demoEmail">Email</label>
-              <input id="demoEmail" name="email" type="email" autocomplete="email" required placeholder="tu@empresa.com">
+
+            <div class="demo-book">
+              <div class="demo-row-2">
+                <div class="demo-field">
+                  <label for="demoName">Nombre</label>
+                  <input id="demoName" name="name" type="text" autocomplete="name" required placeholder="Tu nombre">
+                </div>
+                <div class="demo-field">
+                  <label for="demoEmail">Email</label>
+                  <input id="demoEmail" name="email" type="email" autocomplete="email" required placeholder="tu@empresa.com">
+                </div>
+              </div>
+              <div class="demo-field">
+                <label for="demoCompany">Empresa <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+                <input id="demoCompany" name="company" type="text" autocomplete="organization" placeholder="Tu agencia o tienda">
+              </div>
+              <div class="demo-slots-wrap">
+                <span class="demo-field" style="font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);font-weight:700">Horario</span>
+                <div class="demo-slots is-empty" id="demoSlots" data-empty="Elegí una fecha para ver horarios" aria-live="polite"></div>
+                <p class="demo-status" id="demoSlotsStatus"></p>
+              </div>
+              <div class="demo-form-foot">
+                <button type="submit" class="btn btn-stamp" id="demoSubmit" disabled>Confirmar demo <span class="arrow">→</span></button>
+                <p class="demo-status" id="demoFormStatus"></p>
+              </div>
             </div>
-            <div class="demo-field">
-              <label for="demoCompany">Empresa (opcional)</label>
-              <input id="demoCompany" name="company" type="text" autocomplete="organization" placeholder="Nombre de tu agencia o tienda">
-            </div>
-            <div class="demo-field">
-              <label for="demoDate">Fecha</label>
-              <input id="demoDate" name="date" type="date" required>
-            </div>
-            <div class="demo-field">
-              <label>Horario disponible</label>
-              <div class="demo-slots" id="demoSlots" aria-live="polite"></div>
-              <p class="demo-status" id="demoSlotsStatus">Elegí una fecha para ver horarios.</p>
-            </div>
-            <button type="submit" class="btn btn-stamp" id="demoSubmit" disabled>Confirmar demo <span class="arrow">→</span></button>
-            <p class="demo-status" id="demoFormStatus"></p>
-          </form>
-        </div>
-        <div id="demoSuccess" hidden></div>
-        <div id="demoUnavailable" class="demo-unavail" hidden>
-          El agendado online todavía no está activo en este entorno. Escribinos a <a href="mailto:contacto@enviosposta.com.ar">contacto@enviosposta.com.ar</a> y coordinamos la demo.
-        </div>
+          </div>
+        </form>
+      </div>
+      <div id="demoSuccess" hidden></div>
+      <div id="demoUnavailable" class="demo-unavail" hidden>
+        El agendado online todavía no está activo. Escribinos a <a href="mailto:contacto@enviosposta.com.ar">contacto@enviosposta.com.ar</a>.
       </div>
     </div>
   </div>
@@ -1058,13 +1100,48 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     var successEl = document.getElementById('demoSuccess');
     var unavailableEl = document.getElementById('demoUnavailable');
     var dateInput = document.getElementById('demoDate');
+    var calGrid = document.getElementById('demoCalGrid');
+    var calTitle = document.getElementById('demoCalTitle');
+    var calPrev = document.getElementById('demoCalPrev');
+    var calNext = document.getElementById('demoCalNext');
+    var selectedDateEl = document.getElementById('demoSelectedDate');
     var slotsEl = document.getElementById('demoSlots');
     var slotsStatus = document.getElementById('demoSlotsStatus');
     var formStatus = document.getElementById('demoFormStatus');
     var submitBtn = document.getElementById('demoSubmit');
-    if (!form || !dateInput || !slotsEl) return;
+    if (!form || !dateInput || !slotsEl || !calGrid) return;
 
     var selectedStart = null;
+    var viewYear = 0;
+    var viewMonth = 0;
+    var minDate = '';
+    var maxDate = '';
+
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+    function toIso(y, m, d) { return y + '-' + pad(m) + '-' + pad(d); }
+
+    function minBookableDate() {
+      var d = new Date();
+      d.setDate(d.getDate() + 1);
+      return toIso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    }
+
+    function maxBookableDate() {
+      var d = new Date();
+      d.setDate(d.getDate() + 14);
+      return toIso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    }
+
+    function isWeekend(y, m, d) {
+      var day = new Date(y, m - 1, d).getDay();
+      return day === 0 || day === 6;
+    }
+
+    function isBookable(iso) {
+      if (!iso || iso < minDate || iso > maxDate) return false;
+      var p = iso.split('-').map(Number);
+      return !isWeekend(p[0], p[1], p[2]);
+    }
 
     function setFormStatus(msg, type) {
       if (!formStatus) return;
@@ -1079,33 +1156,107 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     }
 
     function formatDisplayDate(isoDate) {
-      var parts = isoDate.split('-').map(Number);
-      var dt = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+      var p = isoDate.split('-').map(Number);
+      var dt = new Date(p[0], p[1] - 1, p[2], 12, 0, 0);
       return dt.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
     }
 
-    function minBookableDate() {
-      var d = new Date();
-      d.setDate(d.getDate() + 1);
-      return d.toISOString().slice(0, 10);
+    function monthHasBookableDays(year, month) {
+      var daysInMonth = new Date(year, month, 0).getDate();
+      for (var d = 1; d <= daysInMonth; d++) {
+        if (isBookable(toIso(year, month, d))) return true;
+      }
+      return false;
     }
 
-    function maxBookableDate() {
-      var d = new Date();
-      d.setDate(d.getDate() + 14);
-      return d.toISOString().slice(0, 10);
+    function renderCalendar() {
+      if (!calGrid || !calTitle) return;
+      calGrid.innerHTML = '';
+      calTitle.textContent = new Date(viewYear, viewMonth - 1, 1).toLocaleDateString('es-AR', {
+        month: 'long',
+        year: 'numeric'
+      });
+
+      var firstDay = new Date(viewYear, viewMonth - 1, 1);
+      var startOffset = (firstDay.getDay() + 6) % 7;
+      var daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
+      var totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+      if (calPrev) {
+        var prevMonth = viewMonth === 1 ? 12 : viewMonth - 1;
+        var prevYear = viewMonth === 1 ? viewYear - 1 : viewYear;
+        calPrev.disabled = !monthHasBookableDays(prevYear, prevMonth);
+      }
+      if (calNext) {
+        var nextMonth = viewMonth === 12 ? 1 : viewMonth + 1;
+        var nextYear = viewMonth === 12 ? viewYear + 1 : viewYear;
+        calNext.disabled = !monthHasBookableDays(nextYear, nextMonth);
+      }
+
+      for (var i = 0; i < totalCells; i++) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'demo-cal-day';
+        btn.setAttribute('role', 'gridcell');
+
+        var dayNum = i - startOffset + 1;
+        if (dayNum < 1 || dayNum > daysInMonth) {
+          btn.classList.add('is-other');
+          btn.tabIndex = -1;
+          calGrid.appendChild(btn);
+          continue;
+        }
+
+        var iso = toIso(viewYear, viewMonth, dayNum);
+        btn.textContent = String(dayNum);
+        btn.dataset.date = iso;
+
+        if (!isBookable(iso)) {
+          btn.classList.add('is-disabled');
+          btn.disabled = true;
+        } else {
+          btn.addEventListener('click', function () {
+            selectDate(this.dataset.date);
+          });
+        }
+
+        if (dateInput.value === iso) btn.classList.add('is-selected');
+        calGrid.appendChild(btn);
+      }
     }
 
-    dateInput.min = minBookableDate();
-    dateInput.max = maxBookableDate();
+    function selectDate(iso) {
+      if (!isBookable(iso)) return;
+      dateInput.value = iso;
+      selectedStart = null;
+      if (submitBtn) submitBtn.disabled = true;
+
+      if (selectedDateEl) {
+        selectedDateEl.textContent = formatDisplayDate(iso);
+        selectedDateEl.classList.add('is-set');
+      }
+
+      renderCalendar();
+      loadSlots(iso);
+    }
+
+    function resetSlotsEmpty() {
+      slotsEl.innerHTML = '';
+      slotsEl.classList.add('is-empty');
+      slotsEl.setAttribute('data-empty', 'Elegí una fecha para ver horarios');
+      setSlotsStatus('');
+    }
 
     function renderSlots(slots) {
       slotsEl.innerHTML = '';
+      slotsEl.classList.remove('is-empty');
       selectedStart = null;
       if (submitBtn) submitBtn.disabled = true;
 
       if (!slots.length) {
-        setSlotsStatus('No hay horarios libres ese día. Probá otra fecha.', 'error');
+        slotsEl.classList.add('is-empty');
+        slotsEl.setAttribute('data-empty', 'Sin horarios ese día');
+        setSlotsStatus('Probá otra fecha.', 'error');
         return;
       }
 
@@ -1125,36 +1276,65 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
         });
         slotsEl.appendChild(btn);
       });
-      setSlotsStatus(slots.length + ' horario' + (slots.length === 1 ? '' : 's') + ' disponible' + (slots.length === 1 ? '' : 's') + '.', 'ok');
+      setSlotsStatus(slots.length + ' disponible' + (slots.length === 1 ? '' : 's'), 'ok');
     }
 
     function loadSlots(date) {
       selectedStart = null;
       if (submitBtn) submitBtn.disabled = true;
       slotsEl.innerHTML = '';
-      setSlotsStatus('Cargando horarios…');
+      slotsEl.classList.add('is-empty');
+      slotsEl.setAttribute('data-empty', 'Cargando…');
+      setSlotsStatus('');
 
       fetch(DEMO_API.base + '/slots?date=' + encodeURIComponent(date))
         .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
         .then(function (result) {
           if (!result.ok) {
-            setSlotsStatus(result.data.message || 'No pudimos cargar los horarios.', 'error');
+            slotsEl.classList.add('is-empty');
+            slotsEl.setAttribute('data-empty', result.data.message || 'Error al cargar');
+            setSlotsStatus('', 'error');
             return;
           }
           renderSlots(result.data.slots || []);
         })
         .catch(function () {
-          setSlotsStatus('Error de conexión. Intentá de nuevo.', 'error');
+          slotsEl.classList.add('is-empty');
+          slotsEl.setAttribute('data-empty', 'Error de conexión');
+          setSlotsStatus('', 'error');
         });
     }
 
-    dateInput.addEventListener('change', function () {
-      if (!dateInput.value) return;
-      loadSlots(dateInput.value);
-    });
+    minDate = minBookableDate();
+    maxDate = maxBookableDate();
+    var minParts = minDate.split('-').map(Number);
+    viewYear = minParts[0];
+    viewMonth = minParts[1];
+    resetSlotsEmpty();
+
+    if (calPrev) {
+      calPrev.addEventListener('click', function () {
+        viewMonth -= 1;
+        if (viewMonth < 1) { viewMonth = 12; viewYear -= 1; }
+        renderCalendar();
+      });
+    }
+    if (calNext) {
+      calNext.addEventListener('click', function () {
+        viewMonth += 1;
+        if (viewMonth > 12) { viewMonth = 1; viewYear += 1; }
+        renderCalendar();
+      });
+    }
+
+    renderCalendar();
 
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
+      if (!dateInput.value) {
+        setFormStatus('Elegí una fecha.', 'error');
+        return;
+      }
       if (!selectedStart) {
         setFormStatus('Elegí un horario.', 'error');
         return;
@@ -1166,7 +1346,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
       if (!name || !email) return;
 
       if (submitBtn) submitBtn.disabled = true;
-      setFormStatus('Agendando demo…');
+      setFormStatus('Agendando…');
 
       fetch(DEMO_API.base + '/book', {
         method: 'POST',
@@ -1181,7 +1361,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
         .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
         .then(function (result) {
           if (!result.ok) {
-            setFormStatus(result.data.message || 'No pudimos agendar la demo.', 'error');
+            setFormStatus(result.data.message || 'No pudimos agendar.', 'error');
             if (submitBtn) submitBtn.disabled = false;
             if (result.data.error === 'SLOT_UNAVAILABLE' && dateInput.value) {
               loadSlots(dateInput.value);
@@ -1190,24 +1370,25 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
           }
 
           if (formWrap) formWrap.hidden = true;
+          var perks = document.querySelector('.demo-perks-row');
+          if (perks) perks.hidden = true;
           if (successEl) {
             successEl.hidden = false;
             var meetHtml = result.data.meetLink
-              ? '<a href="' + result.data.meetLink + '" target="_blank" rel="noopener noreferrer">Unirse a Google Meet</a>'
+              ? '<a href="' + result.data.meetLink + '" target="_blank" rel="noopener noreferrer">Unirse a Meet</a>'
               : '';
             successEl.innerHTML =
               '<div class="demo-success">' +
               '<h3>¡Demo agendada!</h3>' +
-              '<p>Te enviamos la invitación a <strong>' + email.value.trim() + '</strong> para el <strong>' +
-              formatDisplayDate(dateInput.value) + '</strong> a las <strong>' + result.data.label + '</strong> (ART).</p>' +
-              '<div class="demo-links">' +
-              meetHtml +
-              '<a href="' + result.data.htmlLink + '" target="_blank" rel="noopener noreferrer">Ver en Google Calendar</a>' +
+              '<p>Invitación enviada a <strong>' + email.value.trim() + '</strong> · ' +
+              formatDisplayDate(dateInput.value) + ' · ' + result.data.label + ' ART</p>' +
+              '<div class="demo-links">' + meetHtml +
+              '<a href="' + result.data.htmlLink + '" target="_blank" rel="noopener noreferrer">Google Calendar</a>' +
               '</div></div>';
           }
         })
         .catch(function () {
-          setFormStatus('Error de conexión. Intentá de nuevo.', 'error');
+          setFormStatus('Error de conexión.', 'error');
           if (submitBtn) submitBtn.disabled = false;
         });
     });
@@ -1217,11 +1398,15 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
       .then(function (data) {
         if (!data.configured) {
           if (formWrap) formWrap.hidden = true;
+          var perks = document.querySelector('.demo-perks-row');
+          if (perks) perks.hidden = true;
           if (unavailableEl) unavailableEl.hidden = false;
         }
       })
       .catch(function () {
         if (formWrap) formWrap.hidden = true;
+        var perks = document.querySelector('.demo-perks-row');
+        if (perks) perks.hidden = true;
         if (unavailableEl) unavailableEl.hidden = false;
       });
   })();
