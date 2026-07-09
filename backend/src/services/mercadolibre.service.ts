@@ -13,6 +13,7 @@ import {
   type StoreIntegration,
 } from './integrations.service.js';
 import { UserRole } from '../types/index.js';
+import { deliveryDeadlineFromIsoDate } from '../utils/delivery-deadline.js';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_FETCH_TIMEOUT_MS = 20_000;
@@ -375,6 +376,48 @@ export async function fetchMercadoLibreShipment(
   mlShipmentId: string
 ): Promise<MlShipment> {
   return mlFetch<MlShipment>(integration, `/shipments/${mlShipmentId}`);
+}
+
+interface MlShipmentLeadTime {
+  estimated_delivery_time?: { date?: string };
+  estimated_delivery_final?: { date?: string };
+  estimated_delivery_limit?: { date?: string };
+}
+
+export async function fetchMercadoLibreShipmentLeadTime(
+  integration: StoreIntegration,
+  shipmentId: string
+): Promise<MlShipmentLeadTime | null> {
+  try {
+    return await mlFetch<MlShipmentLeadTime>(
+      integration,
+      `/shipments/${shipmentId}/lead_time`,
+      { quietStatuses: [404] }
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Fecha prometida al comprador según ML (lead_time). */
+export function parseMercadoLibreDeliveryDeadline(
+  leadTime: MlShipmentLeadTime | null
+): Date | null {
+  if (!leadTime) return null;
+  const iso =
+    leadTime.estimated_delivery_final?.date ??
+    leadTime.estimated_delivery_limit?.date ??
+    leadTime.estimated_delivery_time?.date;
+  if (!iso) return null;
+  return deliveryDeadlineFromIsoDate(iso);
+}
+
+export async function resolveMercadoLibreFlexDeliveryDeadline(
+  integration: StoreIntegration,
+  shipmentId: string
+): Promise<Date | null> {
+  const leadTime = await fetchMercadoLibreShipmentLeadTime(integration, shipmentId);
+  return parseMercadoLibreDeliveryDeadline(leadTime);
 }
 
 export interface MlFlexAssignment {

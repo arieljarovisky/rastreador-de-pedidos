@@ -12,7 +12,7 @@ import {
 } from '../types/index.js';
 import { getRepartidorById, getUserById, updateUserLocation, assertSellerInAgency } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
-import { computeDeliveryDeadline } from '../utils/delivery-deadline.js';
+import { computeDeliveryDeadline, getOperationalDateKey } from '../utils/delivery-deadline.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -232,11 +232,12 @@ export async function createOrder(
     historyComment?: string;
     historyLat?: number;
     historyLng?: number;
+    deliveryDeadline?: Date;
   }
 ): Promise<Order> {
   const newId = await generateNextOrderId();
   const now = new Date();
-  const deliveryDeadline = computeDeliveryDeadline(now);
+  const deliveryDeadline = data.deliveryDeadline ?? computeDeliveryDeadline(now);
 
   let sellerId: string | null = null;
   let agencyId: string | null = null;
@@ -446,6 +447,28 @@ export async function appendOrderMarketplaceComment(
     [orderId, order.status, 'Mercado Libre', comment, now]
   );
   await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [now, orderId]);
+  return getOrderById(orderId);
+}
+
+/** Actualiza el corte de entrega si ML promete otro día operativo. */
+export async function updateOrderDeliveryDeadlineIfNeeded(
+  orderId: string,
+  newDeadline: Date
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+
+  const current = order.deliveryDeadline ? new Date(order.deliveryDeadline) : null;
+  if (current && getOperationalDateKey(current) === getOperationalDateKey(newDeadline)) {
+    return null;
+  }
+
+  const now = new Date();
+  await pool.query('UPDATE orders SET delivery_deadline = ?, updated_at = ? WHERE id = ?', [
+    newDeadline,
+    now,
+    orderId,
+  ]);
   return getOrderById(orderId);
 }
 

@@ -21,6 +21,7 @@ import {
   getValidMercadoLibreIntegration,
   mapMercadoLibreShipmentToOrderStatus,
   parseMercadoLibreNotificationResource,
+  resolveMercadoLibreFlexDeliveryDeadline,
   type MercadoLibreFlexShipment,
   type MlFlexAssignment,
 } from './mercadolibre.service.js';
@@ -257,8 +258,11 @@ async function importFlexShipment(
     ? await findImportedMercadoLibreFlexGlobal(shipment)
     : await findImportedMercadoLibreFlex(integration.userId, shipment);
   if (existing) {
-    flexScanLog('envío ya importado', { orderId: existing.id, mlShipmentId: shipment.externalId });
-    return existing.id;
+    const synced = await syncMercadoLibreOrderAfterImport(integration.userId, existing, shipment);
+    const sellerId = await getSellerIdForOrder(synced.id);
+    emitOrderUpdated(synced, sellerId);
+    flexScanLog('envío ya importado', { orderId: synced.id, mlShipmentId: shipment.externalId });
+    return synced.id;
   }
 
   let lat = shipment.lat;
@@ -280,6 +284,11 @@ async function importFlexShipment(
     ? (await getAgencyOperatorForImport(seller.agencyId!)) ?? seller
     : seller;
 
+  const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(
+    integration,
+    shipment.externalId
+  );
+
   let order = await createOrder(orderCreator, {
     clientName: shipment.clientName,
     clientPhone: shipment.clientPhone,
@@ -290,6 +299,7 @@ async function importFlexShipment(
     externalSource: 'mercadolibre',
     externalOrderId: shipment.externalId,
     shippingType: 'flex',
+    deliveryDeadline: mlDeadline ?? undefined,
     sellerId: agencyMode ? undefined : seller.id,
     historyComment: agencyMode
       ? `Importado automáticamente desde ML (cuenta de la agencia) · envío #${shipment.externalId}`

@@ -10,6 +10,7 @@ import {
   assertOrderAccessibleForLabelScan,
   updateOrderStatus,
   applyMercadoLibreSyncState,
+  updateOrderDeliveryDeadlineIfNeeded,
 } from './orders.service.js';
 import {
   listMercadoLibreFlexShipments,
@@ -25,6 +26,7 @@ import {
   resolveMercadoLibreFlexAssignment,
   formatMlShipmentStatusLabel,
   mapMercadoLibreShipmentToOrderStatus,
+  resolveMercadoLibreFlexDeliveryDeadline,
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import {
@@ -134,6 +136,13 @@ export async function syncMercadoLibreOrderAfterImport(
     const mlStatus = liveShipment.status ?? flex.mlShipmentStatus;
     const mlSubstatus = liveShipment.substatus ?? flex.mlShipmentSubstatus ?? null;
 
+    let currentOrder = order;
+    const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(integration, flex.externalId);
+    if (mlDeadline) {
+      const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(order.id, mlDeadline);
+      if (withDeadline) currentOrder = withDeadline;
+    }
+
     let repartidorId: string | null = null;
     if (order.agencyId) {
       const assignment = await fetchMercadoLibreFlexAssignment(
@@ -155,10 +164,10 @@ export async function syncMercadoLibreOrderAfterImport(
       onImport: true,
     });
     if (!targetStatus) {
-      return order;
+      return currentOrder;
     }
     if (targetStatus === OrderStatus.PENDING && !repartidorId) {
-      return order;
+      return currentOrder;
     }
 
     const statusLabel = formatMlShipmentStatusLabel({
@@ -169,12 +178,12 @@ export async function syncMercadoLibreOrderAfterImport(
       ? `Importado desde ML · estado ${statusLabel} · repartidor sincronizado`
       : `Importado desde ML · estado ${statusLabel}`;
 
-    const updated = await applyMercadoLibreSyncState(order.id, {
+    const updated = await applyMercadoLibreSyncState(currentOrder.id, {
       status: targetStatus,
       repartidorId,
       comment,
     });
-    return updated ?? order;
+    return updated ?? currentOrder;
   } catch (err) {
     console.warn('[ml-import] No se pudo sincronizar estado ML:', err);
     return order;
@@ -397,6 +406,12 @@ async function importMercadoLibreFlexShipment(
       lng = geocoded.lng;
     }
 
+    const integration = await getValidMercadoLibreIntegration(mlUserId);
+    const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(
+      integration,
+      shipment.externalId
+    );
+
     let order = await createOrder(user, {
       clientName: shipment.clientName,
       clientPhone: shipment.clientPhone,
@@ -407,6 +422,7 @@ async function importMercadoLibreFlexShipment(
       externalSource: 'mercadolibre',
       externalOrderId: shipment.externalId,
       shippingType: 'flex',
+      deliveryDeadline: mlDeadline ?? undefined,
       historyComment: agencyMode
         ? `Importado desde ML (cuenta de la agencia) · envío #${shipment.externalId}`
         : undefined,
@@ -1029,6 +1045,10 @@ export async function importMercadoLibreByScanForAgency(
     }
 
     const seller = isAgencyAccount ? null : await getUserById(validIntegration.userId);
+    const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(
+      validIntegration,
+      flex.externalId
+    );
     let order = await createOrder(user, {
       clientName: flex.clientName,
       clientPhone: flex.clientPhone,
@@ -1040,6 +1060,7 @@ export async function importMercadoLibreByScanForAgency(
       externalSource: flex.platform,
       externalOrderId: flex.externalId,
       shippingType: flex.shippingType,
+      deliveryDeadline: mlDeadline ?? undefined,
       historyComment: isAgencyAccount
         ? `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (cuenta de la agencia)`
         : `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,

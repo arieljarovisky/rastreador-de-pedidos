@@ -84,6 +84,19 @@ export function getTodayDeadline(): Date {
   return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
 }
 
+/** Corte 21:00 AR para un día operativo YYYY-MM-DD. */
+export function deliveryDeadlineForOperationalDate(dateKey: string): Date {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
+}
+
+/** Convierte una fecha ISO de ML al corte operativo de Posta (21:00 AR ese día). */
+export function deliveryDeadlineFromIsoDate(isoDate: string): Date | null {
+  const parsed = new Date(isoDate);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return deliveryDeadlineForOperationalDate(getOperationalDateKey(parsed));
+}
+
 export function getArHourMinute(date: Date = new Date()): { hour: number; minute: number } {
   const { hour, minute } = getArDateParts(date);
   return { hour, minute };
