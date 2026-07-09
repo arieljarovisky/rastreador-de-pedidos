@@ -168,14 +168,18 @@ header{position:sticky;top:0;z-index:40;background:var(--header-bg);backdrop-fil
 header.is-scrolled .topstrip{border-bottom-color:transparent}
 header.is-scrolled .topstrip-inner{grid-template-rows:0fr}
 header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;pointer-events:none}
-.nav{display:flex;align-items:center;justify-content:space-between;height:62px}
-.brand{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:700;font-size:1.4rem;letter-spacing:-.03em}
+.nav{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:clamp(16px,3vw,32px);height:64px;min-height:64px}
+.brand{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:700;font-size:1.4rem;letter-spacing:-.03em;flex-shrink:0}
 .brand .mk{color:var(--ink)}
 .brand .mk .brand-stamp{stroke:var(--stamp);fill:var(--stamp)}
-.navlinks{display:flex;align-items:center;gap:26px}
-.navlinks a{font-family:var(--mono);font-size:.76rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);transition:color .15s}
+.navlinks{display:flex;align-items:center;justify-content:center;gap:clamp(12px,1.8vw,26px);min-width:0}
+.navlinks a{font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);transition:color .15s;white-space:nowrap}
 .navlinks a:hover{color:var(--stamp)}
-.navcta{display:flex;align-items:center;gap:13px}
+.navcta{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.nav-util{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);white-space:nowrap;padding-right:12px;margin-right:2px;border-right:1px solid var(--edge);transition:color .15s}
+.nav-util:hover{color:var(--stamp)}
+.navcta .btn-nav{padding:11px 16px;font-size:.72rem}
+.navcta .btn-nav.btn-stamp{padding:11px 18px}
 .theme-toggle{display:flex;align-items:center;justify-content:center;background:none;border:1.5px solid var(--ink);border-radius:4px;width:42px;height:42px;cursor:pointer;color:var(--ink);flex:0 0 auto;transition:background .15s ease,color .15s ease,border-color .2s ease}
 .theme-toggle:hover{background:var(--paper2)}
 .theme-toggle svg{width:18px;height:18px}
@@ -422,6 +426,13 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   .topstrip .wrap{transition:none}
 }
 
+@media (max-width:1080px){
+  .navlinks{display:none}
+  .nav-util{display:none}
+  .navcta .btn-nav{display:none}
+  .burger{display:flex;align-items:center;justify-content:center}
+  .nav{grid-template-columns:auto 1fr auto;gap:16px}
+}
 @media (max-width:900px){
   :root{--pad-x:clamp(28px,7vw,44px)}
   .hero{overflow:visible}
@@ -436,9 +447,8 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
 }
 @media (max-width:620px){
   :root{--pad-x:clamp(24px,8vw,40px)}
-  .navlinks,.navcta .btn,.navcta .nav-dl{display:none}
   .burger{display:flex;align-items:center;justify-content:center}
-  .nav{height:56px}
+  .nav{height:56px;min-height:56px}
   .topstrip{font-size:.6rem;letter-spacing:.12em}
   .topstrip .wrap{flex-direction:column;align-items:flex-start;gap:5px}
   .hero-grid{padding-top:28px;padding-bottom:48px}
@@ -487,23 +497,21 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
       </span>
       Posta
     </a>
-    <nav class="navlinks">
+    <nav class="navlinks" aria-label="Secciones">
       <a href="#porque">Por qué</a>
       <a href="#roles">Roles</a>
       <a href="#recorrido">Recorrido</a>
       <a href="#descargar">App</a>
-      <a href="#demo">Demo</a>
       <a href="#precios">Precios</a>
-      <a href="/seguimiento">Seguí tu envío</a>
     </nav>
     <div class="navcta">
+      <a href="/seguimiento" class="nav-util">Seguí tu envío</a>
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Activar modo oscuro">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
-      <a href="#descargar" class="navlinks nav-dl" style="font-family:var(--mono);font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2)">Descargar app</a>
-      <a href="/app" class="btn btn-ink">Iniciar sesión</a>
-      <a href="#demo" class="btn btn-stamp nav-dl">Agendar demo</a>
+      <a href="/app" class="btn btn-ink btn-nav">Iniciar sesión</a>
+      <a href="#demo" class="btn btn-stamp btn-nav">Agendar demo</a>
       <button class="burger" id="burger" aria-label="Abrir menú">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
@@ -515,8 +523,8 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     <a href="#recorrido">Recorrido</a>
     <a href="#descargar">Descargar app</a>
     <a href="#precios">Precios</a>
-    <a href="#demo">Agendar demo</a>
     <a href="/seguimiento">Seguí tu envío</a>
+    <a href="#demo" class="btn btn-stamp">Agendar demo</a>
     <a href="/app" class="btn btn-ink">Iniciar sesión</a>
   </div>
 </header>
