@@ -18,6 +18,7 @@
     "db:clear-orders": "tsx src/db/clear-orders.ts",
     "db:purge-legacy-zones": "tsx src/db/purge-legacy-zones.ts",
     "db:reset-password": "tsx src/db/reset-password.ts",
+    "google:token": "tsx scripts/get-google-calendar-token.ts",
     "lint": "node ./node_modules/typescript/lib/tsc.js --noEmit"
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.14.1",
     "socket.io": "^4.8.1",

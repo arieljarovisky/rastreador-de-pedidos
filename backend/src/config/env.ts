@@ -90,4 +90,17 @@ export const env = {
     webhookSecret: process.env.MP_WEBHOOK_SECRET?.trim() || '',
     trialDays: Number(process.env.SUBSCRIPTION_TRIAL_DAYS || '14') || 14,
   },
+  googleCalendar: {
+    calendarId: process.env.GOOGLE_CALENDAR_ID?.trim() || '',
+    timezone: process.env.DEMO_TIMEZONE?.trim() || 'America/Argentina/Buenos_Aires',
+    slotDurationMinutes: Number(process.env.DEMO_SLOT_MINUTES || '30') || 30,
+    workdayStartHour: Number(process.env.DEMO_WORKDAY_START || '9') || 9,
+    workdayEndHour: Number(process.env.DEMO_WORKDAY_END || '18') || 18,
+    bookingDaysAhead: Number(process.env.DEMO_BOOKING_DAYS_AHEAD || '14') || 14,
+    serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() || '',
+    serviceAccountPrivateKey: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.trim() || '',
+    clientId: process.env.GOOGLE_CLIENT_ID?.trim() || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim() || '',
+    refreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN?.trim() || '',
+  },
 };

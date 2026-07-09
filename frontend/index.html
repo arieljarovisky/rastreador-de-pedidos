@@ -364,6 +364,36 @@ header.is-scrolled .topstrip .wrap{opacity:0;padding-top:0;padding-bottom:0;poin
 .dl-note{font-family:var(--mono);font-size:.72rem;color:var(--ink3);letter-spacing:.03em}
 .dl-warn{margin-top:14px;padding:12px 14px;border:1.5px dashed var(--stamp);border-radius:5px;background:var(--stampwash);font-family:var(--mono);font-size:.72rem;color:var(--ink2);line-height:1.5}
 
+/* DEMO BOOKING */
+.demo-section{background:var(--paper2);border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)}
+.demo-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:28px;align-items:start}
+.demo-card{background:var(--paper);border:1.5px solid var(--ink);border-radius:6px;padding:28px;box-shadow:5px 6px 0 var(--shadow)}
+.demo-card h3{font-size:1.35rem;margin-bottom:8px}
+.demo-card > p{font-size:.95rem;margin-bottom:22px}
+.demo-form{display:flex;flex-direction:column;gap:14px}
+.demo-field{display:flex;flex-direction:column;gap:6px}
+.demo-field label{font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);font-weight:700}
+.demo-field input,.demo-field textarea,.demo-field select{width:100%;padding:12px 14px;border:1.5px solid var(--edge2);border-radius:4px;background:var(--paper2);color:var(--ink);font-family:var(--body);font-size:.95rem;transition:border-color .15s,background .15s}
+.demo-field input:focus,.demo-field textarea:focus,.demo-field select:focus{outline:none;border-color:var(--stamp);background:var(--surface-hover)}
+.demo-field textarea{min-height:72px;resize:vertical}
+.demo-slots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.demo-slot{padding:11px 10px;border:1.5px solid var(--edge2);border-radius:4px;background:var(--paper2);font-family:var(--mono);font-size:.72rem;letter-spacing:.02em;color:var(--ink2);cursor:pointer;text-align:center;transition:background .15s,border-color .15s,color .15s,transform .12s}
+.demo-slot:hover{border-color:var(--ink);color:var(--ink)}
+.demo-slot.is-selected{background:var(--stampwash);border-color:var(--stamp);color:var(--stamp2);font-weight:700}
+.demo-slot:disabled{opacity:.45;cursor:not-allowed}
+.demo-status{font-family:var(--mono);font-size:.72rem;color:var(--ink3);letter-spacing:.03em;min-height:1.2em;margin-top:4px}
+.demo-status.is-error{color:var(--stamp2)}
+.demo-status.is-ok{color:var(--ok)}
+.demo-success{border:1.5px dashed var(--ok);border-radius:6px;padding:22px;background:rgba(46,107,69,.08)}
+.demo-success h3{color:var(--ok);font-size:1.25rem;margin-bottom:10px}
+.demo-success p{font-size:.95rem;margin-bottom:14px}
+.demo-links{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.demo-links a{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--stamp);text-decoration:underline;text-underline-offset:3px}
+.demo-perks{list-style:none;display:flex;flex-direction:column;gap:12px;margin-top:18px}
+.demo-perks li{display:flex;gap:10px;font-size:.92rem;color:var(--ink2)}
+.demo-perks .ck{font-family:var(--mono);font-weight:700;color:var(--stamp);flex:0 0 auto}
+.demo-unavail{border:1.5px dashed var(--edge2);border-radius:6px;padding:18px;font-family:var(--mono);font-size:.78rem;color:var(--ink3);line-height:1.55}
+
 /* FOOTER */
 footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:48px 0 34px}
 .foot{display:grid;grid-template-columns:1.7fr 1fr 1fr;gap:34px;margin-bottom:36px}
@@ -426,6 +456,8 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   .stop .seal{margin:0}
   .kpis{grid-template-columns:repeat(2,1fr)}
   .dl-steps{grid-template-columns:1fr}
+  .demo-grid{grid-template-columns:1fr}
+  .demo-slots{grid-template-columns:repeat(2,1fr)}
   .foot{grid-template-columns:1fr}
   .foot-bot{text-align:left;margin-top:8px}
 }
@@ -460,6 +492,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
       <a href="#roles">Roles</a>
       <a href="#recorrido">Recorrido</a>
       <a href="#descargar">App</a>
+      <a href="#demo">Demo</a>
       <a href="#precios">Precios</a>
       <a href="/seguimiento">Seguí tu envío</a>
     </nav>
@@ -470,6 +503,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
       </button>
       <a href="#descargar" class="navlinks nav-dl" style="font-family:var(--mono);font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2)">Descargar app</a>
       <a href="/app" class="btn btn-ink">Iniciar sesión</a>
+      <a href="#demo" class="btn btn-stamp nav-dl">Agendar demo</a>
       <button class="burger" id="burger" aria-label="Abrir menú">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
@@ -481,6 +515,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     <a href="#recorrido">Recorrido</a>
     <a href="#descargar">Descargar app</a>
     <a href="#precios">Precios</a>
+    <a href="#demo">Agendar demo</a>
     <a href="/seguimiento">Seguí tu envío</a>
     <a href="/app" class="btn btn-ink">Iniciar sesión</a>
   </div>
@@ -497,7 +532,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
       <p class="lead">Posta sigue cada moto en tiempo real, te arma la ruta por GPS y mantiene a tu agencia, tus tiendas y tus repartidores en la misma página. Sin planillas. Sin “¿dónde está mi pedido?”.</p>
       <div class="hero-cta">
         <a href="/app" class="btn btn-stamp">Iniciar sesión <span class="arrow">→</span></a>
-        <a href="/seguimiento" class="btn btn-ink">Seguí tu envío ML</a>
+        <a href="#demo" class="btn btn-ink">Agendar demo de 30 min</a>
         <a href="#descargar" class="btn btn-ink">Descargar app repartidor</a>
       </div>
       <p class="hero-note">// panel web para agencias y vendedores · app nativa para repartidores</p>
@@ -805,6 +840,72 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   </div>
 </div>
 
+<div class="perf"></div>
+
+<!-- AGENDAR DEMO -->
+<section class="section demo-section" id="demo">
+  <div class="wrap">
+    <div class="shead">
+      <span class="eyebrow">Demo en vivo</span>
+      <h2>Agendá una reunión de 30 minutos.</h2>
+      <p>Elegí día y horario. Te creamos el evento en Google Calendar con link de Google Meet y te mandamos la invitación por email.</p>
+    </div>
+
+    <div class="demo-grid">
+      <div>
+        <div class="ficha r2" style="box-shadow:5px 6px 0 var(--shadow)">
+          <span class="tab">Qué incluye</span>
+          <h3 style="margin-top:20px">Recorrido guiado de Posta</h3>
+          <ul class="demo-perks">
+            <li><span class="ck">✓</span>Panel de agencia, mapa en vivo y asignación de repartidores.</li>
+            <li><span class="ck">✓</span>App repartidor, GPS y flujo de entrega de punta a punta.</li>
+            <li><span class="ck">✓</span>Integraciones con Mercado Libre y Tienda Nube.</li>
+            <li><span class="ck">✓</span>Tus preguntas sobre operación, zonas y tarifas.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="demo-card" id="demoCard">
+        <div id="demoFormWrap">
+          <h3>Reservá tu horario</h3>
+          <p>Horario Argentina (ART) · lun a vie · 30 minutos · Google Meet</p>
+          <form class="demo-form" id="demoForm" novalidate>
+            <div class="demo-field">
+              <label for="demoName">Nombre</label>
+              <input id="demoName" name="name" type="text" autocomplete="name" required placeholder="Tu nombre">
+            </div>
+            <div class="demo-field">
+              <label for="demoEmail">Email</label>
+              <input id="demoEmail" name="email" type="email" autocomplete="email" required placeholder="tu@empresa.com">
+            </div>
+            <div class="demo-field">
+              <label for="demoCompany">Empresa (opcional)</label>
+              <input id="demoCompany" name="company" type="text" autocomplete="organization" placeholder="Nombre de tu agencia o tienda">
+            </div>
+            <div class="demo-field">
+              <label for="demoDate">Fecha</label>
+              <input id="demoDate" name="date" type="date" required>
+            </div>
+            <div class="demo-field">
+              <label>Horario disponible</label>
+              <div class="demo-slots" id="demoSlots" aria-live="polite"></div>
+              <p class="demo-status" id="demoSlotsStatus">Elegí una fecha para ver horarios.</p>
+            </div>
+            <button type="submit" class="btn btn-stamp" id="demoSubmit" disabled>Confirmar demo <span class="arrow">→</span></button>
+            <p class="demo-status" id="demoFormStatus"></p>
+          </form>
+        </div>
+        <div id="demoSuccess" hidden></div>
+        <div id="demoUnavailable" class="demo-unavail" hidden>
+          El agendado online todavía no está activo en este entorno. Escribinos a <a href="mailto:contacto@enviosposta.com.ar">contacto@enviosposta.com.ar</a> y coordinamos la demo.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="perf"></div>
+
 <!-- PRECIOS -->
 <section class="section" id="precios">
   <div class="wrap">
@@ -869,7 +970,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     <p>Creá tu cuenta y empezá a coordinar tu logística en minutos. <strong>14 días gratis</strong>, después pagás según tu cantidad de repartidores.</p>
     <div class="final-cta">
       <a href="/app" class="btn btn-paper">Iniciar sesión <span class="arrow">→</span></a>
-      <a href="#descargar" class="btn btn-oncolor">Descargar app repartidor</a>
+      <a href="#demo" class="btn btn-oncolor">Agendar demo</a>
     </div>
   </div>
 </section>
@@ -907,6 +1008,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
         <h4>Empezar</h4>
         <ul>
           <li><a href="#descargar">Instalar app repartidor</a></li>
+          <li><a href="#demo">Agendar demo</a></li>
           <li><a href="/seguimiento">Seguí tu envío</a></li>
           <li><a href="/app">Iniciar sesión</a></li>
           <li><a href="#precios">Tarifas</a></li>
@@ -936,6 +1038,185 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     // PWA web para repartidores (iPhone instala desde Safari)
     webAppPath: '/app'
   };
+
+  var DEMO_API = {
+    base: (APP_DOWNLOAD.origin || window.location.origin).replace(/\/$/, '') + '/api/public/demo'
+  };
+
+  // ── Agendar demo ──
+  (function initDemoBooking() {
+    var form = document.getElementById('demoForm');
+    var formWrap = document.getElementById('demoFormWrap');
+    var successEl = document.getElementById('demoSuccess');
+    var unavailableEl = document.getElementById('demoUnavailable');
+    var dateInput = document.getElementById('demoDate');
+    var slotsEl = document.getElementById('demoSlots');
+    var slotsStatus = document.getElementById('demoSlotsStatus');
+    var formStatus = document.getElementById('demoFormStatus');
+    var submitBtn = document.getElementById('demoSubmit');
+    if (!form || !dateInput || !slotsEl) return;
+
+    var selectedStart = null;
+
+    function setFormStatus(msg, type) {
+      if (!formStatus) return;
+      formStatus.textContent = msg || '';
+      formStatus.className = 'demo-status' + (type ? ' is-' + type : '');
+    }
+
+    function setSlotsStatus(msg, type) {
+      if (!slotsStatus) return;
+      slotsStatus.textContent = msg || '';
+      slotsStatus.className = 'demo-status' + (type ? ' is-' + type : '');
+    }
+
+    function formatDisplayDate(isoDate) {
+      var parts = isoDate.split('-').map(Number);
+      var dt = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+      return dt.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+
+    function minBookableDate() {
+      var d = new Date();
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function maxBookableDate() {
+      var d = new Date();
+      d.setDate(d.getDate() + 14);
+      return d.toISOString().slice(0, 10);
+    }
+
+    dateInput.min = minBookableDate();
+    dateInput.max = maxBookableDate();
+
+    function renderSlots(slots) {
+      slotsEl.innerHTML = '';
+      selectedStart = null;
+      if (submitBtn) submitBtn.disabled = true;
+
+      if (!slots.length) {
+        setSlotsStatus('No hay horarios libres ese día. Probá otra fecha.', 'error');
+        return;
+      }
+
+      slots.forEach(function (slot) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'demo-slot';
+        btn.textContent = slot.label;
+        btn.dataset.start = slot.start;
+        btn.addEventListener('click', function () {
+          selectedStart = slot.start;
+          slotsEl.querySelectorAll('.demo-slot').forEach(function (el) {
+            el.classList.toggle('is-selected', el.dataset.start === slot.start);
+          });
+          if (submitBtn) submitBtn.disabled = false;
+          setFormStatus('');
+        });
+        slotsEl.appendChild(btn);
+      });
+      setSlotsStatus(slots.length + ' horario' + (slots.length === 1 ? '' : 's') + ' disponible' + (slots.length === 1 ? '' : 's') + '.', 'ok');
+    }
+
+    function loadSlots(date) {
+      selectedStart = null;
+      if (submitBtn) submitBtn.disabled = true;
+      slotsEl.innerHTML = '';
+      setSlotsStatus('Cargando horarios…');
+
+      fetch(DEMO_API.base + '/slots?date=' + encodeURIComponent(date))
+        .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+        .then(function (result) {
+          if (!result.ok) {
+            setSlotsStatus(result.data.message || 'No pudimos cargar los horarios.', 'error');
+            return;
+          }
+          renderSlots(result.data.slots || []);
+        })
+        .catch(function () {
+          setSlotsStatus('Error de conexión. Intentá de nuevo.', 'error');
+        });
+    }
+
+    dateInput.addEventListener('change', function () {
+      if (!dateInput.value) return;
+      loadSlots(dateInput.value);
+    });
+
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      if (!selectedStart) {
+        setFormStatus('Elegí un horario.', 'error');
+        return;
+      }
+
+      var name = document.getElementById('demoName');
+      var email = document.getElementById('demoEmail');
+      var company = document.getElementById('demoCompany');
+      if (!name || !email) return;
+
+      if (submitBtn) submitBtn.disabled = true;
+      setFormStatus('Agendando demo…');
+
+      fetch(DEMO_API.base + '/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.value.trim(),
+          email: email.value.trim(),
+          company: company ? company.value.trim() : '',
+          start: selectedStart
+        })
+      })
+        .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+        .then(function (result) {
+          if (!result.ok) {
+            setFormStatus(result.data.message || 'No pudimos agendar la demo.', 'error');
+            if (submitBtn) submitBtn.disabled = false;
+            if (result.data.error === 'SLOT_UNAVAILABLE' && dateInput.value) {
+              loadSlots(dateInput.value);
+            }
+            return;
+          }
+
+          if (formWrap) formWrap.hidden = true;
+          if (successEl) {
+            successEl.hidden = false;
+            var meetHtml = result.data.meetLink
+              ? '<a href="' + result.data.meetLink + '" target="_blank" rel="noopener noreferrer">Unirse a Google Meet</a>'
+              : '';
+            successEl.innerHTML =
+              '<div class="demo-success">' +
+              '<h3>¡Demo agendada!</h3>' +
+              '<p>Te enviamos la invitación a <strong>' + email.value.trim() + '</strong> para el <strong>' +
+              formatDisplayDate(dateInput.value) + '</strong> a las <strong>' + result.data.label + '</strong> (ART).</p>' +
+              '<div class="demo-links">' +
+              meetHtml +
+              '<a href="' + result.data.htmlLink + '" target="_blank" rel="noopener noreferrer">Ver en Google Calendar</a>' +
+              '</div></div>';
+          }
+        })
+        .catch(function () {
+          setFormStatus('Error de conexión. Intentá de nuevo.', 'error');
+          if (submitBtn) submitBtn.disabled = false;
+        });
+    });
+
+    fetch(DEMO_API.base + '/status')
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.configured) {
+          if (formWrap) formWrap.hidden = true;
+          if (unavailableEl) unavailableEl.hidden = false;
+        }
+      })
+      .catch(function () {
+        if (formWrap) formWrap.hidden = true;
+        if (unavailableEl) unavailableEl.hidden = false;
+      });
+  })();
 
   function absUrl(path) {
     var base = APP_DOWNLOAD.origin || window.location.origin;

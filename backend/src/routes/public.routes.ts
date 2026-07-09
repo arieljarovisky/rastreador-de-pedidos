@@ -1,5 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { getPublicTrackingByMercadoLibreRef } from '../services/public-tracking.service.js';
+import {
+  bookDemo,
+  DemoBookingError,
+  getAvailableDemoSlots,
+} from '../services/demo-booking.service.js';
+import { isGoogleCalendarConfigured } from '../services/google-calendar.service.js';
 
 const router = Router();
 
@@ -70,6 +76,89 @@ router.get('/track', async (req: Request, res: Response) => {
     res.status(500).json({
       error: 'SERVER_ERROR',
       message: 'No pudimos consultar el seguimiento. Intentá de nuevo en unos minutos.',
+    });
+  }
+});
+
+router.get('/demo/status', (_req: Request, res: Response) => {
+  res.json({
+    configured: isGoogleCalendarConfigured(),
+    durationMinutes: 30,
+  });
+});
+
+router.get('/demo/slots', async (req: Request, res: Response) => {
+  const ip = clientKey(req);
+  if (isRateLimited(ip)) {
+    res.status(429).json({
+      error: 'RATE_LIMIT',
+      message: 'Demasiadas consultas. Esperá un minuto e intentá de nuevo.',
+    });
+    return;
+  }
+
+  const date = typeof req.query.date === 'string' ? req.query.date.trim() : '';
+  if (!date) {
+    res.status(400).json({
+      error: 'INVALID_DATE',
+      message: 'Elegí una fecha para ver horarios disponibles.',
+    });
+    return;
+  }
+
+  try {
+    const slots = await getAvailableDemoSlots(date);
+    res.json({ date, slots });
+  } catch (err) {
+    if (err instanceof DemoBookingError) {
+      res.status(400).json({ error: err.code, message: err.message });
+      return;
+    }
+    console.error('[public/demo/slots]', err);
+    res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: 'No pudimos cargar los horarios. Intentá de nuevo en unos minutos.',
+    });
+  }
+});
+
+router.post('/demo/book', async (req: Request, res: Response) => {
+  const ip = clientKey(req);
+  if (isRateLimited(ip)) {
+    res.status(429).json({
+      error: 'RATE_LIMIT',
+      message: 'Demasiadas consultas. Esperá un minuto e intentá de nuevo.',
+    });
+    return;
+  }
+
+  const body = req.body as {
+    name?: unknown;
+    email?: unknown;
+    company?: unknown;
+    notes?: unknown;
+    start?: unknown;
+  };
+
+  try {
+    const result = await bookDemo({
+      name: typeof body.name === 'string' ? body.name : '',
+      email: typeof body.email === 'string' ? body.email : '',
+      company: typeof body.company === 'string' ? body.company : undefined,
+      notes: typeof body.notes === 'string' ? body.notes : undefined,
+      start: typeof body.start === 'string' ? body.start : '',
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    if (err instanceof DemoBookingError) {
+      const status = err.code === 'SLOT_UNAVAILABLE' ? 409 : 400;
+      res.status(status).json({ error: err.code, message: err.message });
+      return;
+    }
+    console.error('[public/demo/book]', err);
+    res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: 'No pudimos agendar la demo. Intentá de nuevo en unos minutos.',
     });
   }
 });
