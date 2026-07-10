@@ -33,11 +33,17 @@ import {
   formatArTime,
 } from '../utils/deliverySummary.js';
 import SellerFilterControl from './SellerFilterControl.tsx';
+import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
+import { buildCordonMapZones } from '../config/ambaCordonZones.js';
+import { matchesOrderFilters } from '../utils/orderFilters.js';
+import type { Barrio, DeliveryZone } from '../config/deliveryZones.js';
 
 interface OperationsDashboardProps {
   orders: Order[];
   repartidores?: User[];
   sellers?: User[];
+  deliveryZones?: DeliveryZone[];
+  barrios?: Barrio[];
   userRole?: UserRole;
   onSelectOrder?: (orderId: string) => void;
   onGoToOperations?: () => void;
@@ -47,6 +53,8 @@ export default function OperationsDashboard({
   orders,
   repartidores = [],
   sellers = [],
+  deliveryZones = [],
+  barrios = [],
   userRole,
   onSelectOrder,
   onGoToOperations,
@@ -54,13 +62,30 @@ export default function OperationsDashboard({
   const todayKey = getOperationalDateKey();
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [sellerFilterId, setSellerFilterId] = useState('');
+  const [cordonFilterId, setCordonFilterId] = useState('');
+  const [repartidorFilterId, setRepartidorFilterId] = useState('');
   const isToday = selectedDateKey === todayKey;
   const canGoForward = selectedDateKey < todayKey;
 
-  const scopedOrders = useMemo(() => {
-    if (!sellerFilterId) return orders;
-    return orders.filter((o) => o.sellerId === sellerFilterId);
-  }, [orders, sellerFilterId]);
+  const cordonZones = useMemo(
+    () => buildCordonMapZones(deliveryZones, barrios),
+    [deliveryZones, barrios]
+  );
+  const orderFilterContext = useMemo(
+    () => ({
+      sellerId: sellerFilterId || undefined,
+      cordonId: cordonFilterId || undefined,
+      repartidorId: repartidorFilterId || undefined,
+      deliveryZones,
+      barrios,
+    }),
+    [sellerFilterId, cordonFilterId, repartidorFilterId, deliveryZones, barrios]
+  );
+
+  const scopedOrders = useMemo(
+    () => orders.filter((o) => matchesOrderFilters(o, orderFilterContext)),
+    [orders, orderFilterContext]
+  );
 
   const summary = useMemo(
     () => computeDeliverySummaryFromOrders(scopedOrders, selectedDateKey),
@@ -166,6 +191,21 @@ export default function OperationsDashboard({
             onChange={setSellerFilterId}
           />
         )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <CordonFilterControl
+            zones={cordonZones}
+            value={cordonFilterId}
+            onChange={setCordonFilterId}
+          />
+          {isAgency && (
+            <RepartidorFilterControl
+              repartidores={repartidores}
+              value={repartidorFilterId}
+              onChange={setRepartidorFilterId}
+            />
+          )}
+        </div>
 
         <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 flex-wrap">
           <Clock className="w-3.5 h-3.5 shrink-0" />

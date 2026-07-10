@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
+import { buildCordonMapZones } from '../config/ambaCordonZones.js';
+import { matchesOrderFilters } from '../utils/orderFilters.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge from './ui/StatusBadge.tsx';
@@ -20,6 +22,7 @@ import MapComponent from './MapComponent.tsx';
 import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
+import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -172,6 +175,8 @@ export default function AdminDashboard({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sellerFilterId, setSellerFilterId] = useState<string>('');
+  const [cordonFilterId, setCordonFilterId] = useState<string>('');
+  const [repartidorFilterId, setRepartidorFilterId] = useState<string>('');
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
     return new Set();
@@ -393,9 +398,24 @@ export default function AdminDashboard({
 
   // Filtrar pedidos
   const activeOrders = orders.filter((o) => !o.archived);
-  const sellerScopedOrders = sellerFilterId
-    ? activeOrders.filter((o) => o.sellerId === sellerFilterId)
-    : activeOrders;
+  const cordonZones = useMemo(
+    () => buildCordonMapZones(deliveryZones, barrios),
+    [deliveryZones, barrios]
+  );
+  const orderFilterContext = useMemo(
+    () => ({
+      sellerId: sellerFilterId || undefined,
+      cordonId: cordonFilterId || undefined,
+      repartidorId: repartidorFilterId || undefined,
+      deliveryZones,
+      barrios,
+    }),
+    [sellerFilterId, cordonFilterId, repartidorFilterId, deliveryZones, barrios]
+  );
+  const dashboardScopedOrders = useMemo(
+    () => activeOrders.filter((o) => matchesOrderFilters(o, orderFilterContext)),
+    [activeOrders, orderFilterContext]
+  );
 
   const filteredOrders = orders.filter((order) => {
     const isArchivedView = statusFilter === 'archived';
@@ -405,7 +425,7 @@ export default function AdminDashboard({
       return false;
     }
 
-    const matchesSeller = !sellerFilterId || order.sellerId === sellerFilterId;
+    const matchesFilters = matchesOrderFilters(order, orderFilterContext);
     const matchesStatus = statusFilter === 'all' || statusFilter === 'archived' || order.status === statusFilter;
     const matchesSearch =
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -414,7 +434,7 @@ export default function AdminDashboard({
       (order.repartidorName && order.repartidorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (order.sellerName && order.sellerName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    return matchesSeller && matchesStatus && matchesSearch;
+    return matchesFilters && matchesStatus && matchesSearch;
   });
 
   const allRepartidoresOnMap = useMemo(
@@ -435,17 +455,25 @@ export default function AdminDashboard({
   }, [agency, repartidores, orders]);
 
   const mapOrders = useMemo(() => {
-    const visible = sellerFilterId
-      ? orders.filter((o) => !o.archived && o.sellerId === sellerFilterId)
-      : orders.filter((o) => !o.archived);
+    const visible = orders
+      .filter((o) => !o.archived)
+      .filter((o) => matchesOrderFilters(o, orderFilterContext));
     const onMap = showDeliveredOnMap
       ? visible
       : visible.filter(
           (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
         );
+    if (repartidorFilterId) return onMap;
     if (allRepartidoresOnMap || mapRepartidorIds.size === 0) return onMap;
     return onMap.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
-  }, [orders, mapRepartidorIds, allRepartidoresOnMap, sellerFilterId, showDeliveredOnMap]);
+  }, [
+    orders,
+    mapRepartidorIds,
+    allRepartidoresOnMap,
+    orderFilterContext,
+    repartidorFilterId,
+    showDeliveredOnMap,
+  ]);
 
   const mapFilterLabel = useMemo(() => {
     if (repartidores.length === 0) return 'Sin repartidores';
@@ -624,14 +652,13 @@ export default function AdminDashboard({
 
   // Contadores para resúmenes estadísticos rápidos
   const stats = {
-    total: sellerScopedOrders.length,
-    pending: sellerScopedOrders.filter((o) => o.status === OrderStatus.PENDING).length,
-    delivering: sellerScopedOrders.filter((o) => o.status === OrderStatus.DELIVERING).length,
-    delivered: sellerScopedOrders.filter((o) => o.status === OrderStatus.DELIVERED).length,
-    archived: (sellerFilterId
-      ? orders.filter((o) => o.archived && o.sellerId === sellerFilterId)
-      : orders.filter((o) => o.archived)
-    ).length,
+    total: dashboardScopedOrders.length,
+    pending: dashboardScopedOrders.filter((o) => o.status === OrderStatus.PENDING).length,
+    delivering: dashboardScopedOrders.filter((o) => o.status === OrderStatus.DELIVERING).length,
+    delivered: dashboardScopedOrders.filter((o) => o.status === OrderStatus.DELIVERED).length,
+    archived: orders
+      .filter((o) => o.archived)
+      .filter((o) => matchesOrderFilters(o, orderFilterContext)).length,
   };
 
   const createShipmentModal =
@@ -959,6 +986,21 @@ export default function AdminDashboard({
               allSellersOptionLabel="Todos los vendedores"
             />
           )}
+
+          <div className="grid grid-cols-1 gap-2">
+            <CordonFilterControl
+              zones={cordonZones}
+              value={cordonFilterId}
+              onChange={setCordonFilterId}
+            />
+            {isAgencyAdmin(userRole) && (
+              <RepartidorFilterControl
+                repartidores={repartidores}
+                value={repartidorFilterId}
+                onChange={setRepartidorFilterId}
+              />
+            )}
+          </div>
 
           {isAgencyAdmin(userRole) && sellers.length === 0 && (
             <p className="text-[9px] text-[var(--color-text-faint)] font-mono truncate">
@@ -1309,6 +1351,22 @@ export default function AdminDashboard({
                 sellers={sellers}
                 value={sellerFilterId}
                 onChange={setSellerFilterId}
+              />
+            )}
+
+            <CordonFilterControl
+              variant="map"
+              zones={cordonZones}
+              value={cordonFilterId}
+              onChange={setCordonFilterId}
+            />
+
+            {isAgencyAdmin(userRole) && (
+              <RepartidorFilterControl
+                variant="map"
+                repartidores={repartidores}
+                value={repartidorFilterId}
+                onChange={setRepartidorFilterId}
               />
             )}
 

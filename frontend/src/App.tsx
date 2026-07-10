@@ -1787,6 +1787,8 @@ export default function App() {
                     orders={orders}
                     repartidores={repartidores}
                     sellers={sellers}
+                    deliveryZones={deliveryZones}
+                    barrios={barrios}
                     userRole={user.role}
                     onSelectOrder={(orderId) => {
                       setActiveOrderId(orderId);

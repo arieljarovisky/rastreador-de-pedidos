@@ -19,12 +19,11 @@ import * as L from 'leaflet';
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
 
-/** Espacio para cabecera del mapa y panel inferior de detalle al auto-pan del popup. */
+/** Popup sin auto-seguimiento: el usuario puede mover el mapa libremente con el popup abierto. */
 function getMapPopupOptions(): L.PopupOptions {
   return {
-    autoPan: true,
-    autoPanPadding: [72, 40, 300, 40],
-    keepInView: true,
+    autoPan: false,
+    keepInView: false,
     maxWidth: 260,
   };
 }
@@ -261,6 +260,7 @@ export default function MapComponent({
   const initialFitDoneRef = useRef(false);
   const lastCenteredOrderIdRef = useRef<string | null>(null);
   const userInteractedRef = useRef(false);
+  const popupOpenedForOrderRef = useRef<string | null>(null);
   const ordersRef = useRef(orders);
   const repartidoresRef = useRef(repartidores);
 
@@ -713,18 +713,26 @@ export default function MapComponent({
     };
   }, [activeOrderId, orders, repartidores, liveRepartidorLocation, theme, mapColors.route]);
 
-  // Abrir popup del pedido seleccionado (desde lista o mapa)
+  // Abrir popup del pedido seleccionado (solo al cambiar de pedido, no en cada actualización)
   useEffect(() => {
-    if (!activeOrderId) return;
+    if (!activeOrderId) {
+      popupOpenedForOrderRef.current = null;
+      return;
+    }
+    if (popupOpenedForOrderRef.current === activeOrderId) return;
+
     const map = mapInstanceRef.current;
     const marker = markersRef.current[activeOrderId];
-    if (marker && !marker.isPopupOpen()) {
+    if (!marker) return;
+
+    popupOpenedForOrderRef.current = activeOrderId;
+    if (!marker.isPopupOpen()) {
       marker.openPopup();
-      // Ajuste extra: el panel inferior tapa parte del mapa
-      window.setTimeout(() => {
-        map?.panBy([0, -90], { animate: true });
-      }, 200);
     }
+    // Ajuste único: el panel inferior tapa parte del mapa
+    window.setTimeout(() => {
+      map?.panBy([0, -90], { animate: true });
+    }, 200);
   }, [activeOrderId]);
 
   // Centrar solo al elegir un pedido
