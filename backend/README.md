@@ -47,13 +47,21 @@ Verificá que el backend tenga `DB_HOST`, `DB_USER`, `DB_PASSWORD` y `DB_NAME` a
 
 Usuarios demo:
 
-| Usuario    | Contraseña    | Rol              |
-|------------|---------------|------------------|
-| admin      | admin123      | Vendedor         |
-| logistica  | logistica123  | Agencia logística|
-| carlos     | carlos123     | Repartidor       |
-| maria      | maria123      | Repartidor       |
-| juan       | juan123       | Repartidor       |
+| Usuario      | Contraseña    | Rol                |
+|--------------|---------------|--------------------|
+| logistica    | logistica123  | Agencia (panel completo, 60 pedidos) |
+| admin        | admin123      | Vendedor — Lupo Ventas |
+| moda-norte   | vendor123     | Vendedor — Moda Norte Boutique |
+| tech-ba      | vendor123     | Vendedor — TechBA Electro |
+| hogar-shop   | vendor123     | Vendedor — Hogar & Deco Shop |
+| fitness-pro  | vendor123     | Vendedor — Fitness Pro Store |
+| gourmet-ba   | vendor123     | Vendedor — Gourmet BA |
+| pet-corner   | vendor123     | Vendedor — Pet Corner |
+| carlos       | carlos123     | Repartidor         |
+| maria        | maria123      | Repartidor         |
+| juan         | juan123       | Repartidor         |
+
+El seed carga **60 pedidos** repartidos entre los 7 vendedores (~35 % pendientes, 25 % asignados, 20 % en reparto, 15 % entregados, 5 % cancelados).
 
 ## Desarrollo
 
