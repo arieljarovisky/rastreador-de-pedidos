@@ -9,7 +9,7 @@ import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgenc
 import {
   Plus, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
   ChevronDown, ChevronUp, Layers, Package, Crown, Settings, ClipboardList, Map,
-  Store, Bike, AlertTriangle, Check, X,
+  Store, Bike, AlertTriangle, Check, X, Filter,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -485,6 +485,32 @@ export default function AdminDashboard({
     }
     return `${mapRepartidorIds.size} seleccionados`;
   }, [repartidores, mapRepartidorIds, allRepartidoresOnMap]);
+
+  const activeMapFiltersCount = useMemo(() => {
+    let count = 0;
+    if (sellerFilterId) count += 1;
+    if (cordonFilterId) count += 1;
+    if (repartidorFilterId) count += 1;
+    if (agency && repartidores.length > 0 && !allRepartidoresOnMap && mapRepartidorIds.size > 0) {
+      count += 1;
+    }
+    return count;
+  }, [
+    sellerFilterId,
+    cordonFilterId,
+    repartidorFilterId,
+    agency,
+    repartidores.length,
+    allRepartidoresOnMap,
+    mapRepartidorIds.size,
+  ]);
+
+  const clearMapFilters = () => {
+    setSellerFilterId('');
+    setCordonFilterId('');
+    setRepartidorFilterId('');
+    setMapRepartidorIds(new Set(repartidores.map((r) => r.id)));
+  };
 
   const toggleMapRepartidor = (id: string) => {
     setMapRepartidorIds((prev) => {
@@ -1345,110 +1371,136 @@ export default function AdminDashboard({
               {showDeliveredOnMap ? 'Ocultar listos' : 'Ver listos'}
             </button>
 
-            {isAgencyAdmin(userRole) && sellers.length > 0 && (
-              <SellerFilterControl
-                variant="map"
-                sellers={sellers}
-                value={sellerFilterId}
-                onChange={setSellerFilterId}
-              />
-            )}
-
-            <CordonFilterControl
-              variant="map"
-              zones={cordonZones}
-              value={cordonFilterId}
-              onChange={setCordonFilterId}
-            />
-
-            {isAgencyAdmin(userRole) && (
-              <RepartidorFilterControl
-                variant="map"
-                repartidores={repartidores}
-                value={repartidorFilterId}
-                onChange={setRepartidorFilterId}
-              />
-            )}
-
-            {agency && (
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setMapFilterOpen((open) => !open)}
-                className="w-full flex items-center gap-2 bg-[var(--surface-panel)]/95 backdrop-blur-md border border-[var(--surface-border)]/80 hover:border-[var(--color-accent)] rounded-[var(--radius-posta)] px-2.5 py-2 shadow-lg transition text-left"
+                className={`w-full flex items-center gap-2 rounded-[var(--radius-posta)] px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-left ${
+                  mapFilterOpen || activeMapFiltersCount > 0
+                    ? 'bg-[var(--color-accent)]/15 border-[var(--color-accent)]/50 hover:border-[var(--color-accent)]'
+                    : 'bg-[var(--surface-panel)]/95 border-[var(--surface-border)]/80 hover:border-[var(--color-accent)]'
+                }`}
                 aria-expanded={mapFilterOpen}
-                aria-haspopup="listbox"
+                aria-haspopup="dialog"
               >
-                <Users className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
-                <span className="flex-1 min-w-0 text-[11px] font-medium text-[var(--color-text)] truncate">
-                  {mapFilterLabel}
+                <Filter className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
+                <span className="flex-1 min-w-0 text-[11px] font-semibold text-[var(--color-text)]">
+                  Filtros
                 </span>
+                {activeMapFiltersCount > 0 && (
+                  <span className="shrink-0 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-[var(--color-accent)] text-[9px] font-bold text-white flex items-center justify-center">
+                    {activeMapFiltersCount}
+                  </span>
+                )}
                 <ChevronDown
                   className={`w-4 h-4 text-[var(--color-text-muted)] shrink-0 transition-transform duration-200 ${mapFilterOpen ? 'rotate-180' : ''}`}
                 />
               </button>
 
               {mapFilterOpen && (
-                <div className="absolute top-[calc(100%+0.4rem)] left-0 w-full bg-[var(--surface-panel)]/98 backdrop-blur-md border border-[var(--surface-border)]/80 rounded-[var(--radius-posta)] shadow-2xl overflow-hidden">
-                  <div className="px-3 pt-3 pb-2.5 border-b border-[var(--surface-border)]">
-                    <p className="text-[10px] font-semibold text-[var(--color-text-muted)] mb-2">
-                      Filtrar pedidos en mapa
+                <div className="absolute top-[calc(100%+0.4rem)] right-0 w-[min(17rem,calc(100vw-2rem))] bg-[var(--surface-panel)]/98 backdrop-blur-md border border-[var(--surface-border)]/80 rounded-[var(--radius-posta)] shadow-2xl overflow-hidden z-[1001]">
+                  <div className="px-3 py-2.5 border-b border-[var(--surface-border)] flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                      Filtrar mapa
                     </p>
-                    <p className="text-[9px] text-[var(--color-text-faint)] mb-2">
-                      Los repartidores siempre se muestran en el mapa.
-                    </p>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    {activeMapFiltersCount > 0 && (
                       <button
                         type="button"
-                        onClick={() => setMapRepartidorIds(new Set(repartidores.map((r) => r.id)))}
-                        className="py-1.5 rounded-[var(--radius-posta)] bg-[var(--surface-panel-2)] hover:bg-[var(--surface-panel)] text-[10px] font-semibold text-[var(--ink-soft)] transition"
+                        onClick={clearMapFilters}
+                        className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline shrink-0"
                       >
-                        Todos
+                        Limpiar
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setMapRepartidorIds(new Set())}
-                        className="py-1.5 rounded-[var(--radius-posta)] bg-[var(--surface-panel-2)] hover:bg-[var(--surface-panel)] text-[10px] font-semibold text-[var(--color-text-muted)] transition"
-                      >
-                        Ninguno
-                      </button>
-                    </div>
-                  </div>
-                  <ul className="py-1.5 max-h-36 overflow-y-auto scrollbar-thin">
-                    {repartidores.length === 0 ? (
-                      <li className="px-3 py-2 text-[11px] text-[var(--color-text-muted)]">No hay repartidores.</li>
-                    ) : (
-                      repartidores.map((rep) => (
-                        <li key={rep.id}>
-                          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--surface-panel)]/80 cursor-pointer transition">
-                            <input
-                              type="checkbox"
-                              checked={mapRepartidorIds.has(rep.id)}
-                              onChange={() => toggleMapRepartidor(rep.id)}
-                              className="w-3.5 h-3.5 shrink-0 rounded border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-accent)] accent-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/40 focus:ring-offset-0"
-                            />
-                            <span className="flex-1 min-w-0 text-[11px] text-[var(--color-text)] truncate capitalize">
-                              {rep.name}
-                            </span>
-                            {rep.currentLocation ? (
-                              <span
-                                className="shrink-0 w-2 h-2 rounded-full bg-[var(--color-ok)] ring-2 ring-[var(--color-ok)]/20"
-                                title="GPS activo"
-                              />
-                            ) : (
-                              <span className="shrink-0 text-[9px] text-[var(--color-text-faint)]" title="Sin GPS">
-                                off
-                              </span>
-                            )}
-                          </label>
-                        </li>
-                      ))
                     )}
-                  </ul>
+                  </div>
+
+                  <div className="p-3 space-y-3 max-h-[min(70dvh,28rem)] overflow-y-auto scrollbar-thin">
+                    {isAgencyAdmin(userRole) && sellers.length > 0 && (
+                      <SellerFilterControl
+                        sellers={sellers}
+                        value={sellerFilterId}
+                        onChange={setSellerFilterId}
+                      />
+                    )}
+
+                    <CordonFilterControl
+                      zones={cordonZones}
+                      value={cordonFilterId}
+                      onChange={setCordonFilterId}
+                    />
+
+                    {isAgencyAdmin(userRole) && (
+                      <RepartidorFilterControl
+                        repartidores={repartidores}
+                        value={repartidorFilterId}
+                        onChange={setRepartidorFilterId}
+                      />
+                    )}
+
+                    {agency && (
+                      <div className="border-t border-[var(--surface-border)] pt-3 space-y-2">
+                        <div>
+                          <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                            Pedidos en mapa
+                          </p>
+                          <p className="text-[9px] text-[var(--color-text-faint)] mt-1">
+                            {mapFilterLabel} · los repartidores siempre se ven en el mapa
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setMapRepartidorIds(new Set(repartidores.map((r) => r.id)))}
+                            className="py-1.5 rounded-[var(--radius-posta)] bg-[var(--surface-panel-2)] hover:bg-[var(--surface-panel)] text-[10px] font-semibold text-[var(--ink-soft)] transition"
+                          >
+                            Todos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMapRepartidorIds(new Set())}
+                            className="py-1.5 rounded-[var(--radius-posta)] bg-[var(--surface-panel-2)] hover:bg-[var(--surface-panel)] text-[10px] font-semibold text-[var(--color-text-muted)] transition"
+                          >
+                            Ninguno
+                          </button>
+                        </div>
+                        <ul className="py-0.5 max-h-32 overflow-y-auto scrollbar-thin -mx-1">
+                          {repartidores.length === 0 ? (
+                            <li className="px-2 py-2 text-[11px] text-[var(--color-text-muted)]">No hay repartidores.</li>
+                          ) : (
+                            repartidores.map((rep) => (
+                              <li key={rep.id}>
+                                <label className="flex items-center gap-2.5 px-2 py-1.5 hover:bg-[var(--surface-panel)]/80 cursor-pointer transition rounded-[var(--radius-posta)]">
+                                  <input
+                                    type="checkbox"
+                                    checked={mapRepartidorIds.has(rep.id)}
+                                    onChange={() => toggleMapRepartidor(rep.id)}
+                                    className="w-3.5 h-3.5 shrink-0 rounded border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-accent)] accent-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/40 focus:ring-offset-0"
+                                  />
+                                  <span className="flex-1 min-w-0 text-[11px] text-[var(--color-text)] truncate capitalize">
+                                    {rep.name}
+                                  </span>
+                                  {rep.currentLocation ? (
+                                    <span
+                                      className="shrink-0 w-2 h-2 rounded-full bg-[var(--color-ok)] ring-2 ring-[var(--color-ok)]/20"
+                                      title="GPS activo"
+                                    />
+                                  ) : (
+                                    <span className="shrink-0 text-[9px] text-[var(--color-text-faint)]" title="Sin GPS">
+                                      off
+                                    </span>
+                                  )}
+                                </label>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
-            )}
           </div>
           <MapComponent
             orders={mapOrders}
