@@ -754,6 +754,38 @@ export async function updateOrderStatus(
   };
 }
 
+/** Registra una incidencia en la bitácora sin cambiar el estado del pedido. */
+export async function addOrderIncident(
+  user: User,
+  orderId: string,
+  comment: string
+): Promise<Order> {
+  const trimmed = comment.trim();
+  if (!trimmed) throw new Error('COMMENT_REQUIRED');
+
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error('NOT_FOUND');
+
+  const sellerId = await getSellerIdForOrder(orderId);
+  if (!canViewOrder(user, order, sellerId)) throw new Error('FORBIDDEN');
+  if (user.role === UserRole.REPARTIDOR && order.repartidorId !== user.id) {
+    throw new Error('FORBIDDEN');
+  }
+
+  const now = new Date();
+  const incidentComment = `INCIDENCIA: ${trimmed}`;
+
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, order.status, user.name, incidentComment, now]
+  );
+  await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [now, orderId]);
+
+  const updated = await getOrderById(orderId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
+}
+
 export async function reportOrderLocation(
   user: User,
   orderId: string,

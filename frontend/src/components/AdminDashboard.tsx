@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import {
-  Plus, Navigation, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
+  Plus, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
   ChevronDown, ChevronUp, Layers, Package, Crown, Settings, ClipboardList, Map,
   Store, Bike, AlertTriangle, Check, X,
 } from 'lucide-react';
@@ -19,6 +19,7 @@ import StatusBadge from './ui/StatusBadge.tsx';
 import MapComponent from './MapComponent.tsx';
 import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
+import SellerFilterControl from './SellerFilterControl.tsx';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -32,6 +33,7 @@ interface AdminDashboardProps {
   onSelectOrder: (orderId: string | null) => void;
   onCreateOrder: (orderData: Partial<Order> & { sellerId?: string }) => Promise<void>;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
+  onAddOrderIncident?: (orderId: string, comment: string) => Promise<void>;
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
   onDeleteOrder?: (orderId: string) => Promise<void>;
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
@@ -140,6 +142,7 @@ export default function AdminDashboard({
   onSelectOrder,
   onCreateOrder,
   onUpdateOrderStatus,
+  onAddOrderIncident,
   onAssignOrderSeller,
   onDeleteOrder,
   onArchiveOrder,
@@ -150,6 +153,14 @@ export default function AdminDashboard({
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
   const { confirm, alert: showAlert } = useModal();
+  const [incidentDraft, setIncidentDraft] = useState('');
+  const [savingIncident, setSavingIncident] = useState(false);
+
+  const selectedOrder = orders.find((o) => o.id === activeOrderId) ?? null;
+
+  useEffect(() => {
+    setIncidentDraft('');
+  }, [activeOrderId]);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
   const initialMapRepartidorPrefs = loadMapRepartidorPrefs();
@@ -455,8 +466,6 @@ export default function AdminDashboard({
       return next;
     });
   };
-
-  const selectedOrder = orders.find((o) => o.id === activeOrderId);
 
   const buildOrderMenuItems = (order: Order): ContextMenuItem[] => {
     const agency = isAgencyAdmin(userRole);
@@ -1095,15 +1104,6 @@ export default function AdminDashboard({
             filteredOrders.map((order) => {
               const isSelected = order.id === activeOrderId;
 
-              const statusLabel =
-                order.status === 'delivering'
-                  ? 'En Viaje'
-                  : order.status === 'assigned'
-                    ? 'Asignado'
-                    : order.status === 'delivered'
-                      ? 'Entregado'
-                      : 'En Almacén';
-
               return (
                 <div
                   key={order.id}
@@ -1121,7 +1121,7 @@ export default function AdminDashboard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="mono-label text-[9px]">ID: {order.id}</span>
-                    <StatusBadge status={order.status} label={statusLabel} />
+                    <StatusBadge status={order.status} />
                   </div>
 
                   <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-[var(--color-text)] transition truncate">
@@ -1260,18 +1260,7 @@ export default function AdminDashboard({
                 </p>
               ) : null}
               <div className="pt-1">
-                <StatusBadge
-                  status={selectedOrder.status}
-                  label={
-                    selectedOrder.status === OrderStatus.DELIVERING
-                      ? 'En Viaje'
-                      : selectedOrder.status === OrderStatus.ASSIGNED
-                        ? 'Asignado'
-                        : selectedOrder.status === OrderStatus.DELIVERED
-                          ? 'Entregado'
-                          : 'En Almacén'
-                  }
-                />
+                <StatusBadge status={selectedOrder.status} />
               </div>
             </div>
           </div>
@@ -1313,6 +1302,15 @@ export default function AdminDashboard({
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               {showDeliveredOnMap ? 'Ocultar listos' : 'Ver listos'}
             </button>
+
+            {isAgencyAdmin(userRole) && sellers.length > 0 && (
+              <SellerFilterControl
+                variant="map"
+                sellers={sellers}
+                value={sellerFilterId}
+                onChange={setSellerFilterId}
+              />
+            )}
 
             {agency && (
             <div className="relative">
@@ -1409,13 +1407,9 @@ export default function AdminDashboard({
           <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
         </div>
 
-        {/* Panel Inferior: Detalles de pedido activo o visor de repartidores */}
-        <div className={`shrink-0 posta-surface overflow-hidden flex flex-col ${
-          selectedOrder
-            ? 'h-[min(38dvh,220px)] sm:h-[min(42dvh,260px)] lg:h-[260px] xl:h-[280px] 2xl:h-[300px] p-3 sm:p-4'
-            : 'h-[min(28dvh,160px)] sm:h-[min(32dvh,180px)] lg:h-[180px] xl:h-[200px] p-2.5 sm:p-3'
-        }`}>
-          {selectedOrder ? (
+        {/* Panel Inferior: solo visible con un pedido seleccionado */}
+        {selectedOrder && (
+        <div className="shrink-0 posta-surface overflow-hidden flex flex-col h-[min(38dvh,220px)] sm:h-[min(42dvh,260px)] lg:h-[260px] xl:h-[280px] 2xl:h-[300px] p-3 sm:p-4">
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left scrollbar-thin">
               <div className="flex items-start justify-between border-b border-[var(--surface-border)] pb-2">
                 <div>
@@ -1678,15 +1672,69 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              {/* Registrar incidencia */}
+              {onAddOrderIncident &&
+                selectedOrder.status !== OrderStatus.DELIVERED &&
+                selectedOrder.status !== OrderStatus.CANCELLED && (
+                <div className="border-t border-[var(--surface-border)] pt-2.5 space-y-1.5">
+                  <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)] flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-[var(--color-warn)]" />
+                    Registrar incidencia
+                  </p>
+                  <textarea
+                    value={incidentDraft}
+                    onChange={(e) => setIncidentDraft(e.target.value)}
+                    placeholder="Ej: Cliente ausente, dirección incorrecta, paquete dañado..."
+                    rows={2}
+                    className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-2 text-[11px] text-[var(--ink-soft)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-warn)]/50 resize-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={!incidentDraft.trim() || savingIncident}
+                    onClick={async () => {
+                      const text = incidentDraft.trim();
+                      if (!text) return;
+                      setSavingIncident(true);
+                      try {
+                        await onAddOrderIncident(selectedOrder.id, text);
+                        setIncidentDraft('');
+                      } catch (err: unknown) {
+                        void showAlert({
+                          title: 'Error',
+                          message: err instanceof Error ? err.message : 'No se pudo registrar la incidencia.',
+                          variant: 'error',
+                        });
+                      } finally {
+                        setSavingIncident(false);
+                      }
+                    }}
+                    className="w-full py-1.5 border border-[var(--color-warn)]/30 hover:border-[var(--color-warn)] bg-[var(--color-warn)]/5 hover:bg-[var(--color-warn)]/10 text-[var(--color-warn)] font-bold text-[10px] uppercase tracking-wider rounded transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {savingIncident ? 'Guardando...' : 'Agregar incidencia'}
+                  </button>
+                </div>
+              )}
+
               {/* Historial de Eventos del Pedido */}
               <div className="border-t border-[var(--surface-border)] pt-2.5">
                 <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)] mb-1.5">Bitácora de Eventos y Estados</p>
                 <div className="space-y-1">
-                  {selectedOrder.history.map((event, index) => (
+                  {selectedOrder.history.map((event, index) => {
+                    const isIncident = (event.comment ?? '').startsWith('INCIDENCIA:');
+                    return (
                     <div key={index} className="flex items-start gap-2 text-[10px] text-[var(--color-text-muted)] font-mono">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-accent)] mt-0.5 shrink-0" />
+                      {isIncident ? (
+                        <AlertTriangle className="w-3.5 h-3.5 text-[var(--color-warn)] mt-0.5 shrink-0" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-accent)] mt-0.5 shrink-0" />
+                      )}
                       <div>
-                        <span className="font-bold text-[var(--ink-soft)]">[{event.status.toUpperCase()}]</span> - {event.comment || 'Cambio de estado'}
+                        {isIncident ? (
+                          <span className="font-bold text-[var(--color-warn)]">[INCIDENCIA]</span>
+                        ) : (
+                          <span className="font-bold text-[var(--ink-soft)]">[{event.status.toUpperCase()}]</span>
+                        )}{' '}
+                        - {isIncident ? event.comment!.replace(/^INCIDENCIA:\s*/, '') : (event.comment || 'Cambio de estado')}
                         <span className="text-[var(--color-text-muted)] text-[9px] block">
                           Por: {event.updatedBy} | {new Date(event.timestamp).toLocaleString()}
                           {event.lat != null && event.lng != null && (
@@ -1707,20 +1755,13 @@ export default function AdminDashboard({
                         </span>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="posta-empty flex-1 flex flex-col items-center justify-center p-4">
-              <Navigation className="w-6 h-6 text-[var(--color-text-faint)] mb-1.5 animate-pulse" />
-              <p className="text-[11px] font-display font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Visor de Envíos Posta</p>
-              <p className="text-[10px] text-[var(--color-text-faint)] mt-0.5 max-w-sm">
-                Haz clic en cualquier pedido en la lista o en el mapa para auditar su trayectoria GPS y bitácora en tiempo real.
-              </p>
-            </div>
-          )}
         </div>
+        )}
       </div>
     </div>
     {createShipmentModal}

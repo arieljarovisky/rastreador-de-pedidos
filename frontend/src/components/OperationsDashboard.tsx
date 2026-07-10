@@ -32,6 +32,7 @@ import {
   DELIVERY_TIMEZONE_LABEL,
   formatArTime,
 } from '../utils/deliverySummary.js';
+import SellerFilterControl from './SellerFilterControl.tsx';
 
 interface OperationsDashboardProps {
   orders: Order[];
@@ -52,38 +53,44 @@ export default function OperationsDashboard({
 }: OperationsDashboardProps) {
   const todayKey = getOperationalDateKey();
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
+  const [sellerFilterId, setSellerFilterId] = useState('');
   const isToday = selectedDateKey === todayKey;
   const canGoForward = selectedDateKey < todayKey;
 
+  const scopedOrders = useMemo(() => {
+    if (!sellerFilterId) return orders;
+    return orders.filter((o) => o.sellerId === sellerFilterId);
+  }, [orders, sellerFilterId]);
+
   const summary = useMemo(
-    () => computeDeliverySummaryFromOrders(orders, selectedDateKey),
-    [orders, selectedDateKey]
+    () => computeDeliverySummaryFromOrders(scopedOrders, selectedDateKey),
+    [scopedOrders, selectedDateKey]
   );
   const undelivered = useMemo(
-    () => getUndeliveredTodayOrders(orders, selectedDateKey),
-    [orders, selectedDateKey]
+    () => getUndeliveredTodayOrders(scopedOrders, selectedDateKey),
+    [scopedOrders, selectedDateKey]
   );
   const delivered = useMemo(
-    () => getDeliveredTodayOrders(orders, selectedDateKey),
-    [orders, selectedDateKey]
+    () => getDeliveredTodayOrders(scopedOrders, selectedDateKey),
+    [scopedOrders, selectedDateKey]
   );
   const deliveredLate = useMemo(
-    () => getDeliveredLateTodayOrders(orders, selectedDateKey),
-    [orders, selectedDateKey]
+    () => getDeliveredLateTodayOrders(scopedOrders, selectedDateKey),
+    [scopedOrders, selectedDateKey]
   );
 
   const statusBreakdown = useMemo(() => {
-    const undeliveredToday = getUndeliveredTodayOrders(orders, selectedDateKey);
+    const undeliveredToday = getUndeliveredTodayOrders(scopedOrders, selectedDateKey);
     return {
       pending: undeliveredToday.filter((o) => o.status === OrderStatus.PENDING).length,
       assigned: undeliveredToday.filter((o) => o.status === OrderStatus.ASSIGNED).length,
       delivering: undeliveredToday.filter((o) => o.status === OrderStatus.DELIVERING).length,
     };
-  }, [orders, selectedDateKey]);
+  }, [scopedOrders, selectedDateKey]);
 
   const sellerBreakdown = useMemo(() => {
     if (!isAgencyAdmin(userRole)) return [];
-    const map = new Map<string, { name: string; undelivered: number; delivered: number }>();
+    const map = new Map<string, { id: string; name: string; undelivered: number; delivered: number }>();
     for (const order of orders) {
       if (!order.sellerId) continue;
       const isUndelivered =
@@ -91,6 +98,7 @@ export default function OperationsDashboard({
       const isDelivered = getDeliveredTodayOrders([order], selectedDateKey).length > 0;
       if (!isUndelivered && !isDelivered) continue;
       const entry = map.get(order.sellerId) ?? {
+        id: order.sellerId,
         name: order.sellerName ?? 'Sin nombre',
         undelivered: 0,
         delivered: 0,
@@ -150,6 +158,14 @@ export default function OperationsDashboard({
           onNextDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
           onGoToday={() => setSelectedDateKey(todayKey)}
         />
+
+        {isAgency && sellers.length > 0 && (
+          <SellerFilterControl
+            sellers={sellers}
+            value={sellerFilterId}
+            onChange={setSellerFilterId}
+          />
+        )}
 
         <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 flex-wrap">
           <Clock className="w-3.5 h-3.5 shrink-0" />
@@ -253,12 +269,22 @@ export default function OperationsDashboard({
           />
 
           {isAgency && sellerBreakdown.length > 0 && (
-            <SellerBreakdownSection rows={sellerBreakdown} className="hidden xl:flex" />
+            <SellerBreakdownSection
+              rows={sellerBreakdown}
+              selectedSellerId={sellerFilterId}
+              onSelectSeller={setSellerFilterId}
+              className="hidden xl:flex"
+            />
           )}
         </div>
 
         {isAgency && sellerBreakdown.length > 0 && (
-          <SellerBreakdownSection rows={sellerBreakdown} className="shrink-0 mt-3 xl:hidden max-h-[9rem]" />
+          <SellerBreakdownSection
+            rows={sellerBreakdown}
+            selectedSellerId={sellerFilterId}
+            onSelectSeller={setSellerFilterId}
+            className="shrink-0 mt-3 xl:hidden max-h-[9rem]"
+          />
         )}
       </div>
     </div>
@@ -383,9 +409,13 @@ function OrderListSection({
 
 function SellerBreakdownSection({
   rows,
+  selectedSellerId = '',
+  onSelectSeller,
   className = '',
 }: {
-  rows: Array<{ name: string; undelivered: number; delivered: number }>;
+  rows: Array<{ id: string; name: string; undelivered: number; delivered: number }>;
+  selectedSellerId?: string;
+  onSelectSeller?: (sellerId: string) => void;
   className?: string;
 }) {
   return (
@@ -397,19 +427,46 @@ function SellerBreakdownSection({
           <Users className="w-3.5 h-3.5 text-[var(--color-accent)]" />
           Por vendedor
         </h2>
+        {onSelectSeller && (
+          <p className="text-[9px] text-[var(--color-text-faint)] mt-1">Tocá un vendedor para filtrar</p>
+        )}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-[var(--surface-border)]/60 scrollbar-thin">
-        {rows.map((row) => (
-          <div key={row.name} className="flex items-center justify-between px-3 py-2 text-sm">
-            <span className="font-medium text-[var(--ink-soft)] truncate">{row.name}</span>
-            <div className="flex items-center gap-2 shrink-0 font-mono text-[10px]">
-              <span className="text-[var(--color-ok)]">{row.delivered} ok</span>
-              <span className={row.undelivered > 0 ? 'text-[var(--color-warn)] font-bold' : 'text-[var(--color-text-muted)]'}>
-                {row.undelivered} pend.
-              </span>
-            </div>
-          </div>
-        ))}
+        {rows.map((row) => {
+          const isActive = selectedSellerId === row.id;
+          const inner = (
+            <>
+              <span className="font-medium text-[var(--ink-soft)] truncate">{row.name}</span>
+              <div className="flex items-center gap-2 shrink-0 font-mono text-[10px]">
+                <span className="text-[var(--color-ok)]">{row.delivered} ok</span>
+                <span className={row.undelivered > 0 ? 'text-[var(--color-warn)] font-bold' : 'text-[var(--color-text-muted)]'}>
+                  {row.undelivered} pend.
+                </span>
+              </div>
+            </>
+          );
+          if (!onSelectSeller) {
+            return (
+              <div key={row.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                {inner}
+              </div>
+            );
+          }
+          return (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => onSelectSeller(isActive ? '' : row.id)}
+              className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left transition ${
+                isActive
+                  ? 'bg-[var(--color-accent)]/10 border-l-2 border-[var(--color-accent)]'
+                  : 'hover:bg-[var(--surface-panel-2)]/60'
+              }`}
+            >
+              {inner}
+            </button>
+          );
+        })}
       </div>
     </section>
   );

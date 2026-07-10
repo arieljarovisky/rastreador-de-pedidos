@@ -481,13 +481,6 @@ export default function MapComponent({
       ) {
         activePolylineKeys.add(`${order.id}__route`);
       }
-      if (
-        order.id === activeOrderId &&
-        order.status === OrderStatus.DELIVERING &&
-        order.locationHistory.length > 1
-      ) {
-        activePolylineKeys.add(`${order.id}__trail`);
-      }
     });
     Object.keys(polylinesRef.current).forEach((key) => {
       if (!activePolylineKeys.has(key)) {
@@ -539,21 +532,6 @@ export default function MapComponent({
         markersRef.current[order.id] = marker;
       }
 
-      if (
-        order.id === activeOrderId &&
-        order.status === OrderStatus.DELIVERING &&
-        order.locationHistory.length > 1
-      ) {
-        const trailCoords = order.locationHistory.map(
-          (p) => [p.lat, p.lng] as [number, number]
-        );
-        upsertPolyline(map, polylinesRef.current, `${order.id}__trail`, trailCoords, {
-          color: mapColors.route,
-          weight: 3,
-          opacity: 0.7,
-          dashArray: '6, 8',
-        });
-      }
     });
 
     // --- 2b. PUNTOS DE COLECTA ---
@@ -850,7 +828,6 @@ export default function MapComponent({
       )}
       <div className="absolute bottom-3 left-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1.5 rounded-[5px] text-[8px] font-mono border border-[var(--surface-border)] text-[var(--color-text-faint)]">
         <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta en reparto (solo pedidos en viaje)</div>
-        <div><span className="inline-block w-3 h-0.5 border-t border-dashed border-[var(--color-accent)] mr-1 align-middle" /> Recorrido GPS del repartidor</div>
       </div>
       <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
     </div>

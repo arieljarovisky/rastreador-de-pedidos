@@ -33,6 +33,7 @@ interface RepartidorDashboardProps {
   pickupPoints?: PickupPoint[];
   onSelectOrder: (orderId: string | null) => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
+  onAddOrderIncident?: (orderId: string, comment: string) => Promise<void>;
   onReportLocation: (orderId: string, lat: number, lng: number) => Promise<void>;
   onReportUserLocation: (lat: number, lng: number) => Promise<void>;
   onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
@@ -52,6 +53,7 @@ export default function RepartidorDashboard({
   pickupPoints = [],
   onSelectOrder,
   onUpdateOrderStatus,
+  onAddOrderIncident,
   onReportLocation,
   onReportUserLocation,
   onOpenMercadoLibreLabel,
@@ -67,6 +69,8 @@ export default function RepartidorDashboard({
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [syncingOrders, setSyncingOrders] = useState(false);
+  const [incidentDraft, setIncidentDraft] = useState('');
+  const [savingIncident, setSavingIncident] = useState(false);
   const lastGpsSentAt = useRef(0);
 
   const reportFleetGps = useCallback(
@@ -100,6 +104,10 @@ export default function RepartidorDashboard({
   const deliveringOrder = myAssignedOrders.find((o) => o.status === OrderStatus.DELIVERING) ?? null;
   const otherDelivering =
     deliveringOrder && deliveringOrder.id !== selectedOrder?.id ? deliveringOrder : null;
+
+  useEffect(() => {
+    setIncidentDraft('');
+  }, [selectedOrder?.id]);
 
   const repForMap = useMemo(
     () => [
@@ -505,45 +513,72 @@ export default function RepartidorDashboard({
                     )}
 
                     {selectedOrder.status === OrderStatus.DELIVERING && (
-                      <>
-                        <button
-                          onClick={async () => {
-                            try {
-                              await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERED, undefined, 'Entregado en mano por repartidor');
-                              onSelectOrder(null);
-                            } catch (e) {
-                              void showAlert({
-                                title: 'Error',
-                                message: e instanceof Error ? e.message : 'No se pudo confirmar la entrega.',
-                                variant: 'error',
-                              });
-                            }
-                          }}
-                          className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/10 uppercase tracking-wider"
-                        >
-                          <Check className="w-4 h-4" /> Confirmar Entrega
-                        </button>
-
-                        <button
-                          onClick={async () => {
-                            try {
-                              await onUpdateOrderStatus(selectedOrder.id, OrderStatus.CANCELLED, undefined, 'Reportado con incidencia / Cancelado');
-                              onSelectOrder(null);
-                            } catch (e) {
-                              void showAlert({
-                                title: 'Error',
-                                message: e instanceof Error ? e.message : 'No se pudo reportar la incidencia.',
-                                variant: 'error',
-                              });
-                            }
-                          }}
-                          className="px-3 py-2 border border-red-500/20 hover:border-red-500 bg-red-500/5 hover:bg-red-500/10 text-[var(--color-danger)] rounded transition font-bold text-xs uppercase tracking-wider"
-                        >
-                          <AlertTriangle className="w-4 h-4" /> Incidencia
-                        </button>
-                      </>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERED, undefined, 'Entregado en mano por repartidor');
+                            onSelectOrder(null);
+                          } catch (e) {
+                            void showAlert({
+                              title: 'Error',
+                              message: e instanceof Error ? e.message : 'No se pudo confirmar la entrega.',
+                              variant: 'error',
+                            });
+                          }
+                        }}
+                        className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/10 uppercase tracking-wider"
+                      >
+                        <Check className="w-4 h-4" /> Confirmar Entrega
+                      </button>
                     )}
                   </div>
+
+                  {onAddOrderIncident &&
+                    (selectedOrder.status === OrderStatus.ASSIGNED ||
+                      selectedOrder.status === OrderStatus.DELIVERING) && (
+                    <div className="bg-[var(--surface-panel-2)] border border-[var(--color-warn)]/20 rounded p-2 space-y-1.5">
+                      <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-warn)] flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        Reportar incidencia
+                      </p>
+                      <textarea
+                        value={incidentDraft}
+                        onChange={(e) => setIncidentDraft(e.target.value)}
+                        placeholder="Ej: Cliente ausente, no atiende, dirección incorrecta..."
+                        rows={2}
+                        className="w-full bg-[var(--surface-panel)] border border-[var(--surface-border)] rounded p-2 text-[11px] text-[var(--ink-soft)] placeholder:text-[var(--color-text-faint)] focus:outline-none focus:border-[var(--color-warn)]/50 resize-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={!incidentDraft.trim() || savingIncident}
+                        onClick={async () => {
+                          const text = incidentDraft.trim();
+                          if (!text) return;
+                          setSavingIncident(true);
+                          try {
+                            await onAddOrderIncident(selectedOrder.id, text);
+                            setIncidentDraft('');
+                            void showAlert({
+                              title: 'Incidencia registrada',
+                              message: 'Quedó guardada en la bitácora del pedido.',
+                              variant: 'success',
+                            });
+                          } catch (e) {
+                            void showAlert({
+                              title: 'Error',
+                              message: e instanceof Error ? e.message : 'No se pudo reportar la incidencia.',
+                              variant: 'error',
+                            });
+                          } finally {
+                            setSavingIncident(false);
+                          }
+                        }}
+                        className="w-full py-1.5 border border-[var(--color-warn)]/30 hover:border-[var(--color-warn)] bg-[var(--color-warn)]/5 hover:bg-[var(--color-warn)]/10 text-[var(--color-warn)] font-bold text-[10px] uppercase tracking-wider rounded transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {savingIncident ? 'Guardando...' : 'Registrar incidencia'}
+                      </button>
+                    </div>
+                  )}
 
                   {otherDelivering && selectedOrder.status === OrderStatus.ASSIGNED && (
                     <p className="text-[10px] text-[var(--color-warn)] font-mono text-center">

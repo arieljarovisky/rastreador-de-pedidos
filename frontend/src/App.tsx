@@ -1306,6 +1306,30 @@ export default function App() {
     }
   };
 
+  const handleAddOrderIncident = async (orderId: string, comment: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(apiUrl(`/api/orders/${orderId}/incidencias`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ comment }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'No se pudo registrar la incidencia');
+      }
+
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  };
+
   const handleDeleteOrder = async (orderId: string) => {
     if (!token) return;
     try {
@@ -1788,6 +1812,7 @@ export default function App() {
                     onSelectOrder={setActiveOrderId}
                     onCreateOrder={handleCreateOrder}
                     onUpdateOrderStatus={handleUpdateOrderStatus}
+                    onAddOrderIncident={handleAddOrderIncident}
                     onAssignOrderSeller={handleAssignOrderSeller}
                     onDeleteOrder={handleDeleteOrder}
                     onArchiveOrder={handleArchiveOrder}
@@ -1911,6 +1936,7 @@ export default function App() {
                 pickupPoints={pickupPoints}
                 onSelectOrder={setActiveOrderId}
                 onUpdateOrderStatus={handleUpdateOrderStatus}
+                onAddOrderIncident={handleAddOrderIncident}
                 onReportLocation={handleReportLocation}
                 onReportUserLocation={handleReportUserLocation}
                 onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}

@@ -6,6 +6,7 @@ import {
   getOrderById,
   createOrder,
   updateOrderStatus,
+  addOrderIncident,
   reportOrderLocation,
   reportOrderLocationsBatch,
   canViewOrder,
@@ -269,6 +270,36 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
       res.status(400).json({
         error: 'Solo se puede desasignar repartidor en pedidos asignados que aún no salieron a ruta.',
       });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.post('/:id/incidencias', authenticate, async (req: Request, res: Response) => {
+  const { comment } = req.body;
+  if (!comment || typeof comment !== 'string' || !comment.trim()) {
+    res.status(400).json({ error: 'El comentario de la incidencia es requerido.' });
+    return;
+  }
+
+  try {
+    const order = await addOrderIncident(req.user!, req.params.id, comment);
+    const sellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, sellerId);
+    res.json(order);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Pedido no encontrado.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para registrar incidencias en este pedido.' });
+      return;
+    }
+    if (message === 'COMMENT_REQUIRED') {
+      res.status(400).json({ error: 'El comentario de la incidencia es requerido.' });
       return;
     }
     throw err;
