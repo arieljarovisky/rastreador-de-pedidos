@@ -544,27 +544,28 @@
 
 /* Login / registro — layout split (oscuro por defecto, claro con data-theme=paper) */
 .auth-split {
-  --auth-bg: #0e0c0a;
-  --auth-panel: #1c1814;
-  --auth-panel-2: #242019;
-  --auth-line: #2e2820;
-  --auth-text: #ede6d8;
-  --auth-muted: #b8ab98;
-  --auth-faint: #7a6f60;
-  --auth-accent: #5c87eb;
-  --auth-stamp: #e8431f;
-  --auth-ok: #3fae63;
-  --auth-warn: #e69a2e;
-  --auth-danger: #e5564f;
+  --auth-bg: var(--bg);
+  --auth-panel: var(--panel);
+  --auth-panel-2: var(--panel-2);
+  --auth-line: var(--line);
+  --auth-text: var(--text);
+  --auth-muted: var(--text-muted);
+  --auth-faint: var(--text-faint);
+  --auth-accent: var(--accent);
+  --auth-stamp: var(--stamp);
+  --auth-ok: var(--ok);
+  --auth-warn: var(--warn);
+  --auth-danger: var(--danger);
   --auth-grid: rgba(255, 255, 255, 0.04);
-  --auth-glow: rgba(92, 135, 235, 0.12);
+  --auth-glow: rgba(92, 135, 235, 0.08);
   --auth-card-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
   --auth-error-text: #f0a8a4;
-  --auth-toggle-bg: #242019;
-  --auth-toggle-border: #2e2820;
-  --auth-toggle-text: #b8ab98;
+  --auth-toggle-bg: var(--panel-2);
+  --auth-toggle-border: var(--line);
+  --auth-toggle-text: var(--text-muted);
 
   min-height: 100dvh;
+  width: 100%;
   display: grid;
   grid-template-columns: 1fr;
   background: var(--auth-bg);
@@ -642,9 +643,7 @@
   display: none;
   overflow: hidden;
   border-right: 1px solid var(--auth-line);
-  background:
-    radial-gradient(ellipse 80% 60% at 20% 0%, var(--auth-glow), transparent 55%),
-    var(--auth-bg);
+  background: var(--auth-bg);
 }
 
 @media (min-width: 1024px) {
@@ -805,6 +804,7 @@
   justify-content: center;
   padding: max(1rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
   overflow-y: auto;
+  background: var(--auth-bg);
 }
 
 @media (min-width: 1024px) {
