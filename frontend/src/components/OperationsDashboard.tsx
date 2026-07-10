@@ -184,15 +184,14 @@ export default function OperationsDashboard({
           onGoToday={() => setSelectedDateKey(todayKey)}
         />
 
-        {isAgency && sellers.length > 0 && (
-          <SellerFilterControl
-            sellers={sellers}
-            value={sellerFilterId}
-            onChange={setSellerFilterId}
-          />
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {isAgency && sellers.length > 0 && (
+            <SellerFilterControl
+              sellers={sellers}
+              value={sellerFilterId}
+              onChange={setSellerFilterId}
+            />
+          )}
           <CordonFilterControl
             zones={cordonZones}
             value={cordonFilterId}
