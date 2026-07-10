@@ -944,42 +944,46 @@ export async function deleteOrder(user: User, orderId: string): Promise<{ seller
   return { sellerId: order.sellerId };
 }
 
-export async function deleteAllOrders(
+export async function archiveAllFinishedOrders(
   user: User
-): Promise<{ deleted: number; orderIds: string[]; sellerIds: string[] }> {
+): Promise<{ archived: number; orderIds: string[] }> {
+  const now = new Date();
+
   if (user.role === UserRole.STORE_ADMIN) {
-    const [rows] = await pool.query<RowDataPacket[]>('SELECT id FROM orders WHERE seller_id = ?', [
-      user.id,
-    ]);
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT id FROM orders
+       WHERE seller_id = ? AND archived = 0 AND status IN (?, ?)`,
+      [user.id, OrderStatus.DELIVERED, OrderStatus.CANCELLED]
+    );
     const orderIds = rows.map((r) => String(r.id));
-    const [result] = await pool.query<ResultSetHeader>('DELETE FROM orders WHERE seller_id = ?', [
-      user.id,
-    ]);
-    return {
-      deleted: result.affectedRows,
-      orderIds,
-      sellerIds: result.affectedRows > 0 ? [user.id] : [],
-    };
+    if (orderIds.length === 0) {
+      return { archived: 0, orderIds: [] };
+    }
+    const [result] = await pool.query<ResultSetHeader>(
+      `UPDATE orders SET archived = 1, updated_at = ?
+       WHERE seller_id = ? AND archived = 0 AND status IN (?, ?)`,
+      [now, user.id, OrderStatus.DELIVERED, OrderStatus.CANCELLED]
+    );
+    return { archived: result.affectedRows, orderIds };
   }
 
   if (isAgencyAdmin(user.role)) {
     if (!user.agencyId) throw new Error('FORBIDDEN');
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT id, seller_id FROM orders WHERE agency_id = ?',
-      [user.agencyId]
+      `SELECT id FROM orders
+       WHERE agency_id = ? AND archived = 0 AND status IN (?, ?)`,
+      [user.agencyId, OrderStatus.DELIVERED, OrderStatus.CANCELLED]
     );
     const orderIds = rows.map((r) => String(r.id));
-    const sellerIds = [
-      ...new Set(
-        rows
-          .map((r) => (r.seller_id != null ? String(r.seller_id) : null))
-          .filter((id): id is string => Boolean(id))
-      ),
-    ];
-    const [result] = await pool.query<ResultSetHeader>('DELETE FROM orders WHERE agency_id = ?', [
-      user.agencyId,
-    ]);
-    return { deleted: result.affectedRows, orderIds, sellerIds };
+    if (orderIds.length === 0) {
+      return { archived: 0, orderIds: [] };
+    }
+    const [result] = await pool.query<ResultSetHeader>(
+      `UPDATE orders SET archived = 1, updated_at = ?
+       WHERE agency_id = ? AND archived = 0 AND status IN (?, ?)`,
+      [now, user.agencyId, OrderStatus.DELIVERED, OrderStatus.CANCELLED]
+    );
+    return { archived: result.affectedRows, orderIds };
   }
 
   throw new Error('FORBIDDEN');

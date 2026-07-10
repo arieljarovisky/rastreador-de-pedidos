@@ -91,6 +91,23 @@ export async function getRepartidores(agencyId?: string | null): Promise<User[]>
   return rows.map(rowToUser);
 }
 
+/** Repartidores asignados a pedidos del vendedor (sin exponer el tamaño total de la flota). */
+export async function getRepartidoresForSeller(
+  sellerId: string,
+  agencyId: string
+): Promise<User[]> {
+  const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
+    `SELECT DISTINCT u.id, u.username, u.name, u.role, u.agency_id, u.password_hash, u.current_lat, u.current_lng, u.location_updated_at,
+      u.departure_address, u.departure_lat, u.departure_lng, u.delivery_zone
+     FROM users u
+     INNER JOIN orders o ON o.repartidor_id = u.id
+     WHERE u.role = ? AND u.agency_id = ? AND o.seller_id = ? AND o.archived = 0
+     ORDER BY u.name`,
+    [UserRole.REPARTIDOR, agencyId, sellerId]
+  );
+  return rows.map(rowToUser);
+}
+
 export async function assertRepartidorInAgency(
   repartidorId: string,
   agencyId: string

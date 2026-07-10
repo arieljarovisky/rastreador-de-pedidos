@@ -162,7 +162,7 @@ interface SettingsPageProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
-  onDeleteAllOrders?: () => Promise<number>;
+  onArchiveAllFinishedOrders?: () => Promise<number>;
   agencyIntegrationStatus?: MarketplaceIntegrationStatus | null;
   agencyIntegrationStatusLoading?: boolean;
   agencyIntegrationStatusError?: string | null;
@@ -218,7 +218,7 @@ export default function SettingsPage({
   onDisconnectMarketplace,
   onFetchMarketplaceShipments,
   onImportMarketplaceShipments,
-  onDeleteAllOrders,
+  onArchiveAllFinishedOrders,
   agencyIntegrationStatus = null,
   agencyIntegrationStatusLoading = false,
   agencyIntegrationStatusError = null,
@@ -1798,6 +1798,7 @@ export default function SettingsPage({
             onDisconnect={onDisconnectAgencyMarketplace}
             onFetchShipments={onFetchAgencyMarketplaceShipments}
             onImport={onImportAgencyMarketplaceShipments}
+            onArchiveAllFinishedOrders={onArchiveAllFinishedOrders}
           />
         )}
         {agency && isAgencyAdmin(userRole) && (
@@ -1846,7 +1847,7 @@ export default function SettingsPage({
               onDisconnect={onDisconnectMarketplace}
               onFetchShipments={onFetchMarketplaceShipments}
               onImport={onImportMarketplaceShipments}
-              onDeleteAllOrders={onDeleteAllOrders}
+              onArchiveAllFinishedOrders={onArchiveAllFinishedOrders}
             />
           )}
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (

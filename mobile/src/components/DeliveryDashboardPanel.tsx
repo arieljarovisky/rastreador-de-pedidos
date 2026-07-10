@@ -166,8 +166,10 @@ export default function DeliveryDashboardPanel({
             <View style={styles.ctaTextWrap}>
               <Text style={styles.ctaTitle}>Mapa y pedidos en vivo</Text>
               <Text style={styles.ctaSub}>
-                {undelivered.length} pendiente{undelivered.length === 1 ? '' : 's'} · {repartidores.length} repartidor
-                {repartidores.length === 1 ? '' : 'es'}
+                {undelivered.length} pendiente{undelivered.length === 1 ? '' : 's'}
+                {isAgency
+                  ? ` · ${repartidores.length} repartidor${repartidores.length === 1 ? '' : 'es'}`
+                  : ''}
               </Text>
             </View>
             <PostaIcon name="chevronRight" size={16} color={accentColor} />

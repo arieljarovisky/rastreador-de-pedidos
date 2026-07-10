@@ -12,7 +12,7 @@ import {
   getSellerIdForOrder,
   assignOrderToSeller,
   deleteOrder,
-  deleteAllOrders,
+  archiveAllFinishedOrders,
   setOrderArchived,
 } from '../services/orders.service.js';
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
@@ -304,18 +304,20 @@ router.put('/:id/seller', authenticate, requireAgencyAdmin(), async (req: Reques
   }
 });
 
-router.delete('/all', authenticate, async (req: Request, res: Response) => {
+router.put('/archive-finished', authenticate, async (req: Request, res: Response) => {
   try {
-    const result = await deleteAllOrders(req.user!);
+    const result = await archiveAllFinishedOrders(req.user!);
     for (const orderId of result.orderIds) {
-      const sellerId = result.sellerIds.length === 1 ? result.sellerIds[0]! : null;
-      emitOrderDeleted(orderId, sellerId);
+      const order = await getOrderById(orderId);
+      if (!order) continue;
+      const sellerId = await getSellerIdForOrder(order.id);
+      emitOrderUpdated(order, sellerId);
     }
-    res.json({ deleted: result.deleted });
+    res.json({ archived: result.archived });
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'FORBIDDEN') {
-      res.status(403).json({ error: 'No tienes permiso para eliminar todos los pedidos.' });
+      res.status(403).json({ error: 'No tienes permiso para archivar envíos.' });
       return;
     }
     throw err;

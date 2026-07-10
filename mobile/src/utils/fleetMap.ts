@@ -10,15 +10,21 @@ const COLORS = {
   pending: '#A99B85',
 };
 
-/** Marcadores para mapa de flota del vendedor (repartidores + pedidos activos). */
+/** Marcadores para mapa de flota del vendedor (repartidores asignados + pedidos activos). */
 export function buildSellerFleetMarkers(
   orders: Order[],
   repartidores: User[]
 ): MapMarker[] {
   const markers: MapMarker[] = [];
 
+  const assignedRepIds = new Set(
+    orders
+      .filter((o) => !o.archived && o.repartidorId)
+      .map((o) => o.repartidorId as string)
+  );
+
   const repsWithLocation = dedupeRepartidores(repartidores)
-    .filter((rep) => rep.currentLocation)
+    .filter((rep) => assignedRepIds.has(rep.id) && rep.currentLocation)
     .map((rep) => ({
       rep,
       lat: rep.currentLocation!.lat,

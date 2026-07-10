@@ -413,7 +413,15 @@ export default function AdminDashboard({
     [repartidores, mapRepartidorIds]
   );
 
-  const mapRepartidores = repartidores;
+  const agency = isAgencyAdmin(userRole);
+
+  const mapRepartidores = useMemo(() => {
+    if (agency) return repartidores;
+    const assignedIds = new Set(
+      orders.filter((o) => !o.archived && o.repartidorId).map((o) => o.repartidorId as string)
+    );
+    return repartidores.filter((r) => assignedIds.has(r.id));
+  }, [agency, repartidores, orders]);
 
   const mapOrders = useMemo(() => {
     const visible = sellerFilterId
@@ -1306,6 +1314,7 @@ export default function AdminDashboard({
               {showDeliveredOnMap ? 'Ocultar listos' : 'Ver listos'}
             </button>
 
+            {agency && (
             <div className="relative">
               <button
                 type="button"
@@ -1383,6 +1392,7 @@ export default function AdminDashboard({
                 </div>
               )}
             </div>
+            )}
           </div>
           <MapComponent
             orders={mapOrders}

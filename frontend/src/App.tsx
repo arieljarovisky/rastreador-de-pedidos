@@ -347,14 +347,22 @@ export default function App() {
     onOrderDeleted: removeOrder,
     onOrderLocation: applyOrderLocation,
     onRepartidorLocation: (payload) => {
-      setRepartidores((prev) =>
-        mergeRepartidorLocation(
+      setRepartidores((prev) => {
+        if (user?.role === UserRole.STORE_ADMIN) {
+          const onSellerOrder = orders.some(
+            (o) => !o.archived && o.repartidorId === payload.repartidorId
+          );
+          if (!onSellerOrder && !prev.some((r) => r.id === payload.repartidorId)) {
+            return prev;
+          }
+        }
+        return mergeRepartidorLocation(
           prev,
           payload.repartidorId,
           payload.location,
           payload.name
-        )
-      );
+        );
+      });
       setLastSyncAt(new Date());
     },
     onConnectionChange: setWsConnected,
@@ -1317,42 +1325,45 @@ export default function App() {
     }
   };
 
-  const handleDeleteAllOrders = async (): Promise<number> => {
+  const handleArchiveAllFinishedOrders = async (): Promise<number> => {
     if (!token) throw new Error('Sin sesión');
-    const res = await fetch(apiUrl('/api/orders/all'), {
-      method: 'DELETE',
+    const res = await fetch(apiUrl('/api/orders/archive-finished'), {
+      method: 'PUT',
       headers: { Authorization: `Bearer ${token}` },
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || 'No se pudieron eliminar los pedidos');
-    setOrders([]);
-    setActiveOrderId(null);
+    if (!res.ok) throw new Error(body.error || 'No se pudieron archivar los envíos');
     fetchData();
-    return Number(body.deleted ?? 0);
+    return Number(body.archived ?? 0);
   };
 
-  const confirmDeleteAllOrders = async (): Promise<number> => {
+  const confirmArchiveAllFinishedOrders = async (): Promise<number> => {
     const ok = await showConfirm({
-      title: 'Eliminar todos los pedidos',
+      title: 'Archivar envíos finalizados',
       message:
-        'Se borrarán todos tus envíos de Posta (incluidos importados de Mercado Libre). Esta acción no se puede deshacer.',
-      variant: 'danger',
-      confirmText: 'Eliminar todos',
+        'Los envíos entregados o cancelados que aún no estén archivados pasarán a Archivados. Los pedidos en curso no se modifican.',
+      confirmText: 'Archivar todos',
       cancelText: 'Cancelar',
     });
     if (!ok) return 0;
     try {
-      const deleted = await handleDeleteAllOrders();
-      if (deleted > 0) {
+      const archived = await handleArchiveAllFinishedOrders();
+      if (archived > 0) {
         void showAlert({
-          title: 'Pedidos eliminados',
-          message: `Se eliminaron ${deleted} pedido${deleted !== 1 ? 's' : ''}.`,
+          title: 'Envíos archivados',
+          message: `Se archivaron ${archived} envío${archived !== 1 ? 's' : ''} finalizado${archived !== 1 ? 's' : ''}.`,
+          variant: 'success',
+        });
+      } else {
+        void showAlert({
+          title: 'Sin envíos para archivar',
+          message: 'No hay envíos entregados o cancelados pendientes de archivar.',
           variant: 'success',
         });
       }
-      return deleted;
+      return archived;
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'No se pudieron eliminar los pedidos';
+      const message = e instanceof Error ? e.message : 'No se pudieron archivar los envíos';
       void showAlert({ title: 'Error', message, variant: 'error' });
       throw e;
     }
@@ -1539,12 +1550,14 @@ export default function App() {
             </span>
           </div>
           
-          <div className="flex flex-col items-end">
-            <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Repartidores</span>
-            <span className="text-xl font-mono text-[var(--color-accent)] font-semibold leading-none mt-0.5">
-              {String(repartidores.length).padStart(2, '0')}
-            </span>
-          </div>
+          {isAgencyAdmin(user.role) && (
+            <div className="flex flex-col items-end">
+              <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Repartidores</span>
+              <span className="text-xl font-mono text-[var(--color-accent)] font-semibold leading-none mt-0.5">
+                {String(repartidores.length).padStart(2, '0')}
+              </span>
+            </div>
+          )}
 
           <div className="h-8 w-[1px] bg-[var(--surface-border)] mx-1"></div>
 
@@ -1832,9 +1845,9 @@ export default function App() {
                   onDisconnectMarketplace={user.role === UserRole.STORE_ADMIN ? disconnectMarketplace : undefined}
                   onFetchMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? fetchMarketplaceShipments : undefined}
                   onImportMarketplaceShipments={user.role === UserRole.STORE_ADMIN ? importMarketplaceShipments : undefined}
-                  onDeleteAllOrders={
-                    user.role === UserRole.STORE_ADMIN || user.role === UserRole.LOGISTICS_ADMIN
-                      ? confirmDeleteAllOrders
+                  onArchiveAllFinishedOrders={
+                    user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)
+                      ? confirmArchiveAllFinishedOrders
                       : undefined
                   }
                   agencyIntegrationStatus={agencyIntegrationStatus}

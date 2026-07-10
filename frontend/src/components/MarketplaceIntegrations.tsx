@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link2, Unlink, Download, RefreshCw, ShoppingBag, Store, Loader2, Trash2 } from 'lucide-react';
+import { Link2, Unlink, Download, RefreshCw, ShoppingBag, Store, Loader2, Archive } from 'lucide-react';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 export interface MarketplaceIntegrationsProps {
@@ -23,7 +23,7 @@ export interface MarketplaceIntegrationsProps {
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
-  onDeleteAllOrders?: () => Promise<number>;
+  onArchiveAllFinishedOrders?: () => Promise<number>;
   /** Cuenta ML centralizada de la agencia (sin vendedores). */
   scope?: 'seller' | 'agency';
 }
@@ -413,7 +413,7 @@ export default function MarketplaceIntegrations({
   onDisconnect,
   onFetchShipments,
   onImport,
-  onDeleteAllOrders,
+  onArchiveAllFinishedOrders,
   scope = 'seller',
 }: MarketplaceIntegrationsProps) {
   const isAgencyScope = scope === 'agency';
@@ -431,7 +431,7 @@ export default function MarketplaceIntegrations({
   const [mlDateTo, setMlDateTo] = useState(() => defaultMlDateRange().dateTo);
   const [mlRefInput, setMlRefInput] = useState('');
   const [mlRefImporting, setMlRefImporting] = useState(false);
-  const [deletingAll, setDeletingAll] = useState(false);
+  const [archivingFinished, setArchivingFinished] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<'success' | 'error'>('success');
 
@@ -656,34 +656,34 @@ export default function MarketplaceIntegrations({
         )}
       </div>
 
-      {!isAgencyScope && onDeleteAllOrders && (
+      {onArchiveAllFinishedOrders && (
         <div className="pt-2 border-t border-[var(--surface-border)]">
           <button
             type="button"
-            className={`${btnGhost} text-[var(--color-danger)] border-[var(--color-danger)]/30 hover:bg-[var(--color-danger)]/10 w-full`}
-            disabled={deletingAll || mlLoading || tnLoading || mlImporting || tnImporting}
+            className={`${btnGhost} w-full`}
+            disabled={archivingFinished || mlLoading || tnLoading || mlImporting || tnImporting}
             onClick={() => {
-              setDeletingAll(true);
-              void onDeleteAllOrders()
-                .then((deleted) => {
-                  if (deleted > 0) {
-                    setMlShipments([]);
-                    setTnShipments([]);
+              setArchivingFinished(true);
+              void onArchiveAllFinishedOrders()
+                .then((archived) => {
+                  if (archived > 0) {
                     setMessageTone('success');
-                    setMessage(`Se eliminaron ${deleted} pedido${deleted !== 1 ? 's' : ''}.`);
+                    setMessage(
+                      `Se archivaron ${archived} envío${archived !== 1 ? 's' : ''} finalizado${archived !== 1 ? 's' : ''}.`
+                    );
                   }
                 })
                 .catch(() => {})
-                .finally(() => setDeletingAll(false));
+                .finally(() => setArchivingFinished(false));
             }}
           >
             <span className="inline-flex items-center justify-center gap-1 w-full">
-              {deletingAll ? (
+              {archivingFinished ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
               ) : (
-                <Trash2 className="w-3 h-3" />
+                <Archive className="w-3 h-3" />
               )}
-              {deletingAll ? 'Eliminando…' : 'Eliminar todos los pedidos'}
+              {archivingFinished ? 'Archivando…' : 'Archivar envíos finalizados'}
             </span>
           </button>
         </div>

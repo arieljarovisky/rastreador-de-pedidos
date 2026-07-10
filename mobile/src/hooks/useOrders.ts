@@ -52,6 +52,8 @@ export function useOrders(
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const initialLoadDoneRef = useRef(false);
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
 
   const onNotificationRef = useRef(onNotificationCreated);
   onNotificationRef.current = onNotificationCreated;
@@ -98,10 +100,18 @@ export function useOrders(
   }, [trackRepartidores]);
 
   const applyRepartidorLocation = useCallback((payload: RepartidorLocationPayload) => {
-    setRepartidores((prev) =>
-      mergeRepartidorLocation(prev, payload.repartidorId, payload.location, payload.name)
-    );
-  }, []);
+    setRepartidores((prev) => {
+      if (trackRepartidores) {
+        const onSellerOrder = ordersRef.current.some(
+          (o) => !o.archived && o.repartidorId === payload.repartidorId
+        );
+        if (!onSellerOrder && !prev.some((r) => r.id === payload.repartidorId)) {
+          return prev;
+        }
+      }
+      return mergeRepartidorLocation(prev, payload.repartidorId, payload.location, payload.name);
+    });
+  }, [trackRepartidores]);
 
   const load = useCallback(async () => {
     if (!token) return;
