@@ -63,6 +63,18 @@ Usuarios demo:
 
 El seed carga **60 pedidos** repartidos entre los 7 vendedores (~35 % pendientes, 25 % asignados, 20 % en reparto, 15 % entregados, 5 % cancelados).
 
+### Perfil demo en producción (sin borrar MensajeriaGR)
+
+Si `logistica` abre la agencia real (MensajeriaGR) en lugar del demo, el usuario existe pero sigue en `ag_default`. En Railway, agregá **una vez**:
+
+```
+DEMO_SEED_ON_START=true
+```
+
+Redeployá el backend, esperá el log `Perfil demo aplicado`, y volvé a poner `false` o borrá la variable. Luego cerrá sesión en el navegador (o borrá datos del sitio) e ingresá de nuevo con `logistica` / `logistica123`.
+
+Alternativa manual en el servicio backend: `npm run db:seed`
+
 ## Desarrollo
 
 ```bash

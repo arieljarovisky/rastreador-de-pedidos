@@ -12,6 +12,11 @@ async function start(): Promise<void> {
     console.log('[startup] DB_RESET_ON_START=true → reseteando base de datos...');
     await resetDatabase();
     console.log('[startup] Reset completado. Desactivá DB_RESET_ON_START después de este deploy.');
+  } else if (process.env.DEMO_SEED_ON_START === 'true') {
+    console.log('[startup] DEMO_SEED_ON_START=true → cargando perfil demo (ag_demo)...');
+    const { seedDatabase } = await import('./db/seed.js');
+    await seedDatabase();
+    console.log('[startup] Perfil demo aplicado. Desactivá DEMO_SEED_ON_START después de este deploy.');
   }
 
   await runMigrations();

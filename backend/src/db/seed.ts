@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/database.js';
 import { seedDefaultZonesForAgency, ensureCordonZonesForAgency } from '../services/delivery-zones.service.js';
+import { ensureAgencySubscription } from '../services/subscriptions.service.js';
 import { OrderStatus, UserRole } from '../types/index.js';
 import { computeDeliveryDeadline } from '../utils/delivery-deadline.js';
 
@@ -22,6 +23,20 @@ const VENDORS = [
   { id: 'u9', username: 'fitness-pro', name: 'Fitness Pro Store', password: 'vendor123' },
   { id: 'u10', username: 'gourmet-ba', name: 'Gourmet BA', password: 'vendor123' },
   { id: 'u11', username: 'pet-corner', name: 'Pet Corner', password: 'vendor123' },
+] as const;
+
+const DEMO_USERNAMES = [
+  'logistica',
+  'admin',
+  'moda-norte',
+  'tech-ba',
+  'hogar-shop',
+  'fitness-pro',
+  'gourmet-ba',
+  'pet-corner',
+  'carlos',
+  'maria',
+  'juan',
 ] as const;
 
 const DEMO_ADDRESSES = [
@@ -260,6 +275,67 @@ function generateDemoOrders(): OrderSeed[] {
   return orders;
 }
 
+async function bindDemoUsersToAgency(): Promise<void> {
+  const placeholders = DEMO_USERNAMES.map(() => '?').join(', ');
+  const [result] = await pool.query(
+    `UPDATE users SET agency_id = ?
+     WHERE LOWER(username) IN (${placeholders})`,
+    [agencyId, ...DEMO_USERNAMES]
+  );
+  const affected = (result as { affectedRows?: number }).affectedRows ?? 0;
+  if (affected > 0) {
+    console.log(`[seed] ${affected} usuario(s) demo vinculado(s) a ${agencyId}.`);
+  }
+}
+
+async function upsertLogisticaAdmin(passwordHash: string): Promise<void> {
+  const departureAddress = 'Av. Santa Fe 3200, Palermo, CABA';
+  const [rows] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
+    'SELECT id FROM users WHERE LOWER(username) = ? LIMIT 1',
+    ['logistica']
+  );
+  const existingId = rows[0]?.id;
+  if (existingId) {
+    await pool.query(
+      `UPDATE users SET password_hash = ?, name = ?, role = ?, agency_id = ?,
+        departure_address = ?, departure_lat = ?, departure_lng = ?
+       WHERE id = ?`,
+      [
+        passwordHash,
+        'Lupo Logística (Envíos)',
+        UserRole.SUPER_ADMIN,
+        agencyId,
+        departureAddress,
+        DEPOT.lat,
+        DEPOT.lng,
+        existingId,
+      ]
+    );
+    return;
+  }
+  await pool.query(
+    `INSERT INTO users (id, username, password_hash, name, role, agency_id, departure_address, departure_lat, departure_lng)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['u5', 'logistica', passwordHash, 'Lupo Logística (Envíos)', UserRole.SUPER_ADMIN, agencyId, departureAddress, DEPOT.lat, DEPOT.lng]
+  );
+}
+
+async function clearDemoAgencyOrders(): Promise<void> {
+  await pool.query(
+    `DELETE olh FROM order_location_history olh
+     INNER JOIN orders o ON o.id = olh.order_id
+     WHERE o.agency_id = ?`,
+    [agencyId]
+  );
+  await pool.query(
+    `DELETE oh FROM order_history oh
+     INNER JOIN orders o ON o.id = oh.order_id
+     WHERE o.agency_id = ?`,
+    [agencyId]
+  );
+  await pool.query('DELETE FROM orders WHERE agency_id = ?', [agencyId]);
+}
+
 export async function seedDatabase(): Promise<void> {
   await pool.query(
     `INSERT INTO agencies (id, name, departure_address, departure_lat, departure_lng, created_at)
@@ -277,11 +353,13 @@ export async function seedDatabase(): Promise<void> {
   );
 
   const adminUsers = [
-    { id: 'u5', username: 'logistica', name: 'Lupo Logística (Envíos)', role: UserRole.SUPER_ADMIN, password: 'logistica123', lat: null, lng: null, zone: null },
     { id: 'u2', username: 'carlos', name: 'Carlos Gómez', role: UserRole.REPARTIDOR, password: 'carlos123', lat: -34.5901, lng: -58.4215, zone: 'zona_sur' },
     { id: 'u3', username: 'maria', name: 'María Rodríguez', role: UserRole.REPARTIDOR, password: 'maria123', lat: -34.5712, lng: -58.4412, zone: 'zona_norte' },
     { id: 'u4', username: 'juan', name: 'Juan Pérez', role: UserRole.REPARTIDOR, password: 'juan123', lat: -34.6, lng: -58.41, zone: 'zona_oeste' },
   ];
+
+  const logisticaPasswordHash = await hash('logistica123');
+  await upsertLogisticaAdmin(logisticaPasswordHash);
 
   for (const v of VENDORS) {
     const passwordHash = await hash(v.password);
@@ -298,25 +376,22 @@ export async function seedDatabase(): Promise<void> {
   for (const u of adminUsers) {
     const passwordHash = await hash(u.password);
     const locTime = u.lat != null ? new Date(now) : null;
-    const departure =
-      u.id === 'u5'
-        ? { address: 'Av. Santa Fe 3200, Palermo, CABA', lat: DEPOT.lat, lng: DEPOT.lng }
-        : null;
     await pool.query(
       `INSERT INTO users (id, username, password_hash, name, role, agency_id, current_lat, current_lng, location_updated_at,
         departure_address, departure_lat, departure_lng, delivery_zone)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?)
        ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name), role = VALUES(role),
-         agency_id = VALUES(agency_id), departure_address = VALUES(departure_address), departure_lat = VALUES(departure_lat),
-         departure_lng = VALUES(departure_lng), delivery_zone = VALUES(delivery_zone)`,
+         agency_id = VALUES(agency_id), delivery_zone = VALUES(delivery_zone)`,
       [
         u.id, u.username, passwordHash, u.name, u.role, agencyId,
         u.lat, u.lng, locTime,
-        departure?.address ?? null, departure?.lat ?? null, departure?.lng ?? null,
         u.zone ?? null,
       ]
     );
   }
+
+  await bindDemoUsersToAgency();
+  await ensureAgencySubscription(agencyId);
 
   const pickupPoints = [
     { id: 'pp1', userId: 'u1', label: 'Depósito principal', address: 'Av. Rivadavia 4500, Caballito, CABA', lat: -34.6186, lng: -58.4352 },
@@ -341,23 +416,19 @@ export async function seedDatabase(): Promise<void> {
   await seedDefaultZonesForAgency(agencyId);
   await ensureCordonZonesForAgency(agencyId);
 
+  await clearDemoAgencyOrders();
   const orders = generateDemoOrders();
 
   for (const o of orders) {
     const deadline = computeDeliveryDeadline(o.createdAt);
     await pool.query(
       `INSERT INTO orders (id, agency_id, seller_id, client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at, delivery_deadline)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE client_name = VALUES(client_name), seller_id = VALUES(seller_id), status = VALUES(status),
-         repartidor_id = VALUES(repartidor_id), agency_id = VALUES(agency_id), delivery_deadline = VALUES(delivery_deadline)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         o.id, agencyId, o.sellerId, o.clientName, o.clientPhone, o.address, o.lat, o.lng,
         o.status, o.repartidorId, o.notes, o.createdAt, o.updatedAt, deadline,
       ]
     );
-
-    await pool.query('DELETE FROM order_history WHERE order_id = ?', [o.id]);
-    await pool.query('DELETE FROM order_location_history WHERE order_id = ?', [o.id]);
 
     for (const h of o.history) {
       await pool.query(
