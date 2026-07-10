@@ -7,7 +7,12 @@ import { computeDeliveryDeadline } from '../utils/delivery-deadline.js';
 
 const now = Date.now();
 const agencyId = 'ag_demo';
+const DEMO_ORDER_PREFIX = 'DEMO-';
 const DEPOT = { lat: -34.5885, lng: -58.4306 };
+
+function demoOrderId(orderNum: number): string {
+  return `${DEMO_ORDER_PREFIX}${orderNum}`;
+}
 
 const REPARTIDORES = [
   { id: 'u2', name: 'Carlos Gómez' },
@@ -185,7 +190,7 @@ function generateDemoOrders(): OrderSeed[] {
   const total = 60;
   const featured: Partial<OrderSeed>[] = [
     {
-      id: 'PED-2001',
+      id: demoOrderId(2001),
       sellerId: 'u6',
       clientName: 'Alejandro Rossi',
       clientPhone: '+54 11 5555-1234',
@@ -197,7 +202,7 @@ function generateDemoOrders(): OrderSeed[] {
       notes: 'Entregar en portería del edificio. Tocar timbre 5B.',
     },
     {
-      id: 'PED-2002',
+      id: demoOrderId(2002),
       sellerId: 'u7',
       clientName: 'Sofía Martínez',
       clientPhone: '+54 11 5555-5678',
@@ -209,7 +214,7 @@ function generateDemoOrders(): OrderSeed[] {
       notes: 'Dejar en recepción de planta baja.',
     },
     {
-      id: 'PED-2003',
+      id: demoOrderId(2003),
       sellerId: 'u8',
       clientName: 'Matías Fernández',
       clientPhone: '+54 11 5555-9012',
@@ -221,7 +226,7 @@ function generateDemoOrders(): OrderSeed[] {
       notes: 'Llamar antes de llegar para bajar.',
     },
     {
-      id: 'PED-2004',
+      id: demoOrderId(2004),
       sellerId: 'u9',
       clientName: 'Lucía Benítez',
       clientPhone: '+54 11 5555-3456',
@@ -236,7 +241,7 @@ function generateDemoOrders(): OrderSeed[] {
 
   for (let i = 0; i < total; i++) {
     const orderNum = 2001 + i;
-    const id = `PED-${orderNum}`;
+    const id = demoOrderId(orderNum);
     const featuredOrder = featured.find((f) => f.id === id);
     const addr = pick(DEMO_ADDRESSES, i);
     const seller = pick(VENDORS, i);
@@ -321,19 +326,20 @@ async function upsertLogisticaAdmin(passwordHash: string): Promise<void> {
 }
 
 async function clearDemoAgencyOrders(): Promise<void> {
+  const demoIdPattern = `${DEMO_ORDER_PREFIX}%`;
   await pool.query(
     `DELETE olh FROM order_location_history olh
      INNER JOIN orders o ON o.id = olh.order_id
-     WHERE o.agency_id = ?`,
-    [agencyId]
+     WHERE o.id LIKE ? OR o.agency_id = ?`,
+    [demoIdPattern, agencyId]
   );
   await pool.query(
     `DELETE oh FROM order_history oh
      INNER JOIN orders o ON o.id = oh.order_id
-     WHERE o.agency_id = ?`,
-    [agencyId]
+     WHERE o.id LIKE ? OR o.agency_id = ?`,
+    [demoIdPattern, agencyId]
   );
-  await pool.query('DELETE FROM orders WHERE agency_id = ?', [agencyId]);
+  await pool.query('DELETE FROM orders WHERE id LIKE ? OR agency_id = ?', [demoIdPattern, agencyId]);
 }
 
 export async function seedDatabase(): Promise<void> {
@@ -459,19 +465,19 @@ export async function seedDatabase(): Promise<void> {
       id: 'n2',
       userId: 'u3',
       title: 'Nuevo pedido asignado',
-      body: 'Se te ha asignado el pedido PED-2002 para Sofía Martínez (TechBA Electro).',
+      body: 'Se te ha asignado el pedido DEMO-2002 para Sofía Martínez (TechBA Electro).',
       createdAt: new Date(now - 1200000),
       type: 'order_assigned' as const,
-      orderId: 'PED-2002',
+      orderId: demoOrderId(2002),
     },
     {
       id: 'n3',
       userId: 'u2',
       title: 'Pedido en camino',
-      body: 'PED-2001 de Moda Norte Boutique está en reparto hacia Recoleta.',
+      body: 'DEMO-2001 de Moda Norte Boutique está en reparto hacia Recoleta.',
       createdAt: new Date(now - 1800000),
       type: 'order_assigned' as const,
-      orderId: 'PED-2001',
+      orderId: demoOrderId(2001),
     },
     {
       id: 'n4',

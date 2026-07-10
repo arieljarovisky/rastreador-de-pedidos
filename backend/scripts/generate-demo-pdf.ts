@@ -39,10 +39,10 @@ const REPARTIDOR_ROWS: Row[] = [
 ];
 
 const FEATURED_ORDERS = [
-  ['PED-2001', 'Moda Norte Boutique', 'En reparto', 'Carlos Gómez', 'Recoleta'],
-  ['PED-2002', 'TechBA Electro', 'Asignado', 'María Rodríguez', 'Belgrano'],
-  ['PED-2003', 'Hogar & Deco Shop', 'Pendiente', '—', 'Almagro'],
-  ['PED-2004', 'Fitness Pro Store', 'Entregado', 'Juan Pérez', 'Puerto Madero'],
+  ['DEMO-2001', 'Moda Norte Boutique', 'En reparto', 'Carlos Gómez', 'Recoleta'],
+  ['DEMO-2002', 'TechBA Electro', 'Asignado', 'María Rodríguez', 'Belgrano'],
+  ['DEMO-2003', 'Hogar & Deco Shop', 'Pendiente', '—', 'Almagro'],
+  ['DEMO-2004', 'Fitness Pro Store', 'Entregado', 'Juan Pérez', 'Puerto Madero'],
 ];
 
 function drawTable(
@@ -141,7 +141,7 @@ async function main(): Promise<void> {
   const urls = [
     ['Panel web (admin / vendedor)', 'http://localhost:5173'],
     ['API backend', 'http://localhost:4000'],
-    ['Seguimiento público', 'http://localhost:5173/seguimiento.html?id=PED-2001'],
+    ['Seguimiento público', 'http://localhost:5173/seguimiento.html?id=DEMO-2001'],
     ['Simulador GPS', 'POST http://localhost:4000/api/simulator/tick'],
   ];
   for (const [label, url] of urls) {
@@ -187,7 +187,7 @@ async function main(): Promise<void> {
   y = sectionTitle(doc, 'Resumen de pedidos demo', y);
   doc.fillColor('#1a1a1a').font('Helvetica').fontSize(10);
   const stats = [
-    'Total: 60 pedidos (PED-2001 a PED-2060)',
+    'Total: 60 pedidos (DEMO-2001 a DEMO-2060)',
     'Distribución: ~35 % pendientes · 25 % asignados · 20 % en reparto · 15 % entregados · 5 % cancelados',
     'Ubicaciones: barrios de CABA con coordenadas reales',
     'Historial: cada pedido incluye historial de estados; los en reparto/entregados tienen tracking GPS',
@@ -211,10 +211,10 @@ async function main(): Promise<void> {
   y = sectionTitle(doc, 'Guion sugerido (15–20 min)', y);
   const steps = [
     '1. Iniciar sesión con logistica / logistica123 y mostrar el dashboard con todos los pedidos y vendedores.',
-    '2. Abrir el mapa en vivo: pedidos en reparto (PED-2001) y repartidores con GPS activo.',
-    '3. Mostrar un pedido pendiente (PED-2003) y asignarlo a un repartidor.',
+    '2. Abrir el mapa en vivo: pedidos en reparto (DEMO-2001) y repartidores con GPS activo.',
+    '3. Mostrar un pedido pendiente (DEMO-2003) y asignarlo a un repartidor.',
     '4. Entrar como vendedor (ej. tech-ba / vendor123) y mostrar que solo ve sus propios pedidos.',
-    '5. Abrir seguimiento público con PED-2001 para el cliente final.',
+    '5. Abrir seguimiento público con DEMO-2001 para el cliente final.',
     '6. En la app móvil, entrar como carlos / carlos123 y mostrar pedidos asignados + GPS.',
     '7. Opcional: ejecutar el simulador GPS (POST /api/simulator/tick) para mover pedidos en reparto.',
   ];

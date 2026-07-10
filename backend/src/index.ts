@@ -14,9 +14,14 @@ async function start(): Promise<void> {
     console.log('[startup] Reset completado. Desactivá DB_RESET_ON_START después de este deploy.');
   } else if (process.env.DEMO_SEED_ON_START === 'true') {
     console.log('[startup] DEMO_SEED_ON_START=true → cargando perfil demo (ag_demo)...');
-    const { seedDatabase } = await import('./db/seed.js');
-    await seedDatabase();
-    console.log('[startup] Perfil demo aplicado. Desactivá DEMO_SEED_ON_START después de este deploy.');
+    try {
+      const { seedDatabase } = await import('./db/seed.js');
+      await seedDatabase();
+      console.log('[startup] Perfil demo aplicado. Desactivá DEMO_SEED_ON_START después de este deploy.');
+    } catch (err) {
+      console.error('[startup] Error cargando perfil demo:', err);
+      console.error('[startup] El servidor arranca igual; corregí el seed y redeployá o usá npm run db:seed.');
+    }
   }
 
   await runMigrations();
