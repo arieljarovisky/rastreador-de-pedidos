@@ -19,6 +19,16 @@ import * as L from 'leaflet';
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
 
+/** Espacio para cabecera del mapa y panel inferior de detalle al auto-pan del popup. */
+function getMapPopupOptions(): L.PopupOptions {
+  return {
+    autoPan: true,
+    autoPanPadding: [72, 40, 300, 40],
+    keepInView: true,
+    maxWidth: 260,
+  };
+}
+
 const MAP_SVG = {
   pin: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
   bike: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`,
@@ -467,7 +477,7 @@ export default function MapComponent({
     orders.forEach((order) => {
       if (
         order.id === activeOrderId &&
-        (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)
+        order.status === OrderStatus.DELIVERING
       ) {
         activePolylineKeys.add(`${order.id}__route`);
       }
@@ -519,12 +529,12 @@ export default function MapComponent({
         const marker = markersRef.current[order.id];
         marker.setLatLng([order.lat, order.lng]);
         marker.setIcon(icon);
-        marker.setPopupContent(popupHtml);
+        marker.bindPopup(popupHtml, getMapPopupOptions());
         bindOrderMarkerSelect(marker, order.id, onSelectOrder);
       } else {
         const marker = L.marker([order.lat, order.lng], { icon })
           .addTo(map)
-          .bindPopup(popupHtml);
+          .bindPopup(popupHtml, getMapPopupOptions());
         bindOrderMarkerSelect(marker, order.id, onSelectOrder);
         markersRef.current[order.id] = marker;
       }
@@ -676,7 +686,7 @@ export default function MapComponent({
 
     if (
       !order ||
-      (order.status !== OrderStatus.ASSIGNED && order.status !== OrderStatus.DELIVERING)
+      order.status !== OrderStatus.DELIVERING
     ) {
       if (routeKey && polylinesRef.current[routeKey]) {
         polylinesRef.current[routeKey].remove();
@@ -728,9 +738,14 @@ export default function MapComponent({
   // Abrir popup del pedido seleccionado (desde lista o mapa)
   useEffect(() => {
     if (!activeOrderId) return;
+    const map = mapInstanceRef.current;
     const marker = markersRef.current[activeOrderId];
     if (marker && !marker.isPopupOpen()) {
       marker.openPopup();
+      // Ajuste extra: el panel inferior tapa parte del mapa
+      window.setTimeout(() => {
+        map?.panBy([0, -90], { animate: true });
+      }, 200);
     }
   }, [activeOrderId]);
 
@@ -759,8 +774,17 @@ export default function MapComponent({
     const repPos = getRepartidorPosition(activeOrder, repartidoresRef.current, liveRepartidorLocation);
     const dest: [number, number] = [activeOrder.lat, activeOrder.lng];
 
-    if (repPos && isActiveDeliveryStatus(activeOrder.status)) {
-      map.fitBounds(L.latLngBounds([repPos, dest]), { padding: [50, 50], animate: true });
+    const mapPadding = {
+      paddingTopLeft: [48, 48] as [number, number],
+      paddingBottomRight: [48, 280] as [number, number],
+    };
+
+    if (repPos && activeOrder.status === OrderStatus.DELIVERING) {
+      map.fitBounds(L.latLngBounds([repPos, dest]), {
+        ...mapPadding,
+        animate: true,
+        maxZoom: 15,
+      });
     } else if (
       activeOrder.status === OrderStatus.ASSIGNED &&
       departurePoint &&
@@ -771,10 +795,10 @@ export default function MapComponent({
           [departurePoint.lat, departurePoint.lng],
           dest,
         ]),
-        { padding: [50, 50], animate: true }
+        { ...mapPadding, animate: true, maxZoom: 14 }
       );
     } else {
-      map.setView(dest, 15, { animate: true });
+      map.setView(dest, 14, { animate: true });
     }
   }, [activeOrderId, liveRepartidorLocation, departurePoint, showDepartureHub]);
 
@@ -825,8 +849,8 @@ export default function MapComponent({
         </div>
       )}
       <div className="absolute bottom-3 left-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1.5 rounded-[5px] text-[8px] font-mono border border-[var(--surface-border)] text-[var(--color-text-faint)]">
-        <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta estimada al destino</div>
-        <div><span className="inline-block w-3 h-0.5 border-t border-dashed border-[var(--color-accent)] mr-1 align-middle" /> Recorrido GPS en vivo</div>
+        <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta en reparto (solo pedidos en viaje)</div>
+        <div><span className="inline-block w-3 h-0.5 border-t border-dashed border-[var(--color-accent)] mr-1 align-middle" /> Recorrido GPS del repartidor</div>
       </div>
       <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
     </div>
