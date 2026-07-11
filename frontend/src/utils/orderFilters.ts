@@ -10,6 +10,7 @@ import {
   type DeliveryZone,
 } from '../config/deliveryZones.js';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
+import { getOperationalDateKey } from './deliverySummary.js';
 
 export const UNASSIGNED_REPARTIDOR_FILTER = '__unassigned__';
 
@@ -22,12 +23,21 @@ export function getOrderCordonId(
   return findPricingZoneForPoint(cordonZones, order.lat, order.lng, barrios)?.id ?? null;
 }
 
+/** Día operativo del pedido (corte de entrega o día de creación). */
+export function getOrderOperationalDateKey(order: Order): string {
+  if (order.deliveryDeadline) {
+    return getOperationalDateKey(new Date(order.deliveryDeadline));
+  }
+  return getOperationalDateKey(new Date(order.createdAt));
+}
+
 export function matchesOrderFilters(
   order: Order,
   filters: {
     sellerId?: string;
     cordonId?: string;
     repartidorId?: string;
+    dateKey?: string;
     deliveryZones?: DeliveryZone[];
     barrios?: Barrio[];
   }
@@ -46,6 +56,10 @@ export function matchesOrderFilters(
     const zones = filters.deliveryZones ?? [];
     const barrios = filters.barrios ?? [];
     if (getOrderCordonId(order, zones, barrios) !== filters.cordonId) return false;
+  }
+
+  if (filters.dateKey && getOrderOperationalDateKey(order) !== filters.dateKey) {
+    return false;
   }
 
   return true;

@@ -256,14 +256,14 @@ export default function OperationalDatePicker({
 
   if (layout === 'field') {
     return (
-      <div ref={rootRef} className="flex flex-col gap-0.5 min-w-[9.5rem] flex-1 sm:flex-none sm:min-w-[10.5rem]">
+      <div ref={rootRef} className="flex flex-col gap-0.5 min-w-0 w-full">
         <span className="mono-label">{label}</span>
         <button
           ref={anchorRef}
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
-          className={`posta-input px-2.5 py-2 text-xs flex items-center justify-between gap-2 text-left transition ${
+          className={`posta-input w-full px-2.5 py-2 text-xs flex items-center justify-between gap-2 text-left transition ${
             open ? 'border-[var(--color-accent)]' : ''
           }`}
         >

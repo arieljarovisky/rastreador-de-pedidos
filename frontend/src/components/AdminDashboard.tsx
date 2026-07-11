@@ -23,6 +23,8 @@ import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
+import OperationalDatePicker from './OperationalDatePicker.tsx';
+import { getOperationalDateKey } from '../utils/deliverySummary.js';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -177,6 +179,8 @@ export default function AdminDashboard({
   const [sellerFilterId, setSellerFilterId] = useState<string>('');
   const [cordonFilterId, setCordonFilterId] = useState<string>('');
   const [repartidorFilterId, setRepartidorFilterId] = useState<string>('');
+  const todayKey = getOperationalDateKey();
+  const [dateFilterKey, setDateFilterKey] = useState<string>(todayKey);
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
     return new Set();
@@ -407,10 +411,11 @@ export default function AdminDashboard({
       sellerId: sellerFilterId || undefined,
       cordonId: cordonFilterId || undefined,
       repartidorId: repartidorFilterId || undefined,
+      dateKey: dateFilterKey || undefined,
       deliveryZones,
       barrios,
     }),
-    [sellerFilterId, cordonFilterId, repartidorFilterId, deliveryZones, barrios]
+    [sellerFilterId, cordonFilterId, repartidorFilterId, dateFilterKey, deliveryZones, barrios]
   );
   const dashboardScopedOrders = useMemo(
     () => activeOrders.filter((o) => matchesOrderFilters(o, orderFilterContext)),
@@ -491,6 +496,7 @@ export default function AdminDashboard({
     if (sellerFilterId) count += 1;
     if (cordonFilterId) count += 1;
     if (repartidorFilterId) count += 1;
+    if (dateFilterKey && dateFilterKey !== todayKey) count += 1;
     if (agency && repartidores.length > 0 && !allRepartidoresOnMap && mapRepartidorIds.size > 0) {
       count += 1;
     }
@@ -499,6 +505,8 @@ export default function AdminDashboard({
     sellerFilterId,
     cordonFilterId,
     repartidorFilterId,
+    dateFilterKey,
+    todayKey,
     agency,
     repartidores.length,
     allRepartidoresOnMap,
@@ -509,6 +517,7 @@ export default function AdminDashboard({
     setSellerFilterId('');
     setCordonFilterId('');
     setRepartidorFilterId('');
+    setDateFilterKey(todayKey);
     setMapRepartidorIds(new Set(repartidores.map((r) => r.id)));
   };
 
@@ -1013,12 +1022,47 @@ export default function AdminDashboard({
             />
           )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-            <CordonFilterControl
-              zones={cordonZones}
-              value={cordonFilterId}
-              onChange={setCordonFilterId}
-            />
+          {/* Filtros: fecha + cordón/repartidor, luego búsqueda y estados */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="min-w-0 flex flex-col gap-1">
+                <OperationalDatePicker
+                  layout="field"
+                  label="Fecha"
+                  value={dateFilterKey || todayKey}
+                  maxDateKey={todayKey}
+                  onChange={setDateFilterKey}
+                />
+                <div className="flex items-center gap-1.5 px-0.5">
+                  {dateFilterKey && dateFilterKey !== todayKey ? (
+                    <button
+                      type="button"
+                      onClick={() => setDateFilterKey(todayKey)}
+                      className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                    >
+                      Hoy
+                    </button>
+                  ) : null}
+                  {dateFilterKey ? (
+                    <button
+                      type="button"
+                      onClick={() => setDateFilterKey('')}
+                      className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
+                    >
+                      Todas
+                    </button>
+                  ) : (
+                    <span className="text-[9px] font-mono text-[var(--color-text-faint)]">Todas las fechas</span>
+                  )}
+                </div>
+              </div>
+              <CordonFilterControl
+                zones={cordonZones}
+                value={cordonFilterId}
+                onChange={setCordonFilterId}
+              />
+            </div>
+
             {isAgencyAdmin(userRole) && (
               <RepartidorFilterControl
                 repartidores={repartidores}
@@ -1026,66 +1070,63 @@ export default function AdminDashboard({
                 onChange={setRepartidorFilterId}
               />
             )}
-          </div>
 
-          {isAgencyAdmin(userRole) && sellers.length === 0 && (
-            <p className="text-[9px] text-[var(--color-text-faint)] font-mono truncate">
-              Gestioná vendedores y flota en <span className="text-[var(--ink-soft)]">Configuración</span>.
-            </p>
-          )}
+            {isAgencyAdmin(userRole) && sellers.length === 0 && (
+              <p className="text-[9px] text-[var(--color-text-faint)] font-mono truncate">
+                Gestioná vendedores y flota en <span className="text-[var(--ink-soft)]">Configuración</span>.
+              </p>
+            )}
 
-          {/* Buscador y filtros en fila en pantallas anchas */}
-          <div className="flex flex-col xl:flex-row xl:items-center gap-1.5">
-            <div className="relative flex-1 min-w-0">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
                 <Search className="w-3.5 h-3.5" />
               </span>
               <input
                 type="text"
-                placeholder="Buscar repartidor, pedido o dirección..."
+                placeholder="Buscar pedido, dirección o repartidor..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full posta-input px-2 py-1 pl-7 text-xs font-sans"
+                className="w-full posta-input px-2.5 py-2 pl-8 text-xs font-sans"
               />
             </div>
 
-            <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0 xl:shrink-0 xl:w-auto">
+            <div className="scroll-tabs flex w-full bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px]">
               <button
                 onClick={() => setStatusFilter('all')}
-                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === 'all' ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+                  statusFilter === 'all' ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Todos
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.PENDING)}
-                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+                  statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Pend.
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
-                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+                  statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Ruta
               </button>
               <button
                 onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
-                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+                  statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Listos
               </button>
               <button
                 onClick={() => setStatusFilter('archived')}
-                className={`flex-1 min-w-[3.25rem] shrink-0 py-1 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+                  statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                 }`}
               >
                 Arch.{stats.archived > 0 ? ` (${stats.archived})` : ''}
@@ -1097,23 +1138,32 @@ export default function AdminDashboard({
 
           {ordersHeaderCollapsed && (
             <div className="flex flex-col gap-1.5">
-              <div className="relative">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
-                  <Search className="w-3.5 h-3.5" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Buscar pedido o dirección..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full posta-input px-2 py-1 pl-7 text-xs font-sans"
+              <div className="grid grid-cols-2 gap-1.5">
+                <OperationalDatePicker
+                  layout="field"
+                  label="Fecha"
+                  value={dateFilterKey || todayKey}
+                  maxDateKey={todayKey}
+                  onChange={setDateFilterKey}
                 />
+                <div className="relative min-w-0 flex flex-col justify-end">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
+                    <Search className="w-3.5 h-3.5" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Buscar..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full posta-input px-2 py-2 pl-7 text-xs font-sans"
+                  />
+                </div>
               </div>
               <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0">
                 <button
                   onClick={() => setStatusFilter('all')}
                   className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                    statusFilter === 'all' ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                    statusFilter === 'all' ? 'bg-[var(--surface-panel)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                   }`}
                 >
                   Todos
@@ -1121,7 +1171,7 @@ export default function AdminDashboard({
                 <button
                   onClick={() => setStatusFilter(OrderStatus.PENDING)}
                   className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                    statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel-2)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                    statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
                   }`}
                 >
                   Pend.
@@ -1415,6 +1465,38 @@ export default function AdminDashboard({
                   </div>
 
                   <div className="p-3 space-y-3 max-h-[min(70dvh,28rem)] overflow-y-auto scrollbar-thin">
+                    <div className="space-y-1">
+                      <OperationalDatePicker
+                        layout="field"
+                        label="Fecha"
+                        value={dateFilterKey || todayKey}
+                        maxDateKey={todayKey}
+                        onChange={setDateFilterKey}
+                      />
+                      <div className="flex items-center gap-2 px-0.5">
+                        {dateFilterKey && dateFilterKey !== todayKey && (
+                          <button
+                            type="button"
+                            onClick={() => setDateFilterKey(todayKey)}
+                            className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                          >
+                            Hoy
+                          </button>
+                        )}
+                        {dateFilterKey ? (
+                          <button
+                            type="button"
+                            onClick={() => setDateFilterKey('')}
+                            className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
+                          >
+                            Todas
+                          </button>
+                        ) : (
+                          <span className="text-[9px] font-mono text-[var(--color-text-faint)]">Todas las fechas</span>
+                        )}
+                      </div>
+                    </div>
+
                     {isAgencyAdmin(userRole) && sellers.length > 0 && (
                       <SellerFilterControl
                         sellers={sellers}
