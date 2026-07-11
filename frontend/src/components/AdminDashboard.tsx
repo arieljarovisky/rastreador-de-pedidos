@@ -1024,43 +1024,41 @@ export default function AdminDashboard({
 
           {/* Filtros: fecha + cordón/repartidor, luego búsqueda y estados */}
           <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="min-w-0 flex flex-col gap-1">
-                <OperationalDatePicker
-                  layout="field"
-                  label="Fecha"
-                  value={dateFilterKey || todayKey}
-                  maxDateKey={todayKey}
-                  onChange={setDateFilterKey}
-                />
-                <div className="flex items-center gap-1.5 px-0.5">
-                  {dateFilterKey && dateFilterKey !== todayKey ? (
-                    <button
-                      type="button"
-                      onClick={() => setDateFilterKey(todayKey)}
-                      className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
-                    >
-                      Hoy
-                    </button>
-                  ) : null}
-                  {dateFilterKey ? (
-                    <button
-                      type="button"
-                      onClick={() => setDateFilterKey('')}
-                      className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
-                    >
-                      Todas
-                    </button>
-                  ) : (
-                    <span className="text-[9px] font-mono text-[var(--color-text-faint)]">Todas las fechas</span>
-                  )}
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-2 items-start">
+              <OperationalDatePicker
+                layout="field"
+                label="Fecha"
+                value={dateFilterKey || todayKey}
+                maxDateKey={todayKey}
+                onChange={setDateFilterKey}
+              />
               <CordonFilterControl
                 zones={cordonZones}
                 value={cordonFilterId}
                 onChange={setCordonFilterId}
               />
+            </div>
+            <div className="flex items-center gap-2 -mt-1 px-0.5">
+              {dateFilterKey && dateFilterKey !== todayKey ? (
+                <button
+                  type="button"
+                  onClick={() => setDateFilterKey(todayKey)}
+                  className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                >
+                  Hoy
+                </button>
+              ) : null}
+              {dateFilterKey ? (
+                <button
+                  type="button"
+                  onClick={() => setDateFilterKey('')}
+                  className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
+                >
+                  Todas las fechas
+                </button>
+              ) : (
+                <span className="text-[9px] font-mono text-[var(--color-text-faint)]">Mostrando todas las fechas</span>
+              )}
             </div>
 
             {isAgencyAdmin(userRole) && (

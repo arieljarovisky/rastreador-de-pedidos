@@ -256,18 +256,21 @@ export default function OperationalDatePicker({
 
   if (layout === 'field') {
     return (
-      <div ref={rootRef} className="flex flex-col gap-0.5 min-w-0 w-full">
-        <span className="mono-label">{label}</span>
+      <div ref={rootRef} className="flex flex-col gap-1.5 min-w-0 w-full">
+        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+          {label}
+        </span>
         <button
           ref={anchorRef}
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
-          className={`posta-input w-full px-2.5 py-2 text-xs flex items-center justify-between gap-2 text-left transition ${
-            open ? 'border-[var(--color-accent)]' : ''
+          className={`w-full min-w-0 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 py-2 text-xs flex items-center justify-between gap-2 text-left transition focus:outline-none ${
+            open ? 'border-[var(--color-accent)]' : 'hover:border-[var(--color-accent)]/50'
           }`}
         >
-          <span className="font-mono text-[var(--ink-soft)] truncate">
+          <span className="font-mono text-[var(--color-text)] truncate">
             {formatOperationalDateShort(value)}
           </span>
           <Calendar className={`w-3.5 h-3.5 shrink-0 ${open ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`} />
