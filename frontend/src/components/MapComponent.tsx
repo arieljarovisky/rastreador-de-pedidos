@@ -19,12 +19,20 @@ import * as L from 'leaflet';
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
 
-/** Popup sin auto-seguimiento: el usuario puede mover el mapa libremente con el popup abierto. */
+/** Popup adaptado a móvil: más ancho útil y auto-pan lejos de los filtros. */
 function getMapPopupOptions(): L.PopupOptions {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const viewport = typeof window !== 'undefined' ? window.innerWidth : 360;
+  // Reserva espacio a la derecha para Ver áreas / Filtros
+  const maxWidth = isMobile ? Math.min(280, Math.max(200, viewport - 88)) : 280;
   return {
-    autoPan: false,
+    autoPan: isMobile,
+    autoPanPaddingTopLeft: isMobile ? [12, 56] : [40, 40],
+    autoPanPaddingBottomRight: isMobile ? [76, 48] : [40, 40],
     keepInView: false,
-    maxWidth: 260,
+    maxWidth,
+    minWidth: isMobile ? Math.min(200, maxWidth - 8) : 200,
+    className: 'posta-order-popup',
   };
 }
 
@@ -502,17 +510,21 @@ export default function MapComponent({
 
       const icon = createSvgIcon(color, label, glow);
       const popupHtml = `
-            <div class="font-sans p-1 text-[11px] max-w-[200px]" style="color:var(--text)">
-              <div class="flex items-center gap-1 font-bold border-b pb-1 mb-1" style="color:var(--text-muted);border-color:var(--line)">
-                <span>${MAP_SVG.package} ${order.id}</span>
-                <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] text-white font-bold uppercase tracking-wider font-mono" style="background-color:${badgeColor}">
+            <div class="posta-map-popup" style="color:var(--text)">
+              <div class="posta-map-popup__head">
+                <span class="posta-map-popup__id">${MAP_SVG.package}<span>${order.id}</span></span>
+                <span class="posta-map-popup__badge" style="background-color:${badgeColor}">
                   ${MAP_STATUS_LABELS[order.status]}
                 </span>
               </div>
-              <p class="font-bold mt-1" style="color:var(--text)">${order.clientName}</p>
-              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">${MAP_SVG.pin} ${order.address}</p>
-              ${order.repartidorName ? `<p class="mt-1.5 font-bold text-[10px] font-mono flex items-center gap-1" style="color:var(--accent)">${MAP_SVG.bike} REPARTIDOR: ${order.repartidorName.toUpperCase()}</p>` : ''}
-              <button id="btn-map-select-${order.id}" class="mt-2 w-full text-center py-1 text-white rounded text-[9px] font-bold uppercase tracking-wider transition cursor-pointer font-mono" style="background:${mapColors.destination}">
+              <p class="posta-map-popup__name">${order.clientName}</p>
+              <p class="posta-map-popup__addr">${MAP_SVG.pin}<span>${order.address}</span></p>
+              ${
+                order.repartidorName
+                  ? `<p class="posta-map-popup__rep" style="color:var(--accent)">${MAP_SVG.bike}<span>REPARTIDOR: ${order.repartidorName.toUpperCase()}</span></p>`
+                  : ''
+              }
+              <button id="btn-map-select-${order.id}" class="posta-map-popup__cta" style="background:${mapColors.destination}">
                 Ver Detalles
               </button>
             </div>
