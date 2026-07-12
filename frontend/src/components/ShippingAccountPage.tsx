@@ -170,13 +170,13 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       const exportLedger = body as BillingLedgerEntry[];
 
       if (isAgency && !selectedSellerId) {
-        exportAgencyBillingExcel(summary, exportLedger);
+        await exportAgencyBillingExcel(summary, exportLedger);
       } else {
         const label =
           summary.sellerName ||
           sellers.find((s) => s.id === selectedSellerId)?.name ||
           user.name;
-        exportSellerBillingExcel(summary, exportLedger, label);
+        await exportSellerBillingExcel(summary, exportLedger, label);
       }
       setMessage('Excel descargado.');
     } catch (err: unknown) {
