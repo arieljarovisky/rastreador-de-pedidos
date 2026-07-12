@@ -304,13 +304,13 @@ export default function OperationalDatePicker({
           <button
             type="button"
             onClick={onPreviousDay}
-            className="flex items-center justify-center w-10 sm:w-11 shrink-0 border-r border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/60 transition"
+            className="flex items-center justify-center w-12 sm:w-11 min-h-[3.25rem] sm:min-h-0 shrink-0 border-r border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/60 transition"
             aria-label="Día anterior"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
           </button>
 
-          <div className="flex-1 min-w-0 flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2">
+          <div className="flex-1 min-w-0 flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 sm:py-2">
             <div
               className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border ${
                 isToday
@@ -366,10 +366,10 @@ export default function OperationalDatePicker({
             type="button"
             onClick={onNextDay}
             disabled={!canGoNextDay}
-            className="flex items-center justify-center w-10 sm:w-11 shrink-0 border-l border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/60 transition disabled:opacity-25 disabled:pointer-events-none"
+            className="flex items-center justify-center w-12 sm:w-11 min-h-[3.25rem] sm:min-h-0 shrink-0 border-l border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/60 transition disabled:opacity-25 disabled:pointer-events-none"
             aria-label="Día siguiente"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
           </button>
         </div>
 

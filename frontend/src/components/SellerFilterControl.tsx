@@ -73,7 +73,7 @@ export default function SellerFilterControl({
         id="ops-seller-filter"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full min-w-0 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 py-2 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+        className="w-full min-w-0 min-h-11 sm:min-h-0 sm:h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-sm sm:text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
       >
         <option value="">Todos los vendedores</option>
         {sellers.map((s) => (

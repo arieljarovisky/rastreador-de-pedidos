@@ -76,7 +76,7 @@ export function CordonFilterControl({
         id="ops-cordon-filter"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+        className="w-full min-w-0 min-h-11 sm:min-h-0 sm:h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-sm sm:text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
       >
         <option value="">Todos los cordones</option>
         {zones.map((z) => (
@@ -159,7 +159,7 @@ export function RepartidorFilterControl({
         id="ops-repartidor-filter"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+        className="w-full min-w-0 min-h-11 sm:min-h-0 sm:h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-sm sm:text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
       >
         <option value="">Todos los repartidores</option>
         {includeUnassigned && <option value="__unassigned__">Sin asignar</option>}
