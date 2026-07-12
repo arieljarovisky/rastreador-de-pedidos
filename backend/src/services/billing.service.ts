@@ -374,7 +374,7 @@ export async function listBillingLedger(
   options: { dateFrom: string; dateTo: string; sellerId?: string | null; limit?: number; offset?: number }
 ): Promise<BillingLedgerEntry[]> {
   const scope = resolveSellerScope(user, options.sellerId);
-  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 5000);
   const offset = Math.max(options.offset ?? 0, 0);
 
   const params: Array<string | number> = [

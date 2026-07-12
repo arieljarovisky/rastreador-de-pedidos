@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Receipt,
   Loader2,
+  Download,
 } from 'lucide-react';
 import { BillingLedgerEntry, BillingSummary, User, UserRole, isAgencyAdmin } from '../types.js';
 import { apiUrl } from '../api.ts';
@@ -17,6 +18,10 @@ import {
   getOperationalDateKey,
   formatOperationalDateShort,
 } from '../utils/deliverySummary.js';
+import {
+  exportAgencyBillingExcel,
+  exportSellerBillingExcel,
+} from '../utils/exportBillingExcel.js';
 
 interface ShippingAccountPageProps {
   token: string;
@@ -81,6 +86,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const [mpPayLoading, setMpPayLoading] = useState(false);
   const [mpAvailable, setMpAvailable] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const todayKey = getOperationalDateKey();
 
   const applyMonthPreset = (offset: number) => {
@@ -141,6 +147,43 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const handleDateToChange = (key: string) => {
     setDateTo(key);
     if (key < dateFrom) setDateFrom(key);
+  };
+
+  const exportExcel = async () => {
+    if (!summary) return;
+    setExporting(true);
+    setMessage(null);
+    try {
+      const params = new URLSearchParams({ dateFrom, dateTo, limit: '5000' });
+      if (isAgency && selectedSellerId) params.set('sellerId', selectedSellerId);
+      const res = await fetch(apiUrl(`/api/billing/ledger?${params}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json().catch(() => ([]));
+      if (!res.ok) {
+        throw new Error(
+          body && typeof body === 'object' && 'error' in body
+            ? String((body as { error?: string }).error || 'No se pudo exportar.')
+            : 'No se pudo exportar.'
+        );
+      }
+      const exportLedger = body as BillingLedgerEntry[];
+
+      if (isAgency && !selectedSellerId) {
+        exportAgencyBillingExcel(summary, exportLedger);
+      } else {
+        const label =
+          summary.sellerName ||
+          sellers.find((s) => s.id === selectedSellerId)?.name ||
+          user.name;
+        exportSellerBillingExcel(summary, exportLedger, label);
+      }
+      setMessage('Excel descargado.');
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : 'Error al exportar.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const recordPayment = async () => {
@@ -217,6 +260,24 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
               Cada envío entregado genera un cargo según el tipo de envío.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => void exportExcel()}
+            disabled={!summary || loading || exporting}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] hover:border-[var(--color-accent)]/50 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] transition disabled:opacity-40 disabled:pointer-events-none"
+            title={
+              isAgency && !selectedSellerId
+                ? 'Exportar saldos de vendedores y movimientos'
+                : 'Exportar saldo y movimientos'
+            }
+          >
+            {exporting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+            )}
+            {exporting ? 'Exportando…' : 'Excel'}
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -337,10 +398,19 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
 
             {isAgency && summary.sellers && summary.sellers.length > 0 && !selectedSellerId && (
               <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden">
-                <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
+                <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex items-center justify-between gap-2">
                   <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
                     Por vendedor
                   </h2>
+                  <button
+                    type="button"
+                    onClick={() => void exportExcel()}
+                    disabled={exporting}
+                    className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline disabled:opacity-40"
+                  >
+                    <Download className="w-3 h-3" />
+                    Exportar Excel
+                  </button>
                 </div>
                 <div className="divide-y divide-[var(--surface-border)]/60">
                   {summary.sellers.map((row) => (
@@ -364,11 +434,22 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
             )}
 
             <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden">
-              <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex items-center justify-between">
+              <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex items-center justify-between gap-2">
                 <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
                   Movimientos
                 </h2>
-                <span className="text-[10px] font-mono text-[var(--color-text-muted)]">{ledger.length}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-[var(--color-text-muted)]">{ledger.length}</span>
+                  <button
+                    type="button"
+                    onClick={() => void exportExcel()}
+                    disabled={exporting}
+                    className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline disabled:opacity-40"
+                  >
+                    <Download className="w-3 h-3" />
+                    Excel
+                  </button>
+                </div>
               </div>
               {ledger.length === 0 ? (
                 <p className="px-3 py-8 text-center text-[11px] text-[var(--color-text-muted)]">
