@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   buildOperationalMonthGrid,
   formatOperationalDateLabel,
@@ -27,6 +27,7 @@ interface OperationalDatePickerProps {
   minDateKey?: string;
   layout?: 'icon' | 'navigator' | 'field';
   label?: string;
+  className?: string;
   onPreviousDay?: () => void;
   onNextDay?: () => void;
   canGoNextDay?: boolean;
@@ -198,6 +199,7 @@ export default function OperationalDatePicker({
   minDateKey,
   layout = 'icon',
   label = 'Fecha',
+  className = '',
   onPreviousDay,
   onNextDay,
   canGoNextDay = false,
@@ -256,9 +258,9 @@ export default function OperationalDatePicker({
 
   if (layout === 'field') {
     return (
-      <div ref={rootRef} className="flex flex-col gap-1.5 min-w-0 w-full">
-        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5">
-          <Calendar className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+      <div ref={rootRef} className={`flex flex-col gap-1.5 min-w-0 w-full ${className}`.trim()}>
+        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5 h-[1.125rem]">
+          <Calendar className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" />
           {label}
         </span>
         <button
@@ -266,14 +268,18 @@ export default function OperationalDatePicker({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
-          className={`w-full min-w-0 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 py-2 text-xs flex items-center justify-between gap-2 text-left transition focus:outline-none ${
+          className={`w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-xs flex items-center justify-between gap-2 text-left transition focus:outline-none ${
             open ? 'border-[var(--color-accent)]' : 'hover:border-[var(--color-accent)]/50'
           }`}
         >
           <span className="font-mono text-[var(--color-text)] truncate">
             {formatOperationalDateShort(value)}
           </span>
-          <Calendar className={`w-3.5 h-3.5 shrink-0 ${open ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`} />
+          <ChevronDown
+            className={`w-4 h-4 shrink-0 text-[var(--color-text-muted)] transition-transform duration-200 ${
+              open ? 'rotate-180 text-[var(--color-accent)]' : ''
+            }`}
+          />
         </button>
         {calendarPortal}
       </div>

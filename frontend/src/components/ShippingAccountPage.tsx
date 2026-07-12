@@ -245,7 +245,13 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
             </button>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3 p-3 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50">
+          <div
+            className={`grid gap-3 p-3 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50 ${
+              isAgency
+                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                : 'grid-cols-1 sm:grid-cols-2'
+            }`}
+          >
             <OperationalDatePicker
               layout="field"
               label="Desde"
@@ -253,7 +259,6 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
               maxDateKey={dateTo}
               onChange={handleDateFromChange}
             />
-            <span className="hidden sm:inline text-[var(--color-text-faint)] pb-2 font-mono">→</span>
             <OperationalDatePicker
               layout="field"
               label="Hasta"
@@ -263,10 +268,12 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
               onChange={handleDateToChange}
             />
             {isAgency && (
-              <label className="flex flex-col gap-0.5 min-w-[10rem] flex-1 sm:min-w-[12rem]">
-                <span className="mono-label">Vendedor</span>
+              <label className="flex flex-col gap-1.5 min-w-0 w-full sm:col-span-2 lg:col-span-1">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5 h-[1.125rem]">
+                  Vendedor
+                </span>
                 <select
-                  className={inputClass}
+                  className="w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
                   value={selectedSellerId}
                   onChange={(e) => setSelectedSellerId(e.target.value)}
                 >

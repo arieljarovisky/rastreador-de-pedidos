@@ -401,7 +401,6 @@ export default function AdminDashboard({
   };
 
   // Filtrar pedidos
-  const activeOrders = orders.filter((o) => !o.archived);
   const cordonZones = useMemo(
     () => buildCordonMapZones(deliveryZones, barrios),
     [deliveryZones, barrios]
@@ -417,16 +416,24 @@ export default function AdminDashboard({
     }),
     [sellerFilterId, cordonFilterId, repartidorFilterId, dateFilterKey, deliveryZones, barrios]
   );
+
+  /** Con fecha activa, los archivados de ese día entran en lista/mapa/stats. */
+  const includeArchivedForDate = Boolean(dateFilterKey);
+
   const dashboardScopedOrders = useMemo(
-    () => activeOrders.filter((o) => matchesOrderFilters(o, orderFilterContext)),
-    [activeOrders, orderFilterContext]
+    () =>
+      orders.filter((o) => {
+        if (o.archived && !includeArchivedForDate) return false;
+        return matchesOrderFilters(o, orderFilterContext);
+      }),
+    [orders, orderFilterContext, includeArchivedForDate]
   );
 
   const filteredOrders = orders.filter((order) => {
     const isArchivedView = statusFilter === 'archived';
     if (isArchivedView) {
       if (!order.archived) return false;
-    } else if (order.archived) {
+    } else if (order.archived && !includeArchivedForDate) {
       return false;
     }
 
@@ -460,14 +467,17 @@ export default function AdminDashboard({
   }, [agency, repartidores, orders]);
 
   const mapOrders = useMemo(() => {
-    const visible = orders
-      .filter((o) => !o.archived)
-      .filter((o) => matchesOrderFilters(o, orderFilterContext));
-    const onMap = showDeliveredOnMap
-      ? visible
-      : visible.filter(
-          (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
-        );
+    const visible = orders.filter((o) => {
+      if (o.archived && !includeArchivedForDate) return false;
+      return matchesOrderFilters(o, orderFilterContext);
+    });
+    // Con filtro de fecha mostramos también entregados/cancelados/archivados de ese día
+    const onMap =
+      showDeliveredOnMap || includeArchivedForDate
+        ? visible
+        : visible.filter(
+            (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
+          );
     if (repartidorFilterId) return onMap;
     if (allRepartidoresOnMap || mapRepartidorIds.size === 0) return onMap;
     return onMap.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
@@ -478,6 +488,7 @@ export default function AdminDashboard({
     orderFilterContext,
     repartidorFilterId,
     showDeliveredOnMap,
+    includeArchivedForDate,
   ]);
 
   const mapFilterLabel = useMemo(() => {
@@ -1237,7 +1248,14 @@ export default function AdminDashboard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="mono-label text-[9px]">ID: {order.id}</span>
-                    <StatusBadge status={order.status} />
+                    <div className="flex items-center gap-1 shrink-0">
+                      {order.archived && statusFilter !== 'archived' && (
+                        <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-faint)] border border-[var(--surface-border)] px-1 py-0.5 rounded">
+                          Arch.
+                        </span>
+                      )}
+                      <StatusBadge status={order.status} />
+                    </div>
                   </div>
 
                   <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-[var(--color-text)] transition truncate">

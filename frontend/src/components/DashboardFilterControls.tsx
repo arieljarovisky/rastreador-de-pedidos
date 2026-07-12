@@ -67,7 +67,7 @@ export function CordonFilterControl({
     <div className={`flex flex-col gap-1.5 min-w-0 ${className}`}>
       <label
         htmlFor="ops-cordon-filter"
-        className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5"
+        className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5 h-[1.125rem]"
       >
         <Map className="w-3.5 h-3.5 text-[var(--color-accent)]" />
         Cordón
@@ -76,7 +76,7 @@ export function CordonFilterControl({
         id="ops-cordon-filter"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full min-w-0 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 py-2 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+        className="w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
       >
         <option value="">Todos los cordones</option>
         {zones.map((z) => (
@@ -150,7 +150,7 @@ export function RepartidorFilterControl({
     <div className={`flex flex-col gap-1.5 min-w-0 ${className}`}>
       <label
         htmlFor="ops-repartidor-filter"
-        className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5"
+        className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5 h-[1.125rem]"
       >
         <Bike className="w-3.5 h-3.5 text-[var(--color-accent)]" />
         Repartidor
@@ -159,7 +159,7 @@ export function RepartidorFilterControl({
         id="ops-repartidor-filter"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full min-w-0 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 py-2 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+        className="w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
       >
         <option value="">Todos los repartidores</option>
         {includeUnassigned && <option value="__unassigned__">Sin asignar</option>}
