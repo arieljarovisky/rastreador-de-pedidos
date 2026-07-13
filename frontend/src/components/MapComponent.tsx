@@ -164,6 +164,11 @@ interface MapComponentProps {
   showDepartureHub?: boolean;
   /** Dibujar zonas asignadas a repartidores */
   showDeliveryZones?: boolean;
+  /**
+   * Vista repartidor (panel más chico): padding de fitBounds razonable,
+   * sin leyenda de zonas y chrome liviano para que los tiles llenen el mapa.
+   */
+  compact?: boolean;
 }
 
 // Configuración de Pines Personalizados con SVGs para evitar enlaces rotos de Leaflet
@@ -251,6 +256,7 @@ export default function MapComponent({
   liveRepartidorLocation = null,
   showDepartureHub = true,
   showDeliveryZones = true,
+  compact = false,
 }: MapComponentProps) {
   const theme = usePostaTheme();
   const mapColors = getPostaMapColors(theme);
@@ -772,16 +778,23 @@ export default function MapComponent({
     const repPos = getRepartidorPosition(activeOrder, repartidoresRef.current, liveRepartidorLocation);
     const dest: [number, number] = [activeOrder.lat, activeOrder.lng];
 
-    const mapPadding = {
-      paddingTopLeft: [48, 48] as [number, number],
-      paddingBottomRight: [48, 280] as [number, number],
-    };
+    // En flota admin hay panel inferior → más padding abajo. En repartidor el mapa es bajo:
+    // un padding grande (280px) deja huecos negros y tiles mal centrados.
+    const mapPadding = compact
+      ? {
+          paddingTopLeft: [40, 48] as [number, number],
+          paddingBottomRight: [40, 56] as [number, number],
+        }
+      : {
+          paddingTopLeft: [48, 48] as [number, number],
+          paddingBottomRight: [48, 280] as [number, number],
+        };
 
     if (repPos && activeOrder.status === OrderStatus.DELIVERING) {
       map.fitBounds(L.latLngBounds([repPos, dest]), {
         ...mapPadding,
         animate: true,
-        maxZoom: 15,
+        maxZoom: compact ? 16 : 15,
       });
     } else if (
       activeOrder.status === OrderStatus.ASSIGNED &&
@@ -793,12 +806,17 @@ export default function MapComponent({
           [departurePoint.lat, departurePoint.lng],
           dest,
         ]),
-        { ...mapPadding, animate: true, maxZoom: 14 }
+        { ...mapPadding, animate: true, maxZoom: compact ? 15 : 14 }
       );
     } else {
-      map.setView(dest, 14, { animate: true });
+      map.setView(dest, compact ? 15 : 14, { animate: true });
     }
-  }, [activeOrderId, liveRepartidorLocation, departurePoint, showDepartureHub]);
+
+    // Tras fitBounds el tamaño del contenedor flex puede cambiar: forzar tiles.
+    requestAnimationFrame(() => {
+      map.invalidateSize({ animate: false });
+    });
+  }, [activeOrderId, liveRepartidorLocation, departurePoint, showDepartureHub, compact]);
 
   // Ajuste inicial una sola vez al cargar pedidos
   useEffect(() => {
@@ -816,16 +834,25 @@ export default function MapComponent({
     initialFitDoneRef.current = true;
   }, [orders.length, activeOrderId]);
 
-  const zoneLegend = showDeliveryZones
-    ? sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios))
-    : [];
+  const zoneLegend =
+    showDeliveryZones && !compact
+      ? sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios))
+      : [];
 
   return (
-    <div className="relative w-full h-full rounded-lg overflow-hidden border border-[var(--surface-border)] shadow-2xl">
-      <div className="absolute top-3 left-12 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1 rounded-[5px] text-[9px] font-mono border border-[var(--surface-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-bold flex items-center gap-1">
-        <Satellite className="w-3 h-3 shrink-0" />
-        MAPA REALTIME POSTA
-      </div>
+    <div
+      className={`relative w-full h-full min-h-0 overflow-hidden bg-[var(--surface-bg)] ${
+        compact
+          ? 'rounded-[inherit]'
+          : 'rounded-lg border border-[var(--surface-border)] shadow-2xl'
+      }`}
+    >
+      {!compact && (
+        <div className="absolute top-3 right-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1 rounded-[5px] text-[9px] font-mono border border-[var(--surface-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-bold flex items-center gap-1 pointer-events-none">
+          <Satellite className="w-3 h-3 shrink-0" />
+          MAPA REALTIME POSTA
+        </div>
+      )}
       {zoneLegend.length > 0 && (
         <div className="absolute bottom-3 right-3 z-[1000] bg-[var(--surface-panel)]/95 backdrop-blur-md border border-[var(--surface-border)] rounded-[var(--radius-posta)] px-3 py-2 shadow-lg min-w-[9.5rem]">
           <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
@@ -846,10 +873,17 @@ export default function MapComponent({
           </ul>
         </div>
       )}
-      <div className="absolute bottom-3 left-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1.5 rounded-[5px] text-[8px] font-mono border border-[var(--surface-border)] text-[var(--color-text-faint)]">
-        <div><span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" /> Ruta en reparto (solo pedidos en viaje)</div>
+      <div
+        className={`absolute z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1.5 rounded-[5px] text-[8px] font-mono border border-[var(--surface-border)] text-[var(--color-text-faint)] pointer-events-none ${
+          compact ? 'bottom-2 left-2' : 'bottom-3 left-3'
+        }`}
+      >
+        <div>
+          <span className="inline-block w-3 h-0.5 bg-[var(--color-accent)] mr-1 align-middle" />
+          Ruta en reparto
+        </div>
       </div>
-      <div ref={mapContainerRef} className="w-full h-full" id="leaflet-map-element" />
+      <div ref={mapContainerRef} className="absolute inset-0 z-0" />
     </div>
   );
 }

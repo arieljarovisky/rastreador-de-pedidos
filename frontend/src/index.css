@@ -350,6 +350,8 @@
 
 /* Leaflet — tema oscuro Posta */
 .leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
   background-color: var(--bg) !important;
   font-family: inherit !important;
 }
