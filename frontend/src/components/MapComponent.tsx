@@ -562,7 +562,19 @@ export default function MapComponent({
       }
 
       const icon = createSvgIcon(color, label, glow);
-      const popupHtml = `
+
+      if (markersRef.current[order.id]) {
+        const marker = markersRef.current[order.id];
+        marker.setLatLng([order.lat, order.lng]);
+        marker.setIcon(icon);
+        if (compact) {
+          marker.closePopup();
+          marker.unbindPopup();
+          marker.off('click');
+          marker.off('popupopen');
+          marker.on('click', () => onSelectOrder?.(order.id));
+        } else {
+          const popupHtml = `
             <div class="posta-map-popup" style="color:var(--text)">
               <div class="posta-map-popup__head">
                 <span class="posta-map-popup__id">${MAP_SVG.package}<span>${order.id}</span></span>
@@ -582,18 +594,37 @@ export default function MapComponent({
               </button>
             </div>
           `;
-
-      if (markersRef.current[order.id]) {
-        const marker = markersRef.current[order.id];
-        marker.setLatLng([order.lat, order.lng]);
-        marker.setIcon(icon);
-        marker.bindPopup(popupHtml, getMapPopupOptions());
-        bindOrderMarkerSelect(marker, order.id, onSelectOrder);
+          marker.bindPopup(popupHtml, getMapPopupOptions());
+          bindOrderMarkerSelect(marker, order.id, onSelectOrder);
+        }
       } else {
-        const marker = L.marker([order.lat, order.lng], { icon })
-          .addTo(map)
-          .bindPopup(popupHtml, getMapPopupOptions());
-        bindOrderMarkerSelect(marker, order.id, onSelectOrder);
+        const marker = L.marker([order.lat, order.lng], { icon }).addTo(map);
+        if (compact) {
+          marker.on('click', () => onSelectOrder?.(order.id));
+        } else {
+          const popupHtml = `
+            <div class="posta-map-popup" style="color:var(--text)">
+              <div class="posta-map-popup__head">
+                <span class="posta-map-popup__id">${MAP_SVG.package}<span>${order.id}</span></span>
+                <span class="posta-map-popup__badge" style="background-color:${badgeColor}">
+                  ${MAP_STATUS_LABELS[order.status]}
+                </span>
+              </div>
+              <p class="posta-map-popup__name">${order.clientName}</p>
+              <p class="posta-map-popup__addr">${MAP_SVG.pin}<span>${order.address}</span></p>
+              ${
+                order.repartidorName
+                  ? `<p class="posta-map-popup__rep" style="color:var(--accent)">${MAP_SVG.bike}<span>REPARTIDOR: ${order.repartidorName.toUpperCase()}</span></p>`
+                  : ''
+              }
+              <button id="btn-map-select-${order.id}" class="posta-map-popup__cta" style="background:${mapColors.destination}">
+                Ver Detalles
+              </button>
+            </div>
+          `;
+          marker.bindPopup(popupHtml, getMapPopupOptions());
+          bindOrderMarkerSelect(marker, order.id, onSelectOrder);
+        }
         markersRef.current[order.id] = marker;
       }
 
@@ -717,7 +748,7 @@ export default function MapComponent({
         markersRef.current[markerId] = marker;
       }
     });
-  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation, theme, mapColors, statusColors, mapEpoch]);
+  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation, theme, mapColors, statusColors, mapEpoch, compact]);
 
   // Ruta por calles hacia el próximo destino (OSRM)
   useEffect(() => {
@@ -778,8 +809,14 @@ export default function MapComponent({
     };
   }, [activeOrderId, orders, repartidores, liveRepartidorLocation, theme, mapColors.route, mapEpoch]);
 
-  // Abrir popup del pedido seleccionado (solo al cambiar de pedido, no en cada actualización)
+  // Abrir popup del pedido seleccionado (solo flota admin; en repartidor ya hay panel de detalle).
   useEffect(() => {
+    if (compact) {
+      popupOpenedForOrderRef.current = null;
+      const map = mapInstanceRef.current;
+      map?.closePopup();
+      return;
+    }
     if (!activeOrderId) {
       popupOpenedForOrderRef.current = null;
       return;
@@ -794,11 +831,10 @@ export default function MapComponent({
     if (!marker.isPopupOpen()) {
       marker.openPopup();
     }
-    // Ajuste único: el panel inferior tapa parte del mapa
     window.setTimeout(() => {
       map?.panBy([0, -90], { animate: true });
     }, 200);
-  }, [activeOrderId]);
+  }, [activeOrderId, compact, mapEpoch]);
 
   // Centrar solo al elegir un pedido
   useEffect(() => {

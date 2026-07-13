@@ -415,31 +415,32 @@ export default function RepartidorDashboard({
           </div>
         </div>
 
-        <div className={`flex-1 flex flex-col min-h-0 gap-2 sm:gap-3 lg:gap-4 overflow-hidden ${
+        <div className={`flex-1 flex flex-col min-h-0 ${
           (!selectedOrder || activeTab !== 'assigned') ? 'hidden lg:flex' : 'flex'
         }`}>
           {selectedOrder && activeTab === 'assigned' ? (
-            <div className="flex-1 min-h-0 grid grid-rows-[minmax(260px,1fr)_auto] gap-2 sm:gap-3 overflow-hidden">
-              {/* Mapa ocupa el espacio libre; el panel de detalles no lo aplasta */}
-              <div className="relative min-h-[260px] sm:min-h-[300px] overflow-hidden rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-bg)]">
-                <div className="absolute inset-0 w-full h-full">
-                  <MapComponent
-                    key={`courier-map-${selectedOrder.id}`}
-                    orders={[selectedOrder]}
-                    repartidores={repForMap}
-                    departurePoint={departurePoint}
-                    pickupPoints={pickupPoints}
-                    activeOrderId={selectedOrder.id}
-                    liveRepartidorLocation={currentCoords}
-                    showDepartureHub={false}
-                    showDeliveryZones={false}
-                    compact
-                    interactive={true}
-                  />
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin">
+              <div className="flex flex-col gap-2 sm:gap-3 p-0 min-h-0">
+                {/* Altura fija cómoda: el resto scrollea para ver confirmar/incidencia */}
+                <div className="relative w-full shrink-0 h-[min(48dvh,440px)] min-h-[280px] overflow-hidden rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-bg)]">
+                  <div className="absolute inset-0 w-full h-full">
+                    <MapComponent
+                      key={`courier-map-${selectedOrder.id}`}
+                      orders={[selectedOrder]}
+                      repartidores={repForMap}
+                      departurePoint={departurePoint}
+                      pickupPoints={[]}
+                      activeOrderId={selectedOrder.id}
+                      liveRepartidorLocation={currentCoords}
+                      showDepartureHub={false}
+                      showDeliveryZones={false}
+                      compact
+                      interactive={true}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-2.5 sm:p-3.5 min-h-0 max-h-[min(38dvh,360px)] overflow-y-auto scrollbar-thin safe-bottom text-left">
+                <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-2.5 sm:p-3.5 shrink-0 text-left safe-bottom">
                 <div className="lg:hidden flex items-center justify-between pb-2 border-b border-[var(--surface-border)]/80 mb-2 shrink-0">
                   <button
                     onClick={() => onSelectOrder(null)}
@@ -622,6 +623,7 @@ export default function RepartidorDashboard({
                     </p>
                   )}
                 </div>
+              </div>
               </div>
             </div>
           ) : (
