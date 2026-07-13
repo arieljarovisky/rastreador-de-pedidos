@@ -1779,7 +1779,7 @@ export default function App() {
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
               <>
                 <div
-                  className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
+                  className={`flex-1 min-w-0 h-full min-h-0 overflow-hidden transition-all duration-300 ease-out ${
                     mobileTab !== 'panel' ? 'hidden' : 'flex flex-col'
                   }`}
                 >

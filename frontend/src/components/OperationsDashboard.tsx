@@ -150,7 +150,7 @@ export default function OperationsDashboard({
 
   return (
     <div
-      className="h-full flex flex-col min-h-0 overflow-y-auto overscroll-y-contain lg:overflow-hidden posta-surface [-webkit-overflow-scrolling:touch]"
+      className="h-full flex flex-col min-h-0 overflow-y-auto overscroll-y-contain posta-surface [-webkit-overflow-scrolling:touch]"
       id="operations-dashboard"
     >
       <div className="p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3 sm:space-y-3 lg:shrink-0">
@@ -265,12 +265,12 @@ export default function OperationsDashboard({
         )}
       </div>
 
-      <div className="lg:flex-1 lg:min-h-0 lg:overflow-hidden flex flex-col p-3 sm:p-4 pt-3 pb-6 lg:pb-4">
+      <div className="flex flex-col p-3 sm:p-4 pt-3 pb-6 lg:pb-4">
         <div
           className={`grid gap-3 ${
             isAgency && sellerBreakdown.length > 0
-              ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 lg:flex-1 lg:min-h-0'
-              : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 lg:flex-1 lg:min-h-0'
+              ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
+              : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
           }`}
         >
           <OrderListSection
