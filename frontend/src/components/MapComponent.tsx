@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { Satellite } from 'lucide-react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint } from '../types.js';
 import { type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -262,6 +262,7 @@ export default function MapComponent({
   const mapColors = getPostaMapColors(theme);
   const statusColors = getPostaStatusColors(theme);
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
@@ -277,30 +278,86 @@ export default function MapComponent({
   const popupOpenedForOrderRef = useRef<string | null>(null);
   const ordersRef = useRef(orders);
   const repartidoresRef = useRef(repartidores);
+  const lastSizeRef = useRef({ w: 0, h: 0 });
+  /** Incrementa al crear el mapa (init async) para re-disparar efectos de markers/fit. */
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   ordersRef.current = orders;
   repartidoresRef.current = repartidores;
 
-  // Inicializar mapa
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
+  const refreshMapSize = useCallback(() => {
+    const map = mapInstanceRef.current;
+    const root = rootRef.current;
+    const el = mapContainerRef.current;
+    if (!map || !root || !el) return;
+    const w = Math.floor(root.getBoundingClientRect().width);
+    const h = Math.floor(root.getBoundingClientRect().height);
+    if (w < 40 || h < 40) return;
 
-    // Crear el mapa si no existe
-    if (!mapInstanceRef.current) {
+    // Leaflet suele quedar con _size viejo en layouts flex; fijar px y forzar redibujado.
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    map.invalidateSize({ animate: false, pan: false });
+
+    const prev = lastSizeRef.current;
+    if (Math.abs(prev.w - w) > 2 || Math.abs(prev.h - h) > 2) {
+      lastSizeRef.current = { w, h };
+      // Tras un cambio grande de tamaño, recalcular tiles del viewport.
+      map.eachLayer((layer) => {
+        if (layer instanceof L.TileLayer) {
+          layer.redraw();
+        }
+      });
+    }
+  }, []);
+
+  // Inicializar mapa cuando el contenedor ya tiene tamaño real (flex layout).
+  useEffect(() => {
+    let cancelled = false;
+    let rafId = 0;
+    const timers: number[] = [];
+    let resizeObserver: ResizeObserver | null = null;
+
+    const teardownMap = () => {
+      Object.values(markersRef.current).forEach((marker) => marker.remove());
+      markersRef.current = {};
+      Object.values(polylinesRef.current).forEach((line) => line.remove());
+      polylinesRef.current = {};
+      zoneLayersRef.current.forEach((layer) => layer.remove());
+      zoneLayersRef.current = [];
+      if (hubMarkerRef.current) {
+        hubMarkerRef.current.remove();
+        hubMarkerRef.current = null;
+      }
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+      tileLayerRef.current = null;
+      initialFitDoneRef.current = false;
+      lastCenteredOrderIdRef.current = null;
+      lastSizeRef.current = { w: 0, h: 0 };
+    };
+
+    const createMap = () => {
+      if (cancelled || mapInstanceRef.current || !mapContainerRef.current || !rootRef.current) {
+        return;
+      }
+      const root = rootRef.current;
+      if (root.clientWidth < 40 || root.clientHeight < 40) {
+        rafId = requestAnimationFrame(createMap);
+        return;
+      }
+
       const initialCenter: [number, number] = departurePoint
         ? [departurePoint.lat, departurePoint.lng]
         : DEFAULT_HUB;
-      const initialZoom = 12;
 
-      // Límites estrictos para Gran Buenos Aires (GBA) y Capital Federal
-      const gbaBounds = L.latLngBounds(
-        [-34.95, -59.00], // Sudoeste (zona sur/oeste de GBA)
-        [-34.25, -57.90]  // Noreste (Río de la Plata y zona norte de GBA)
-      );
+      const gbaBounds = L.latLngBounds([-34.95, -59.0], [-34.25, -57.9]);
 
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
-        zoom: initialZoom,
+        zoom: 12,
         minZoom: 9,
         maxZoom: 18,
         maxBounds: gbaBounds,
@@ -318,38 +375,55 @@ export default function MapComponent({
         userInteractedRef.current = true;
       });
 
-      // Capa base — oscura o clara según tema Posta
       tileLayerRef.current = L.tileLayer(MAP_TILE_URLS[readPostaTheme()], {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 19,
+        updateWhenIdle: false,
+        updateWhenZooming: true,
+        keepBuffer: 2,
       }).addTo(map);
 
       mapInstanceRef.current = map;
+      lastSizeRef.current = { w: root.clientWidth, h: root.clientHeight };
+      setMapEpoch((n) => n + 1);
 
-      setTimeout(() => {
-        map.invalidateSize();
-      }, 100);
-    }
+      // Tras el layout flex (sidebar + panel), el ancho suele asentar más tarde.
+      for (const ms of [0, 50, 120, 300, 600, 1200]) {
+        timers.push(
+          window.setTimeout(() => {
+            if (!cancelled) refreshMapSize();
+          }, ms)
+        );
+      }
 
-    // Cleanup al desmontar
-    return () => {
-      Object.values(markersRef.current).forEach((marker) => marker.remove());
-      markersRef.current = {};
-      Object.values(polylinesRef.current).forEach((line) => line.remove());
-      polylinesRef.current = {};
-      zoneLayersRef.current.forEach((layer) => layer.remove());
-      zoneLayersRef.current = [];
-      if (hubMarkerRef.current) {
-        hubMarkerRef.current.remove();
-        hubMarkerRef.current = null;
-      }
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
+      resizeObserver = new ResizeObserver(() => {
+        refreshMapSize();
+      });
+      resizeObserver.observe(root);
     };
-  }, [interactive]);
+
+    createMap();
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      timers.forEach((id) => clearTimeout(id));
+      resizeObserver?.disconnect();
+      teardownMap();
+    };
+    // Solo recrear si cambia interactividad; departurePoint se usa solo en centro inicial.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interactive, refreshMapSize]);
+
+  // Cada vez que cambia el pedido activo o modo compact, recalcular tamaño.
+  useEffect(() => {
+    const timers = [0, 80, 200, 450].map((ms) =>
+      window.setTimeout(() => refreshMapSize(), ms)
+    );
+    return () => timers.forEach((id) => clearTimeout(id));
+  }, [activeOrderId, compact, refreshMapSize]);
 
   // Cambiar tiles al alternar modo claro / oscuro
   useEffect(() => {
@@ -366,10 +440,6 @@ export default function MapComponent({
     }
 
     if (!departurePoint || !showDepartureHub) {
-      if (hubMarkerRef.current) {
-        hubMarkerRef.current.remove();
-        hubMarkerRef.current = null;
-      }
       return;
     }
 
@@ -445,31 +515,6 @@ export default function MapComponent({
       cancelled = true;
     };
   }, [showDeliveryZones, deliveryZones, barrios]);
-
-  // Observer de redimensionamiento
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize();
-      }
-    });
-
-    resizeObserver.observe(mapContainerRef.current);
-
-    // Ejecutar invalidateSize adicional con un delay para mayor seguridad
-    const timer = setTimeout(() => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.invalidateSize();
-      }
-    }, 300);
-
-    return () => {
-      resizeObserver.disconnect();
-      clearTimeout(timer);
-    };
-  }, []);
 
   // Actualizar marcadores de pedidos, repartidores y polilíneas cuando cambian los props
   useEffect(() => {
@@ -670,7 +715,7 @@ export default function MapComponent({
         markersRef.current[markerId] = marker;
       }
     });
-  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation, theme, mapColors, statusColors]);
+  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation, theme, mapColors, statusColors, mapEpoch]);
 
   // Ruta por calles hacia el próximo destino (OSRM)
   useEffect(() => {
@@ -729,7 +774,7 @@ export default function MapComponent({
     return () => {
       cancelled = true;
     };
-  }, [activeOrderId, orders, repartidores, liveRepartidorLocation, theme, mapColors.route]);
+  }, [activeOrderId, orders, repartidores, liveRepartidorLocation, theme, mapColors.route, mapEpoch]);
 
   // Abrir popup del pedido seleccionado (solo al cambiar de pedido, no en cada actualización)
   useEffect(() => {
@@ -816,7 +861,7 @@ export default function MapComponent({
     requestAnimationFrame(() => {
       map.invalidateSize({ animate: false });
     });
-  }, [activeOrderId, liveRepartidorLocation, departurePoint, showDepartureHub, compact]);
+  }, [activeOrderId, liveRepartidorLocation, departurePoint, showDepartureHub, compact, mapEpoch]);
 
   // Ajuste inicial una sola vez al cargar pedidos
   useEffect(() => {
@@ -832,7 +877,7 @@ export default function MapComponent({
     const bounds = L.latLngBounds(validCoords);
     map.fitBounds(bounds, { padding: [40, 40] });
     initialFitDoneRef.current = true;
-  }, [orders.length, activeOrderId]);
+  }, [orders.length, activeOrderId, mapEpoch]);
 
   const zoneLegend =
     showDeliveryZones && !compact
@@ -841,6 +886,7 @@ export default function MapComponent({
 
   return (
     <div
+      ref={rootRef}
       className={`relative w-full h-full min-h-0 overflow-hidden bg-[var(--surface-bg)] ${
         compact
           ? 'rounded-[inherit]'
@@ -883,7 +929,8 @@ export default function MapComponent({
           Ruta en reparto
         </div>
       </div>
-      <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+      {/* w/h 100% (no absolute): Leaflet mide mal con absolute+flex y deja franja vacía */}
+      <div ref={mapContainerRef} className="block w-full h-full" style={{ minHeight: '100%' }} />
     </div>
   );
 }

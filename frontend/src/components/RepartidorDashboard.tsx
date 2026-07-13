@@ -420,20 +420,26 @@ export default function RepartidorDashboard({
         }`}>
           {selectedOrder && activeTab === 'assigned' ? (
             <div className="flex-1 flex flex-col gap-2 sm:gap-3 overflow-hidden min-h-0">
-              {/* Mapa: altura estable para que Leaflet calcule tiles bien */}
-              <div className="relative shrink-0 h-[min(42dvh,320px)] sm:h-[min(44dvh,380px)] lg:h-auto lg:flex-1 lg:min-h-[260px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-bg)]">
-                <MapComponent
-                  orders={[selectedOrder]}
-                  repartidores={repForMap}
-                  departurePoint={departurePoint}
-                  pickupPoints={pickupPoints}
-                  activeOrderId={selectedOrder.id}
-                  liveRepartidorLocation={currentCoords}
-                  showDepartureHub={false}
-                  showDeliveryZones={false}
-                  compact
-                  interactive={true}
-                />
+              {/* Contenedor con tamaño explícito: Leaflet necesita clientWidth/Height reales al init */}
+              <div
+                className="relative w-full shrink-0 overflow-hidden rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-bg)]"
+                style={{ height: 'clamp(220px, 42dvh, 420px)' }}
+              >
+                <div className="absolute inset-0 w-full h-full">
+                  <MapComponent
+                    key={`courier-map-${selectedOrder.id}`}
+                    orders={[selectedOrder]}
+                    repartidores={repForMap}
+                    departurePoint={departurePoint}
+                    pickupPoints={pickupPoints}
+                    activeOrderId={selectedOrder.id}
+                    liveRepartidorLocation={currentCoords}
+                    showDepartureHub={false}
+                    showDeliveryZones={false}
+                    compact
+                    interactive={true}
+                  />
+                </div>
               </div>
 
               <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] p-2.5 sm:p-3.5 shrink-0 text-left max-h-[min(48dvh,420px)] overflow-y-auto scrollbar-thin safe-bottom">
