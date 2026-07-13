@@ -390,6 +390,25 @@ export async function findOrderByExternalForAgency(
   return orders[0] ?? null;
 }
 
+/** Pedidos ML Flex abiertos de la agencia (para re-chequear assignment del courier). */
+export async function listOpenMercadoLibreOrdersForAgency(
+  agencyId: string,
+  limit = 40
+): Promise<Order[]> {
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT}
+     WHERE o.agency_id = ?
+       AND o.external_source = 'mercadolibre'
+       AND o.external_order_id IS NOT NULL
+       AND o.archived = 0
+       AND o.status IN (?, ?, ?)
+     ORDER BY o.updated_at DESC
+     LIMIT ?`,
+    [agencyId, OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.DELIVERING, limit]
+  );
+  return enrichOrders(rows);
+}
+
 export function assertOrderAccessibleForLabelScan(user: User, order: Order): void {
   if (isAgencyAdmin(user.role) || user.role === UserRole.REPARTIDOR) {
     if (!belongsToUserAgency(user, order.agencyId)) {

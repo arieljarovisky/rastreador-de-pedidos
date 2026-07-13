@@ -422,6 +422,22 @@ export async function resolveMercadoLibreFlexDeliveryDeadline(
 
 export interface MlFlexAssignment {
   driver_id?: number;
+  /** Algunas respuestas anidan el transportista. */
+  driver?: { id?: number | string };
+}
+
+/** Normaliza driver_id desde respuestas planas o anidadas de assignment Flex. */
+export function extractMercadoLibreFlexDriverId(
+  assignment: MlFlexAssignment | Record<string, unknown> | null | undefined
+): string | null {
+  if (!assignment || typeof assignment !== 'object') return null;
+  const raw =
+    (assignment as MlFlexAssignment).driver_id ??
+    (assignment as MlFlexAssignment).driver?.id ??
+    (assignment as { courier_id?: number | string }).courier_id ??
+    null;
+  if (raw == null || raw === '') return null;
+  return String(raw);
 }
 
 export interface MlMissedFeedMessage {
@@ -484,7 +500,15 @@ async function fetchMercadoLibreFlexAssignmentWithIntegration(
         `/flex/sites/${siteId}/shipments/${shipmentId}/assignment/${version}`,
         { quietStatuses: [404] }
       );
-      if (assignment?.driver_id != null) return assignment;
+      const driverId = extractMercadoLibreFlexDriverId(assignment);
+      if (driverId) {
+        const numeric = Number(driverId);
+        return {
+          ...assignment,
+          driver_id: Number.isFinite(numeric) ? numeric : assignment.driver_id,
+          driver: assignment.driver ?? { id: driverId },
+        };
+      }
     } catch {
       // probar siguiente versión o integración
     }
@@ -513,7 +537,7 @@ export async function resolveMercadoLibreFlexAssignment(
       siteId,
       shipmentId
     );
-    if (assignment?.driver_id != null) return assignment;
+    if (extractMercadoLibreFlexDriverId(assignment)) return assignment;
   }
   return null;
 }

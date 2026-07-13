@@ -11,6 +11,7 @@ import {
   updateOrderStatus,
   applyMercadoLibreSyncState,
   updateOrderDeliveryDeadlineIfNeeded,
+  listOpenMercadoLibreOrdersForAgency,
 } from './orders.service.js';
 import {
   listMercadoLibreFlexShipments,
@@ -24,6 +25,7 @@ import {
   fetchMercadoLibreShipment,
   fetchMercadoLibreFlexAssignment,
   resolveMercadoLibreFlexAssignment,
+  extractMercadoLibreFlexDriverId,
   formatMlShipmentStatusLabel,
   mapMercadoLibreShipmentToOrderStatus,
   resolveMercadoLibreFlexDeliveryDeadline,
@@ -54,7 +56,9 @@ import {
 const recentFlexSyncByRepartidor = new Map<string, number>();
 const FLEX_SYNC_COOLDOWN_MS = 8_000;
 const FLEX_SYNC_FORCE_COOLDOWN_MS = 2_000;
-const FLEX_SYNC_SHIPMENT_LIMIT = 12;
+/** Ventana amplia: en Flex la orden puede crearse días antes del escaneo/ruta. */
+const FLEX_SYNC_LOOKBACK_DAYS = 7;
+const FLEX_SYNC_SHIPMENT_LIMIT = 30;
 
 function formatImportError(externalId: string, reason: string): string {
   if (reason === 'GEOCODE_UNAVAILABLE') {
@@ -150,11 +154,9 @@ export async function syncMercadoLibreOrderAfterImport(
         env.mercadolibre.siteId,
         flex.externalId
       );
-      if (assignment?.driver_id) {
-        const repartidor = await getRepartidorByMercadoLibreUserId(
-          assignment.driver_id,
-          order.agencyId
-        );
+      const driverId = extractMercadoLibreFlexDriverId(assignment);
+      if (driverId) {
+        const repartidor = await getRepartidorByMercadoLibreUserId(driverId, order.agencyId);
         repartidorId = repartidor?.id ?? null;
       }
     }
@@ -269,7 +271,27 @@ export async function syncFlexScansForRepartidor(
     repartidorId: repartidor.id,
     mlCourierId,
     agencyId: repartidor.agencyId,
+    lookbackDays: FLEX_SYNC_LOOKBACK_DAYS,
+    force: Boolean(options?.force),
   });
+
+  if (options?.force) {
+    try {
+      const { replayMercadoLibreMissedFeeds } = await import('./mercadolibre-webhook.service.js');
+      const replay = await replayMercadoLibreMissedFeeds({
+        topic: 'flex-handshakes',
+        limit: 20,
+      });
+      if (replay.replayed > 0 || replay.errors > 0) {
+        console.log('[ml-flex-sync] missed_feeds flex-handshakes', replay);
+      }
+    } catch (err) {
+      console.warn(
+        '[ml-flex-sync] missed_feeds falló',
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }
 
   const operator = await getAgencyOperatorForImport(repartidor.agencyId);
   const contexts = await listMercadoLibreIntegrationsForAgencyScan(repartidor.agencyId);
@@ -278,10 +300,14 @@ export async function syncFlexScansForRepartidor(
     return 0;
   }
 
-  const dateFrom = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const dateFrom = new Date(now - FLEX_SYNC_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   let synced = 0;
   let checked = 0;
   let matched = 0;
+  const seenShipmentIds = new Set<string>();
+  const sampleSkips: Array<{ shipmentId: string; driverId: string | null }> = [];
 
   let repartidorIntegration: StoreIntegration | null = null;
   try {
@@ -289,6 +315,68 @@ export async function syncFlexScansForRepartidor(
   } catch {
     console.warn('[ml-flex-sync] token ML del repartidor inválido', { repartidorId: repartidor.id });
   }
+
+  const tryAssignShipment = async (
+    shipmentId: string,
+    assignmentIntegrations: StoreIntegration[],
+    importOwner: User,
+    mlIntegrationUserId: string,
+    agencyMode: boolean,
+    flex?: MercadoLibreFlexShipment
+  ): Promise<boolean> => {
+    if (seenShipmentIds.has(shipmentId)) return false;
+    seenShipmentIds.add(shipmentId);
+    checked++;
+
+    const assignment = await resolveMercadoLibreFlexAssignment(
+      assignmentIntegrations,
+      shipmentId
+    );
+    const driverId = extractMercadoLibreFlexDriverId(assignment);
+    if (driverId !== String(mlCourierId)) {
+      if (sampleSkips.length < 8) {
+        sampleSkips.push({ shipmentId, driverId });
+      }
+      return false;
+    }
+    matched++;
+
+    console.log('[ml-flex-sync] envío asignado al repartidor en ML', {
+      shipmentId,
+      repartidorId: repartidor.id,
+      driverId,
+    });
+
+    let order: Order | null = null;
+    if (flex) {
+      const result = await importMercadoLibreFlexShipment(importOwner, flex, {
+        mlIntegrationUserId,
+        agencyMode,
+      });
+      if (result.kind !== 'imported' && result.kind !== 'synced') return false;
+      order = result.order;
+    } else {
+      order =
+        (await findImportedMercadoLibreFlexGlobal({
+          externalId: shipmentId,
+          mlOrderId: shipmentId,
+        })) ?? null;
+      if (!order) return false;
+    }
+
+    if (order.repartidorId !== repartidor.id) {
+      order = await assignOrderToScanningRepartidor(
+        repartidor,
+        order.id,
+        'Asignado por escaneo en Mercado Envíos Flex (sync)'
+      );
+    }
+
+    const sellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, sellerId);
+    synced++;
+    return true;
+  };
 
   for (const { integration, isAgencyAccount } of contexts) {
     try {
@@ -298,44 +386,19 @@ export async function syncFlexScansForRepartidor(
         ...(repartidorIntegration ? [repartidorIntegration] : []),
         validIntegration,
       ];
+      const sellerUser = await getUserById(integration.userId);
+      const owner =
+        isAgencyAccount && operator ? operator : sellerUser ?? operator ?? repartidor;
 
       for (const flex of flexShipments.slice(0, FLEX_SYNC_SHIPMENT_LIMIT)) {
-        checked++;
-        const assignment = await resolveMercadoLibreFlexAssignment(
+        await tryAssignShipment(
+          flex.externalId,
           assignmentIntegrations,
-          flex.externalId
+          owner,
+          integration.userId,
+          isAgencyAccount,
+          flex
         );
-        if (String(assignment?.driver_id ?? '') !== String(mlCourierId)) continue;
-        matched++;
-
-        console.log('[ml-flex-sync] envío asignado al repartidor en ML', {
-          shipmentId: flex.externalId,
-          repartidorId: repartidor.id,
-        });
-
-        const sellerUser = await getUserById(integration.userId);
-        const owner =
-          isAgencyAccount && operator ? operator : sellerUser ?? operator ?? repartidor;
-
-        const result = await importMercadoLibreFlexShipment(owner, flex, {
-          mlIntegrationUserId: integration.userId,
-          agencyMode: isAgencyAccount,
-        });
-
-        if (result.kind !== 'imported' && result.kind !== 'synced') continue;
-
-        let order = result.order;
-        if (order.repartidorId !== repartidor.id) {
-          order = await assignOrderToScanningRepartidor(
-            repartidor,
-            order.id,
-            'Asignado por escaneo en Mercado Envíos Flex (sync)'
-          );
-        }
-
-        const sellerId = await getSellerIdForOrder(order.id);
-        emitOrderUpdated(order, sellerId);
-        synced++;
       }
     } catch (err) {
       console.warn('[ml-flex-sync] error en integración', {
@@ -345,12 +408,40 @@ export async function syncFlexScansForRepartidor(
     }
   }
 
+  // Pedidos ya en Posta: re-chequear assignment aunque estén fuera de la ventana de listado ML.
+  try {
+    const openOrders = await listOpenMercadoLibreOrdersForAgency(repartidor.agencyId, 40);
+    const assignmentIntegrations = [
+      ...(repartidorIntegration ? [repartidorIntegration] : []),
+      ...contexts.map((c) => c.integration),
+    ];
+
+    for (const order of openOrders) {
+      if (!order.externalOrderId) continue;
+      if (order.repartidorId === repartidor.id) continue;
+
+      await tryAssignShipment(
+        order.externalOrderId,
+        assignmentIntegrations,
+        operator ?? repartidor,
+        contexts[0]?.integration.userId ?? repartidor.id,
+        true
+      );
+    }
+  } catch (err) {
+    console.warn('[ml-flex-sync] error revisando pedidos abiertos', {
+      agencyId: repartidor.agencyId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   console.log('[ml-flex-sync] sync completado', {
     repartidorId: repartidor.id,
     mlCourierId,
     checked,
     matched,
     synced,
+    ...(matched === 0 && sampleSkips.length > 0 ? { sampleSkips } : {}),
   });
 
   return synced;

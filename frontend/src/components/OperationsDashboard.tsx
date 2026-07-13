@@ -228,19 +228,23 @@ export default function OperationsDashboard({
           </span>
         </p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2">
-          <KpiCard label="Total pedidos" value={summary.total} tone="accent" icon={Layers} />
-          <KpiCard label="Entregados" value={summary.delivered} tone="ok" icon={CheckCircle2} />
-          <KpiCard label="Sin entregar" value={summary.undelivered} tone={summary.undelivered > 0 ? 'warn' : 'neutral'} icon={Package} />
-          <KpiCard label="Fuera plazo" value={summary.overdue} tone={summary.overdue > 0 ? 'danger' : 'neutral'} icon={AlertTriangle} />
-          <KpiCard
-            label="Entreg. tarde"
-            value={summary.deliveredLate}
-            tone={summary.deliveredLate > 0 ? 'danger' : 'neutral'}
-            icon={AlertTriangle}
-          />
-          <KpiCard label="En ruta" value={statusBreakdown.delivering} tone="warn" icon={Truck} />
-          <KpiCard label="Pendientes" value={statusBreakdown.pending + statusBreakdown.assigned} tone="neutral" icon={Package} />
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <KpiCard label="Total pedidos" value={summary.total} tone="accent" icon={Layers} />
+            <KpiCard label="Entregados" value={summary.delivered} tone="ok" icon={CheckCircle2} />
+            <KpiCard label="Sin entregar" value={summary.undelivered} tone={summary.undelivered > 0 ? 'warn' : 'neutral'} icon={Package} />
+            <KpiCard label="Fuera plazo" value={summary.overdue} tone={summary.overdue > 0 ? 'danger' : 'neutral'} icon={AlertTriangle} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <KpiCard
+              label="Entregados tarde"
+              value={summary.deliveredLate}
+              tone={summary.deliveredLate > 0 ? 'danger' : 'neutral'}
+              icon={AlertTriangle}
+            />
+            <KpiCard label="En ruta" value={statusBreakdown.delivering} tone="warn" icon={Truck} />
+            <KpiCard label="Pendientes" value={statusBreakdown.pending + statusBreakdown.assigned} tone="neutral" icon={Package} />
+          </div>
         </div>
 
         {summary.total > 0 && (
@@ -265,8 +269,8 @@ export default function OperationsDashboard({
         <div
           className={`grid gap-3 ${
             isAgency && sellerBreakdown.length > 0
-              ? 'grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 lg:flex-1 lg:min-h-0'
-              : 'grid-cols-1 lg:grid-cols-3 lg:flex-1 lg:min-h-0'
+              ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 lg:flex-1 lg:min-h-0'
+              : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 lg:flex-1 lg:min-h-0'
           }`}
         >
           <OrderListSection
@@ -308,6 +312,7 @@ export default function OperationsDashboard({
             onSelectOrder={onSelectOrder}
             showSeller={isAgency}
             showDeliveredAt
+            className="md:col-span-2 xl:col-span-1"
           />
 
           {isAgency && sellerBreakdown.length > 0 && (
@@ -315,7 +320,7 @@ export default function OperationsDashboard({
               rows={sellerBreakdown}
               selectedSellerId={sellerFilterId}
               onSelectSeller={setSellerFilterId}
-              className="hidden xl:flex"
+              className="hidden 2xl:flex"
             />
           )}
         </div>
@@ -325,7 +330,7 @@ export default function OperationsDashboard({
             rows={sellerBreakdown}
             selectedSellerId={sellerFilterId}
             onSelectSeller={setSellerFilterId}
-            className="mt-3 xl:hidden"
+            className="mt-3 2xl:hidden"
           />
         )}
       </div>
@@ -355,12 +360,12 @@ function KpiCard({
   };
 
   return (
-    <div className={`rounded border px-3 py-3 sm:px-2.5 sm:py-2 ${tones[tone]}`}>
-      <div className="flex items-center gap-1.5 mb-1.5 sm:mb-1 opacity-80">
-        <Icon className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
-        <span className="text-[9px] sm:text-[8px] font-mono font-bold uppercase tracking-tight">{label}</span>
+    <div className={`rounded border px-3 py-3 min-w-0 ${tones[tone]}`}>
+      <div className="flex items-center gap-1.5 mb-1.5 opacity-80 min-w-0">
+        <Icon className="w-3.5 h-3.5 shrink-0" />
+        <span className="text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-tight truncate">{label}</span>
       </div>
-      <p className="text-2xl sm:text-xl font-bold font-mono leading-none">
+      <p className="text-2xl font-bold font-mono leading-none tabular-nums">
         {value}
         {sub && <span className="text-xs text-[var(--color-text-muted)]">{sub}</span>}
       </p>
@@ -377,6 +382,7 @@ function OrderListSection({
   onSelectOrder,
   showSeller,
   showDeliveredAt = false,
+  className = '',
 }: {
   title: string;
   count: number;
@@ -386,6 +392,7 @@ function OrderListSection({
   onSelectOrder?: (orderId: string) => void;
   showSeller?: boolean;
   showDeliveredAt?: boolean;
+  className?: string;
 }) {
   const borderTone =
     tone === 'ok'
@@ -396,7 +403,7 @@ function OrderListSection({
 
   return (
     <section
-      className={`border rounded-[var(--radius-posta)] overflow-hidden flex flex-col min-h-0 lg:h-full ${borderTone}`}
+      className={`border rounded-[var(--radius-posta)] overflow-hidden flex flex-col min-h-0 lg:h-full ${borderTone} ${className}`}
     >
       <div className="shrink-0 px-3 py-2.5 sm:py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex justify-between items-center">
         <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
