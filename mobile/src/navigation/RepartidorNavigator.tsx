@@ -6,6 +6,7 @@ import { OrdersProvider } from '../context/OrdersContext';
 import { useMandatoryLocation } from '../hooks/useMandatoryLocation';
 import OrdersScreen from '../screens/OrdersScreen';
 import OrderDetailScreen from '../screens/OrderDetailScreen';
+import ScanLabelScreen from '../screens/ScanLabelScreen';
 import RepartidorProfileScreen from '../screens/RepartidorProfileScreen';
 import LocationRequiredScreen from '../screens/LocationRequiredScreen';
 import PostaBottomTabBar from '../components/navigation/PostaBottomTabBar';
@@ -86,6 +87,11 @@ function RepartidorAppStack() {
         name="OrderDetail"
         component={OrderDetailScreen}
         options={{ title: 'Detalle del envío' }}
+      />
+      <Stack.Screen
+        name="ScanLabel"
+        component={ScanLabelScreen}
+        options={{ headerShown: false, animation: 'slide_from_bottom' }}
       />
     </Stack.Navigator>
   );

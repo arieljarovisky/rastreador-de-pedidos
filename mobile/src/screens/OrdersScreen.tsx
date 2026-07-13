@@ -25,6 +25,7 @@ import ListTabBar from '../components/ui/ListTabBar';
 import ListTabButton from '../components/ui/ListTabButton';
 import MonoLabel from '../components/ui/MonoLabel';
 import Button from '../components/Button';
+import PostaIcon from '../components/icons/PostaIcons';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import { RepartidorHomeStackParamList, RepartidorStackParamList } from '../navigation/types';
 
@@ -146,7 +147,16 @@ export default function OrdersScreen({ navigation }: Props) {
             </Text>
           </View>
         </View>
-        <ConnectionBadge connected={connected} />
+        <View style={styles.headerRight}>
+          <Pressable
+            style={[styles.scanBtn, { backgroundColor: `${accent}18`, borderColor: `${accent}44` }]}
+            onPress={() => navigation.navigate('ScanLabel')}
+            hitSlop={8}
+          >
+            <PostaIcon name="scan" size={20} color={accent} />
+          </Pressable>
+          <ConnectionBadge connected={connected} />
+        </View>
       </View>
 
       <RepartidorMlConnectBar />
@@ -215,16 +225,16 @@ export default function OrdersScreen({ navigation }: Props) {
               title={tab === 'assigned' ? 'Sin envíos asignados' : 'Nada disponible ahora'}
               message={
                 tab === 'assigned'
-                  ? 'Escaneá en Mercado Envíos Flex (el último escaneo queda asignado) o tomá uno de Disponibles.'
+                  ? 'Escaneá la etiqueta del paquete para sumarlo a tus envíos, o tomá uno de Disponibles.'
                   : 'Cuando haya pedidos nuevos van a aparecer acá automáticamente.'
               }
               action={
-                tab === 'assigned' && available.length > 0
+                tab === 'assigned'
                   ? {
-                      label: `Ver ${available.length} disponible${available.length === 1 ? '' : 's'}`,
-                      icon: 'package',
-                      color: colors.purple,
-                      onPress: () => setTab('available'),
+                      label: 'Escanear etiqueta',
+                      icon: 'scan',
+                      color: accent,
+                      onPress: () => navigation.navigate('ScanLabel'),
                     }
                   : undefined
               }
@@ -291,6 +301,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   headerText: { flex: 1, minWidth: 0 },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  scanBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sessionBanner: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,

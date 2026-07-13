@@ -2,7 +2,7 @@
   "expo": {
     "name": "Posta",
     "slug": "posta-repartidor",
-    "version": "1.2.4",
+    "version": "1.3.0",
     "orientation": "portrait",
     "scheme": "lupo",
     "userInterfaceStyle": "dark",
@@ -28,7 +28,7 @@
       }
     },
     "android": {
-      "versionCode": 15,
+      "versionCode": 16,
       "package": "com.postaenvios.repartidor",
       "intentFilters": [
         {
@@ -49,6 +49,7 @@
         "backgroundColor": "#141210"
       },
       "permissions": [
+        "CAMERA",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
@@ -64,6 +65,12 @@
     },
     "plugins": [
       "expo-task-manager",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Posta usa la cámara para escanear las etiquetas de Mercado Libre Flex."
+        }
+      ],
       [
         "expo-location",
         {

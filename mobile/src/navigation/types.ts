@@ -17,6 +17,7 @@ export type RepartidorTabParamList = {
 export type RepartidorStackParamList = {
   MainTabs: NavigatorScreenParams<RepartidorTabParamList>;
   OrderDetail: { orderId: string };
+  ScanLabel: undefined;
 };
 
 export type SellerHomeStackParamList = {

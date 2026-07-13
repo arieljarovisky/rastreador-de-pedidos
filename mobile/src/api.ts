@@ -25,6 +25,16 @@ export interface LoginResponse {
   token: string;
 }
 
+export interface MlScanImportResult {
+  order: Order;
+  alreadyImported: boolean;
+  sellerId: string;
+  sellerName: string;
+  externalOrderId: string;
+  mlFlexRegistered: boolean;
+  mlFlexMessage: string;
+}
+
 export interface AppVersionInfo {
   version: string;
   minVersion: string;
@@ -143,6 +153,23 @@ export const api = {
       token,
       method: 'POST',
       timeoutMs: 45_000,
+    });
+  },
+
+  /**
+   * Repartidor/agencia: escanea una etiqueta ML Flex.
+   * Registra el envío a la mensajería en ML y crea/asigna el pedido en Posta.
+   */
+  scanImportMercadoLibre(
+    token: string,
+    code: string,
+    location?: { lat: number; lng: number }
+  ): Promise<MlScanImportResult> {
+    return request<MlScanImportResult>('/api/integrations/mercadolibre/scan-import', {
+      method: 'POST',
+      token,
+      body: { code, lat: location?.lat, lng: location?.lng },
+      timeoutMs: 60_000,
     });
   },
 

@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSellerOrdersContext } from '../../context/SellerOrdersContext';
 import DeliveryDashboardPanel from '../../components/DeliveryDashboardPanel';
 import { api } from '../../api';
-import { colors } from '../../theme';
+import { colors, roleAccents } from '../../theme';
 import { SellerHomeStackParamList, SellerStackParamList } from '../../navigation/types';
 
 type Props = CompositeScreenProps<

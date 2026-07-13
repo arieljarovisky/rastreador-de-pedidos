@@ -21,6 +21,7 @@ import {
   findImportedMercadoLibreFlex,
   findImportedMercadoLibreFlexGlobal,
   resolveMercadoLibreShipmentId,
+  registerMercadoLibreCourierShipment,
   syncMercadoLibreFlexOnScan,
   fetchMercadoLibreShipment,
   fetchMercadoLibreFlexAssignment,
@@ -1205,6 +1206,45 @@ export async function importMercadoLibreByScanForAgency(
     integrationContexts = [{ integration: selected, isAgencyAccount: false }];
   }
 
+  // Repartidor con ML propio: registrar el envío a la mensajería en ML primero
+  // (courier-shipment/v1 no requiere al vendedor) y usar su token para leer el envío.
+  let courierRegistered = false;
+  let courierAuthRejected = false;
+  if (user.role === UserRole.REPARTIDOR && !sellerId) {
+    const repartidorMl = await getIntegration(user.id, 'mercadolibre');
+    if (repartidorMl) {
+      for (const candidate of candidates) {
+        if (candidate.type !== 'shipment') continue;
+        try {
+          const reg = await registerMercadoLibreCourierShipment(repartidorMl, candidate.id);
+          if (reg.ok) {
+            courierRegistered = true;
+            console.log('[scan-import] courier-shipment registrado en ML', {
+              repartidorId: user.id,
+              shipmentId: candidate.id,
+              alreadyRegistered: reg.alreadyRegistered ?? false,
+            });
+            break;
+          }
+          console.warn('[scan-import] courier-shipment rechazado', {
+            repartidorId: user.id,
+            shipmentId: candidate.id,
+            code: reg.code,
+          });
+          if (reg.code === 'ML_COURIER_AUTH') {
+            courierAuthRejected = true;
+            break;
+          }
+        } catch (err) {
+          console.warn('[scan-import] courier-shipment error:', err);
+        }
+      }
+      if (!integrationContexts.some((ctx) => ctx.integration.userId === repartidorMl.userId)) {
+        integrationContexts.push({ integration: repartidorMl, isAgencyAccount: true });
+      }
+    }
+  }
+
   if (integrationContexts.length === 0) {
     throw new Error('ML_NOT_CONNECTED');
   }
@@ -1291,5 +1331,12 @@ export async function importMercadoLibreByScanForAgency(
     );
   }
 
+  // Quedó registrado a la mensajería en ML pero ninguna cuenta pudo leer los datos del envío.
+  if (courierRegistered) {
+    throw new Error('ML_SCAN_REGISTERED_NO_DATA');
+  }
+  if (courierAuthRejected) {
+    throw new Error('ML_COURIER_AUTH');
+  }
   throw new Error('ML_SCAN_NOT_FOUND');
 }
