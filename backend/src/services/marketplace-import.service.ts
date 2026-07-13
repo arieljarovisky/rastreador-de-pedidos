@@ -135,8 +135,8 @@ async function markImported(
 
 /**
  * Candidatos de token ML para un pedido.
- * Prioridad: repartidor asignado (courier Flex) → preferido (import) → agencia → tienda.
- * La mensajería sincroniza estados con el token del courier, sin exigir login del vendedor.
+ * Prioridad: repartidor (courier) → preferido (import) → cuentas ML de la agencia → vendedor.
+ * El vendedor desconectado no bloquea: se usa courier/agencia si hay token válido.
  */
 async function listMlIntegrationUserIdsForOrder(
   order: Order,
@@ -153,8 +153,9 @@ async function listMlIntegrationUserIdsForOrder(
   add(order.repartidorId);
   add(preferredMlUserId);
   if (order.agencyId) {
-    const agencyMl = await getAgencyMercadoLibreIntegration(order.agencyId);
-    add(agencyMl?.userId);
+    for (const ctx of await listMercadoLibreIntegrationsForAgencyScan(order.agencyId)) {
+      add(ctx.integration.userId);
+    }
   }
   add(order.sellerId ?? (await getSellerIdForOrder(order.id)));
   return ids;
@@ -179,10 +180,14 @@ export async function syncMercadoLibreOrderAfterImport(
   }
 
   let lastErr: unknown;
+  let triedValidToken = false;
   for (const mlUserId of candidates) {
-    try {
-      const integration = await getValidMercadoLibreIntegration(mlUserId);
+    // Vendedor (u otro user) sin ML: saltar en silencio; no es error bloqueante.
+    const integration = await tryGetValidMercadoLibreIntegration(mlUserId);
+    if (!integration) continue;
+    triedValidToken = true;
 
+    try {
       // 401/403 = esta cuenta no es caller del envío (típico agencia ≠ vendedor); probar siguiente.
       let liveShipment: Awaited<ReturnType<typeof fetchMercadoLibreShipment>> | null = null;
       try {
@@ -273,7 +278,17 @@ export async function syncMercadoLibreOrderAfterImport(
     }
   }
 
-  console.warn('[ml-import] No se pudo sincronizar estado ML:', lastErr);
+  if (!triedValidToken) {
+    // Ningún courier/agencia/vendedor con ML: no spamear ML_NOT_CONNECTED.
+    return order;
+  }
+
+  const errMsg = lastErr instanceof Error ? lastErr.message : String(lastErr ?? '');
+  console.warn('[ml-import] No se pudo sincronizar estado ML', {
+    orderId: order.id,
+    externalId: flex.externalId,
+    error: errMsg,
+  });
   return order;
 }
 
