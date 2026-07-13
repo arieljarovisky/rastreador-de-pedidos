@@ -31,6 +31,8 @@ import {
 import { parseTiendaNubeDateRange } from '../services/tiendanube.service.js';
 import {
   getMercadoLibreWebhookUrl,
+  getMercadoLibreWebhookHealth,
+  recordMercadoLibreWebhookHit,
   ML_WEBHOOK_TOPICS,
   processMercadoLibreNotification,
   replayMercadoLibreMissedFeeds,
@@ -382,11 +384,17 @@ router.get('/tiendanube/callback', async (req: Request, res: Response) => {
 });
 
 router.post('/mercadolibre/notifications', async (req: Request, res: Response) => {
+  // ML exige HTTP 200 en <500ms; si falla, desactiva los tópicos.
   res.status(200).send('OK');
+  recordMercadoLibreWebhookHit({
+    topic: typeof req.body?.topic === 'string' ? req.body.topic : undefined,
+    userId: req.body?.user_id,
+  });
   console.log('[ml-webhook] POST hit', {
     contentType: req.headers['content-type'],
     hasBody: Boolean(req.body),
     bodyType: typeof req.body,
+    at: new Date().toISOString(),
   });
   const body = req.body as
     | MercadoLibreNotificationPayload
@@ -426,8 +434,7 @@ router.post('/mercadolibre/notifications', async (req: Request, res: Response) =
 router.get('/mercadolibre/notifications', (_req: Request, res: Response) => {
   res.status(200).json({
     ok: true,
-    webhook: getMercadoLibreWebhookUrl(),
-    topics: [...ML_WEBHOOK_TOPICS],
+    ...getMercadoLibreWebhookHealth(),
   });
 });
 

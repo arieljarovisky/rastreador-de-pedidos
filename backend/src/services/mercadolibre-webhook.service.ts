@@ -191,6 +191,47 @@ async function buildAssignmentIntegrations(
 
 export const ML_WEBHOOK_TOPICS = ['orders_v2', 'orders', 'shipments', 'flex-handshakes'] as const;
 
+/** Último POST de notificación recibido (diagnóstico: si ML está pegando al backend). */
+let lastWebhookReceivedAt: string | null = null;
+let lastWebhookTopic: string | null = null;
+let lastWebhookUserId: string | null = null;
+let webhookPostCount = 0;
+
+export function recordMercadoLibreWebhookHit(info?: {
+  topic?: string;
+  userId?: string | number;
+}): void {
+  webhookPostCount += 1;
+  lastWebhookReceivedAt = new Date().toISOString();
+  lastWebhookTopic = info?.topic ?? null;
+  lastWebhookUserId = info?.userId != null ? String(info.userId) : null;
+}
+
+export function getMercadoLibreWebhookHealth(): {
+  webhookUrl: string;
+  topics: readonly string[];
+  postCountSinceBoot: number;
+  lastReceivedAt: string | null;
+  lastTopic: string | null;
+  lastUserId: string | null;
+  receiving: boolean;
+  hint: string;
+} {
+  const receiving = Boolean(lastWebhookReceivedAt);
+  return {
+    webhookUrl: getMercadoLibreWebhookUrl(),
+    topics: ML_WEBHOOK_TOPICS,
+    postCountSinceBoot: webhookPostCount,
+    lastReceivedAt: lastWebhookReceivedAt,
+    lastTopic: lastWebhookTopic,
+    lastUserId: lastWebhookUserId,
+    receiving,
+    hint: receiving
+      ? 'ML está enviando notificaciones a este backend.'
+      : 'Ningún POST de ML desde el último deploy. Si había una URL vieja (QA) o el callback falló, ML desactiva los tópicos: re-marcá flex-handshakes + orders_v2 + shipments en Developers, guardá, reconectá ML en Posta y volvé a escanear.',
+  };
+}
+
 function isDuplicateNotification(id: string | undefined): boolean {
   if (!id) return false;
   const now = Date.now();
