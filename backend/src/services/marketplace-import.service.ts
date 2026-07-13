@@ -26,6 +26,7 @@ import {
   fetchMercadoLibreFlexAssignment,
   resolveMercadoLibreFlexAssignmentProbe,
   extractMercadoLibreFlexDriverId,
+  isMercadoLibreFlexWithCourier,
   formatMlShipmentStatusLabel,
   mapMercadoLibreShipmentToOrderStatus,
   resolveMercadoLibreFlexDeliveryDeadline,
@@ -38,6 +39,7 @@ import {
 } from './tiendanube.service.js';
 import {
   getIntegration,
+  getAgencyMercadoLibreIntegration,
   listMercadoLibreIntegrationsForAgencyScan,
   type IntegrationPlatform,
   type StoreIntegration,
@@ -303,6 +305,19 @@ export async function syncFlexScansForRepartidor(
     return 0;
   }
 
+  // Misma cuenta ML en agencia/vendedor y repartidor: ML suele devolver assignment sin driver_id.
+  const agencyMl = await getAgencyMercadoLibreIntegration(repartidor.agencyId);
+  const sharedAccountMlIds = new Set<string>();
+  if (agencyMl?.externalUserId && agencyMl.externalUserId === mlCourierId) {
+    sharedAccountMlIds.add(agencyMl.externalUserId);
+  }
+  for (const ctx of contexts) {
+    if (ctx.integration.externalUserId && ctx.integration.externalUserId === mlCourierId) {
+      sharedAccountMlIds.add(ctx.integration.externalUserId);
+    }
+  }
+  const sharedAccountMode = sharedAccountMlIds.size > 0;
+
   const dateFrom = new Date(now - FLEX_SYNC_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
@@ -314,6 +329,8 @@ export async function syncFlexScansForRepartidor(
     shipmentId: string;
     driverId: string | null;
     assignmentStatus: number | null;
+    mlStatus?: string | null;
+    matchReason?: string;
   }> = [];
   const assignmentStatusCounts: Record<string, number> = {};
 
@@ -323,6 +340,37 @@ export async function syncFlexScansForRepartidor(
   } catch {
     console.warn('[ml-flex-sync] token ML del repartidor inválido', { repartidorId: repartidor.id });
   }
+
+  if (sharedAccountMode) {
+    console.log('[ml-flex-sync] modo cuenta ML compartida (agencia/vendedor = courier)', {
+      repartidorId: repartidor.id,
+      mlCourierId,
+    });
+  }
+
+  const shipmentMatchesCourier = (
+    driverId: string | null,
+    flex?: MercadoLibreFlexShipment
+  ): { ok: boolean; reason: string } => {
+    if (driverId === String(mlCourierId)) {
+      return { ok: true, reason: 'driver_id' };
+    }
+    if (!sharedAccountMode) {
+      return { ok: false, reason: 'driver_mismatch' };
+    }
+    // Misma cuenta: si ML publica otro driver, no pisar.
+    if (driverId && driverId !== String(mlCourierId)) {
+      return { ok: false, reason: 'other_driver' };
+    }
+    // Sin driver_id: solo envíos ya en ruta / con courier (evita asignar todo el depósito).
+    if (
+      flex &&
+      isMercadoLibreFlexWithCourier(flex.mlShipmentStatus, flex.mlShipmentSubstatus)
+    ) {
+      return { ok: true, reason: 'shared_account_in_transit' };
+    }
+    return { ok: false, reason: 'shared_account_not_in_transit' };
+  };
 
   const tryAssignShipment = async (
     shipmentId: string,
@@ -344,12 +392,35 @@ export async function syncFlexScansForRepartidor(
     const statusKey = probe.status == null ? 'none' : String(probe.status);
     assignmentStatusCounts[statusKey] = (assignmentStatusCounts[statusKey] ?? 0) + 1;
 
-    if (driverId !== String(mlCourierId)) {
+    const match = shipmentMatchesCourier(driverId, flex);
+    let resolvedMatch = match;
+    if (
+      !resolvedMatch.ok &&
+      sharedAccountMode &&
+      !driverId &&
+      options?.force
+    ) {
+      const existing =
+        (await findImportedMercadoLibreFlexGlobal({
+          externalId: shipmentId,
+          mlOrderId: flex?.mlOrderId ?? shipmentId,
+        })) ?? null;
+      if (existing && !existing.repartidorId) {
+        // Escaneo previo de la agencia con la misma cuenta ML: quedó en Posta sin repartidor.
+        resolvedMatch = { ok: true, reason: 'shared_account_unassigned_order' };
+      }
+    }
+
+    if (!resolvedMatch.ok) {
       if (sampleSkips.length < 8) {
         sampleSkips.push({
           shipmentId,
           driverId,
           assignmentStatus: probe.status,
+          mlStatus: flex
+            ? `${flex.mlShipmentStatus ?? ''}/${flex.mlShipmentSubstatus ?? ''}`
+            : null,
+          matchReason: resolvedMatch.reason,
         });
       }
       return false;
@@ -360,6 +431,7 @@ export async function syncFlexScansForRepartidor(
       shipmentId,
       repartidorId: repartidor.id,
       driverId,
+      matchReason: resolvedMatch.reason,
     });
 
     let order: Order | null = null;
@@ -383,7 +455,9 @@ export async function syncFlexScansForRepartidor(
       order = await assignOrderToScanningRepartidor(
         repartidor,
         order.id,
-        'Asignado por escaneo en Mercado Envíos Flex (sync)'
+        resolvedMatch.reason.startsWith('shared_account')
+          ? 'Asignado por escaneo Flex (cuenta ML compartida con agencia)'
+          : 'Asignado por escaneo en Mercado Envíos Flex (sync)'
       );
     }
 
@@ -453,6 +527,7 @@ export async function syncFlexScansForRepartidor(
   console.log('[ml-flex-sync] sync completado', {
     repartidorId: repartidor.id,
     mlCourierId,
+    sharedAccountMode,
     checked,
     matched,
     synced,

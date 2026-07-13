@@ -643,15 +643,28 @@ const ML_IN_TRANSIT_SUBSTATUSES = [
   'in_carriage',
   'dropped_off',
   'delivery_in_progress',
+  'soon_deliver',
 ];
 
 function isMercadoLibreShipmentInTransit(mlStatus: string, mlSubstatus: string): boolean {
   if (
-    ['shipped', 'in_transit', 'out_for_delivery', 'on_route'].includes(mlStatus)
+    ['shipped', 'in_transit', 'out_for_delivery', 'on_route', 'soon_deliver'].includes(mlStatus)
   ) {
     return true;
   }
   return ML_IN_TRANSIT_SUBSTATUSES.some((s) => mlSubstatus === s || mlSubstatus.includes(s));
+}
+
+/** True si el envío Flex ya está en ruta / con el courier (no solo listo en depósito). */
+export function isMercadoLibreFlexWithCourier(
+  mlStatus?: string | null,
+  mlSubstatus?: string | null
+): boolean {
+  const status = (mlStatus ?? '').toLowerCase().trim();
+  const sub = (mlSubstatus ?? '').toLowerCase().trim();
+  if (!status && !sub) return false;
+  if (['delivered', 'cancelled', 'not_delivered'].includes(status)) return false;
+  return isMercadoLibreShipmentInTransit(status, sub);
 }
 
 /** Mapea estado ML → Posta. Con `onImport` aplica el estado real al importar. */

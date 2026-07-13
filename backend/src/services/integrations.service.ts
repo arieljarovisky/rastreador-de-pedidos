@@ -119,9 +119,14 @@ export async function getIntegration(
 export async function findMercadoLibreIntegrationByMlUserId(
   mlUserId: string | number
 ): Promise<StoreIntegration | null> {
+  // Preferir la integración del repartidor cuando la misma cuenta ML también está en agencia/vendedor.
   const [rows] = await pool.query<IntegrationRow[]>(
-    `SELECT * FROM store_integrations
-     WHERE platform = 'mercadolibre' AND external_user_id = ? LIMIT 1`,
+    `SELECT si.*
+     FROM store_integrations si
+     INNER JOIN users u ON u.id = si.user_id
+     WHERE si.platform = 'mercadolibre' AND si.external_user_id = ?
+     ORDER BY CASE WHEN u.role = 'repartidor' THEN 0 ELSE 1 END, si.updated_at DESC
+     LIMIT 1`,
     [String(mlUserId)]
   );
   return rows[0] ? rowToIntegration(rows[0]) : null;

@@ -531,6 +531,24 @@ async function resolveRepartidorForFlexHandshake(
     });
   }
 
+  // Misma cuenta ML agencia/vendedor = courier: ML a menudo no manda driver_id.
+  // Si hay un repartidor Posta con esa misma external_user_id, asignarle el escaneo.
+  if (integration.externalUserId) {
+    const bySharedMl = await getRepartidorByMercadoLibreUserId(
+      integration.externalUserId,
+      agencyId
+    );
+    if (bySharedMl) {
+      flexScanLog('repartidor por cuenta ML compartida (agencia/courier)', {
+        repartidorId: bySharedMl.id,
+        repartidorName: bySharedMl.name,
+        mlUserId: integration.externalUserId,
+        driverId: assignment?.driver_id ?? null,
+      });
+      return bySharedMl;
+    }
+  }
+
   const scanner = await getUserById(integration.userId);
   if (scanner?.role === UserRole.REPARTIDOR && scanner.agencyId === agencyId) {
     flexScanLog('repartidor por cuenta ML del webhook', {
