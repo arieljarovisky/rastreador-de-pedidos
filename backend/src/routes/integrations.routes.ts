@@ -16,6 +16,7 @@ import {
   createMercadoLibrePkcePair,
   exchangeMercadoLibreCode,
   getMercadoLibreAuthUrl,
+  getValidMercadoLibreIntegration,
   isMercadoLibreConfigured,
 } from '../services/mercadolibre.service.js';
 import {
@@ -268,6 +269,40 @@ router.get('/agency/mercadolibre/connect', authenticate, requireAgencyAdmin(), a
     pkce.codeVerifier
   );
   res.json({ url: getMercadoLibreAuthUrl(state, pkce.codeChallenge) });
+});
+
+// Devuelve el access token ML vigente (refrescado si hace falta) para pruebas manuales.
+// ?scope=agency (solo admin de agencia) devuelve el token de la integración de la agencia.
+router.get('/mercadolibre/token', authenticate, async (req: Request, res: Response) => {
+  try {
+    let userId = req.user!.id;
+    if (req.query.scope === 'agency') {
+      if (!req.user?.agencyId || !AGENCY_ADMIN_ROLES.includes(req.user.role)) {
+        res.status(403).json({ error: 'Solo un admin de agencia puede pedir el token de la agencia.' });
+        return;
+      }
+      const agencyIntegration = await getAgencyMercadoLibreIntegration(req.user.agencyId);
+      if (!agencyIntegration) {
+        res.status(404).json({ error: 'La agencia no tiene Mercado Libre conectado.' });
+        return;
+      }
+      userId = agencyIntegration.userId;
+    }
+    const integration = await getValidMercadoLibreIntegration(userId);
+    res.json({
+      mlUserId: integration.externalUserId,
+      accessToken: integration.accessToken,
+      tokenExpiresAt: integration.tokenExpiresAt,
+      nickname: (integration.metadata as { nickname?: string } | null)?.nickname ?? null,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === 'ML_NOT_CONNECTED') {
+      res.status(404).json({ error: 'No tenés Mercado Libre conectado.' });
+      return;
+    }
+    console.error('[ml-token] error:', err);
+    res.status(502).json({ error: 'No se pudo obtener el token de Mercado Libre.' });
+  }
 });
 
 router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
