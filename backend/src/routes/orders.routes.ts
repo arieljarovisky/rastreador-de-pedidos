@@ -179,7 +179,7 @@ router.get('/:id/mercadolibre-label', authenticate, async (req: Request, res: Re
     const code = err instanceof Error ? err.message : 'ML_LABEL_UNAVAILABLE';
     if (code === 'ML_ALREADY_DELIVERED' || code === 'ML_LABEL_NOT_READY') {
       try {
-        const synced = await syncMercadoLibreOrderLiveStatus(sellerId, order);
+        const synced = await syncMercadoLibreOrderLiveStatus(null, order);
         if (synced.status !== order.status) {
           emitOrderUpdated(synced, sellerId);
         }

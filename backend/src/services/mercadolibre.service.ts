@@ -148,14 +148,39 @@ export async function exchangeMercadoLibreCode(
   });
 }
 
+const refreshInFlightByUserId = new Map<string, Promise<StoreIntegration>>();
+
+function tokenExpiresSoon(integration: StoreIntegration): boolean {
+  return Boolean(
+    integration.tokenExpiresAt &&
+      new Date(integration.tokenExpiresAt).getTime() < Date.now() + 5 * 60 * 1000
+  );
+}
+
 async function refreshMercadoLibreToken(integration: StoreIntegration): Promise<StoreIntegration> {
-  if (!integration.refreshToken) return integration;
+  const existing = refreshInFlightByUserId.get(integration.userId);
+  if (existing) return existing;
+
+  const promise = doRefreshMercadoLibreToken(integration).finally(() => {
+    refreshInFlightByUserId.delete(integration.userId);
+  });
+  refreshInFlightByUserId.set(integration.userId, promise);
+  return promise;
+}
+
+async function doRefreshMercadoLibreToken(integration: StoreIntegration): Promise<StoreIntegration> {
+  // Otro request pudo renovar mientras esperábamos el single-flight.
+  const latest = await getIntegration(integration.userId, 'mercadolibre');
+  if (latest && !tokenExpiresSoon(latest)) return latest;
+
+  const refreshToken = latest?.refreshToken ?? integration.refreshToken;
+  if (!refreshToken) return latest ?? integration;
 
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
     client_id: env.mercadolibre.appId,
     client_secret: env.mercadolibre.appSecret,
-    refresh_token: integration.refreshToken,
+    refresh_token: refreshToken,
   });
 
   const res = await fetch(`${ML_API}/oauth/token`, {
@@ -164,7 +189,24 @@ async function refreshMercadoLibreToken(integration: StoreIntegration): Promise<
     body,
   });
 
-  if (!res.ok) throw new Error('ML_TOKEN_REFRESH_FAILED');
+  if (!res.ok) {
+    // Race típica: otro proceso ya usó el refresh_token; re-leer DB.
+    const afterFail = await getIntegration(integration.userId, 'mercadolibre');
+    if (
+      afterFail &&
+      afterFail.accessToken !== (latest ?? integration).accessToken &&
+      !tokenExpiresSoon(afterFail)
+    ) {
+      return afterFail;
+    }
+    const errBody = await res.text().catch(() => '');
+    console.error('[ml-oauth] token refresh failed', {
+      userId: integration.userId,
+      status: res.status,
+      body: errBody.slice(0, 400),
+    });
+    throw new Error('ML_TOKEN_REFRESH_FAILED');
+  }
   const token = (await res.json()) as MlTokenResponse;
   const expiresAt =
     token.expires_in != null ? new Date(Date.now() + token.expires_in * 1000) : null;
@@ -172,11 +214,11 @@ async function refreshMercadoLibreToken(integration: StoreIntegration): Promise<
   return upsertIntegration({
     userId: integration.userId,
     platform: 'mercadolibre',
-    externalUserId: integration.externalUserId,
+    externalUserId: (latest ?? integration).externalUserId,
     accessToken: token.access_token,
-    refreshToken: token.refresh_token ?? integration.refreshToken,
+    refreshToken: token.refresh_token ?? refreshToken,
     tokenExpiresAt: expiresAt,
-    metadata: integration.metadata,
+    metadata: (latest ?? integration).metadata,
   });
 }
 
@@ -184,14 +226,21 @@ export async function getValidMercadoLibreIntegration(userId: string): Promise<S
   const integration = await getIntegration(userId, 'mercadolibre');
   if (!integration) throw new Error('ML_NOT_CONNECTED');
 
-  const expiresSoon =
-    integration.tokenExpiresAt &&
-    new Date(integration.tokenExpiresAt).getTime() < Date.now() + 5 * 60 * 1000;
-
-  if (expiresSoon && integration.refreshToken) {
+  if (tokenExpiresSoon(integration) && integration.refreshToken) {
     return refreshMercadoLibreToken(integration);
   }
   return integration;
+}
+
+/** Igual que getValid, pero null si no hay conexión o el refresh falló. */
+export async function tryGetValidMercadoLibreIntegration(
+  userId: string
+): Promise<StoreIntegration | null> {
+  try {
+    return await getValidMercadoLibreIntegration(userId);
+  } catch {
+    return null;
+  }
 }
 
 async function mlFetch<T>(

@@ -16,6 +16,7 @@ import {
 import {
   listMercadoLibreFlexShipments,
   getValidMercadoLibreIntegration,
+  tryGetValidMercadoLibreIntegration,
   parseMercadoLibreScanCode,
   resolveMercadoLibreFlexFromScan,
   findImportedMercadoLibreFlex,
@@ -132,71 +133,110 @@ async function markImported(
   return previews;
 }
 
+/**
+ * Candidatos de token ML para un pedido: preferido (import), cuenta de la agencia, luego tienda.
+ * La tienda no es obligatoria si la agencia ya tiene ML conectado.
+ */
+async function listMlIntegrationUserIdsForOrder(
+  order: Order,
+  preferredMlUserId?: string | null
+): Promise<string[]> {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const add = (id: string | null | undefined) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  };
+
+  add(preferredMlUserId);
+  if (order.agencyId) {
+    const agencyMl = await getAgencyMercadoLibreIntegration(order.agencyId);
+    add(agencyMl?.userId);
+  }
+  add(order.sellerId ?? (await getSellerIdForOrder(order.id)));
+  return ids;
+}
+
 /** Tras importar, sincroniza estado ML y repartidor Flex (assignment). */
 export async function syncMercadoLibreOrderAfterImport(
-  sellerUserId: string,
+  preferredMlUserId: string | null | undefined,
   order: Order,
   flex: Pick<
     MercadoLibreFlexShipment,
     'externalId' | 'mlShipmentStatus' | 'mlShipmentSubstatus'
   >
 ): Promise<Order> {
-  try {
-    const integration = await getValidMercadoLibreIntegration(sellerUserId);
-    const liveShipment = await fetchMercadoLibreShipment(integration, flex.externalId);
-    const mlStatus = liveShipment.status ?? flex.mlShipmentStatus;
-    const mlSubstatus = liveShipment.substatus ?? flex.mlShipmentSubstatus ?? null;
-
-    let currentOrder = order;
-    const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(integration, flex.externalId);
-    if (mlDeadline) {
-      const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(order.id, mlDeadline);
-      if (withDeadline) currentOrder = withDeadline;
-    }
-
-    let repartidorId: string | null = null;
-    if (order.agencyId) {
-      const assignment = await fetchMercadoLibreFlexAssignment(
-        integration,
-        env.mercadolibre.siteId,
-        flex.externalId
-      );
-      const driverId = extractMercadoLibreFlexDriverId(assignment);
-      if (driverId) {
-        const repartidor = await getRepartidorByMercadoLibreUserId(driverId, order.agencyId);
-        repartidorId = repartidor?.id ?? null;
-      }
-    }
-
-    const targetStatus = mapMercadoLibreShipmentToOrderStatus(mlStatus, mlSubstatus, {
-      hasRepartidor: Boolean(repartidorId),
-      onImport: true,
+  const candidates = await listMlIntegrationUserIdsForOrder(order, preferredMlUserId);
+  if (candidates.length === 0) {
+    console.warn('[ml-import] Sin integración ML candidata para sincronizar', {
+      orderId: order.id,
+      agencyId: order.agencyId ?? null,
     });
-    if (!targetStatus) {
-      return currentOrder;
-    }
-    if (targetStatus === OrderStatus.PENDING && !repartidorId) {
-      return currentOrder;
-    }
-
-    const statusLabel = formatMlShipmentStatusLabel({
-      status: mlStatus,
-      substatus: mlSubstatus ?? undefined,
-    });
-    const comment = repartidorId
-      ? `Importado desde ML · estado ${statusLabel} · repartidor sincronizado`
-      : `Importado desde ML · estado ${statusLabel}`;
-
-    const updated = await applyMercadoLibreSyncState(currentOrder.id, {
-      status: targetStatus,
-      repartidorId,
-      comment,
-    });
-    return updated ?? currentOrder;
-  } catch (err) {
-    console.warn('[ml-import] No se pudo sincronizar estado ML:', err);
     return order;
   }
+
+  let lastErr: unknown;
+  for (const mlUserId of candidates) {
+    try {
+      const integration = await getValidMercadoLibreIntegration(mlUserId);
+      const liveShipment = await fetchMercadoLibreShipment(integration, flex.externalId);
+      const mlStatus = liveShipment.status ?? flex.mlShipmentStatus;
+      const mlSubstatus = liveShipment.substatus ?? flex.mlShipmentSubstatus ?? null;
+
+      let currentOrder = order;
+      const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(integration, flex.externalId);
+      if (mlDeadline) {
+        const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(order.id, mlDeadline);
+        if (withDeadline) currentOrder = withDeadline;
+      }
+
+      let repartidorId: string | null = null;
+      if (order.agencyId) {
+        const assignment = await fetchMercadoLibreFlexAssignment(
+          integration,
+          env.mercadolibre.siteId,
+          flex.externalId
+        );
+        const driverId = extractMercadoLibreFlexDriverId(assignment);
+        if (driverId) {
+          const repartidor = await getRepartidorByMercadoLibreUserId(driverId, order.agencyId);
+          repartidorId = repartidor?.id ?? null;
+        }
+      }
+
+      const targetStatus = mapMercadoLibreShipmentToOrderStatus(mlStatus, mlSubstatus, {
+        hasRepartidor: Boolean(repartidorId),
+        onImport: true,
+      });
+      if (!targetStatus) {
+        return currentOrder;
+      }
+      if (targetStatus === OrderStatus.PENDING && !repartidorId) {
+        return currentOrder;
+      }
+
+      const statusLabel = formatMlShipmentStatusLabel({
+        status: mlStatus,
+        substatus: mlSubstatus ?? undefined,
+      });
+      const comment = repartidorId
+        ? `Importado desde ML · estado ${statusLabel} · repartidor sincronizado`
+        : `Importado desde ML · estado ${statusLabel}`;
+
+      const updated = await applyMercadoLibreSyncState(currentOrder.id, {
+        status: targetStatus,
+        repartidorId,
+        comment,
+      });
+      return updated ?? currentOrder;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  console.warn('[ml-import] No se pudo sincronizar estado ML:', lastErr);
+  return order;
 }
 
 const ML_LIVE_SYNC_LIMIT = 12;
@@ -221,16 +261,17 @@ export async function syncOpenMercadoLibreOrdersInList(orders: Order[]): Promise
 
   await Promise.all(
     toSync.map(async (order) => {
-      const sellerId = order.sellerId ?? (await getSellerIdForOrder(order.id));
-      if (!sellerId || !order.externalOrderId) return;
+      if (!order.externalOrderId) return;
 
-      const updated = await syncMercadoLibreOrderAfterImport(sellerId, order, {
+      // No forzar el token de la tienda: prioriza agencia vía syncMercadoLibreOrderAfterImport.
+      const updated = await syncMercadoLibreOrderAfterImport(null, order, {
         externalId: order.externalOrderId,
       });
       if (
         updated.status !== order.status ||
         updated.repartidorId !== order.repartidorId
       ) {
+        const sellerId = order.sellerId ?? (await getSellerIdForOrder(order.id));
         emitOrderUpdated(updated, sellerId);
       }
       updates.set(order.id, updated);
@@ -242,11 +283,11 @@ export async function syncOpenMercadoLibreOrdersInList(orders: Order[]): Promise
 }
 
 export async function syncMercadoLibreOrderLiveStatus(
-  sellerUserId: string,
+  preferredMlUserId: string | null | undefined,
   order: Order
 ): Promise<Order> {
   if (!isOpenMercadoLibreOrder(order) || !order.externalOrderId) return order;
-  return syncMercadoLibreOrderAfterImport(sellerUserId, order, {
+  return syncMercadoLibreOrderAfterImport(preferredMlUserId, order, {
     externalId: order.externalOrderId,
   });
 }
@@ -485,15 +526,30 @@ async function runFlexScansSync(
     return true;
   };
 
+  const usableContexts: Array<{
+    integration: StoreIntegration;
+    isAgencyAccount: boolean;
+  }> = [];
+
   for (const { integration, isAgencyAccount } of contexts) {
     try {
-      const validIntegration = await getValidMercadoLibreIntegration(integration.userId);
-      const flexShipments = await listMercadoLibreFlexShipments(integration.userId, { dateFrom });
+      const validIntegration = await tryGetValidMercadoLibreIntegration(integration.userId);
+      if (!validIntegration) {
+        console.warn('[ml-flex-sync] se omite integración ML no disponible', {
+          integrationUserId: integration.userId,
+          isAgencyAccount,
+        });
+        continue;
+      }
+      usableContexts.push({ integration: validIntegration, isAgencyAccount });
+      const flexShipments = await listMercadoLibreFlexShipments(validIntegration.userId, {
+        dateFrom,
+      });
       const assignmentIntegrations = [
         ...(repartidorIntegration ? [repartidorIntegration] : []),
         validIntegration,
       ];
-      const sellerUser = await getUserById(integration.userId);
+      const sellerUser = await getUserById(validIntegration.userId);
       const owner =
         isAgencyAccount && operator ? operator : sellerUser ?? operator ?? repartidor;
 
@@ -502,7 +558,7 @@ async function runFlexScansSync(
           flex.externalId,
           assignmentIntegrations,
           owner,
-          integration.userId,
+          validIntegration.userId,
           isAgencyAccount,
           flex
         );
@@ -510,6 +566,7 @@ async function runFlexScansSync(
     } catch (err) {
       console.warn('[ml-flex-sync] error en integración', {
         integrationUserId: integration.userId,
+        isAgencyAccount,
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -520,8 +577,12 @@ async function runFlexScansSync(
     const openOrders = await listOpenMercadoLibreOrdersForAgency(repartidor.agencyId, 40);
     const assignmentIntegrations = [
       ...(repartidorIntegration ? [repartidorIntegration] : []),
-      ...contexts.map((c) => c.integration),
+      ...usableContexts.map((c) => c.integration),
     ];
+    const preferredMlUserId =
+      usableContexts.find((c) => c.isAgencyAccount)?.integration.userId ??
+      usableContexts[0]?.integration.userId ??
+      repartidor.id;
 
     for (const order of openOrders) {
       if (!order.externalOrderId) continue;
@@ -531,7 +592,7 @@ async function runFlexScansSync(
         order.externalOrderId,
         assignmentIntegrations,
         operator ?? repartidor,
-        contexts[0]?.integration.userId ?? repartidor.id,
+        preferredMlUserId,
         true
       );
     }
@@ -1250,12 +1311,8 @@ export async function importMercadoLibreByScanForAgency(
   }
 
   for (const { integration, isAgencyAccount } of integrationContexts) {
-    let validIntegration = integration;
-    try {
-      validIntegration = await getValidMercadoLibreIntegration(integration.userId);
-    } catch {
-      continue;
-    }
+    const validIntegration = await tryGetValidMercadoLibreIntegration(integration.userId);
+    if (!validIntegration) continue;
 
     const flex = await resolveMercadoLibreFlexFromScan(validIntegration, candidates);
     if (!flex) continue;
