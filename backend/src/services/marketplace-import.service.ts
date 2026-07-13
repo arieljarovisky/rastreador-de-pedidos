@@ -284,6 +284,12 @@ export async function syncMercadoLibreOrderAfterImport(
   }
 
   const errMsg = lastErr instanceof Error ? lastErr.message : String(lastErr ?? '');
+  // 401/403: hay token (courier/agencia) pero ML no deja leer el envío sin el vendedor.
+  // Es esperado si la tienda no está conectada; no spamear en cada poll.
+  if (errMsg === 'ML_API_ERROR_401' || errMsg === 'ML_API_ERROR_403') {
+    return order;
+  }
+
   console.warn('[ml-import] No se pudo sincronizar estado ML', {
     orderId: order.id,
     externalId: flex.externalId,
