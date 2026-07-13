@@ -56,8 +56,9 @@ import {
 } from './agency-ml.service.js';
 
 const recentFlexSyncByRepartidor = new Map<string, number>();
-const FLEX_SYNC_COOLDOWN_MS = 8_000;
-const FLEX_SYNC_FORCE_COOLDOWN_MS = 2_000;
+const inFlightFlexSyncByRepartidor = new Set<string>();
+const FLEX_SYNC_COOLDOWN_MS = 60_000;
+const FLEX_SYNC_FORCE_COOLDOWN_MS = 15_000;
 /**
  * Pedidos Flex suelen entrar vie/sáb/dom y se escanean el lunes (o finde largo).
  * Hay que cubrir varios días de altas, no solo las últimas 24h.
@@ -263,7 +264,23 @@ export async function syncFlexScansForRepartidor(
   const lastSync = recentFlexSyncByRepartidor.get(repartidor.id) ?? 0;
   const cooldown = options?.force ? FLEX_SYNC_FORCE_COOLDOWN_MS : FLEX_SYNC_COOLDOWN_MS;
   if (now - lastSync < cooldown) return 0;
+  // Evita syncs simultáneos del mismo repartidor (cada corrida hace ~40 requests a ML).
+  if (inFlightFlexSyncByRepartidor.has(repartidor.id)) return 0;
+  inFlightFlexSyncByRepartidor.add(repartidor.id);
   recentFlexSyncByRepartidor.set(repartidor.id, now);
+  try {
+    return await runFlexScansSync(repartidor, now, options);
+  } finally {
+    inFlightFlexSyncByRepartidor.delete(repartidor.id);
+  }
+}
+
+async function runFlexScansSync(
+  repartidor: User,
+  now: number,
+  options?: { force?: boolean }
+): Promise<number> {
+  if (!repartidor.agencyId) return 0;
 
   const repartidorMl = await getIntegration(repartidor.id, 'mercadolibre');
   const mlCourierId = repartidorMl?.externalUserId;
