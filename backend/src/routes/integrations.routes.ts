@@ -13,6 +13,7 @@ import {
   type IntegrationPlatform,
 } from '../services/integrations.service.js';
 import {
+  createMercadoLibrePkcePair,
   exchangeMercadoLibreCode,
   getMercadoLibreAuthUrl,
   isMercadoLibreConfigured,
@@ -60,6 +61,8 @@ interface OAuthStatePayload {
   redirectUri?: string;
   returnOrigin?: string;
   integrationScope?: 'agency';
+  /** PKCE code_verifier (apps ML con "Requiere PKCE"). */
+  codeVerifier?: string;
 }
 
 function isAllowedReturnOrigin(origin: string): boolean {
@@ -86,10 +89,19 @@ function signOAuthState(
   client: OAuthClient = 'web',
   redirectUri?: string,
   returnOrigin?: string,
-  integrationScope?: 'agency'
+  integrationScope?: 'agency',
+  codeVerifier?: string
 ): string {
   return jwt.sign(
-    { userId, platform, client, redirectUri, returnOrigin, integrationScope } satisfies OAuthStatePayload,
+    {
+      userId,
+      platform,
+      client,
+      redirectUri,
+      returnOrigin,
+      integrationScope,
+      codeVerifier,
+    } satisfies OAuthStatePayload,
     env.jwtSecret,
     { expiresIn: '15m' }
   );
@@ -216,8 +228,17 @@ router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_AD
       ? req.query.redirect_uri.trim()
       : undefined;
   const returnOrigin = resolveReturnOrigin(req);
-  const state = signOAuthState(req.user!.id, 'mercadolibre', client, redirectUri, returnOrigin);
-  res.json({ url: getMercadoLibreAuthUrl(state) });
+  const pkce = createMercadoLibrePkcePair();
+  const state = signOAuthState(
+    req.user!.id,
+    'mercadolibre',
+    client,
+    redirectUri,
+    returnOrigin,
+    undefined,
+    pkce.codeVerifier
+  );
+  res.json({ url: getMercadoLibreAuthUrl(state, pkce.codeChallenge) });
 });
 
 router.get('/agency/mercadolibre/connect', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
@@ -236,15 +257,17 @@ router.get('/agency/mercadolibre/connect', authenticate, requireAgencyAdmin(), a
       ? req.query.redirect_uri.trim()
       : undefined;
   const returnOrigin = resolveReturnOrigin(req);
+  const pkce = createMercadoLibrePkcePair();
   const state = signOAuthState(
     bridge.id,
     'mercadolibre',
     client,
     redirectUri,
     returnOrigin,
-    'agency'
+    'agency',
+    pkce.codeVerifier
   );
-  res.json({ url: getMercadoLibreAuthUrl(state) });
+  res.json({ url: getMercadoLibreAuthUrl(state, pkce.codeChallenge) });
 });
 
 router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
@@ -286,7 +309,7 @@ router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
     mobileRedirectUri = payload.redirectUri;
     returnOrigin = payload.returnOrigin;
     integrationScope = payload.integrationScope;
-    await exchangeMercadoLibreCode(payload.userId, code);
+    await exchangeMercadoLibreCode(payload.userId, code, payload.codeVerifier);
     res.redirect(
       redirectAfterOAuth(
         'mercadolibre',
@@ -298,7 +321,8 @@ router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
         integrationScope
       )
     );
-  } catch {
+  } catch (err) {
+    console.error('[ml-oauth] callback falló', err);
     res.redirect(
       redirectAfterOAuth(
         'mercadolibre',

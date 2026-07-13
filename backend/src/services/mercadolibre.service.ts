@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'crypto';
 import { env } from '../config/env.js';
 import { sleep } from '../utils/sleep.js';
 import type { Order } from '../types/index.js';
@@ -17,6 +18,17 @@ import { deliveryDeadlineFromIsoDate } from '../utils/delivery-deadline.js';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_FETCH_TIMEOUT_MS = 20_000;
+
+function base64Url(buffer: Buffer): string {
+  return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Par PKCE (S256) para apps ML con "Requiere PKCE". */
+export function createMercadoLibrePkcePair(): { codeVerifier: string; codeChallenge: string } {
+  const codeVerifier = base64Url(randomBytes(32));
+  const codeChallenge = base64Url(createHash('sha256').update(codeVerifier).digest());
+  return { codeVerifier, codeChallenge };
+}
 
 interface MlTokenResponse {
   access_token: string;
@@ -65,19 +77,24 @@ interface MlShipment {
   };
 }
 
-export function getMercadoLibreAuthUrl(state: string): string {
+export function getMercadoLibreAuthUrl(state: string, codeChallenge?: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: env.mercadolibre.appId,
     redirect_uri: env.mercadolibre.redirectUri,
     state,
   });
+  if (codeChallenge) {
+    params.set('code_challenge', codeChallenge);
+    params.set('code_challenge_method', 'S256');
+  }
   return `https://auth.mercadolibre.com.ar/authorization?${params}`;
 }
 
 export async function exchangeMercadoLibreCode(
   userId: string,
-  code: string
+  code: string,
+  codeVerifier?: string
 ): Promise<StoreIntegration> {
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -86,6 +103,7 @@ export async function exchangeMercadoLibreCode(
     code,
     redirect_uri: env.mercadolibre.redirectUri,
   });
+  if (codeVerifier) body.set('code_verifier', codeVerifier);
 
   const res = await fetch(`${ML_API}/oauth/token`, {
     method: 'POST',
@@ -93,7 +111,15 @@ export async function exchangeMercadoLibreCode(
     body,
   });
 
-  if (!res.ok) throw new Error('ML_TOKEN_FAILED');
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    console.error('[ml-oauth] token exchange failed', {
+      status: res.status,
+      body: errBody.slice(0, 400),
+      hasPkce: Boolean(codeVerifier),
+    });
+    throw new Error('ML_TOKEN_FAILED');
+  }
   const token = (await res.json()) as MlTokenResponse;
 
   const mlUserId = String(token.user_id ?? '');
