@@ -24,7 +24,7 @@ import {
   syncMercadoLibreFlexOnScan,
   fetchMercadoLibreShipment,
   fetchMercadoLibreFlexAssignment,
-  resolveMercadoLibreFlexAssignment,
+  resolveMercadoLibreFlexAssignmentProbe,
   extractMercadoLibreFlexDriverId,
   formatMlShipmentStatusLabel,
   mapMercadoLibreShipmentToOrderStatus,
@@ -56,9 +56,12 @@ import {
 const recentFlexSyncByRepartidor = new Map<string, number>();
 const FLEX_SYNC_COOLDOWN_MS = 8_000;
 const FLEX_SYNC_FORCE_COOLDOWN_MS = 2_000;
-/** Ventana amplia: en Flex la orden puede crearse días antes del escaneo/ruta. */
-const FLEX_SYNC_LOOKBACK_DAYS = 7;
-const FLEX_SYNC_SHIPMENT_LIMIT = 30;
+/**
+ * Pedidos Flex suelen entrar vie/sáb/dom y se escanean el lunes (o finde largo).
+ * Hay que cubrir varios días de altas, no solo las últimas 24h.
+ */
+const FLEX_SYNC_LOOKBACK_DAYS = 10;
+const FLEX_SYNC_SHIPMENT_LIMIT = 50;
 
 function formatImportError(externalId: string, reason: string): string {
   if (reason === 'GEOCODE_UNAVAILABLE') {
@@ -307,7 +310,12 @@ export async function syncFlexScansForRepartidor(
   let checked = 0;
   let matched = 0;
   const seenShipmentIds = new Set<string>();
-  const sampleSkips: Array<{ shipmentId: string; driverId: string | null }> = [];
+  const sampleSkips: Array<{
+    shipmentId: string;
+    driverId: string | null;
+    assignmentStatus: number | null;
+  }> = [];
+  const assignmentStatusCounts: Record<string, number> = {};
 
   let repartidorIntegration: StoreIntegration | null = null;
   try {
@@ -328,14 +336,21 @@ export async function syncFlexScansForRepartidor(
     seenShipmentIds.add(shipmentId);
     checked++;
 
-    const assignment = await resolveMercadoLibreFlexAssignment(
+    const probe = await resolveMercadoLibreFlexAssignmentProbe(
       assignmentIntegrations,
       shipmentId
     );
-    const driverId = extractMercadoLibreFlexDriverId(assignment);
+    const driverId = extractMercadoLibreFlexDriverId(probe.assignment);
+    const statusKey = probe.status == null ? 'none' : String(probe.status);
+    assignmentStatusCounts[statusKey] = (assignmentStatusCounts[statusKey] ?? 0) + 1;
+
     if (driverId !== String(mlCourierId)) {
       if (sampleSkips.length < 8) {
-        sampleSkips.push({ shipmentId, driverId });
+        sampleSkips.push({
+          shipmentId,
+          driverId,
+          assignmentStatus: probe.status,
+        });
       }
       return false;
     }
@@ -441,6 +456,7 @@ export async function syncFlexScansForRepartidor(
     checked,
     matched,
     synced,
+    assignmentStatusCounts,
     ...(matched === 0 && sampleSkips.length > 0 ? { sampleSkips } : {}),
   });
 

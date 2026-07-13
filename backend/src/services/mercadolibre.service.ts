@@ -488,32 +488,73 @@ export async function fetchMercadoLibreResource<T>(
   }
 }
 
+export interface MlFlexAssignmentProbe {
+  assignment: MlFlexAssignment | null;
+  /** HTTP status del último intento útil (v2 luego v1), o null si no hubo respuesta. */
+  status: number | null;
+  integrationUserId?: string;
+}
+
+async function probeMercadoLibreFlexAssignmentWithIntegration(
+  integration: StoreIntegration,
+  siteId: string,
+  shipmentId: string
+): Promise<MlFlexAssignmentProbe> {
+  let lastStatus: number | null = null;
+
+  for (const version of ['v2', 'v1'] as const) {
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const res = await fetch(
+          `${ML_API}/flex/sites/${siteId}/shipments/${shipmentId}/assignment/${version}`,
+          {
+            headers: { Authorization: `Bearer ${integration.accessToken}` },
+            signal: AbortSignal.timeout(ML_FETCH_TIMEOUT_MS),
+          }
+        );
+        if (res.status === 429) {
+          await sleep(800 * (attempt + 1));
+          continue;
+        }
+        lastStatus = res.status;
+        if (!res.ok) break;
+
+        const assignment = (await res.json()) as MlFlexAssignment;
+        const driverId = extractMercadoLibreFlexDriverId(assignment);
+        if (driverId) {
+          const numeric = Number(driverId);
+          return {
+            assignment: {
+              ...assignment,
+              driver_id: Number.isFinite(numeric) ? numeric : assignment.driver_id,
+              driver: assignment.driver ?? { id: driverId },
+            },
+            status: res.status,
+            integrationUserId: integration.userId,
+          };
+        }
+        // 200 sin driver_id: probar v1 / otra integración
+        break;
+      }
+    } catch {
+      // probar siguiente versión
+    }
+  }
+
+  return { assignment: null, status: lastStatus, integrationUserId: integration.userId };
+}
+
 async function fetchMercadoLibreFlexAssignmentWithIntegration(
   integration: StoreIntegration,
   siteId: string,
   shipmentId: string
 ): Promise<MlFlexAssignment | null> {
-  for (const version of ['v2', 'v1'] as const) {
-    try {
-      const assignment = await mlFetch<MlFlexAssignment>(
-        integration,
-        `/flex/sites/${siteId}/shipments/${shipmentId}/assignment/${version}`,
-        { quietStatuses: [404] }
-      );
-      const driverId = extractMercadoLibreFlexDriverId(assignment);
-      if (driverId) {
-        const numeric = Number(driverId);
-        return {
-          ...assignment,
-          driver_id: Number.isFinite(numeric) ? numeric : assignment.driver_id,
-          driver: assignment.driver ?? { id: driverId },
-        };
-      }
-    } catch {
-      // probar siguiente versión o integración
-    }
-  }
-  return null;
+  const probe = await probeMercadoLibreFlexAssignmentWithIntegration(
+    integration,
+    siteId,
+    shipmentId
+  );
+  return probe.assignment;
 }
 
 /** Consulta assignment/handshake Flex (tópico flex-handshakes). */
@@ -531,15 +572,27 @@ export async function resolveMercadoLibreFlexAssignment(
   shipmentId: string,
   siteId = env.mercadolibre.siteId
 ): Promise<MlFlexAssignment | null> {
+  const probe = await resolveMercadoLibreFlexAssignmentProbe(integrations, shipmentId, siteId);
+  return probe.assignment;
+}
+
+/** Igual que resolve, pero incluye status HTTP para diagnóstico (404 = sin driver/ruta). */
+export async function resolveMercadoLibreFlexAssignmentProbe(
+  integrations: StoreIntegration[],
+  shipmentId: string,
+  siteId = env.mercadolibre.siteId
+): Promise<MlFlexAssignmentProbe> {
+  let lastProbe: MlFlexAssignmentProbe = { assignment: null, status: null };
   for (const integration of integrations) {
-    const assignment = await fetchMercadoLibreFlexAssignmentWithIntegration(
+    const probe = await probeMercadoLibreFlexAssignmentWithIntegration(
       integration,
       siteId,
       shipmentId
     );
-    if (extractMercadoLibreFlexDriverId(assignment)) return assignment;
+    lastProbe = probe;
+    if (extractMercadoLibreFlexDriverId(probe.assignment)) return probe;
   }
-  return null;
+  return lastProbe;
 }
 
 /** Historial de notificaciones perdidas de la aplicación ML (solo token del dueño de la app). */
