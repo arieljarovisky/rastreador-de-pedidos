@@ -353,15 +353,17 @@ export default function MapComponent({
         ? [departurePoint.lat, departurePoint.lng]
         : DEFAULT_HUB;
 
+      // Flota admin: foco AMBA. Repartidor (compact): se puede alejar a toda Argentina.
       const gbaBounds = L.latLngBounds([-34.95, -59.0], [-34.25, -57.9]);
+      const arBounds = L.latLngBounds([-55.2, -73.6], [-21.7, -53.5]);
 
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
-        zoom: 12,
-        minZoom: 9,
+        zoom: compact ? 13 : 12,
+        minZoom: compact ? 5 : 9,
         maxZoom: 18,
-        maxBounds: gbaBounds,
-        maxBoundsViscosity: 0.85,
+        maxBounds: compact ? arBounds : gbaBounds,
+        maxBoundsViscosity: compact ? 0.4 : 0.85,
         zoomControl: interactive,
         scrollWheelZoom: interactive,
         dragging: interactive,
@@ -413,9 +415,9 @@ export default function MapComponent({
       resizeObserver?.disconnect();
       teardownMap();
     };
-    // Solo recrear si cambia interactividad; departurePoint se usa solo en centro inicial.
+    // Recrear si cambian interactividad o compact (minZoom / bounds distintos).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interactive, refreshMapSize]);
+  }, [interactive, compact, refreshMapSize]);
 
   // Cada vez que cambia el pedido activo o modo compact, recalcular tamaño.
   useEffect(() => {
