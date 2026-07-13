@@ -86,18 +86,13 @@ async function buildFlexWebhookContext(
     }
   };
 
+  // Courier primero: los eventos Flex del repartidor deben poder leer el envío sin el vendedor.
+  await tryAdd(integration.userId);
+
   if (agencyId) {
     for (const ctx of await listMercadoLibreIntegrationsForAgencyScan(agencyId)) {
       await tryAdd(ctx.integration.userId);
     }
-  }
-
-  if (user?.role !== UserRole.REPARTIDOR) {
-    await tryAdd(integration.userId);
-  }
-
-  if (dataIntegrations.length === 0) {
-    await tryAdd(integration.userId);
   }
 
   flexScanLog('contexto Flex webhook', {
@@ -116,7 +111,9 @@ async function fetchShipmentWithFallback(
 ): Promise<{ shipment: MlShipmentData; integration: StoreIntegration } | null> {
   for (const integration of integrations) {
     try {
-      const shipment = await fetchMercadoLibreShipment(integration, shipmentId);
+      const shipment = await fetchMercadoLibreShipment(integration, shipmentId, {
+        quietStatuses: [401, 403],
+      });
       flexScanLog('envío ML obtenido', {
         shipmentId,
         integrationUserId: integration.userId,

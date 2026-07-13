@@ -134,8 +134,9 @@ async function markImported(
 }
 
 /**
- * Candidatos de token ML para un pedido: preferido (import), cuenta de la agencia, luego tienda.
- * La tienda no es obligatoria si la agencia ya tiene ML conectado.
+ * Candidatos de token ML para un pedido.
+ * Prioridad: repartidor asignado (courier Flex) → preferido (import) → agencia → tienda.
+ * La mensajería sincroniza estados con el token del courier, sin exigir login del vendedor.
  */
 async function listMlIntegrationUserIdsForOrder(
   order: Order,
@@ -149,6 +150,7 @@ async function listMlIntegrationUserIdsForOrder(
     ids.push(id);
   };
 
+  add(order.repartidorId);
   add(preferredMlUserId);
   if (order.agencyId) {
     const agencyMl = await getAgencyMercadoLibreIntegration(order.agencyId);
@@ -180,18 +182,40 @@ export async function syncMercadoLibreOrderAfterImport(
   for (const mlUserId of candidates) {
     try {
       const integration = await getValidMercadoLibreIntegration(mlUserId);
-      const liveShipment = await fetchMercadoLibreShipment(integration, flex.externalId);
-      const mlStatus = liveShipment.status ?? flex.mlShipmentStatus;
-      const mlSubstatus = liveShipment.substatus ?? flex.mlShipmentSubstatus ?? null;
 
-      let currentOrder = order;
-      const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(integration, flex.externalId);
-      if (mlDeadline) {
-        const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(order.id, mlDeadline);
-        if (withDeadline) currentOrder = withDeadline;
+      // 401/403 = esta cuenta no es caller del envío (típico agencia ≠ vendedor); probar siguiente.
+      let liveShipment: Awaited<ReturnType<typeof fetchMercadoLibreShipment>> | null = null;
+      try {
+        liveShipment = await fetchMercadoLibreShipment(integration, flex.externalId, {
+          quietStatuses: [401, 403],
+        });
+      } catch (err) {
+        const code = err instanceof Error ? err.message : '';
+        if (code === 'ML_API_ERROR_401' || code === 'ML_API_ERROR_403') {
+          lastErr = err;
+          // Igual intentar assignment con este token (courier suele poder).
+        } else {
+          throw err;
+        }
       }
 
-      let repartidorId: string | null = null;
+      const mlStatus = liveShipment?.status ?? flex.mlShipmentStatus;
+      const mlSubstatus =
+        liveShipment?.substatus ?? flex.mlShipmentSubstatus ?? null;
+
+      let currentOrder = order;
+      if (liveShipment) {
+        const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(
+          integration,
+          flex.externalId
+        );
+        if (mlDeadline) {
+          const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(order.id, mlDeadline);
+          if (withDeadline) currentOrder = withDeadline;
+        }
+      }
+
+      let repartidorId: string | null = order.repartidorId ?? null;
       if (order.agencyId) {
         const assignment = await fetchMercadoLibreFlexAssignment(
           integration,
@@ -201,8 +225,22 @@ export async function syncMercadoLibreOrderAfterImport(
         const driverId = extractMercadoLibreFlexDriverId(assignment);
         if (driverId) {
           const repartidor = await getRepartidorByMercadoLibreUserId(driverId, order.agencyId);
-          repartidorId = repartidor?.id ?? null;
+          if (repartidor) repartidorId = repartidor.id;
         }
+      }
+
+      // Sin lectura de shipment ni estado previo, no hay nada que mapear (salvo ya tener repartidor).
+      if (!mlStatus && !liveShipment) {
+        if (repartidorId && repartidorId !== order.repartidorId) {
+          const updated = await applyMercadoLibreSyncState(currentOrder.id, {
+            status: currentOrder.status,
+            repartidorId,
+            comment: 'Repartidor sincronizado desde assignment Flex',
+          });
+          return updated ?? currentOrder;
+        }
+        lastErr = lastErr ?? new Error('ML_SHIPMENT_UNREADABLE');
+        continue;
       }
 
       const targetStatus = mapMercadoLibreShipmentToOrderStatus(mlStatus, mlSubstatus, {
@@ -1172,8 +1210,25 @@ async function attachMercadoLibreFlexSync(
           'Mercado Libre tardó demasiado en responder. El pedido quedó en Posta; reintentá el escaneo en unos segundos.',
       })),
     ]);
+
+    let order = base.order;
+    // Tras registrar courier-shipment, actualizar estado con el token del repartidor (sin vendedor).
+    if (user.role === UserRole.REPARTIDOR && order.repartidorId) {
+      order = await syncMercadoLibreOrderAfterImport(user.id, order, {
+        externalId: shipmentId,
+      });
+      if (
+        order.status !== base.order.status ||
+        order.repartidorId !== base.order.repartidorId
+      ) {
+        const sellerId = await getSellerIdForOrder(order.id);
+        emitOrderUpdated(order, sellerId);
+      }
+    }
+
     return {
       ...base,
+      order,
       mlFlexRegistered: flexSync.registered,
       mlFlexMessage: flexSync.message,
     };

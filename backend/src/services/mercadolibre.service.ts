@@ -448,9 +448,10 @@ export async function fetchMercadoLibreOrder(
 
 export async function fetchMercadoLibreShipment(
   integration: StoreIntegration,
-  mlShipmentId: string
+  mlShipmentId: string,
+  options?: { quietStatuses?: number[] }
 ): Promise<MlShipment> {
-  return mlFetch<MlShipment>(integration, `/shipments/${mlShipmentId}`);
+  return mlFetch<MlShipment>(integration, `/shipments/${mlShipmentId}`, options);
 }
 
 interface MlShipmentLeadTime {
