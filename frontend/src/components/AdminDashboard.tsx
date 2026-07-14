@@ -471,13 +471,12 @@ export default function AdminDashboard({
       if (o.archived && !includeArchivedForDate) return false;
       return matchesOrderFilters(o, orderFilterContext);
     });
-    // Con filtro de fecha mostramos también entregados/cancelados/archivados de ese día
-    const onMap =
-      showDeliveredOnMap || includeArchivedForDate
-        ? visible
-        : visible.filter(
-            (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
-          );
+    // El toggle "Ocultar listos" manda siempre; la fecha solo decide si entran archivados al pool
+    const onMap = showDeliveredOnMap
+      ? visible
+      : visible.filter(
+          (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
+        );
     if (repartidorFilterId) return onMap;
     if (allRepartidoresOnMap || mapRepartidorIds.size === 0) return onMap;
     return onMap.filter((o) => o.repartidorId && mapRepartidorIds.has(o.repartidorId));
@@ -1408,7 +1407,7 @@ export default function AdminDashboard({
         
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[140px] sm:min-h-[180px] md:min-h-[220px] lg:min-h-[250px] xl:min-h-[320px] 2xl:min-h-[380px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
-          <div ref={mapFilterRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 z-[1000] flex flex-col gap-1.5 w-36 sm:w-44 md:w-48">
+          <div ref={mapFilterRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 z-[1100] flex flex-col gap-2 w-36 sm:w-44 md:w-48">
             <button
               type="button"
               onClick={() => setShowMapZones((visible) => !visible)}

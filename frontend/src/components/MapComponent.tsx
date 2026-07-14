@@ -932,9 +932,9 @@ export default function MapComponent({
       }`}
     >
       {!compact && (
-        <div className="absolute top-3 right-3 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1 rounded-[5px] text-[9px] font-mono border border-[var(--surface-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-bold flex items-center gap-1 pointer-events-none">
+        <div className="absolute top-3 left-12 sm:left-14 z-[1000] bg-[var(--surface-panel)]/90 backdrop-blur-sm px-2 py-1 rounded-[5px] text-[9px] font-mono border border-[var(--surface-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-bold flex items-center gap-1 pointer-events-none max-w-[calc(100%-11rem)] sm:max-w-[calc(100%-13rem)] truncate">
           <Satellite className="w-3 h-3 shrink-0" />
-          MAPA REALTIME POSTA
+          <span className="truncate">MAPA REALTIME POSTA</span>
         </div>
       )}
       {zoneLegend.length > 0 && (
