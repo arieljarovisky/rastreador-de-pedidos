@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Clock,
   CheckCircle2,
@@ -394,6 +394,16 @@ function OrderListSection({
   showDeliveredAt?: boolean;
   className?: string;
 }) {
+  const PAGE_SIZE = 6;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const visibleOrders = orders.slice(0, visibleCount);
+  const hasMore = visibleCount < orders.length;
+
+  // Si cambia el listado (fecha/filtro), volver a las primeras 6.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [orders]);
+
   const borderTone =
     tone === 'ok'
       ? 'border-[var(--color-ok)]/30'
@@ -416,41 +426,54 @@ function OrderListSection({
           {emptyMessage}
         </p>
       ) : (
-        <ul className="lg:flex-1 lg:min-h-0 max-h-[22rem] lg:max-h-none overflow-y-auto divide-y divide-[var(--surface-border)]/50 scrollbar-thin">
-          {orders.map((order) => (
-            <li key={order.id}>
+        <>
+          <ul className="lg:flex-1 lg:min-h-0 divide-y divide-[var(--surface-border)]/50">
+            {visibleOrders.map((order) => (
+              <li key={order.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectOrder?.(order.id)}
+                  className="w-full text-left px-3 py-3.5 sm:py-2.5 hover:bg-[var(--surface-panel-2)]/60 active:bg-[var(--surface-panel-2)] transition min-h-[4.25rem] sm:min-h-0"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-1">
+                    <span className="text-[11px] sm:text-[10px] font-mono text-[var(--color-text-faint)]">{order.id}</span>
+                    <StatusBadge status={order.status} />
+                  </div>
+                  <p className="text-[15px] sm:text-sm font-semibold text-[var(--ink-soft)] truncate">{order.clientName}</p>
+                  <p className="text-[12px] sm:text-[11px] text-[var(--color-text-muted)] truncate mt-0.5">{order.address}</p>
+                  {showSeller && order.sellerName && (
+                    <p className="text-[11px] sm:text-[10px] text-[var(--color-accent)] mt-1 sm:mt-0.5">{order.sellerName}</p>
+                  )}
+                  {order.repartidorName && (
+                    <p className="text-[11px] sm:text-[10px] text-[var(--color-text-muted)] mt-1 sm:mt-0.5 flex items-center gap-1">
+                      <Bike className="w-3.5 h-3.5 sm:w-3 sm:h-3 shrink-0" />
+                      {order.repartidorName}
+                    </p>
+                  )}
+                  {showDeliveredAt && (() => {
+                    const deliveredAt = getOrderDeliveredAt(order);
+                    return deliveredAt ? (
+                      <p className="text-[11px] sm:text-[10px] text-[var(--color-danger)] mt-1 sm:mt-0.5 font-mono">
+                        Entregado {formatArTime(deliveredAt)} hs · corte {DELIVERY_DEADLINE_HOUR}:00
+                      </p>
+                    ) : null;
+                  })()}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {hasMore && (
+            <div className="shrink-0 border-t border-[var(--surface-border)]/60 p-2">
               <button
                 type="button"
-                onClick={() => onSelectOrder?.(order.id)}
-                className="w-full text-left px-3 py-3.5 sm:py-2.5 hover:bg-[var(--surface-panel-2)]/60 active:bg-[var(--surface-panel-2)] transition min-h-[4.25rem] sm:min-h-0"
+                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                className="w-full py-2 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/80 hover:bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] transition"
               >
-                <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-1">
-                  <span className="text-[11px] sm:text-[10px] font-mono text-[var(--color-text-faint)]">{order.id}</span>
-                  <StatusBadge status={order.status} />
-                </div>
-                <p className="text-[15px] sm:text-sm font-semibold text-[var(--ink-soft)] truncate">{order.clientName}</p>
-                <p className="text-[12px] sm:text-[11px] text-[var(--color-text-muted)] truncate mt-0.5">{order.address}</p>
-                {showSeller && order.sellerName && (
-                  <p className="text-[11px] sm:text-[10px] text-[var(--color-accent)] mt-1 sm:mt-0.5">{order.sellerName}</p>
-                )}
-                {order.repartidorName && (
-                  <p className="text-[11px] sm:text-[10px] text-[var(--color-text-muted)] mt-1 sm:mt-0.5 flex items-center gap-1">
-                    <Bike className="w-3.5 h-3.5 sm:w-3 sm:h-3 shrink-0" />
-                    {order.repartidorName}
-                  </p>
-                )}
-                {showDeliveredAt && (() => {
-                  const deliveredAt = getOrderDeliveredAt(order);
-                  return deliveredAt ? (
-                    <p className="text-[11px] sm:text-[10px] text-[var(--color-danger)] mt-1 sm:mt-0.5 font-mono">
-                      Entregado {formatArTime(deliveredAt)} hs · corte {DELIVERY_DEADLINE_HOUR}:00
-                    </p>
-                  ) : null;
-                })()}
+                Cargar más ({orders.length - visibleCount} restantes)
               </button>
-            </li>
-          ))}
-        </ul>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
