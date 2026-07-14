@@ -5,6 +5,7 @@ import { resetDatabase } from './db/reset-database.js';
 import { runMigrations } from './db/migrate.js';
 import { setupSocket } from './realtime/socket.js';
 import { startDeliveryScheduler } from './services/delivery-scheduler.js';
+import { startMercadoLibreFlexAutoImportScheduler } from './services/ml-flex-auto-import.scheduler.js';
 import { replayMercadoLibreMissedFeeds, getMercadoLibreWebhookUrl } from './services/mercadolibre-webhook.service.js';
 
 async function start(): Promise<void> {
@@ -29,6 +30,7 @@ async function start(): Promise<void> {
   const server = http.createServer(app);
   setupSocket(server);
   startDeliveryScheduler();
+  startMercadoLibreFlexAutoImportScheduler();
 
   server.listen(env.port, '0.0.0.0', () => {
     console.log(`Backend LupoEnvios corriendo en http://localhost:${env.port} (HTTP + WebSocket)`);

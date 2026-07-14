@@ -43,6 +43,7 @@ import {
   getIntegration,
   getAgencyMercadoLibreIntegration,
   listMercadoLibreIntegrationsForAgencyScan,
+  listMercadoLibreSellerIntegrationsForAutoImport,
   type IntegrationPlatform,
   type StoreIntegration,
 } from './integrations.service.js';
@@ -55,6 +56,7 @@ import { env } from '../config/env.js';
 import {
   ensureAgencyMlBridgeUser,
   getAgencyOperatorForImport,
+  isAgencyMlBridgeUser,
 } from './agency-ml.service.js';
 
 const recentFlexSyncByRepartidor = new Map<string, number>();
@@ -1472,4 +1474,109 @@ export async function importMercadoLibreByScanForAgency(
     throw new Error('ML_COURIER_AUTH');
   }
   throw new Error('ML_SCAN_NOT_FOUND');
+}
+
+const ML_AUTO_IMPORT_LOOKBACK_DAYS = Math.max(
+  1,
+  Number(process.env.ML_FLEX_AUTO_IMPORT_LOOKBACK_DAYS ?? 5) || 5
+);
+
+function isoDateDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Auto-importa envíos Flex abiertos de todas las cuentas ML de vendedores/agencia
+ * ya conectadas (sin acción manual en la UI).
+ */
+export async function runMercadoLibreFlexAutoImport(): Promise<{
+  accounts: number;
+  imported: number;
+  synced: number;
+  errors: number;
+}> {
+  const integrations = await listMercadoLibreSellerIntegrationsForAutoImport();
+  let imported = 0;
+  let synced = 0;
+  let errors = 0;
+  const dateFrom = isoDateDaysAgo(ML_AUTO_IMPORT_LOOKBACK_DAYS);
+
+  for (const integration of integrations) {
+    try {
+      const owner = await getUserById(integration.userId);
+      if (!owner || owner.role !== UserRole.STORE_ADMIN) continue;
+
+      const valid = await tryGetValidMercadoLibreIntegration(integration.userId);
+      if (!valid) continue;
+
+      const agencyMode = isAgencyMlBridgeUser(owner);
+      let importUser = owner;
+      if (agencyMode) {
+        if (!owner.agencyId) continue;
+        const operator = await getAgencyOperatorForImport(owner.agencyId);
+        if (!operator) {
+          console.warn('[ml-auto-import] agencia sin operador para importar', {
+            agencyId: owner.agencyId,
+          });
+          continue;
+        }
+        importUser = operator;
+      }
+
+      const flexShipments = await listMercadoLibreFlexShipments(integration.userId, {
+        dateFrom,
+      });
+
+      const pending: MercadoLibreFlexShipment[] = [];
+      const seenShipments = new Set<string>();
+      for (const shipment of flexShipments) {
+        if (seenShipments.has(shipment.externalId)) continue;
+        seenShipments.add(shipment.externalId);
+        if (
+          shipment.mlShipmentStatus === 'delivered' ||
+          shipment.mlShipmentStatus === 'cancelled'
+        ) {
+          continue;
+        }
+        const existing = agencyMode
+          ? await findImportedMercadoLibreFlexGlobal(shipment)
+          : await findImportedMercadoLibreFlex(integration.userId, shipment);
+        if (!existing) pending.push(shipment);
+      }
+
+      if (pending.length === 0) continue;
+
+      for (const shipment of pending) {
+        const result = await importMercadoLibreFlexShipment(importUser, shipment, {
+          mlIntegrationUserId: integration.userId,
+          agencyMode,
+        });
+        if (result.kind === 'imported') imported += 1;
+        else if (result.kind === 'synced') synced += 1;
+        else {
+          errors += 1;
+          if (result.fatal) break;
+        }
+        await sleep(80);
+      }
+    } catch (err) {
+      errors += 1;
+      console.warn('[ml-auto-import] cuenta falló', {
+        userId: integration.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (imported > 0 || errors > 0) {
+    console.log('[ml-auto-import] corrida', {
+      accounts: integrations.length,
+      lookbackDays: ML_AUTO_IMPORT_LOOKBACK_DAYS,
+      imported,
+      synced,
+      errors,
+    });
+  }
+
+  return { accounts: integrations.length, imported, synced, errors };
 }

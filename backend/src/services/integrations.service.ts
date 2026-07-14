@@ -78,6 +78,22 @@ export async function listMercadoLibreIntegrationsForAgency(
   return rows.map(rowToIntegration);
 }
 
+/** Cuentas ML de vendedores / bridge de agencia (no repartidores) para auto-import Flex. */
+export async function listMercadoLibreSellerIntegrationsForAutoImport(): Promise<
+  StoreIntegration[]
+> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT si.* FROM store_integrations si
+     INNER JOIN users u ON u.id = si.user_id
+     WHERE si.platform = 'mercadolibre'
+       AND u.role = 'store_admin'
+       AND si.access_token IS NOT NULL
+       AND TRIM(si.access_token) <> ''
+     ORDER BY si.updated_at DESC`
+  );
+  return rows.map(rowToIntegration);
+}
+
 export async function getAgencyMercadoLibreIntegration(
   agencyId: string
 ): Promise<StoreIntegration | null> {
