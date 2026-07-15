@@ -1,4 +1,5 @@
-export const DELIVERY_DEADLINE_HOUR = 21;
+/** Default / fallback si la agencia no tiene corte configurado. */
+export const DELIVERY_DEADLINE_HOUR = 12;
 export const DELIVERY_TIMEZONE = 'America/Argentina/Buenos_Aires';
 export const DELIVERY_TIMEZONE_LABEL = 'Argentina (ART)';
 
@@ -29,6 +30,14 @@ function getArDateParts(date: Date): ArDateParts {
     hour: get('hour'),
     minute: get('minute'),
   };
+}
+
+/** Normaliza hora de corte a entero 0–23. */
+export function normalizeDeadlineHour(hour?: number | null): number {
+  if (hour == null || !Number.isFinite(hour)) return DELIVERY_DEADLINE_HOUR;
+  const n = Math.trunc(Number(hour));
+  if (n < 0 || n > 23) return DELIVERY_DEADLINE_HOUR;
+  return n;
 }
 
 /** Fecha operativa YYYY-MM-DD en horario Argentina. */
@@ -64,30 +73,39 @@ export function getOperationalDayBounds(dateKey: string): { start: Date; end: Da
   return { start, end };
 }
 
-/** Calcula el corte de entrega (21:00 AR) para un pedido creado en `createdAt`. */
-export function computeDeliveryDeadline(createdAt: Date = new Date()): Date {
+/** Calcula el corte de entrega para un pedido creado en `createdAt`. */
+export function computeDeliveryDeadline(
+  createdAt: Date = new Date(),
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+): Date {
+  const cutHour = normalizeDeadlineHour(deadlineHour);
   const { year, month, day, hour } = getArDateParts(createdAt);
-  if (hour >= DELIVERY_DEADLINE_HOUR) {
+  if (hour >= cutHour) {
     const next = new Date(Date.UTC(year, month - 1, day + 1));
     return arLocalToUtc(
       next.getUTCFullYear(),
       next.getUTCMonth() + 1,
       next.getUTCDate(),
-      DELIVERY_DEADLINE_HOUR
+      cutHour
     );
   }
-  return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
+  return arLocalToUtc(year, month, day, cutHour);
 }
 
-export function getTodayDeadline(): Date {
+export function getTodayDeadline(deadlineHour: number = DELIVERY_DEADLINE_HOUR): Date {
+  const cutHour = normalizeDeadlineHour(deadlineHour);
   const { year, month, day } = getArDateParts(new Date());
-  return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
+  return arLocalToUtc(year, month, day, cutHour);
 }
 
-/** Corte 21:00 AR para un día operativo YYYY-MM-DD. */
-export function deliveryDeadlineForOperationalDate(dateKey: string): Date {
+/** Corte operativo para un día YYYY-MM-DD. */
+export function deliveryDeadlineForOperationalDate(
+  dateKey: string,
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+): Date {
+  const cutHour = normalizeDeadlineHour(deadlineHour);
   const [year, month, day] = dateKey.split('-').map(Number);
-  return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
+  return arLocalToUtc(year, month, day, cutHour);
 }
 
 /** Suma días a una clave operativa YYYY-MM-DD (zona AR). */
@@ -98,21 +116,31 @@ export function shiftOperationalDateKey(dateKey: string, days: number): string {
 }
 
 /** Próximo corte operativo (mañana o día siguiente al deadline actual). */
-export function nextOperationalDeliveryDeadline(fromDeadlineOrNow: Date = new Date()): Date {
+export function nextOperationalDeliveryDeadline(
+  fromDeadlineOrNow: Date = new Date(),
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+): Date {
   const todayKey = getOperationalDateKey(new Date());
   const fromKey = getOperationalDateKey(fromDeadlineOrNow);
   const baseKey = fromKey >= todayKey ? fromKey : todayKey;
-  return deliveryDeadlineForOperationalDate(shiftOperationalDateKey(baseKey, 1));
+  return deliveryDeadlineForOperationalDate(shiftOperationalDateKey(baseKey, 1), deadlineHour);
 }
 
-/** Convierte una fecha ISO de ML al corte operativo de Posta (21:00 AR ese día). */
-export function deliveryDeadlineFromIsoDate(isoDate: string): Date | null {
+/** Convierte una fecha ISO (p. ej. ML) al corte operativo de ese día calendario. */
+export function deliveryDeadlineFromIsoDate(
+  isoDate: string,
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+): Date | null {
   const parsed = new Date(isoDate);
   if (Number.isNaN(parsed.getTime())) return null;
-  return deliveryDeadlineForOperationalDate(getOperationalDateKey(parsed));
+  return deliveryDeadlineForOperationalDate(getOperationalDateKey(parsed), deadlineHour);
 }
 
 export function getArHourMinute(date: Date = new Date()): { hour: number; minute: number } {
   const { hour, minute } = getArDateParts(date);
   return { hour, minute };
+}
+
+export function formatDeadlineHourLabel(deadlineHour: number = DELIVERY_DEADLINE_HOUR): string {
+  return `${String(normalizeDeadlineHour(deadlineHour)).padStart(2, '0')}:00`;
 }

@@ -16,10 +16,17 @@ import {
 
 interface DeliveryControlPanelProps {
   orders: Order[];
+  deadlineHour?: number;
 }
 
-export default function DeliveryControlPanel({ orders }: DeliveryControlPanelProps) {
-  const summary = useMemo(() => computeDeliverySummaryFromOrders(orders), [orders]);
+export default function DeliveryControlPanel({
+  orders,
+  deadlineHour = DELIVERY_DEADLINE_HOUR,
+}: DeliveryControlPanelProps) {
+  const summary = useMemo(
+    () => computeDeliverySummaryFromOrders(orders, undefined, deadlineHour),
+    [orders, deadlineHour]
+  );
 
   const progressPct =
     summary.total > 0 ? Math.round((summary.delivered / summary.total) * 100) : 0;
@@ -54,7 +61,7 @@ export default function DeliveryControlPanel({ orders }: DeliveryControlPanelPro
             }`}
           />
           <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] truncate">
-            Control del día · corte {DELIVERY_DEADLINE_HOUR}:00 {DELIVERY_TIMEZONE_LABEL}
+            Control del día · corte {deadlineHour}:00 {DELIVERY_TIMEZONE_LABEL}
           </span>
         </div>
         <span

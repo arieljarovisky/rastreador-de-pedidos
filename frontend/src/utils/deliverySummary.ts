@@ -1,6 +1,6 @@
 import { Order, OrderStatus, DeliveryDailySummary } from '../types.js';
 
-export const DELIVERY_DEADLINE_HOUR = 21;
+export const DELIVERY_DEADLINE_HOUR = 12;
 export const DELIVERY_TIMEZONE = 'America/Argentina/Buenos_Aires';
 export const DELIVERY_TIMEZONE_LABEL = 'Argentina (ART)';
 
@@ -51,10 +51,20 @@ function arLocalToUtc(year: number, month: number, day: number, hour: number, mi
   return new Date(guess.getTime() + diffMinutes * 60_000);
 }
 
-/** Corte de hoy a las 21:00 en horario Argentina. */
-export function getTodayDeadlineInArgentina(date: Date = new Date()): Date {
+function normalizeDeadlineHour(hour?: number | null): number {
+  if (hour == null || !Number.isFinite(hour)) return DELIVERY_DEADLINE_HOUR;
+  const n = Math.trunc(Number(hour));
+  if (n < 0 || n > 23) return DELIVERY_DEADLINE_HOUR;
+  return n;
+}
+
+/** Corte de hoy en horario Argentina. */
+export function getTodayDeadlineInArgentina(
+  date: Date = new Date(),
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+): Date {
   const { year, month, day } = getArDateParts(date);
-  return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
+  return arLocalToUtc(year, month, day, normalizeDeadlineHour(deadlineHour));
 }
 
 export function parseOperationalDateKey(dateKey: string): { year: number; month: number; day: number } {
@@ -62,10 +72,13 @@ export function parseOperationalDateKey(dateKey: string): { year: number; month:
   return { year, month, day };
 }
 
-/** Corte operativo (21:00 ART) para una fecha YYYY-MM-DD. */
-export function getDeadlineForOperationalDate(dateKey: string): Date {
+/** Corte operativo ART para una fecha YYYY-MM-DD. */
+export function getDeadlineForOperationalDate(
+  dateKey: string,
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+): Date {
   const { year, month, day } = parseOperationalDateKey(dateKey);
-  return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
+  return arLocalToUtc(year, month, day, normalizeDeadlineHour(deadlineHour));
 }
 
 export function shiftOperationalDateKey(dateKey: string, days: number): string {
@@ -239,8 +252,10 @@ export function getDeliveredLateTodayOrders(
 
 export function computeDeliverySummaryFromOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getOperationalDateKey(),
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
 ): DeliveryDailySummary {
+  const cutHour = normalizeDeadlineHour(deadlineHour);
   const todayOrders = orders.filter((o) => !o.archived && isTodayOrder(o, dateKey));
   const deliveredToday = todayOrders.filter((o) => o.status === OrderStatus.DELIVERED);
   const delivered = deliveredToday.length;
@@ -252,7 +267,7 @@ export function computeDeliverySummaryFromOrders(
   const total = todayOrders.length;
 
   const todayKey = getOperationalDateKey();
-  const deadlineAt = getDeadlineForOperationalDate(dateKey);
+  const deadlineAt = getDeadlineForOperationalDate(dateKey, cutHour);
   const now = Date.now();
   const isViewingToday = dateKey === todayKey;
   const isPastDeadline = isViewingToday
@@ -261,7 +276,7 @@ export function computeDeliverySummaryFromOrders(
 
   return {
     date: dateKey,
-    deadlineHour: DELIVERY_DEADLINE_HOUR,
+    deadlineHour: cutHour,
     deadlineAt: deadlineAt.toISOString(),
     total,
     delivered,

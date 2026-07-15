@@ -477,7 +477,8 @@ export async function fetchMercadoLibreShipmentLeadTime(
 
 /** Fecha prometida al comprador según ML (lead_time). */
 export function parseMercadoLibreDeliveryDeadline(
-  leadTime: MlShipmentLeadTime | null
+  leadTime: MlShipmentLeadTime | null,
+  deadlineHour?: number
 ): Date | null {
   if (!leadTime) return null;
   const iso =
@@ -485,15 +486,16 @@ export function parseMercadoLibreDeliveryDeadline(
     leadTime.estimated_delivery_limit?.date ??
     leadTime.estimated_delivery_time?.date;
   if (!iso) return null;
-  return deliveryDeadlineFromIsoDate(iso);
+  return deliveryDeadlineFromIsoDate(iso, deadlineHour);
 }
 
 export async function resolveMercadoLibreFlexDeliveryDeadline(
   integration: StoreIntegration,
-  shipmentId: string
+  shipmentId: string,
+  deadlineHour?: number
 ): Promise<Date | null> {
   const leadTime = await fetchMercadoLibreShipmentLeadTime(integration, shipmentId);
-  return parseMercadoLibreDeliveryDeadline(leadTime);
+  return parseMercadoLibreDeliveryDeadline(leadTime, deadlineHour);
 }
 
 export interface MlFlexAssignment {

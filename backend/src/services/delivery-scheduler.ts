@@ -7,53 +7,85 @@ import {
   sendDeadlineUrgentAlerts,
   sendDeadlineWarnings,
 } from './delivery-dashboard.service.js';
+import { listAgenciesDeadlineHours } from './agencies.service.js';
 
-const WARNING_HOUR = 18;
-const URGENT_HOUR = 20;
-const MISSED_HOUR = 21;
+/** Evita reenviar el mismo aviso a la misma agencia el mismo día. */
+const sentKeys = new Set<string>();
 
-let lastWarningDate: string | null = null;
-let lastUrgentDate: string | null = null;
-let lastMissedDate: string | null = null;
+function markSent(kind: string, agencyId: string, dateKey: string): boolean {
+  const key = `${kind}:${agencyId}:${dateKey}`;
+  if (sentKeys.has(key)) return false;
+  sentKeys.add(key);
+  return true;
+}
+
+function pruneOldKeys(dateKey: string): void {
+  for (const key of [...sentKeys]) {
+    if (!key.endsWith(`:${dateKey}`)) {
+      sentKeys.delete(key);
+    }
+  }
+}
 
 async function tick(): Promise<void> {
   const dateKey = getOperationalDateKey();
   const { hour, minute } = getArHourMinute();
+  if (minute !== 0) return;
 
-  if (hour === WARNING_HOUR && minute === 0 && lastWarningDate !== dateKey) {
-    lastWarningDate = dateKey;
+  pruneOldKeys(dateKey);
+
+  const agencies = await listAgenciesDeadlineHours();
+  const warningAgencyIds: string[] = [];
+  const urgentAgencyIds: string[] = [];
+  const missedAgencyIds: string[] = [];
+
+  for (const agency of agencies) {
+    const deadlineHour = agency.deliveryDeadlineHour;
+    const warningHour = Math.max(0, deadlineHour - 3);
+    const urgentHour = Math.max(0, deadlineHour - 1);
+
+    if (hour === warningHour && markSent('warning', agency.id, dateKey)) {
+      warningAgencyIds.push(agency.id);
+    }
+    if (hour === urgentHour && markSent('urgent', agency.id, dateKey)) {
+      urgentAgencyIds.push(agency.id);
+    }
+    if (hour === deadlineHour && markSent('missed', agency.id, dateKey)) {
+      missedAgencyIds.push(agency.id);
+    }
+  }
+
+  if (warningAgencyIds.length > 0) {
     try {
-      await sendDeadlineWarnings(dateKey);
-      console.log(`[delivery-scheduler] Avisos de corte enviados (${dateKey})`);
+      await sendDeadlineWarnings(dateKey, warningAgencyIds);
+      console.log(
+        `[delivery-scheduler] Avisos de corte enviados (${dateKey}) agencias=${warningAgencyIds.length}`
+      );
     } catch (err) {
       console.error('[delivery-scheduler] Error enviando avisos:', err);
     }
   }
 
-  if (hour === URGENT_HOUR && minute === 0 && lastUrgentDate !== dateKey) {
-    lastUrgentDate = dateKey;
+  if (urgentAgencyIds.length > 0) {
     try {
-      await sendDeadlineUrgentAlerts(dateKey);
-      console.log(`[delivery-scheduler] Avisos urgentes (20:00) enviados (${dateKey})`);
+      await sendDeadlineUrgentAlerts(dateKey, urgentAgencyIds);
+      console.log(
+        `[delivery-scheduler] Avisos urgentes enviados (${dateKey}) agencias=${urgentAgencyIds.length}`
+      );
     } catch (err) {
       console.error('[delivery-scheduler] Error enviando avisos urgentes:', err);
     }
   }
 
-  if (hour === MISSED_HOUR && minute === 0 && lastMissedDate !== dateKey) {
-    lastMissedDate = dateKey;
+  if (missedAgencyIds.length > 0) {
     try {
-      await sendDeadlineMissedAlerts(dateKey);
-      console.log(`[delivery-scheduler] Alertas de corte enviadas (${dateKey})`);
+      await sendDeadlineMissedAlerts(dateKey, missedAgencyIds);
+      console.log(
+        `[delivery-scheduler] Alertas de corte enviadas (${dateKey}) agencias=${missedAgencyIds.length}`
+      );
     } catch (err) {
       console.error('[delivery-scheduler] Error enviando alertas de corte:', err);
     }
-  }
-
-  if (hour === 0 && minute === 0) {
-    if (lastWarningDate !== dateKey) lastWarningDate = null;
-    if (lastUrgentDate !== dateKey) lastUrgentDate = null;
-    if (lastMissedDate !== dateKey) lastMissedDate = null;
   }
 }
 
@@ -62,5 +94,7 @@ export function startDeliveryScheduler(): void {
   setInterval(() => {
     void tick();
   }, 60_000);
-  console.log('[delivery-scheduler] Programador de corte 21:00 activo (avisos 18:00, 20:00 y 21:00)');
+  console.log(
+    '[delivery-scheduler] Programador de corte activo (avisos por agencia: -3h, -1h y hora de corte)'
+  );
 }

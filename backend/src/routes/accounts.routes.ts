@@ -26,6 +26,11 @@ import {
   canManagePickupPoint,
 } from '../services/pickup-points.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import {
+  getAgencyDeliveryDeadlineHour,
+  updateAgencyDeliveryDeadlineHour,
+} from '../services/agencies.service.js';
+import { DELIVERY_DEADLINE_HOUR } from '../utils/delivery-deadline.js';
 
 const router = Router();
 
@@ -313,6 +318,40 @@ router.put('/agency/departure', authenticate, requireAgencyAdmin(), async (req: 
     res.json(user.departurePoint ?? null);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Agencia no encontrada.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.get('/agency/delivery-deadline', authenticate, async (req: Request, res: Response) => {
+  const agencyId = req.user!.agencyId;
+  if (!agencyId) {
+    res.json({ hour: DELIVERY_DEADLINE_HOUR });
+    return;
+  }
+  const hour = await getAgencyDeliveryDeadlineHour(agencyId);
+  res.json({ hour });
+});
+
+router.put('/agency/delivery-deadline', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const agencyId = req.user!.agencyId;
+  if (!agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+  const hour = Number(req.body?.hour);
+  try {
+    const saved = await updateAgencyDeliveryDeadlineHour(agencyId, hour);
+    res.json({ hour: saved });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'INVALID_HOUR') {
+      res.status(400).json({ error: 'La hora de corte debe ser un número entre 0 y 23.' });
+      return;
+    }
     if (message === 'NOT_FOUND') {
       res.status(404).json({ error: 'Agencia no encontrada.' });
       return;

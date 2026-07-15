@@ -4,11 +4,14 @@ import { AppNotification, OrderStatus, User, UserRole } from '../types/index.js'
 import { isAgencyAdmin } from '../utils/roles.js';
 import {
   DELIVERY_DEADLINE_HOUR,
+  formatDeadlineHourLabel,
   getOperationalDateKey,
   getTodayDeadline,
   getOperationalDayBounds,
+  normalizeDeadlineHour,
 } from '../utils/delivery-deadline.js';
 import { createNotification } from './notifications.service.js';
+import { getAgencyDeliveryDeadlineHour } from './agencies.service.js';
 
 export interface DeliveryDailySummary {
   date: string;
@@ -31,11 +34,13 @@ interface OrderCountRow extends RowDataPacket {
 function buildSummary(
   rows: OrderCountRow[],
   deadlineAt: Date,
-  dateKey: string
+  dateKey: string,
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
 ): DeliveryDailySummary {
   const now = Date.now();
   const deadlineMs = deadlineAt.getTime();
   const counts = new Map(rows.map((r) => [r.status, Number(r.cnt)]));
+  const cutHour = normalizeDeadlineHour(deadlineHour);
 
   const delivered = counts.get(OrderStatus.DELIVERED) ?? 0;
   const cancelled = counts.get(OrderStatus.CANCELLED) ?? 0;
@@ -48,7 +53,7 @@ function buildSummary(
 
   return {
     date: dateKey,
-    deadlineHour: DELIVERY_DEADLINE_HOUR,
+    deadlineHour: cutHour,
     deadlineAt: deadlineAt.toISOString(),
     total,
     delivered,
@@ -91,25 +96,28 @@ export async function getDeliverySummaryForUser(
   user: User,
   dateKey: string = getOperationalDateKey()
 ): Promise<DeliveryDailySummary> {
-  const deadlineAt = getTodayDeadline();
+  const deadlineHour = user.agencyId
+    ? await getAgencyDeliveryDeadlineHour(user.agencyId)
+    : DELIVERY_DEADLINE_HOUR;
+  const deadlineAt = getTodayDeadline(deadlineHour);
 
   if (user.role === UserRole.STORE_ADMIN) {
     if (!user.agencyId) {
-      return buildSummary([], deadlineAt, dateKey);
+      return buildSummary([], deadlineAt, dateKey, deadlineHour);
     }
     const rows = await queryOrderCounts(user.agencyId, dateKey, user.id);
-    return buildSummary(rows, deadlineAt, dateKey);
+    return buildSummary(rows, deadlineAt, dateKey, deadlineHour);
   }
 
   if (isAgencyAdmin(user.role)) {
     if (!user.agencyId) {
-      return buildSummary([], deadlineAt, dateKey);
+      return buildSummary([], deadlineAt, dateKey, deadlineHour);
     }
     const rows = await queryOrderCounts(user.agencyId, dateKey);
-    return buildSummary(rows, deadlineAt, dateKey);
+    return buildSummary(rows, deadlineAt, dateKey, deadlineHour);
   }
 
-  return buildSummary([], deadlineAt, dateKey);
+  return buildSummary([], deadlineAt, dateKey, deadlineHour);
 }
 
 async function alreadyNotifiedToday(
@@ -160,21 +168,35 @@ async function notifyUserIfNeeded(
   });
 }
 
-export async function sendDeadlineWarnings(dateKey: string): Promise<void> {
+async function loadAgencyDeadlineHour(agencyId: string): Promise<number> {
+  return getAgencyDeliveryDeadlineHour(agencyId);
+}
+
+export async function sendDeadlineWarnings(
+  dateKey: string,
+  agencyIds?: string[]
+): Promise<void> {
   const [agencies] = await pool.query<Array<{ id: string; name: string } & RowDataPacket>>(
-    'SELECT id, name FROM agencies'
+    agencyIds?.length
+      ? `SELECT id, name FROM agencies WHERE id IN (${agencyIds.map(() => '?').join(',')})`
+      : 'SELECT id, name FROM agencies',
+    agencyIds?.length ? agencyIds : []
   );
 
   for (const agency of agencies) {
+    const deadlineHour = await loadAgencyDeadlineHour(agency.id);
+    const deadlineAt = getTodayDeadline(deadlineHour);
+    const hourLabel = formatDeadlineHourLabel(deadlineHour);
     const summary = buildSummary(
       await queryOrderCounts(agency.id, dateKey),
-      getTodayDeadline(),
-      dateKey
+      deadlineAt,
+      dateKey,
+      deadlineHour
     );
     if (summary.undelivered === 0) continue;
 
     const adminIds = await getAgencyAdminIds(agency.id);
-    const adminBody = `${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar. El corte es a las ${DELIVERY_DEADLINE_HOUR}:00 hs.`;
+    const adminBody = `${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar. El corte es a las ${hourLabel} hs.`;
     for (const adminId of adminIds) {
       await notifyUserIfNeeded(
         adminId,
@@ -189,8 +211,9 @@ export async function sendDeadlineWarnings(dateKey: string): Promise<void> {
     for (const sellerId of sellerIds) {
       const sellerSummary = buildSummary(
         await queryOrderCounts(agency.id, dateKey, sellerId),
-        getTodayDeadline(),
-        dateKey
+        deadlineAt,
+        dateKey,
+        deadlineHour
       );
       if (sellerSummary.undelivered === 0) continue;
       await notifyUserIfNeeded(
@@ -198,27 +221,37 @@ export async function sendDeadlineWarnings(dateKey: string): Promise<void> {
         'deadline_warning',
         dateKey,
         'Recordatorio de corte',
-        `Tenés ${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} sin entregar. Corte a las ${DELIVERY_DEADLINE_HOUR}:00 hs.`
+        `Tenés ${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} sin entregar. Corte a las ${hourLabel} hs.`
       );
     }
   }
 }
 
-export async function sendDeadlineUrgentAlerts(dateKey: string): Promise<void> {
+export async function sendDeadlineUrgentAlerts(
+  dateKey: string,
+  agencyIds?: string[]
+): Promise<void> {
   const [agencies] = await pool.query<Array<{ id: string } & RowDataPacket>>(
-    'SELECT id FROM agencies'
+    agencyIds?.length
+      ? `SELECT id FROM agencies WHERE id IN (${agencyIds.map(() => '?').join(',')})`
+      : 'SELECT id FROM agencies',
+    agencyIds?.length ? agencyIds : []
   );
 
   for (const agency of agencies) {
+    const deadlineHour = await loadAgencyDeadlineHour(agency.id);
+    const deadlineAt = getTodayDeadline(deadlineHour);
+    const hourLabel = formatDeadlineHourLabel(deadlineHour);
     const summary = buildSummary(
       await queryOrderCounts(agency.id, dateKey),
-      getTodayDeadline(),
-      dateKey
+      deadlineAt,
+      dateKey,
+      deadlineHour
     );
     if (summary.undelivered === 0) continue;
 
     const adminIds = await getAgencyAdminIds(agency.id);
-    const adminBody = `Queda 1 hora para el corte (${DELIVERY_DEADLINE_HOUR}:00). ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar.`;
+    const adminBody = `Queda 1 hora para el corte (${hourLabel}). ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar.`;
     for (const adminId of adminIds) {
       await notifyUserIfNeeded(
         adminId,
@@ -233,8 +266,9 @@ export async function sendDeadlineUrgentAlerts(dateKey: string): Promise<void> {
     for (const sellerId of sellerIds) {
       const sellerSummary = buildSummary(
         await queryOrderCounts(agency.id, dateKey, sellerId),
-        getTodayDeadline(),
-        dateKey
+        deadlineAt,
+        dateKey,
+        deadlineHour
       );
       if (sellerSummary.undelivered === 0) continue;
       await notifyUserIfNeeded(
@@ -248,21 +282,31 @@ export async function sendDeadlineUrgentAlerts(dateKey: string): Promise<void> {
   }
 }
 
-export async function sendDeadlineMissedAlerts(dateKey: string): Promise<void> {
+export async function sendDeadlineMissedAlerts(
+  dateKey: string,
+  agencyIds?: string[]
+): Promise<void> {
   const [agencies] = await pool.query<Array<{ id: string } & RowDataPacket>>(
-    'SELECT id FROM agencies'
+    agencyIds?.length
+      ? `SELECT id FROM agencies WHERE id IN (${agencyIds.map(() => '?').join(',')})`
+      : 'SELECT id FROM agencies',
+    agencyIds?.length ? agencyIds : []
   );
 
   for (const agency of agencies) {
+    const deadlineHour = await loadAgencyDeadlineHour(agency.id);
+    const deadlineAt = getTodayDeadline(deadlineHour);
+    const hourLabel = formatDeadlineHourLabel(deadlineHour);
     const summary = buildSummary(
       await queryOrderCounts(agency.id, dateKey),
-      getTodayDeadline(),
-      dateKey
+      deadlineAt,
+      dateKey,
+      deadlineHour
     );
     if (summary.undelivered === 0) continue;
 
     const adminIds = await getAgencyAdminIds(agency.id);
-    const adminBody = `Corte de las ${DELIVERY_DEADLINE_HOUR}:00: ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} no entregado${summary.undelivered === 1 ? '' : 's'}.`;
+    const adminBody = `Corte de las ${hourLabel}: ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} no entregado${summary.undelivered === 1 ? '' : 's'}.`;
     for (const adminId of adminIds) {
       await notifyUserIfNeeded(
         adminId,
@@ -277,8 +321,9 @@ export async function sendDeadlineMissedAlerts(dateKey: string): Promise<void> {
     for (const sellerId of sellerIds) {
       const sellerSummary = buildSummary(
         await queryOrderCounts(agency.id, dateKey, sellerId),
-        getTodayDeadline(),
-        dateKey
+        deadlineAt,
+        dateKey,
+        deadlineHour
       );
       if (sellerSummary.undelivered === 0) continue;
       await notifyUserIfNeeded(
@@ -286,7 +331,7 @@ export async function sendDeadlineMissedAlerts(dateKey: string): Promise<void> {
         'deadline_missed',
         dateKey,
         'Pedidos fuera de plazo',
-        `${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} no se entregó${sellerSummary.undelivered === 1 ? '' : 'ron'} antes de las ${DELIVERY_DEADLINE_HOUR}:00.`
+        `${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} no se entregó${sellerSummary.undelivered === 1 ? '' : 'ron'} antes de las ${hourLabel}.`
       );
     }
   }

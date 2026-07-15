@@ -46,6 +46,7 @@ interface OperationsDashboardProps {
   deliveryZones?: DeliveryZone[];
   barrios?: Barrio[];
   userRole?: UserRole;
+  deadlineHour?: number;
   onSelectOrder?: (orderId: string) => void;
   onGoToOperations?: () => void;
 }
@@ -57,11 +58,13 @@ export default function OperationsDashboard({
   deliveryZones = [],
   barrios = [],
   userRole,
+  deadlineHour = DELIVERY_DEADLINE_HOUR,
   onSelectOrder,
   onGoToOperations,
 }: OperationsDashboardProps) {
   const todayKey = getOperationalDateKey();
   const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
+  const cutHour = deadlineHour;
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [sellerFilterId, setSellerFilterId] = useState('');
   const [cordonFilterId, setCordonFilterId] = useState('');
@@ -91,8 +94,8 @@ export default function OperationsDashboard({
   );
 
   const summary = useMemo(
-    () => computeDeliverySummaryFromOrders(scopedOrders, selectedDateKey),
-    [scopedOrders, selectedDateKey]
+    () => computeDeliverySummaryFromOrders(scopedOrders, selectedDateKey, cutHour),
+    [scopedOrders, selectedDateKey, cutHour]
   );
   const undelivered = useMemo(
     () => getUndeliveredTodayOrders(scopedOrders, selectedDateKey),
@@ -186,6 +189,7 @@ export default function OperationsDashboard({
           layout="navigator"
           value={selectedDateKey}
           maxDateKey={tomorrowKey}
+          deadlineHour={cutHour}
           isToday={isToday}
           canGoNextDay={canGoForward}
           onChange={setSelectedDateKey}
@@ -219,7 +223,7 @@ export default function OperationsDashboard({
         <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 flex-wrap">
           <Clock className="w-3.5 h-3.5 shrink-0" />
           <span>
-            Corte {DELIVERY_DEADLINE_HOUR}:00 hs ({DELIVERY_TIMEZONE_LABEL})
+            Corte {cutHour}:00 hs ({DELIVERY_TIMEZONE_LABEL})
             {isToday ? (
               <>
                 {' · '}
@@ -318,7 +322,7 @@ export default function OperationsDashboard({
             orders={deliveredLate}
             emptyMessage={
               isToday
-                ? 'Ningún pedido entregado después del corte de las 21:00.'
+                ? `Ningún pedido entregado después del corte de las ${cutHour}:00.`
                 : isTomorrow
                   ? 'Ningún pedido de mañana entregado fuera de plazo.'
                   : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
@@ -327,6 +331,7 @@ export default function OperationsDashboard({
             onSelectOrder={onSelectOrder}
             showSeller={isAgency}
             showDeliveredAt
+            deadlineHour={cutHour}
             className="md:col-span-2 xl:col-span-1"
           />
 
@@ -397,6 +402,7 @@ function OrderListSection({
   onSelectOrder,
   showSeller,
   showDeliveredAt = false,
+  deadlineHour = DELIVERY_DEADLINE_HOUR,
   className = '',
 }: {
   title: string;
@@ -407,6 +413,7 @@ function OrderListSection({
   onSelectOrder?: (orderId: string) => void;
   showSeller?: boolean;
   showDeliveredAt?: boolean;
+  deadlineHour?: number;
   className?: string;
 }) {
   const PAGE_SIZE = 6;
@@ -478,7 +485,7 @@ function OrderListSection({
                     const deliveredAt = getOrderDeliveredAt(order);
                     return deliveredAt ? (
                       <p className="text-[11px] sm:text-[10px] text-[var(--color-danger)] mt-1 sm:mt-0.5 font-mono">
-                        Entregado {formatArTime(deliveredAt)} hs · corte {DELIVERY_DEADLINE_HOUR}:00
+                        Entregado {formatArTime(deliveredAt)} hs · corte {deadlineHour}:00
                       </p>
                     ) : null;
                   })()}

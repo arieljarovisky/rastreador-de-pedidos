@@ -17,6 +17,7 @@ import {
   getOperationalDateKey,
   nextOperationalDeliveryDeadline,
 } from '../utils/delivery-deadline.js';
+import { getAgencyDeliveryDeadlineHour } from './agencies.service.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -244,7 +245,6 @@ export async function createOrder(
 ): Promise<Order> {
   const newId = await generateNextOrderId();
   const now = new Date();
-  const deliveryDeadline = data.deliveryDeadline ?? computeDeliveryDeadline(now);
 
   let sellerId: string | null = null;
   let agencyId: string | null = null;
@@ -276,6 +276,12 @@ export async function createOrder(
   } else {
     throw new Error('FORBIDDEN');
   }
+
+  const deadlineHour = agencyId
+    ? await getAgencyDeliveryDeadlineHour(agencyId)
+    : undefined;
+  const deliveryDeadline =
+    data.deliveryDeadline ?? computeDeliveryDeadline(now, deadlineHour);
 
   if (data.externalSource && data.externalOrderId) {
     if (sellerId) {
@@ -558,7 +564,10 @@ export async function rescheduleOrderToNextOperationalDay(
     return null;
   }
 
-  const fallback = nextOperationalDeliveryDeadline(new Date());
+  const deadlineHour = order.agencyId
+    ? await getAgencyDeliveryDeadlineHour(order.agencyId)
+    : undefined;
+  const fallback = nextOperationalDeliveryDeadline(new Date(), deadlineHour);
   const preferred =
     preferredDeadline && !Number.isNaN(preferredDeadline.getTime()) ? preferredDeadline : null;
 

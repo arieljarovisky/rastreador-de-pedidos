@@ -56,6 +56,7 @@ export default function App() {
   const [repartidores, setRepartidores] = useState<User[]>([]);
   const [sellers, setSellers] = useState<User[]>([]);
   const [departurePoint, setDeparturePoint] = useState<LocationPoint | null>(null);
+  const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(12);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [barrios, setBarrios] = useState<Barrio[]>([]);
@@ -209,6 +210,14 @@ export default function App() {
         if (depRes.ok) {
           const data = await depRes.json();
           setDeparturePoint(data);
+        }
+
+        const deadlineRes = await fetch(apiUrl('/api/accounts/agency/delivery-deadline'), { headers });
+        if (deadlineRes.ok) {
+          const data = await deadlineRes.json();
+          if (typeof data?.hour === 'number') {
+            setDeliveryDeadlineHour(data.hour);
+          }
         }
 
         const ppRes = await fetch(apiUrl('/api/accounts/pickup-points'), { headers });
@@ -843,6 +852,26 @@ export default function App() {
       localStorage.setItem('lupo_user', JSON.stringify(next));
       return next;
     });
+  };
+
+  const handleUpdateDeliveryDeadlineHour = async (hour: number) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/agency/delivery-deadline'), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ hour }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo guardar el horario de corte');
+    }
+    const data = await res.json();
+    if (typeof data?.hour === 'number') {
+      setDeliveryDeadlineHour(data.hour);
+    }
   };
 
   const handleCreatePickupPoint = async (data: {
@@ -1792,6 +1821,7 @@ export default function App() {
                     deliveryZones={deliveryZones}
                     barrios={barrios}
                     userRole={user.role}
+                    deadlineHour={deliveryDeadlineHour}
                     onSelectOrder={(orderId) => {
                       setActiveOrderId(orderId);
                       setMobileTab('dashboard');
@@ -1854,6 +1884,10 @@ export default function App() {
                   onUpdateDefaultShippingRates={isAgencyAdmin(user.role) ? handleUpdateDefaultShippingRates : undefined}
                   onDeleteDeliveryZone={isAgencyAdmin(user.role) ? handleDeleteDeliveryZone : undefined}
                   onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
+                  deliveryDeadlineHour={deliveryDeadlineHour}
+                  onUpdateDeliveryDeadlineHour={
+                    isAgencyAdmin(user.role) ? handleUpdateDeliveryDeadlineHour : undefined
+                  }
                   onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
                   onFetchSellerDetail={isAgencyAdmin(user.role) ? handleFetchSellerDetail : undefined}
                   onUpdateSeller={isAgencyAdmin(user.role) ? handleUpdateSeller : undefined}

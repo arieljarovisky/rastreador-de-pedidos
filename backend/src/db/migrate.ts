@@ -305,6 +305,12 @@ export async function runMigrations(): Promise<void> {
     await pool.query('ALTER TABLE agencies ADD COLUMN city VARCHAR(100) NULL AFTER cuit');
   }
 
+  if (!(await columnExists('agencies', 'delivery_deadline_hour'))) {
+    await pool.query(
+      'ALTER TABLE agencies ADD COLUMN delivery_deadline_hour TINYINT UNSIGNED NOT NULL DEFAULT 12 AFTER city'
+    );
+  }
+
   if (!(await tableExists('repartidor_location_history'))) {
     await pool.query(`
       CREATE TABLE repartidor_location_history (

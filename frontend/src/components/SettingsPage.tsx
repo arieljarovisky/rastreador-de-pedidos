@@ -26,6 +26,7 @@ import {
   Wallet,
   Save,
   Loader2,
+  Clock,
 } from 'lucide-react';
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import AgencyPaymentsPanel from './AgencyPaymentsPanel.tsx';
@@ -119,6 +120,8 @@ interface SettingsPageProps {
   }) => Promise<{ flex: number; express: number; standard: number }>;
   onDeleteDeliveryZone?: (zoneId: string) => Promise<void>;
   onUpdateDeparture?: (data: LocationPoint) => Promise<void>;
+  deliveryDeadlineHour?: number;
+  onUpdateDeliveryDeadlineHour?: (hour: number) => Promise<void>;
   onCreateSeller?: (data: {
     username: string;
     password: string;
@@ -198,6 +201,8 @@ export default function SettingsPage({
   onUpdateDefaultShippingRates,
   onDeleteDeliveryZone,
   onUpdateDeparture,
+  deliveryDeadlineHour = 12,
+  onUpdateDeliveryDeadlineHour,
   onCreateSeller,
   onFetchSellerDetail,
   onUpdateSeller,
@@ -241,6 +246,9 @@ export default function SettingsPage({
   const [departureLng, setDepartureLng] = useState(departurePoint?.lng ?? -58.4306);
   const [departureLoading, setDepartureLoading] = useState(false);
   const [departureMessage, setDepartureMessage] = useState<string | null>(null);
+  const [deadlineHourDraft, setDeadlineHourDraft] = useState(deliveryDeadlineHour);
+  const [deadlineLoading, setDeadlineLoading] = useState(false);
+  const [deadlineMessage, setDeadlineMessage] = useState<string | null>(null);
 
   const [showSellerForm, setShowSellerForm] = useState(false);
   const [sellerName, setSellerName] = useState('');
@@ -315,6 +323,10 @@ export default function SettingsPage({
       setDepartureLng(departurePoint.lng);
     }
   }, [departurePoint]);
+
+  useEffect(() => {
+    setDeadlineHourDraft(deliveryDeadlineHour);
+  }, [deliveryDeadlineHour]);
 
   const applyDeparturePreset = (preset: (typeof DIRECTORY_PRESETS)[0]) => {
     setDepartureAddress(preset.name);
@@ -462,6 +474,82 @@ export default function SettingsPage({
           </button>
         )}
       </header>
+
+      {(agency || userRole === UserRole.STORE_ADMIN) && (
+        <section className={`${sectionClass} !p-2.5 mt-3`}>
+          <div className="flex items-start gap-2.5">
+            <div className="w-7 h-7 rounded-[5px] bg-[var(--color-warn)]/10 flex items-center justify-center shrink-0">
+              <Clock className="w-3.5 h-3.5 text-[var(--color-warn)]" />
+            </div>
+            <div className="flex-1 min-w-0 space-y-2">
+              <div>
+                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">
+                  Corte de ventas del día
+                </p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                  Los pedidos cargados a partir de esta hora quedan para el día siguiente.
+                  Horario Argentina (ART).
+                  {!onUpdateDeliveryDeadlineHour && (
+                    <> Corte actual: <span className="font-mono font-bold text-[var(--ink-soft)]">{String(deliveryDeadlineHour).padStart(2, '0')}:00</span>.</>
+                  )}
+                </p>
+              </div>
+              {onUpdateDeliveryDeadlineHour && (
+                <>
+                  <form
+                    className="flex flex-wrap items-end gap-2"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setDeadlineLoading(true);
+                      setDeadlineMessage(null);
+                      try {
+                        await onUpdateDeliveryDeadlineHour(deadlineHourDraft);
+                        setDeadlineMessage('Horario de corte actualizado.');
+                      } catch (err: unknown) {
+                        const message = err instanceof Error ? err.message : 'Error al guardar.';
+                        setDeadlineMessage(message);
+                      } finally {
+                        setDeadlineLoading(false);
+                      }
+                    }}
+                  >
+                    <label className="flex flex-col gap-1 min-w-[7rem]">
+                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                        Hora de corte
+                      </span>
+                      <select
+                        value={deadlineHourDraft}
+                        onChange={(e) => setDeadlineHourDraft(Number(e.target.value))}
+                        className={inputClass}
+                      >
+                        {Array.from({ length: 24 }, (_, hour) => (
+                          <option key={hour} value={hour}>
+                            {String(hour).padStart(2, '0')}:00
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="submit" disabled={deadlineLoading} className={btnGhost}>
+                      {deadlineLoading ? 'Guardando...' : 'Guardar corte'}
+                    </button>
+                  </form>
+                  {deadlineMessage && (
+                    <p
+                      className={`text-[10px] ${
+                        deadlineMessage.includes('actualizado')
+                          ? 'text-[var(--color-ok)]'
+                          : 'text-[var(--color-danger)]'
+                      }`}
+                    >
+                      {deadlineMessage}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {agency && onUpdateDeparture && (
         <section className={`${sectionClass} !p-2.5 mt-3`}>

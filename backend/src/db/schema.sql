@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS agencies (
   contact_phone VARCHAR(32) NULL,
   cuit VARCHAR(13) NULL,
   city VARCHAR(100) NULL,
+  delivery_deadline_hour TINYINT UNSIGNED NOT NULL DEFAULT 12,
   ml_flex_mode ENUM('agency', 'repartidor') NOT NULL DEFAULT 'agency',
   shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00,
   shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00,

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
@@ -25,6 +25,7 @@ interface OperationalDatePickerProps {
   onChange: (dateKey: string) => void;
   maxDateKey?: string;
   minDateKey?: string;
+  deadlineHour?: number;
   layout?: 'icon' | 'navigator' | 'field';
   label?: string;
   className?: string;
@@ -40,6 +41,7 @@ function CalendarPopover({
   maxDateKey,
   minDateKey,
   todayKey,
+  deadlineHour,
   onPick,
   style,
 }: {
@@ -47,8 +49,9 @@ function CalendarPopover({
   maxDateKey: string;
   minDateKey?: string;
   todayKey: string;
+  deadlineHour?: number;
   onPick: (dateKey: string) => void;
-  style: React.CSSProperties;
+  style: CSSProperties;
 }) {
   const [viewMonthKey, setViewMonthKey] = useState(() => getOperationalMonthKey(value));
   const maxMonthKey = getOperationalMonthKey(maxDateKey);
@@ -136,7 +139,11 @@ function CalendarPopover({
       </div>
 
       <div className="mt-3 pt-2 border-t border-[var(--surface-border)] flex items-center justify-between gap-2">
-        <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Corte operativo 21:00 ART</p>
+        <p className="text-[9px] font-mono text-[var(--color-text-muted)]">
+          {deadlineHour != null
+            ? `Corte operativo ${deadlineHour}:00 ART`
+            : 'Corte operativo ART'}
+        </p>
         {value !== todayKey && (
           <button
             type="button"
@@ -151,8 +158,8 @@ function CalendarPopover({
   );
 }
 
-function useCalendarPopoverPosition(anchorRef: React.RefObject<HTMLElement | null>, open: boolean) {
-  const [style, setStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+function useCalendarPopoverPosition(anchorRef: RefObject<HTMLElement | null>, open: boolean) {
+  const [style, setStyle] = useState<CSSProperties>({ visibility: 'hidden' });
 
   useEffect(() => {
     if (!open || !anchorRef.current) return;
@@ -199,6 +206,7 @@ export default function OperationalDatePicker({
   onChange,
   maxDateKey = getOperationalDateKey(),
   minDateKey,
+  deadlineHour,
   layout = 'icon',
   label = 'Fecha',
   className = '',
@@ -254,6 +262,7 @@ export default function OperationalDatePicker({
           maxDateKey={maxDateKey}
           minDateKey={minDateKey}
           todayKey={todayKey}
+          deadlineHour={deadlineHour}
           onPick={pickDate}
           style={popoverStyle}
         />
