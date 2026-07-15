@@ -6,12 +6,78 @@
 import { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AppNotification, Order } from '../types.js';
-import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight, MapPin } from 'lucide-react';
+import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight, MapPin, Bike, Clock, AlertTriangle, Siren, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useModal } from '../context/ModalContext.tsx';
 import { getUndeliveredTodayOrders } from '../utils/deliverySummary.js';
 
 const UNDELIVERED_PREVIEW = 3;
+
+/** Quita emojis/símbolos al inicio del título (quedan en push históricos). */
+function stripLeadingEmoji(text: string): string {
+  return text
+    .replace(
+      /^(?:[\uFE0F\u200D\uFE0E]|\p{Extended_Pictographic}|\p{Emoji_Component}|\p{So})+\s*/gu,
+      ''
+    )
+    .trim();
+}
+
+function NotificationTypeLabel({
+  type,
+  read,
+}: {
+  type: AppNotification['type'];
+  read: boolean;
+}) {
+  const muted = read ? 'text-[var(--color-text-faint)]' : null;
+  const base = 'inline-flex items-center gap-1 font-semibold';
+
+  switch (type) {
+    case 'order_assigned':
+      return (
+        <span className={`${base} ${muted ?? 'text-[var(--color-accent)]'}`}>
+          <Bike className="w-3 h-3 shrink-0" aria-hidden />
+          Asignación
+        </span>
+      );
+    case 'order_delivered':
+      return (
+        <span className={`${base} ${muted ?? 'text-[var(--color-ok)]'}`}>
+          <Check className="w-3 h-3 shrink-0" aria-hidden />
+          Entregado
+        </span>
+      );
+    case 'deadline_warning':
+      return (
+        <span className={`${base} ${muted ?? 'text-[var(--color-warn)]'}`}>
+          <Clock className="w-3 h-3 shrink-0" aria-hidden />
+          Corte
+        </span>
+      );
+    case 'deadline_urgent':
+      return (
+        <span className={`${base} ${muted ?? 'text-[var(--color-warn)]'}`}>
+          <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden />
+          Urgente
+        </span>
+      );
+    case 'deadline_missed':
+      return (
+        <span className={`${base} ${muted ?? 'text-[var(--color-danger)]'}`}>
+          <Siren className="w-3 h-3 shrink-0" aria-hidden />
+          Fuera de plazo
+        </span>
+      );
+    default:
+      return (
+        <span className={`${base} ${muted ?? 'text-[var(--color-accent)]'}`}>
+          <Megaphone className="w-3 h-3 shrink-0" aria-hidden />
+          Info
+        </span>
+      );
+  }
+}
 
 interface NotificationHubProps {
   notifications: AppNotification[];
@@ -185,7 +251,9 @@ export default function NotificationHub({
                     </span>
                     <span className="text-[9px] text-[var(--color-text-muted)] ml-auto font-mono">Ahora</span>
                   </div>
-                  <h4 className="font-bold text-sm text-[var(--ink-soft)] mt-0.5">{activeBanner.title}</h4>
+                  <h4 className="font-bold text-sm text-[var(--ink-soft)] mt-0.5">
+                    {stripLeadingEmoji(activeBanner.title)}
+                  </h4>
                   <p className="text-xs text-[var(--color-text-muted)] mt-1 leading-relaxed line-clamp-3">
                     {activeBanner.body}
                   </p>
@@ -318,25 +386,13 @@ export default function NotificationHub({
                       : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)]/80 text-[var(--ink-soft)]'
                   }`}
                 >
-                  <div className="flex items-center gap-1.5 font-semibold text-[10px]">
-                    <span className={notif.read ? 'text-[var(--color-text-faint)]' : 'text-[var(--color-accent)]'}>
-                      {notif.type === 'order_assigned'
-                        ? '🏍️ Asignación'
-                        : notif.type === 'order_delivered'
-                          ? '✓ Entregado'
-                          : notif.type === 'deadline_warning'
-                            ? '⏰ Corte'
-                            : notif.type === 'deadline_urgent'
-                              ? '⚠️ Urgente'
-                              : notif.type === 'deadline_missed'
-                              ? '🚨 Fuera de plazo'
-                              : '📢 Info'}
-                    </span>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <NotificationTypeLabel type={notif.type} read={notif.read} />
                     <span className="text-[9px] text-[var(--color-text-muted)] ml-auto font-mono">
                       {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <h5 className="font-bold mt-0.5">{notif.title}</h5>
+                  <h5 className="font-bold mt-0.5">{stripLeadingEmoji(notif.title)}</h5>
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">{notif.body}</p>
                   {isDeadlineNotification(notif.type) && onOpenOrder && (
                     <div className="mt-1.5 space-y-1">

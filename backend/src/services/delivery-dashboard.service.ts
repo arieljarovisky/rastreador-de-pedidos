@@ -180,7 +180,7 @@ export async function sendDeadlineWarnings(dateKey: string): Promise<void> {
         adminId,
         'deadline_warning',
         dateKey,
-        '⏰ Recordatorio de corte',
+        'Recordatorio de corte',
         adminBody
       );
     }
@@ -197,7 +197,7 @@ export async function sendDeadlineWarnings(dateKey: string): Promise<void> {
         sellerId,
         'deadline_warning',
         dateKey,
-        '⏰ Recordatorio de corte',
+        'Recordatorio de corte',
         `Tenés ${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} sin entregar. Corte a las ${DELIVERY_DEADLINE_HOUR}:00 hs.`
       );
     }
@@ -224,7 +224,7 @@ export async function sendDeadlineUrgentAlerts(dateKey: string): Promise<void> {
         adminId,
         'deadline_urgent',
         dateKey,
-        '⚠️ Última hora',
+        'Última hora',
         adminBody
       );
     }
@@ -241,7 +241,7 @@ export async function sendDeadlineUrgentAlerts(dateKey: string): Promise<void> {
         sellerId,
         'deadline_urgent',
         dateKey,
-        '⚠️ Última hora',
+        'Última hora',
         `Queda 1 hora para el corte. Tenés ${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} sin entregar.`
       );
     }
@@ -268,7 +268,7 @@ export async function sendDeadlineMissedAlerts(dateKey: string): Promise<void> {
         adminId,
         'deadline_missed',
         dateKey,
-        '🚨 Corte de entrega',
+        'Corte de entrega',
         adminBody
       );
     }
@@ -285,7 +285,7 @@ export async function sendDeadlineMissedAlerts(dateKey: string): Promise<void> {
         sellerId,
         'deadline_missed',
         dateKey,
-        '🚨 Pedidos fuera de plazo',
+        'Pedidos fuera de plazo',
         `${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} no se entregó${sellerSummary.undelivered === 1 ? '' : 'ron'} antes de las ${DELIVERY_DEADLINE_HOUR}:00.`
       );
     }
