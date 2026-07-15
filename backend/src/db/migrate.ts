@@ -598,4 +598,19 @@ export async function runMigrations(): Promise<void> {
        AND delivery_deadline > ?`,
     [tomorrow, tomorrow]
   );
+
+  // Pedidos abiertos creados de noche con corte viejo (21:00) → día operativo correcto
+  try {
+    const { recalculateOpenOrdersDeliveryDeadlines } = await import(
+      '../services/orders.service.js'
+    );
+    const updated = await recalculateOpenOrdersDeliveryDeadlines();
+    if (updated > 0) {
+      console.log(
+        `[migrate] Recalculados ${updated} pedido(s) abierto(s) según corte por agencia`
+      );
+    }
+  } catch (err) {
+    console.warn('[migrate] No se pudieron recalcular deadlines abiertos:', err);
+  }
 }

@@ -872,6 +872,7 @@ export default function App() {
     if (typeof data?.hour === 'number') {
       setDeliveryDeadlineHour(data.hour);
     }
+    await fetchData();
   };
 
   const handleCreatePickupPoint = async (data: {

@@ -30,6 +30,7 @@ import {
   getAgencyDeliveryDeadlineHour,
   updateAgencyDeliveryDeadlineHour,
 } from '../services/agencies.service.js';
+import { recalculateOpenOrdersDeliveryDeadlines } from '../services/orders.service.js';
 import { DELIVERY_DEADLINE_HOUR } from '../utils/delivery-deadline.js';
 
 const router = Router();
@@ -345,7 +346,8 @@ router.put('/agency/delivery-deadline', authenticate, requireAgencyAdmin(), asyn
   const hour = Number(req.body?.hour);
   try {
     const saved = await updateAgencyDeliveryDeadlineHour(agencyId, hour);
-    res.json({ hour: saved });
+    const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
+    res.json({ hour: saved, recalculated });
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'INVALID_HOUR') {
