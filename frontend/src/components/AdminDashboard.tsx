@@ -1165,17 +1165,25 @@ export default function AdminDashboard({
                   maxDateKey={tomorrowKey}
                   onChange={setDateFilterKey}
                 />
-                <div className="relative min-w-0 flex flex-col justify-end">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
-                    <Search className="w-3.5 h-3.5" />
+                <div className="min-w-0 flex flex-col gap-1.5">
+                  <span
+                    className="h-[1.125rem] shrink-0 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
+                    aria-hidden
+                  >
+                    &nbsp;
                   </span>
-                  <input
-                    type="text"
-                    placeholder="Buscar..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full posta-input px-2 py-2 pl-7 text-xs font-sans"
-                  />
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-[var(--color-text-muted)]">
+                      <Search className="w-3.5 h-3.5" />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Buscar..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full posta-input h-[2.375rem] px-2 py-2 pl-7 text-xs font-sans"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0">
