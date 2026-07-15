@@ -25,7 +25,7 @@ import SellerPickupPanel from './SellerPickupPanel.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
-import { getOperationalDateKey } from '../utils/deliverySummary.js';
+import { getOperationalDateKey, shiftOperationalDateKey } from '../utils/deliverySummary.js';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -181,6 +181,7 @@ export default function AdminDashboard({
   const [cordonFilterId, setCordonFilterId] = useState<string>('');
   const [repartidorFilterId, setRepartidorFilterId] = useState<string>('');
   const todayKey = getOperationalDateKey();
+  const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
   const [dateFilterKey, setDateFilterKey] = useState<string>(todayKey);
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
@@ -1040,7 +1041,7 @@ export default function AdminDashboard({
                 layout="field"
                 label="Fecha"
                 value={dateFilterKey || todayKey}
-                maxDateKey={todayKey}
+                maxDateKey={tomorrowKey}
                 onChange={setDateFilterKey}
               />
               <CordonFilterControl
@@ -1057,6 +1058,15 @@ export default function AdminDashboard({
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
                   Hoy
+                </button>
+              ) : null}
+              {dateFilterKey !== tomorrowKey ? (
+                <button
+                  type="button"
+                  onClick={() => setDateFilterKey(tomorrowKey)}
+                  className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                >
+                  Mañana
                 </button>
               ) : null}
               {dateFilterKey ? (
@@ -1152,7 +1162,7 @@ export default function AdminDashboard({
                   layout="field"
                   label="Fecha"
                   value={dateFilterKey || todayKey}
-                  maxDateKey={todayKey}
+                  maxDateKey={tomorrowKey}
                   onChange={setDateFilterKey}
                 />
                 <div className="relative min-w-0 flex flex-col justify-end">
@@ -1504,7 +1514,7 @@ export default function AdminDashboard({
                         layout="field"
                         label="Fecha"
                         value={dateFilterKey || todayKey}
-                        maxDateKey={todayKey}
+                        maxDateKey={tomorrowKey}
                         onChange={setDateFilterKey}
                       />
                       <div className="flex items-center gap-2 px-0.5">
@@ -1515,6 +1525,15 @@ export default function AdminDashboard({
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
                             Hoy
+                          </button>
+                        )}
+                        {dateFilterKey !== tomorrowKey && (
+                          <button
+                            type="button"
+                            onClick={() => setDateFilterKey(tomorrowKey)}
+                            className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                          >
+                            Mañana
                           </button>
                         )}
                         {dateFilterKey ? (

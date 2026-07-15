@@ -39,12 +39,14 @@ function CalendarPopover({
   value,
   maxDateKey,
   minDateKey,
+  todayKey,
   onPick,
   style,
 }: {
   value: string;
   maxDateKey: string;
   minDateKey?: string;
+  todayKey: string;
   onPick: (dateKey: string) => void;
   style: React.CSSProperties;
 }) {
@@ -105,10 +107,10 @@ function CalendarPopover({
           }
 
           const isSelected = dateKey === value;
-          const isToday = dateKey === maxDateKey;
-          const isFuture = dateKey > maxDateKey;
+          const isToday = dateKey === todayKey;
+          const isBeyondMax = dateKey > maxDateKey;
           const isBeforeMin = minDateKey ? dateKey < minDateKey : false;
-          const isDisabled = isFuture || isBeforeMin;
+          const isDisabled = isBeyondMax || isBeforeMin;
           const day = parseOperationalDateKey(dateKey).day;
 
           return (
@@ -135,10 +137,10 @@ function CalendarPopover({
 
       <div className="mt-3 pt-2 border-t border-[var(--surface-border)] flex items-center justify-between gap-2">
         <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Corte operativo 21:00 ART</p>
-        {value !== maxDateKey && (
+        {value !== todayKey && (
           <button
             type="button"
-            onClick={() => onPick(maxDateKey)}
+            onClick={() => onPick(todayKey)}
             className="shrink-0 px-2 py-1 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 transition"
           >
             Ir a hoy
@@ -204,12 +206,14 @@ export default function OperationalDatePicker({
   onNextDay,
   canGoNextDay = false,
   onGoToday,
-  isToday = value === maxDateKey,
+  isToday = value === getOperationalDateKey(),
 }: OperationalDatePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const popoverStyle = useCalendarPopoverPosition(anchorRef, open);
+  const todayKey = getOperationalDateKey();
+  const isFuture = value > todayKey;
 
   useEffect(() => {
     if (!open) return;
@@ -249,6 +253,7 @@ export default function OperationalDatePicker({
           value={value}
           maxDateKey={maxDateKey}
           minDateKey={minDateKey}
+          todayKey={todayKey}
           onPick={pickDate}
           style={popoverStyle}
         />
@@ -296,7 +301,7 @@ export default function OperationalDatePicker({
       <div ref={rootRef} className="relative w-full">
         <div
           className={`flex items-stretch w-full rounded-[var(--radius-posta)] border overflow-hidden ${
-            isToday
+            isToday || isFuture
               ? 'border-[var(--color-accent)]/35 bg-[var(--color-accent)]/5'
               : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)]/80'
           }`}
@@ -334,6 +339,10 @@ export default function OperationalDatePicker({
                 {isToday ? (
                   <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 text-[var(--color-accent)] text-[8px] font-mono font-bold uppercase tracking-wider">
                     En curso
+                  </span>
+                ) : isFuture ? (
+                  <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 text-[var(--color-accent)] text-[8px] font-mono font-bold uppercase tracking-wider">
+                    Programado
                   </span>
                 ) : (
                   <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--surface-panel)] border border-[var(--surface-border)] text-[var(--color-text-muted)] text-[8px] font-mono font-bold uppercase tracking-wider">

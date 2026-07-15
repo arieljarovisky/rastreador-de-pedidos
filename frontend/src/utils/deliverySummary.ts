@@ -78,6 +78,7 @@ export function formatOperationalDateLabel(dateKey: string, now: Date = new Date
   const todayKey = getOperationalDateKey(now);
   if (dateKey === todayKey) return 'Hoy';
   if (dateKey === shiftOperationalDateKey(todayKey, -1)) return 'Ayer';
+  if (dateKey === shiftOperationalDateKey(todayKey, 1)) return 'Mañana';
   const { year, month, day } = parseOperationalDateKey(dateKey);
   const label = new Intl.DateTimeFormat('es-AR', {
     timeZone: DELIVERY_TIMEZONE,

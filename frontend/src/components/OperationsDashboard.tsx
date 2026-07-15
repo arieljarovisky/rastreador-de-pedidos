@@ -61,12 +61,14 @@ export default function OperationsDashboard({
   onGoToOperations,
 }: OperationsDashboardProps) {
   const todayKey = getOperationalDateKey();
+  const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [sellerFilterId, setSellerFilterId] = useState('');
   const [cordonFilterId, setCordonFilterId] = useState('');
   const [repartidorFilterId, setRepartidorFilterId] = useState('');
   const isToday = selectedDateKey === todayKey;
-  const canGoForward = selectedDateKey < todayKey;
+  const isTomorrow = selectedDateKey === tomorrowKey;
+  const canGoForward = selectedDateKey < tomorrowKey;
 
   const cordonZones = useMemo(
     () => buildCordonMapZones(deliveryZones, barrios),
@@ -147,7 +149,11 @@ export default function OperationsDashboard({
         : 'ok';
 
   const isAgency = isAgencyAdmin(userRole);
-  const dayScopeLabel = isToday ? 'hoy' : formatOperationalDateShort(selectedDateKey);
+  const dayScopeLabel = isToday
+    ? 'hoy'
+    : isTomorrow
+      ? 'mañana'
+      : formatOperationalDateShort(selectedDateKey);
 
   return (
     <div
@@ -179,7 +185,7 @@ export default function OperationsDashboard({
         <OperationalDatePicker
           layout="navigator"
           value={selectedDateKey}
-          maxDateKey={todayKey}
+          maxDateKey={tomorrowKey}
           isToday={isToday}
           canGoNextDay={canGoForward}
           onChange={setSelectedDateKey}
@@ -223,6 +229,8 @@ export default function OperationsDashboard({
                 {' · ahora '}
                 {formatArTime()} hs
               </>
+            ) : isTomorrow ? (
+              <> · pedidos programados</>
             ) : (
               <> · día cerrado</>
             )}
@@ -275,26 +283,30 @@ export default function OperationsDashboard({
           }`}
         >
           <OrderListSection
-            title={isToday ? 'Sin entregar hoy' : 'Sin entregar'}
+            title={isToday ? 'Sin entregar hoy' : isTomorrow ? 'Sin entregar mañana' : 'Sin entregar'}
             count={undelivered.length}
             orders={undelivered}
             emptyMessage={
               isToday
                 ? 'Todos los pedidos del día fueron entregados.'
-                : `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
+                : isTomorrow
+                  ? 'No hay pedidos programados para mañana.'
+                  : `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
             }
             tone="warn"
             onSelectOrder={onSelectOrder}
             showSeller={isAgency}
           />
           <OrderListSection
-            title={isToday ? 'Entregados hoy' : 'Entregados'}
+            title={isToday ? 'Entregados hoy' : isTomorrow ? 'Entregados mañana' : 'Entregados'}
             count={delivered.length}
             orders={delivered}
             emptyMessage={
               isToday
                 ? 'Todavía no hay entregas registradas hoy.'
-                : `No hubo entregas registradas el ${dayScopeLabel}.`
+                : isTomorrow
+                  ? 'Todavía no hay entregas registradas para mañana.'
+                  : `No hubo entregas registradas el ${dayScopeLabel}.`
             }
             tone="ok"
             onSelectOrder={onSelectOrder}
@@ -307,7 +319,9 @@ export default function OperationsDashboard({
             emptyMessage={
               isToday
                 ? 'Ningún pedido entregado después del corte de las 21:00.'
-                : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
+                : isTomorrow
+                  ? 'Ningún pedido de mañana entregado fuera de plazo.'
+                  : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
             }
             tone="danger"
             onSelectOrder={onSelectOrder}
