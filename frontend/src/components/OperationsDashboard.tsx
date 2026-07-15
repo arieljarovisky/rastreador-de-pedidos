@@ -157,7 +157,7 @@ export default function OperationsDashboard({
 
   return (
     <div
-      className="h-full flex flex-col min-h-0 overflow-y-auto overscroll-y-contain posta-surface [-webkit-overflow-scrolling:touch]"
+      className="min-h-full flex flex-col posta-surface"
       id="operations-dashboard"
     >
       <div className="p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3 sm:space-y-3 lg:shrink-0">
