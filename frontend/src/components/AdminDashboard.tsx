@@ -1407,7 +1407,7 @@ export default function AdminDashboard({
         
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[140px] sm:min-h-[180px] md:min-h-[220px] lg:min-h-[250px] xl:min-h-[320px] 2xl:min-h-[380px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
-          <div ref={mapFilterRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 z-[1100] flex flex-col gap-2 w-36 sm:w-44 md:w-48">
+          <div ref={mapFilterRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 z-[1100] flex flex-col gap-2 w-[min(11rem,calc(100%-1rem))] sm:w-44 md:w-48">
             <button
               type="button"
               onClick={() => setShowMapZones((visible) => !visible)}
@@ -1419,7 +1419,7 @@ export default function AdminDashboard({
               }`}
             >
               <Layers className="w-4 h-4 shrink-0" />
-              {showMapZones ? 'Ocultar áreas' : 'Ver áreas'}
+              <span className="truncate">{showMapZones ? 'Ocultar áreas' : 'Ver áreas'}</span>
             </button>
 
             <button
@@ -1433,7 +1433,7 @@ export default function AdminDashboard({
               }`}
             >
               <CheckCircle2 className="w-4 h-4 shrink-0" />
-              {showDeliveredOnMap ? 'Ocultar listos' : 'Ver listos'}
+              <span className="truncate">{showDeliveredOnMap ? 'Ocultar listos' : 'Ver listos'}</span>
             </button>
 
             <div className="relative">

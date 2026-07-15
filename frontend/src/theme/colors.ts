@@ -8,7 +8,7 @@ export const POSTA_MAP_DARK = {
   destination: '#E8431F',
   departure: '#5C87EB',
   departureRing: 'rgba(92, 135, 235, 0.25)',
-  pickup: '#3FAE63',
+  pickup: '#5C6BC0',
 } as const;
 
 export const POSTA_MAP_PAPER = {
@@ -16,7 +16,7 @@ export const POSTA_MAP_PAPER = {
   destination: '#D8401E',
   departure: '#2B3A55',
   departureRing: 'rgba(43, 58, 85, 0.2)',
-  pickup: '#2E6B45',
+  pickup: '#3D4F8C',
 } as const;
 
 export const POSTA_STATUS_DARK = {

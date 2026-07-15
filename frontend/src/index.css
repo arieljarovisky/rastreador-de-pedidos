@@ -385,6 +385,7 @@
   display: flex !important;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 }
 
 .leaflet-popup-close-button:hover {
@@ -393,9 +394,16 @@
   border-radius: 6px;
 }
 
+.posta-order-popup .leaflet-popup-content-wrapper {
+  min-width: 240px;
+}
+
 .posta-order-popup .leaflet-popup-content {
   margin: 12px 14px 12px 12px !important;
-  padding-right: 18px;
+  padding-right: 22px;
+  width: 240px !important;
+  min-width: 240px !important;
+  max-width: 280px !important;
 }
 
 .posta-map-popup {
@@ -410,11 +418,13 @@
 
 .posta-map-popup__head {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px 8px;
+  justify-content: space-between;
+  gap: 8px;
   padding-bottom: 8px;
   margin-bottom: 8px;
+  margin-right: 12px;
   border-bottom: 1px solid var(--line);
   color: var(--text-muted);
   font-weight: 700;
@@ -437,7 +447,7 @@
 
 .posta-map-popup__badge {
   flex: 0 0 auto;
-  max-width: 100%;
+  max-width: 46%;
   padding: 3px 7px;
   border-radius: 4px;
   font-size: 9px;
@@ -448,6 +458,8 @@
   letter-spacing: 0.04em;
   font-family: var(--font-mono, ui-monospace, monospace);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .posta-map-popup__name {
@@ -456,6 +468,14 @@
   font-size: 13px;
   color: var(--text);
   word-break: break-word;
+}
+
+.posta-map-popup__meta {
+  margin: 4px 0 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
 }
 
 .posta-map-popup__addr {
@@ -471,7 +491,8 @@
 .posta-map-popup__addr > span {
   min-width: 0;
   flex: 1;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .posta-map-popup__rep {
@@ -489,7 +510,7 @@
   width: 100%;
   box-sizing: border-box;
   margin-top: 10px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: none;
   border-radius: 5px;
   color: #fff;
@@ -502,6 +523,11 @@
   text-align: center;
 }
 
+.pickup-leaflet-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
 @media (max-width: 767px) {
   .posta-order-popup {
     margin-left: 0 !important;
@@ -510,6 +536,8 @@
   .posta-order-popup .leaflet-popup-content {
     margin: 12px !important;
     padding-right: 22px;
+    width: min(240px, calc(100vw - 96px)) !important;
+    min-width: min(200px, calc(100vw - 96px)) !important;
   }
 
   .posta-map-popup__name {

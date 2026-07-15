@@ -20,19 +20,20 @@ import * as L from 'leaflet';
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];
 
 /** Popup adaptado a móvil: más ancho útil y auto-pan lejos de los filtros. */
-function getMapPopupOptions(): L.PopupOptions {
+function getMapPopupOptions(kind: 'order' | 'pickup' = 'order'): L.PopupOptions {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const viewport = typeof window !== 'undefined' ? window.innerWidth : 360;
   // Reserva espacio a la derecha para Ver áreas / Filtros
-  const maxWidth = isMobile ? Math.min(280, Math.max(200, viewport - 88)) : 280;
+  const maxWidth = isMobile ? Math.min(300, Math.max(220, viewport - 72)) : 300;
+  const minWidth = isMobile ? Math.min(220, maxWidth - 8) : 240;
   return {
-    autoPan: isMobile,
-    autoPanPaddingTopLeft: isMobile ? [12, 56] : [40, 40],
-    autoPanPaddingBottomRight: isMobile ? [76, 48] : [40, 40],
-    keepInView: false,
+    autoPan: true,
+    autoPanPaddingTopLeft: isMobile ? [12, 56] : [48, 48],
+    autoPanPaddingBottomRight: isMobile ? [76, 48] : [180, 48],
+    keepInView: true,
     maxWidth,
-    minWidth: isMobile ? Math.min(200, maxWidth - 8) : 200,
-    className: 'posta-order-popup',
+    minWidth,
+    className: kind === 'pickup' ? 'posta-order-popup posta-pickup-popup' : 'posta-order-popup',
   };
 }
 
@@ -41,6 +42,7 @@ const MAP_SVG = {
   bike: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`,
   package: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/></svg>`,
   store: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg>`,
+  storeMarker: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg>`,
   warn: `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:2px"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`,
 } as const;
 
@@ -180,21 +182,65 @@ function bindOrderMarkerSelect(
   marker.off('click');
   marker.off('popupopen');
 
-  marker.on('click', () => {
-    onSelect?.(orderId);
-    marker.openPopup();
-  });
-
+  // Click solo abre el preview; "Ver detalles" selecciona el pedido (panel inferior)
   marker.on('popupopen', () => {
-    setTimeout(() => {
+    window.setTimeout(() => {
       const btn = document.getElementById(`btn-map-select-${orderId}`);
       if (btn && onSelect) {
-        btn.onclick = () => {
+        btn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           onSelect(orderId);
+          marker.closePopup();
         };
       }
     }, 50);
   });
+}
+
+function buildOrderPopupHtml(
+  order: Order,
+  badgeColor: string,
+  ctaColor: string
+): string {
+  return `
+    <div class="posta-map-popup" style="color:var(--text)">
+      <div class="posta-map-popup__head">
+        <span class="posta-map-popup__id">${MAP_SVG.package}<span>${order.id}</span></span>
+        <span class="posta-map-popup__badge" style="background-color:${badgeColor}">
+          ${MAP_STATUS_LABELS[order.status]}
+        </span>
+      </div>
+      <p class="posta-map-popup__name">${order.clientName}</p>
+      <p class="posta-map-popup__addr">${MAP_SVG.pin}<span>${order.address}</span></p>
+      ${
+        order.repartidorName
+          ? `<p class="posta-map-popup__rep" style="color:var(--accent)">${MAP_SVG.bike}<span>REPARTIDOR: ${order.repartidorName.toUpperCase()}</span></p>`
+          : ''
+      }
+      <button type="button" id="btn-map-select-${order.id}" class="posta-map-popup__cta" style="background:${ctaColor}">
+        Ver detalles
+      </button>
+    </div>
+  `;
+}
+
+function buildPickupPopupHtml(point: PickupPoint): string {
+  const name = point.sellerName || point.label || 'Sucursal';
+  const subtitle = point.sellerName && point.label && point.label !== point.sellerName
+    ? point.label
+    : 'Punto de colecta';
+  return `
+    <div class="posta-map-popup" style="color:var(--text)">
+      <div class="posta-map-popup__head">
+        <span class="posta-map-popup__id">${MAP_SVG.store}<span>Sucursal</span></span>
+        <span class="posta-map-popup__badge" style="background-color:var(--accent,#5C87EB)">Colecta</span>
+      </div>
+      <p class="posta-map-popup__name">${name}</p>
+      ${subtitle !== name ? `<p class="posta-map-popup__meta">${subtitle}</p>` : ''}
+      <p class="posta-map-popup__addr">${MAP_SVG.pin}<span>${point.address}</span></p>
+    </div>
+  `;
 }
 
 const createSvgIcon = (color: string, iconText: string, glow: boolean = false) => {
@@ -202,11 +248,9 @@ const createSvgIcon = (color: string, iconText: string, glow: boolean = false) =
   return L.divIcon({
     html: `
       <div class="relative w-8 h-8 flex items-center justify-center ${shadowClass}">
-        <!-- SVG Pin Shape -->
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}" class="w-8 h-8 absolute">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
-        <!-- Icon Badge -->
         <span class="z-10 text-white font-bold text-[10px] mb-2.5">${iconText}</span>
       </div>
     `,
@@ -214,6 +258,26 @@ const createSvgIcon = (color: string, iconText: string, glow: boolean = false) =
     iconSize: [32, 32],
     iconAnchor: [16, 32],
     popupAnchor: [0, -32],
+  });
+};
+
+/** Marcador de sucursal / punto de colecta — forma distinta al pin de pedido. */
+const createPickupIcon = (color: string) => {
+  return L.divIcon({
+    html: `
+      <div class="relative flex flex-col items-center filter drop-shadow-[0_2px_6px_rgba(0,0,0,0.28)]" style="width:40px;height:44px">
+        <div class="w-9 h-9 rounded-[10px] border-2 border-white flex items-center justify-center shadow" style="background:${color}">
+          ${MAP_SVG.storeMarker}
+        </div>
+        <div class="absolute bottom-0 font-mono font-bold text-[8px] leading-none px-1 py-0.5 rounded shadow-md whitespace-nowrap" style="background:var(--panel);border:1px solid var(--line);color:var(--text)">
+          SUCURSAL
+        </div>
+      </div>
+    `,
+    className: 'pickup-leaflet-icon',
+    iconSize: [40, 44],
+    iconAnchor: [20, 36],
+    popupAnchor: [0, -36],
   });
 };
 
@@ -574,27 +638,8 @@ export default function MapComponent({
           marker.off('popupopen');
           marker.on('click', () => onSelectOrder?.(order.id));
         } else {
-          const popupHtml = `
-            <div class="posta-map-popup" style="color:var(--text)">
-              <div class="posta-map-popup__head">
-                <span class="posta-map-popup__id">${MAP_SVG.package}<span>${order.id}</span></span>
-                <span class="posta-map-popup__badge" style="background-color:${badgeColor}">
-                  ${MAP_STATUS_LABELS[order.status]}
-                </span>
-              </div>
-              <p class="posta-map-popup__name">${order.clientName}</p>
-              <p class="posta-map-popup__addr">${MAP_SVG.pin}<span>${order.address}</span></p>
-              ${
-                order.repartidorName
-                  ? `<p class="posta-map-popup__rep" style="color:var(--accent)">${MAP_SVG.bike}<span>REPARTIDOR: ${order.repartidorName.toUpperCase()}</span></p>`
-                  : ''
-              }
-              <button id="btn-map-select-${order.id}" class="posta-map-popup__cta" style="background:${mapColors.destination}">
-                Ver Detalles
-              </button>
-            </div>
-          `;
-          marker.bindPopup(popupHtml, getMapPopupOptions());
+          const popupHtml = buildOrderPopupHtml(order, badgeColor, mapColors.destination);
+          marker.bindPopup(popupHtml, getMapPopupOptions('order'));
           bindOrderMarkerSelect(marker, order.id, onSelectOrder);
         }
       } else {
@@ -602,27 +647,8 @@ export default function MapComponent({
         if (compact) {
           marker.on('click', () => onSelectOrder?.(order.id));
         } else {
-          const popupHtml = `
-            <div class="posta-map-popup" style="color:var(--text)">
-              <div class="posta-map-popup__head">
-                <span class="posta-map-popup__id">${MAP_SVG.package}<span>${order.id}</span></span>
-                <span class="posta-map-popup__badge" style="background-color:${badgeColor}">
-                  ${MAP_STATUS_LABELS[order.status]}
-                </span>
-              </div>
-              <p class="posta-map-popup__name">${order.clientName}</p>
-              <p class="posta-map-popup__addr">${MAP_SVG.pin}<span>${order.address}</span></p>
-              ${
-                order.repartidorName
-                  ? `<p class="posta-map-popup__rep" style="color:var(--accent)">${MAP_SVG.bike}<span>REPARTIDOR: ${order.repartidorName.toUpperCase()}</span></p>`
-                  : ''
-              }
-              <button id="btn-map-select-${order.id}" class="posta-map-popup__cta" style="background:${mapColors.destination}">
-                Ver Detalles
-              </button>
-            </div>
-          `;
-          marker.bindPopup(popupHtml, getMapPopupOptions());
+          const popupHtml = buildOrderPopupHtml(order, badgeColor, mapColors.destination);
+          marker.bindPopup(popupHtml, getMapPopupOptions('order'));
           bindOrderMarkerSelect(marker, order.id, onSelectOrder);
         }
         markersRef.current[order.id] = marker;
@@ -641,21 +667,18 @@ export default function MapComponent({
 
     pickupPoints.forEach((point) => {
       const markerId = `pickup_${point.id}`;
-      const icon = createSvgIcon(mapColors.pickup, 'C', false);
+      const icon = createPickupIcon(mapColors.pickup);
+      const popupHtml = buildPickupPopupHtml(point);
 
       if (markersRef.current[markerId]) {
-        markersRef.current[markerId].setLatLng([point.lat, point.lng]);
-        markersRef.current[markerId].setIcon(icon);
+        const marker = markersRef.current[markerId];
+        marker.setLatLng([point.lat, point.lng]);
+        marker.setIcon(icon);
+        marker.bindPopup(popupHtml, getMapPopupOptions('pickup'));
       } else {
         const marker = L.marker([point.lat, point.lng], { icon })
           .addTo(map)
-          .bindPopup(`
-            <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
-              <h4 class="font-bold" style="color:var(--ok)">${MAP_SVG.store} ${point.label}</h4>
-              ${point.sellerName ? `<p class="text-[10px]" style="color:var(--accent)">${point.sellerName}</p>` : ''}
-              <p class="text-[10px] mt-0.5" style="color:var(--text-muted)">${MAP_SVG.pin} ${point.address}</p>
-            </div>
-          `);
+          .bindPopup(popupHtml, getMapPopupOptions('pickup'));
         markersRef.current[markerId] = marker;
       }
     });
@@ -809,7 +832,8 @@ export default function MapComponent({
     };
   }, [activeOrderId, orders, repartidores, liveRepartidorLocation, theme, mapColors.route, mapEpoch]);
 
-  // Abrir popup del pedido seleccionado (solo flota admin; en repartidor ya hay panel de detalle).
+  // Al seleccionar un pedido (lista o "Ver detalles"), cerrar popup preview:
+  // el panel inferior ya muestra el detalle y evita solapar UI en el mapa.
   useEffect(() => {
     if (compact) {
       popupOpenedForOrderRef.current = null;
@@ -825,15 +849,12 @@ export default function MapComponent({
 
     const map = mapInstanceRef.current;
     const marker = markersRef.current[activeOrderId];
-    if (!marker) return;
-
     popupOpenedForOrderRef.current = activeOrderId;
-    if (!marker.isPopupOpen()) {
-      marker.openPopup();
+    if (marker?.isPopupOpen()) {
+      marker.closePopup();
+    } else {
+      map?.closePopup();
     }
-    window.setTimeout(() => {
-      map?.panBy([0, -90], { animate: true });
-    }, 200);
   }, [activeOrderId, compact, mapEpoch]);
 
   // Centrar solo al elegir un pedido
