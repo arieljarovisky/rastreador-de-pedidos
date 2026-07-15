@@ -12,7 +12,11 @@ import {
 } from '../types/index.js';
 import { getRepartidorById, getUserById, updateUserLocation, assertSellerInAgency } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
-import { computeDeliveryDeadline, getOperationalDateKey } from '../utils/delivery-deadline.js';
+import {
+  computeDeliveryDeadline,
+  getOperationalDateKey,
+  nextOperationalDeliveryDeadline,
+} from '../utils/delivery-deadline.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -116,6 +120,8 @@ function rowToOrder(
     externalSource: row.external_source ?? null,
     externalOrderId: row.external_order_id ?? null,
     shippingType: row.shipping_type ?? null,
+    mlShipmentStatus: row.ml_shipment_status ?? null,
+    mlShipmentSubstatus: row.ml_shipment_substatus ?? null,
     history,
     locationHistory,
   };
@@ -125,6 +131,7 @@ const ORDER_SELECT = `
   SELECT o.id, o.agency_id, o.seller_id, o.external_source, o.external_order_id, o.shipping_type,
          o.client_name, o.client_phone, o.address, o.lat, o.lng,
          o.status, o.archived, o.repartidor_id, o.notes, o.created_at, o.updated_at, o.delivery_deadline,
+         o.ml_shipment_status, o.ml_shipment_substatus,
          r.name AS repartidor_name,
          s.name AS seller_name
   FROM orders o
@@ -472,7 +479,8 @@ export async function appendOrderMarketplaceComment(
 /** Actualiza el corte de entrega si ML promete otro día operativo. */
 export async function updateOrderDeliveryDeadlineIfNeeded(
   orderId: string,
-  newDeadline: Date
+  newDeadline: Date,
+  comment?: string
 ): Promise<Order | null> {
   const order = await getOrderById(orderId);
   if (!order) return null;
@@ -488,7 +496,73 @@ export async function updateOrderDeliveryDeadlineIfNeeded(
     now,
     orderId,
   ]);
+  if (comment) {
+    await pool.query(
+      `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+      [orderId, order.status, 'Mercado Libre', comment, now]
+    );
+  }
   return getOrderById(orderId);
+}
+
+/** Persiste el último status/substatus de envío ML Flex en el pedido. */
+export async function updateOrderMlShipmentMeta(
+  orderId: string,
+  mlStatus: string | null | undefined,
+  mlSubstatus: string | null | undefined
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+
+  const status = mlStatus?.trim().toLowerCase() || null;
+  const substatus = mlSubstatus?.trim().toLowerCase() || null;
+  if (
+    (order.mlShipmentStatus ?? null) === status &&
+    (order.mlShipmentSubstatus ?? null) === substatus
+  ) {
+    return order;
+  }
+
+  const now = new Date();
+  await pool.query(
+    'UPDATE orders SET ml_shipment_status = ?, ml_shipment_substatus = ?, updated_at = ? WHERE id = ?',
+    [status, substatus, now, orderId]
+  );
+  return getOrderById(orderId);
+}
+
+/**
+ * Pasa el pedido al siguiente día operativo (o al deadline ML si es más tarde).
+ * Usado cuando el comprador estuvo ausente / hay que reprogramar.
+ */
+export async function rescheduleOrderToNextOperationalDay(
+  orderId: string,
+  preferredDeadline?: Date | null,
+  reason = 'Reprogramado para el día siguiente'
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+    return order;
+  }
+
+  const base = order.deliveryDeadline
+    ? new Date(order.deliveryDeadline)
+    : new Date(order.createdAt);
+  const fallback = nextOperationalDeliveryDeadline(base);
+  const preferred =
+    preferredDeadline && !Number.isNaN(preferredDeadline.getTime()) ? preferredDeadline : null;
+
+  let target = fallback;
+  if (preferred) {
+    const preferredKey = getOperationalDateKey(preferred);
+    const fallbackKey = getOperationalDateKey(fallback);
+    if (preferredKey >= fallbackKey) {
+      target = preferred;
+    }
+  }
+
+  return updateOrderDeliveryDeadlineIfNeeded(orderId, target, `Mercado Libre Flex: ${reason}`);
 }
 
 export async function updateOrderStatusFromMarketplace(

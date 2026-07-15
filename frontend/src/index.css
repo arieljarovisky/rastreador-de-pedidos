@@ -154,6 +154,7 @@
   .status-badge[data-status='delivering'] { color: var(--st-delivering); }
   .status-badge[data-status='delivered'] { color: var(--st-delivered); }
   .status-badge[data-status='cancelled'] { color: var(--st-cancelled); }
+  .status-badge[data-status='warn'] { color: var(--color-warn, #B5670E); }
 
   .status-badge--paper {
     mix-blend-mode: var(--badge-blend);

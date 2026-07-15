@@ -16,13 +16,21 @@ interface StatusBadgeProps {
   paper?: boolean;
   className?: string;
   label?: string;
+  /** 'warn' pinta excepciones (ausente / reprogramado) sin cambiar el status real. */
+  tone?: 'warn';
 }
 
-export default function StatusBadge({ status, paper = false, className = '', label }: StatusBadgeProps) {
+export default function StatusBadge({
+  status,
+  paper = false,
+  className = '',
+  label,
+  tone,
+}: StatusBadgeProps) {
   return (
     <span
       className={`status-badge ${paper ? 'status-badge--paper' : ''} ${className}`.trim()}
-      data-status={status}
+      data-status={tone === 'warn' ? 'warn' : status}
     >
       {label ?? LABELS[status]}
     </span>

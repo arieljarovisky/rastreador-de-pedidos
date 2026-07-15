@@ -18,6 +18,7 @@ import { matchesOrderFilters } from '../utils/orderFilters.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
+import { getOrderExceptionBadge } from '../utils/orderBadge.js';
 import MapComponent from './MapComponent.tsx';
 import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
@@ -1253,7 +1254,16 @@ export default function AdminDashboard({
                           Arch.
                         </span>
                       )}
-                      <StatusBadge status={order.status} />
+                      {(() => {
+                        const exception = getOrderExceptionBadge(order);
+                        return (
+                          <StatusBadge
+                            status={order.status}
+                            label={exception?.label}
+                            tone={exception?.tone}
+                          />
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1393,7 +1403,16 @@ export default function AdminDashboard({
                 </p>
               ) : null}
               <div className="pt-1">
-                <StatusBadge status={selectedOrder.status} />
+                {(() => {
+                  const exception = getOrderExceptionBadge(selectedOrder);
+                  return (
+                    <StatusBadge
+                      status={selectedOrder.status}
+                      label={exception?.label}
+                      tone={exception?.tone}
+                    />
+                  );
+                })()}
               </div>
             </div>
           </div>

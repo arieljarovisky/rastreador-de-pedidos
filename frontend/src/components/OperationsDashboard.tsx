@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
+import { getOrderExceptionBadge } from '../utils/orderBadge.js';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import {
   computeDeliverySummaryFromOrders,
@@ -437,7 +438,16 @@ function OrderListSection({
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-1">
                     <span className="text-[11px] sm:text-[10px] font-mono text-[var(--color-text-faint)]">{order.id}</span>
-                    <StatusBadge status={order.status} />
+                    {(() => {
+                      const exception = getOrderExceptionBadge(order);
+                      return (
+                        <StatusBadge
+                          status={order.status}
+                          label={exception?.label}
+                          tone={exception?.tone}
+                        />
+                      );
+                    })()}
                   </div>
                   <p className="text-[15px] sm:text-sm font-semibold text-[var(--ink-soft)] truncate">{order.clientName}</p>
                   <p className="text-[12px] sm:text-[11px] text-[var(--color-text-muted)] truncate mt-0.5">{order.address}</p>

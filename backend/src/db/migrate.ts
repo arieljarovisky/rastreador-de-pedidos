@@ -1,7 +1,10 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { syncMensajeriaGrAgency } from './sync-agency-bindings.js';
-import { computeDeliveryDeadline } from '../utils/delivery-deadline.js';
+import {
+  computeDeliveryDeadline,
+  nextOperationalDeliveryDeadline,
+} from '../utils/delivery-deadline.js';
 
 async function columnExists(table: string, column: string): Promise<boolean> {
   const [rows] = await pool.query<Array<{ COLUMN_NAME: string } & import('mysql2').RowDataPacket>>(
@@ -329,6 +332,50 @@ export async function runMigrations(): Promise<void> {
     for (const row of orderRows) {
       const deadline = computeDeliveryDeadline(new Date(row.created_at));
       await pool.query('UPDATE orders SET delivery_deadline = ? WHERE id = ?', [deadline, row.id]);
+    }
+  }
+
+  if (!(await columnExists('orders', 'ml_shipment_status'))) {
+    await pool.query(
+      'ALTER TABLE orders ADD COLUMN ml_shipment_status VARCHAR(64) NULL AFTER delivery_deadline'
+    );
+  }
+  if (!(await columnExists('orders', 'ml_shipment_substatus'))) {
+    await pool.query(
+      'ALTER TABLE orders ADD COLUMN ml_shipment_substatus VARCHAR(64) NULL AFTER ml_shipment_status'
+    );
+    // Pedidos abiertos con "ausente" en bitácora → badge Ausente + día siguiente
+    const [absentRows] = await pool.query<
+      Array<{ id: string; delivery_deadline: Date | null; created_at: Date } & import('mysql2').RowDataPacket>
+    >(
+      `SELECT DISTINCT o.id, o.delivery_deadline, o.created_at
+       FROM orders o
+       INNER JOIN order_history h ON h.order_id = o.id
+       WHERE o.status NOT IN ('delivered', 'cancelled')
+         AND o.ml_shipment_substatus IS NULL
+         AND h.comment LIKE '%ausente%'`
+    );
+    for (const row of absentRows) {
+      const base = row.delivery_deadline
+        ? new Date(row.delivery_deadline)
+        : new Date(row.created_at);
+      const nextDeadline = nextOperationalDeliveryDeadline(base);
+      await pool.query(
+        `UPDATE orders
+         SET ml_shipment_substatus = 'receiver_absent',
+             delivery_deadline = ?,
+             updated_at = ?
+         WHERE id = ?`,
+        [nextDeadline, new Date(), row.id]
+      );
+      await pool.query(
+        `INSERT INTO order_history (order_id, status, updated_by, comment, created_at)
+         SELECT id, status, 'Mercado Libre',
+                'Mercado Libre Flex: Destinatario ausente · reprogramado para el día siguiente',
+                ?
+         FROM orders WHERE id = ?`,
+        [new Date(), row.id]
+      );
     }
   }
 

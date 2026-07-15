@@ -88,6 +88,10 @@ export interface Order {
   externalSource?: string | null;
   externalOrderId?: string | null;
   shippingType?: string | null;
+  /** Último status de envío ML Flex (ej. shipped). */
+  mlShipmentStatus?: string | null;
+  /** Último substatus ML Flex (ej. receiver_absent). */
+  mlShipmentSubstatus?: string | null;
 }
 
 export interface AppNotification {
@@ -152,6 +156,8 @@ export interface DbOrderRow {
   created_at: Date;
   updated_at: Date;
   delivery_deadline: Date | null;
+  ml_shipment_status: string | null;
+  ml_shipment_substatus: string | null;
 }
 
 export interface DeliveryDailySummary {

@@ -90,6 +90,21 @@ export function deliveryDeadlineForOperationalDate(dateKey: string): Date {
   return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
 }
 
+/** Suma días a una clave operativa YYYY-MM-DD (zona AR). */
+export function shiftOperationalDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const noon = arLocalToUtc(year, month, day, 12);
+  return getOperationalDateKey(new Date(noon.getTime() + days * 86_400_000));
+}
+
+/** Próximo corte operativo (mañana o día siguiente al deadline actual). */
+export function nextOperationalDeliveryDeadline(fromDeadlineOrNow: Date = new Date()): Date {
+  const todayKey = getOperationalDateKey(new Date());
+  const fromKey = getOperationalDateKey(fromDeadlineOrNow);
+  const baseKey = fromKey >= todayKey ? fromKey : todayKey;
+  return deliveryDeadlineForOperationalDate(shiftOperationalDateKey(baseKey, 1));
+}
+
 /** Convierte una fecha ISO de ML al corte operativo de Posta (21:00 AR ese día). */
 export function deliveryDeadlineFromIsoDate(isoDate: string): Date | null {
   const parsed = new Date(isoDate);

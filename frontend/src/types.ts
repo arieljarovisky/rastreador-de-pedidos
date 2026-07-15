@@ -121,6 +121,10 @@ export interface Order {
   externalSource?: string | null;
   externalOrderId?: string | null;
   shippingType?: string | null;
+  /** Último status de envío ML Flex (ej. shipped). */
+  mlShipmentStatus?: string | null;
+  /** Último substatus ML Flex (ej. receiver_absent). */
+  mlShipmentSubstatus?: string | null;
 }
 
 export interface MarketplaceIntegrationAccount {

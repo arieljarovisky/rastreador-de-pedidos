@@ -785,6 +785,37 @@ export function formatMlShipmentStatusLabel(shipment: Pick<MlShipment, 'status' 
   return 'Actualización de envío';
 }
 
+/** Subestados que requieren pasar el pedido al día operativo siguiente. */
+const ML_RESCHEDULE_SUBSTATUSES = new Set([
+  'receiver_absent',
+  'to_be_agreed',
+  'bad_address',
+  'incorrect_address',
+  'buyer_not_found',
+  'delivery_failed',
+  'rejected_by_receiver',
+  'not_accessible',
+  'dangerous_area',
+]);
+
+export function isMlRescheduleSubstatus(substatus?: string | null): boolean {
+  const sub = (substatus ?? '').trim().toLowerCase();
+  return Boolean(sub && ML_RESCHEDULE_SUBSTATUSES.has(sub));
+}
+
+/** Badge corto para UI (Ausente / Reprogramado / …). */
+export function getMlExceptionBadgeLabel(substatus?: string | null): string | null {
+  const sub = (substatus ?? '').trim().toLowerCase();
+  if (!sub) return null;
+  if (sub === 'receiver_absent') return 'Ausente';
+  if (sub === 'to_be_agreed') return 'Reprogramado';
+  if (sub === 'bad_address' || sub === 'incorrect_address') return 'Dir. incorrecta';
+  if (sub === 'rejected_by_receiver') return 'Rechazado';
+  if (sub === 'delivery_failed') return 'No entregado';
+  if (ML_RESCHEDULE_SUBSTATUSES.has(sub)) return 'Reprogramado';
+  return null;
+}
+
 const ML_IN_TRANSIT_SUBSTATUSES = [
   'out_for_delivery',
   'on_route',

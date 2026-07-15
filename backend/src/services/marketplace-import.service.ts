@@ -11,6 +11,8 @@ import {
   updateOrderStatus,
   applyMercadoLibreSyncState,
   updateOrderDeliveryDeadlineIfNeeded,
+  updateOrderMlShipmentMeta,
+  rescheduleOrderToNextOperationalDay,
   listOpenMercadoLibreOrdersForAgency,
 } from './orders.service.js';
 import {
@@ -29,6 +31,7 @@ import {
   resolveMercadoLibreFlexAssignmentProbe,
   extractMercadoLibreFlexDriverId,
   isMercadoLibreFlexWithCourier,
+  isMlRescheduleSubstatus,
   formatMlShipmentStatusLabel,
   mapMercadoLibreShipmentToOrderStatus,
   resolveMercadoLibreFlexDeliveryDeadline,
@@ -211,6 +214,12 @@ export async function syncMercadoLibreOrderAfterImport(
         liveShipment?.substatus ?? flex.mlShipmentSubstatus ?? null;
 
       let currentOrder = order;
+      if (mlStatus || mlSubstatus) {
+        const storeSub =
+          mlStatus === 'delivered' || mlStatus === 'cancelled' ? null : mlSubstatus;
+        const withMeta = await updateOrderMlShipmentMeta(order.id, mlStatus, storeSub);
+        if (withMeta) currentOrder = withMeta;
+      }
       if (liveShipment) {
         const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(
           integration,
@@ -220,6 +229,25 @@ export async function syncMercadoLibreOrderAfterImport(
           const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(order.id, mlDeadline);
           if (withDeadline) currentOrder = withDeadline;
         }
+      }
+      if (
+        isMlRescheduleSubstatus(mlSubstatus) &&
+        currentOrder.status !== OrderStatus.DELIVERED &&
+        currentOrder.status !== OrderStatus.CANCELLED
+      ) {
+        const preferred = liveShipment
+          ? await resolveMercadoLibreFlexDeliveryDeadline(integration, flex.externalId)
+          : null;
+        const reason =
+          (mlSubstatus ?? '').toLowerCase() === 'receiver_absent'
+            ? 'Destinatario ausente · reprogramado para el día siguiente'
+            : 'Reprogramado para el día siguiente';
+        const rescheduled = await rescheduleOrderToNextOperationalDay(
+          currentOrder.id,
+          preferred,
+          reason
+        );
+        if (rescheduled) currentOrder = rescheduled;
       }
 
       let repartidorId: string | null = order.repartidorId ?? null;

@@ -91,6 +91,8 @@ export interface Order {
   externalOrderId?: string | null;
   shippingType?: string | null;
   archived?: boolean;
+  mlShipmentStatus?: string | null;
+  mlShipmentSubstatus?: string | null;
 }
 
 export interface GeocodeResult {

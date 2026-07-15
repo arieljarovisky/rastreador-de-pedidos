@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at DATETIME(3) NOT NULL,
   updated_at DATETIME(3) NOT NULL,
   delivery_deadline DATETIME(3) NULL,
+  ml_shipment_status VARCHAR(64) NULL,
+  ml_shipment_substatus VARCHAR(64) NULL,
   INDEX idx_orders_status (status),
   INDEX idx_orders_archived (archived),
   INDEX idx_orders_agency (agency_id),

@@ -19,6 +19,7 @@ import {
   findImportedMercadoLibreRefGlobal,
   formatMlShipmentStatusLabel,
   getValidMercadoLibreIntegration,
+  isMlRescheduleSubstatus,
   mapMercadoLibreShipmentToOrderStatus,
   parseMercadoLibreNotificationResource,
   resolveMercadoLibreFlexDeliveryDeadline,
@@ -31,7 +32,10 @@ import {
   assignOrderToRepartidorFromMarketplace,
   createOrder,
   findOrderByExternalGlobal,
+  getOrderById,
   getSellerIdForOrder,
+  rescheduleOrderToNextOperationalDay,
+  updateOrderMlShipmentMeta,
   updateOrderStatusFromMarketplace,
 } from './orders.service.js';
 import { getRepartidorByMercadoLibreUserId, getUserById } from './users.service.js';
@@ -447,29 +451,68 @@ async function resolveFlexOrderForShipment(
 
 async function syncOrderFromMlShipment(
   existing: Order,
-  shipment: Awaited<ReturnType<typeof fetchMercadoLibreShipment>>
+  shipment: Awaited<ReturnType<typeof fetchMercadoLibreShipment>>,
+  integration?: StoreIntegration
 ): Promise<void> {
   if (!shipment.status) return;
 
   const statusLabel = formatMlShipmentStatusLabel(shipment);
+  const mlStatus = shipment.status.trim().toLowerCase();
+  const mlSubstatus = shipment.substatus?.trim().toLowerCase() || null;
+  const comment = `Mercado Libre Flex: ${statusLabel}`;
+
+  const storeSubstatus =
+    mlStatus === 'delivered' || mlStatus === 'cancelled' ? null : mlSubstatus;
+
+  let order =
+    (await updateOrderMlShipmentMeta(existing.id, mlStatus, storeSubstatus)) ?? existing;
+
   const next = mapMlShipmentStatusToOrderStatus(
     shipment.status,
-    existing.status,
-    Boolean(existing.repartidorId),
+    order.status,
+    Boolean(order.repartidorId),
     shipment.substatus
   );
-  if (next) {
-    await syncOrderStatus(existing.id, next, statusLabel);
-    return;
+
+  if (next && next !== order.status) {
+    await syncOrderStatus(order.id, next, statusLabel);
+    order = (await getOrderById(order.id)) ?? order;
+  } else {
+    const last = order.history[order.history.length - 1];
+    const shouldLog = isMlRescheduleSubstatus(mlSubstatus) || next == null;
+    if (shouldLog && last?.comment !== comment) {
+      const updated = await appendOrderMarketplaceComment(order.id, comment);
+      if (updated) order = updated;
+    }
   }
 
-  const updated = await appendOrderMarketplaceComment(
-    existing.id,
-    `Mercado Libre Flex: ${statusLabel}`
-  );
-  if (!updated) return;
-  const sellerId = await getSellerIdForOrder(existing.id);
-  emitOrderUpdated(updated, sellerId);
+  // Ausente / reprogramar → pasar al día operativo siguiente (o lead_time ML)
+  if (
+    isMlRescheduleSubstatus(mlSubstatus) &&
+    order.status !== OrderStatus.DELIVERED &&
+    order.status !== OrderStatus.CANCELLED
+  ) {
+    let preferred: Date | null = null;
+    if (integration && shipment.id) {
+      preferred = await resolveMercadoLibreFlexDeliveryDeadline(
+        integration,
+        String(shipment.id)
+      );
+    }
+    const reason =
+      mlSubstatus === 'receiver_absent'
+        ? 'Destinatario ausente · reprogramado para el día siguiente'
+        : `${statusLabel} · reprogramado para el día siguiente`;
+    const rescheduled = await rescheduleOrderToNextOperationalDay(
+      order.id,
+      preferred,
+      reason
+    );
+    if (rescheduled) order = rescheduled;
+  }
+
+  const sellerId = await getSellerIdForOrder(order.id);
+  emitOrderUpdated(order, sellerId);
 }
 
 async function handleOrderResource(
@@ -499,19 +542,11 @@ async function handleOrderResource(
   }
 
   if (flexShipment.mlShipmentStatus) {
-    const next = mapMlShipmentStatusToOrderStatus(
-      flexShipment.mlShipmentStatus,
-      existing.status,
-      Boolean(existing.repartidorId),
-      flexShipment.mlShipmentSubstatus
+    const shipment = await fetchMercadoLibreShipment(
+      validIntegration,
+      flexShipment.externalId
     );
-    if (next) {
-      const label = formatMlShipmentStatusLabel({
-        status: flexShipment.mlShipmentStatus,
-        substatus: flexShipment.mlShipmentSubstatus ?? undefined,
-      });
-      await syncOrderStatus(existing.id, next, label);
-    }
+    await syncOrderFromMlShipment(existing, shipment, validIntegration);
   }
 }
 
@@ -528,7 +563,7 @@ async function handleShipmentResource(
   const existing = await resolveFlexOrderForShipment(validIntegration, mlShipmentId, shipment);
   if (!existing) return;
 
-  await syncOrderFromMlShipment(existing, shipment);
+  await syncOrderFromMlShipment(existing, shipment, validIntegration);
 }
 
 /** Mapea driver_id de Flex (o la cuenta ML del webhook) al repartidor Posta de la agencia. */
