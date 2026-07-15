@@ -1766,27 +1766,23 @@ export default function App() {
         className={`flex-1 min-h-0 relative ${
           mobileTab === 'settings' || mobileTab === 'account'
             ? 'overflow-y-auto scrollbar-thin px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
-            : mobileTab === 'panel'
-              ? 'overflow-y-auto scrollbar-thin p-2 sm:p-3 md:p-4'
-              : 'overflow-hidden p-2 sm:p-3 md:p-4'
+            : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
       >
-        <div className={`app-shell ${mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'panel' ? '' : 'h-full'}`}>
+        <div className={`app-shell ${mobileTab === 'settings' || mobileTab === 'account' ? '' : 'h-full'}`}>
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col ${
-              mobileTab === 'settings' || mobileTab === 'account'
-                ? 'w-full'
-                : mobileTab === 'panel'
-                  ? `w-full ${notifsSidebarOpen ? 'xl:flex-row' : ''}`
-                  : 'xl:flex-row h-full overflow-hidden'
+              mobileTab === 'settings' || mobileTab === 'account' ? 'w-full' : 'xl:flex-row h-full overflow-hidden'
             } ${mobileTab !== 'settings' && mobileTab !== 'account' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
               <>
                 <div
-                  className={`flex-1 min-w-0 transition-all duration-300 ease-out ${
-                    mobileTab !== 'panel' ? 'hidden' : 'flex flex-col min-h-full'
+                  className={`flex-1 min-w-0 h-full min-h-0 transition-all duration-300 ease-out ${
+                    mobileTab !== 'panel'
+                      ? 'hidden'
+                      : 'flex flex-col overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch]'
                   }`}
                 >
                   <OperationsDashboard

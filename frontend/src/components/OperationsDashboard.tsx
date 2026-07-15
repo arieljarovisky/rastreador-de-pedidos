@@ -157,7 +157,7 @@ export default function OperationsDashboard({
 
   return (
     <div
-      className="min-h-full flex flex-col posta-surface"
+      className="flex flex-col posta-surface"
       id="operations-dashboard"
     >
       <div className="p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3 sm:space-y-3 lg:shrink-0">
@@ -428,7 +428,7 @@ function OrderListSection({
 
   return (
     <section
-      className={`border rounded-[var(--radius-posta)] overflow-hidden flex flex-col min-h-0 lg:h-full ${borderTone} ${className}`}
+      className={`border rounded-[var(--radius-posta)] overflow-hidden flex flex-col ${borderTone} ${className}`}
     >
       <div className="shrink-0 px-3 py-2.5 sm:py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex justify-between items-center">
         <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
@@ -442,7 +442,7 @@ function OrderListSection({
         </p>
       ) : (
         <>
-          <ul className="lg:flex-1 lg:min-h-0 divide-y divide-[var(--surface-border)]/50">
+          <ul className="divide-y divide-[var(--surface-border)]/50">
             {visibleOrders.map((order) => (
               <li key={order.id}>
                 <button
@@ -516,7 +516,7 @@ function SellerBreakdownSection({
 }) {
   return (
     <section
-      className={`border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden flex flex-col min-h-0 xl:h-full ${className}`}
+      className={`border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden flex flex-col ${className}`}
     >
       <div className="shrink-0 px-3 py-2.5 sm:py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
         <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] flex items-center gap-1.5">
