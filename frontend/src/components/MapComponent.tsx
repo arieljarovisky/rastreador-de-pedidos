@@ -179,10 +179,10 @@ function bindOrderMarkerSelect(
   orderId: string,
   onSelect?: (orderId: string) => void
 ) {
-  marker.off('click');
+  // No usar marker.off('click'): eso elimina el handler interno de Leaflet que abre el popup.
   marker.off('popupopen');
 
-  // Click solo abre el preview; "Ver detalles" selecciona el pedido (panel inferior)
+  // El click del marcador abre el preview (bindPopup); "Ver detalles" selecciona el pedido.
   marker.on('popupopen', () => {
     window.setTimeout(() => {
       const btn = document.getElementById(`btn-map-select-${orderId}`);
