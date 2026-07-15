@@ -534,6 +534,7 @@ export async function updateOrderMlShipmentMeta(
 /**
  * Pasa el pedido al siguiente día operativo (o al deadline ML si es más tarde).
  * Usado cuando el comprador estuvo ausente / hay que reprogramar.
+ * No vuelve a empujar si el pedido ya está en un día futuro.
  */
 export async function rescheduleOrderToNextOperationalDay(
   orderId: string,
@@ -546,10 +547,18 @@ export async function rescheduleOrderToNextOperationalDay(
     return order;
   }
 
+  const todayKey = getOperationalDateKey(new Date());
   const base = order.deliveryDeadline
     ? new Date(order.deliveryDeadline)
     : new Date(order.createdAt);
-  const fallback = nextOperationalDeliveryDeadline(base);
+  const currentKey = getOperationalDateKey(base);
+
+  // Ya reprogramado a un día futuro → no seguir corriendo el deadline ni spamear bitácora
+  if (currentKey > todayKey) {
+    return null;
+  }
+
+  const fallback = nextOperationalDeliveryDeadline(new Date());
   const preferred =
     preferredDeadline && !Number.isNaN(preferredDeadline.getTime()) ? preferredDeadline : null;
 
@@ -560,6 +569,11 @@ export async function rescheduleOrderToNextOperationalDay(
     if (preferredKey >= fallbackKey) {
       target = preferred;
     }
+  }
+
+  // Si el target no mueve el día, no escribir nada
+  if (getOperationalDateKey(target) <= currentKey) {
+    return null;
   }
 
   return updateOrderDeliveryDeadlineIfNeeded(orderId, target, `Mercado Libre Flex: ${reason}`);

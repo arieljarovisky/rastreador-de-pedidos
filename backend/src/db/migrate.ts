@@ -561,4 +561,35 @@ export async function runMigrations(): Promise<void> {
       );
     }
   }
+
+  // Deduplicar spam de reprogramación / ausente en bitácora (queda la primera entrada)
+  await pool.query(
+    `DELETE h FROM order_history h
+     INNER JOIN order_history keep
+       ON keep.order_id = h.order_id
+      AND keep.comment = h.comment
+      AND keep.updated_by = h.updated_by
+      AND keep.id < h.id
+     WHERE h.updated_by = 'Mercado Libre'
+       AND (
+         h.comment LIKE '%reprogramado para el día siguiente%'
+         OR h.comment LIKE '%Destinatario ausente%'
+       )`
+  );
+
+  // Corregir deadlines empujados de más por el bug de reprogramación repetida
+  const tomorrow = nextOperationalDeliveryDeadline(new Date());
+  await pool.query(
+    `UPDATE orders
+     SET delivery_deadline = ?
+     WHERE ml_shipment_substatus IN (
+       'receiver_absent', 'to_be_agreed', 'bad_address', 'incorrect_address',
+       'buyer_not_found', 'delivery_failed', 'rejected_by_receiver',
+       'not_accessible', 'dangerous_area'
+     )
+       AND status NOT IN ('delivered', 'cancelled')
+       AND delivery_deadline IS NOT NULL
+       AND delivery_deadline > ?`,
+    [tomorrow, tomorrow]
+  );
 }

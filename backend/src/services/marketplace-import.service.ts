@@ -214,6 +214,11 @@ export async function syncMercadoLibreOrderAfterImport(
         liveShipment?.substatus ?? flex.mlShipmentSubstatus ?? null;
 
       let currentOrder = order;
+      const previousSubstatus = (order.mlShipmentSubstatus ?? '').trim().toLowerCase() || null;
+      const nextSubstatus = (mlSubstatus ?? '').trim().toLowerCase() || null;
+      const isNewException =
+        isMlRescheduleSubstatus(nextSubstatus) && previousSubstatus !== nextSubstatus;
+
       if (mlStatus || mlSubstatus) {
         const storeSub =
           mlStatus === 'delivered' || mlStatus === 'cancelled' ? null : mlSubstatus;
@@ -226,12 +231,15 @@ export async function syncMercadoLibreOrderAfterImport(
           flex.externalId
         );
         if (mlDeadline) {
-          const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(order.id, mlDeadline);
+          const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(
+            currentOrder.id,
+            mlDeadline
+          );
           if (withDeadline) currentOrder = withDeadline;
         }
       }
       if (
-        isMlRescheduleSubstatus(mlSubstatus) &&
+        isNewException &&
         currentOrder.status !== OrderStatus.DELIVERED &&
         currentOrder.status !== OrderStatus.CANCELLED
       ) {
@@ -239,7 +247,7 @@ export async function syncMercadoLibreOrderAfterImport(
           ? await resolveMercadoLibreFlexDeliveryDeadline(integration, flex.externalId)
           : null;
         const reason =
-          (mlSubstatus ?? '').toLowerCase() === 'receiver_absent'
+          nextSubstatus === 'receiver_absent'
             ? 'Destinatario ausente · reprogramado para el día siguiente'
             : 'Reprogramado para el día siguiente';
         const rescheduled = await rescheduleOrderToNextOperationalDay(

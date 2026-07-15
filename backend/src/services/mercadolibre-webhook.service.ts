@@ -460,6 +460,9 @@ async function syncOrderFromMlShipment(
   const mlStatus = shipment.status.trim().toLowerCase();
   const mlSubstatus = shipment.substatus?.trim().toLowerCase() || null;
   const comment = `Mercado Libre Flex: ${statusLabel}`;
+  const previousSubstatus = (existing.mlShipmentSubstatus ?? '').trim().toLowerCase() || null;
+  const isNewException =
+    isMlRescheduleSubstatus(mlSubstatus) && previousSubstatus !== mlSubstatus;
 
   const storeSubstatus =
     mlStatus === 'delivered' || mlStatus === 'cancelled' ? null : mlSubstatus;
@@ -477,18 +480,21 @@ async function syncOrderFromMlShipment(
   if (next && next !== order.status) {
     await syncOrderStatus(order.id, next, statusLabel);
     order = (await getOrderById(order.id)) ?? order;
-  } else {
+  } else if (isNewException || (next == null && previousSubstatus !== mlSubstatus)) {
     const last = order.history[order.history.length - 1];
-    const shouldLog = isMlRescheduleSubstatus(mlSubstatus) || next == null;
-    if (shouldLog && last?.comment !== comment) {
+    const alreadyLogged =
+      last?.comment === comment ||
+      Boolean(last?.comment?.includes(statusLabel)) ||
+      order.history.some((e) => e.comment === comment);
+    if (!alreadyLogged) {
       const updated = await appendOrderMarketplaceComment(order.id, comment);
       if (updated) order = updated;
     }
   }
 
-  // Ausente / reprogramar → pasar al día operativo siguiente (o lead_time ML)
+  // Ausente / reprogramar: solo la primera vez que aparece esa excepción
   if (
-    isMlRescheduleSubstatus(mlSubstatus) &&
+    isNewException &&
     order.status !== OrderStatus.DELIVERED &&
     order.status !== OrderStatus.CANCELLED
   ) {
