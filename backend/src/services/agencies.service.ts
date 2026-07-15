@@ -5,6 +5,30 @@ import { seedDefaultZonesForAgency, ensureCordonZonesForAgency } from './deliver
 import { ensureAgencySubscription } from './subscriptions.service.js';
 import { DELIVERY_DEADLINE_HOUR, normalizeDeadlineHour } from '../utils/delivery-deadline.js';
 
+let deadlineHourColumnReady: Promise<void> | null = null;
+
+/** Garantiza la columna delivery_deadline_hour (por si el migrate no corrió aún). */
+export async function ensureAgencyDeliveryDeadlineHourColumn(): Promise<void> {
+  if (!deadlineHourColumnReady) {
+    deadlineHourColumnReady = (async () => {
+      const [rows] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agencies' AND COLUMN_NAME = 'delivery_deadline_hour'`
+      );
+      if (rows.length === 0) {
+        await pool.query(
+          'ALTER TABLE agencies ADD COLUMN delivery_deadline_hour TINYINT UNSIGNED NOT NULL DEFAULT 12 AFTER city'
+        );
+        console.log('[agencies] Columna delivery_deadline_hour creada (default 12)');
+      }
+    })().catch((err) => {
+      deadlineHourColumnReady = null;
+      throw err;
+    });
+  }
+  await deadlineHourColumnReady;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -84,6 +108,7 @@ export async function createAgency(data: {
 }
 
 export async function getAgencyById(id: string): Promise<Agency | null> {
+  await ensureAgencyDeliveryDeadlineHourColumn();
   const [rows] = await pool.query<AgencyRow[]>(
     `SELECT id, name, contact_email, contact_phone, cuit, city, delivery_deadline_hour,
             departure_address, departure_lat, departure_lng
@@ -97,6 +122,7 @@ export async function getAgencyById(id: string): Promise<Agency | null> {
 export async function listAgenciesDeadlineHours(): Promise<
   Array<{ id: string; deliveryDeadlineHour: number }>
 > {
+  await ensureAgencyDeliveryDeadlineHourColumn();
   const [rows] = await pool.query<
     Array<{ id: string; delivery_deadline_hour: number | null } & RowDataPacket>
   >('SELECT id, delivery_deadline_hour FROM agencies');
@@ -107,6 +133,7 @@ export async function listAgenciesDeadlineHours(): Promise<
 }
 
 export async function getAgencyDeliveryDeadlineHour(agencyId: string): Promise<number> {
+  await ensureAgencyDeliveryDeadlineHourColumn();
   const [rows] = await pool.query<
     Array<{ delivery_deadline_hour: number | null } & RowDataPacket>
   >('SELECT delivery_deadline_hour FROM agencies WHERE id = ? LIMIT 1', [agencyId]);
@@ -117,6 +144,7 @@ export async function updateAgencyDeliveryDeadlineHour(
   agencyId: string,
   hour: number
 ): Promise<number> {
+  await ensureAgencyDeliveryDeadlineHourColumn();
   const agency = await getAgencyById(agencyId);
   if (!agency) throw new Error('NOT_FOUND');
   if (!Number.isFinite(hour)) throw new Error('INVALID_HOUR');

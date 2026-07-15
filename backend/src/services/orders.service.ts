@@ -491,6 +491,9 @@ export async function appendOrderMarketplaceComment(
 export async function recalculateOpenOrdersDeliveryDeadlines(
   agencyId?: string
 ): Promise<number> {
+  const { ensureAgencyDeliveryDeadlineHourColumn } = await import('./agencies.service.js');
+  await ensureAgencyDeliveryDeadlineHourColumn();
+
   const params: (string | OrderStatus)[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
   let agencyFilter = '';
   if (agencyId) {

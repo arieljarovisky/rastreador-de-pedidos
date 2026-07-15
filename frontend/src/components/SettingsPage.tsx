@@ -488,7 +488,7 @@ export default function SettingsPage({
                 </p>
                 <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
                   Los pedidos cargados a partir de esta hora quedan para el día siguiente.
-                  Horario Argentina (ART).
+                  Horario Argentina (ART). Al guardar se reaplica a los pedidos aún sin entregar.
                   {!onUpdateDeliveryDeadlineHour && (
                     <> Corte actual: <span className="font-mono font-bold text-[var(--ink-soft)]">{String(deliveryDeadlineHour).padStart(2, '0')}:00</span>.</>
                   )}
@@ -504,7 +504,7 @@ export default function SettingsPage({
                       setDeadlineMessage(null);
                       try {
                         await onUpdateDeliveryDeadlineHour(deadlineHourDraft);
-                        setDeadlineMessage('Horario de corte actualizado.');
+                        setDeadlineMessage('Horario de corte actualizado y aplicado a pedidos abiertos.');
                       } catch (err: unknown) {
                         const message = err instanceof Error ? err.message : 'Error al guardar.';
                         setDeadlineMessage(message);
@@ -530,7 +530,7 @@ export default function SettingsPage({
                       </select>
                     </label>
                     <button type="submit" disabled={deadlineLoading} className={btnGhost}>
-                      {deadlineLoading ? 'Guardando...' : 'Guardar corte'}
+                      {deadlineLoading ? 'Guardando...' : 'Guardar y reaplicar'}
                     </button>
                   </form>
                   {deadlineMessage && (

@@ -218,6 +218,14 @@ export default function App() {
           if (typeof data?.hour === 'number') {
             setDeliveryDeadlineHour(data.hour);
           }
+          // El backend puede haber corregido deadlines (ventas nocturnas); refrescar pedidos.
+          if (typeof data?.recalculated === 'number' && data.recalculated > 0) {
+            const ordersRefresh = await fetch(apiUrl('/api/orders'), { headers });
+            if (ordersRefresh.ok) {
+              const refreshed = await ordersRefresh.json();
+              setOrders(Array.isArray(refreshed) ? refreshed : refreshed.orders);
+            }
+          }
         }
 
         const ppRes = await fetch(apiUrl('/api/accounts/pickup-points'), { headers });

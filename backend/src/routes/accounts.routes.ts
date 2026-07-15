@@ -31,9 +31,12 @@ import {
   updateAgencyDeliveryDeadlineHour,
 } from '../services/agencies.service.js';
 import { recalculateOpenOrdersDeliveryDeadlines } from '../services/orders.service.js';
-import { DELIVERY_DEADLINE_HOUR } from '../utils/delivery-deadline.js';
+import { DELIVERY_DEADLINE_HOUR, getOperationalDateKey } from '../utils/delivery-deadline.js';
 
 const router = Router();
+
+/** Evita recalcular en cada poll: una vez por agencia y día operativo. */
+const deadlineRecalcByAgencyDay = new Map<string, string>();
 
 function handleCreateUserError(res: Response, err: unknown): boolean {
   const message = err instanceof Error ? err.message : '';
@@ -330,11 +333,29 @@ router.put('/agency/departure', authenticate, requireAgencyAdmin(), async (req: 
 router.get('/agency/delivery-deadline', authenticate, async (req: Request, res: Response) => {
   const agencyId = req.user!.agencyId;
   if (!agencyId) {
-    res.json({ hour: DELIVERY_DEADLINE_HOUR });
+    res.json({ hour: DELIVERY_DEADLINE_HOUR, recalculated: 0 });
     return;
   }
   const hour = await getAgencyDeliveryDeadlineHour(agencyId);
-  res.json({ hour });
+  const dayKey = getOperationalDateKey();
+  let recalculated = 0;
+  if (deadlineRecalcByAgencyDay.get(agencyId) !== dayKey) {
+    deadlineRecalcByAgencyDay.set(agencyId, dayKey);
+    recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
+  }
+  res.json({ hour, recalculated });
+});
+
+router.post('/agency/delivery-deadline/recalculate', authenticate, async (req: Request, res: Response) => {
+  const agencyId = req.user!.agencyId;
+  if (!agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+  const hour = await getAgencyDeliveryDeadlineHour(agencyId);
+  const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
+  deadlineRecalcByAgencyDay.set(agencyId, getOperationalDateKey());
+  res.json({ hour, recalculated });
 });
 
 router.put('/agency/delivery-deadline', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
