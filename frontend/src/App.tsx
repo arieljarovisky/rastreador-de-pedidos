@@ -1917,6 +1917,12 @@ export default function App() {
                   activeUserId={user.id}
                   onToggleCollapse={toggleNotifsSidebar}
                   showCollapseButton
+                  orders={orders}
+                  onOpenOrder={(orderId) => {
+                    setActiveOrderId(orderId);
+                    setMobileTab('dashboard');
+                  }}
+                  onOpenMap={() => setMobileTab('dashboard')}
                 />
               </NotifsSidebar>
             )}
@@ -1961,6 +1967,12 @@ export default function App() {
                 activeUserId={user.id}
                 onToggleCollapse={toggleNotifsSidebar}
                 showCollapseButton
+                orders={orders}
+                onOpenOrder={(orderId) => {
+                  setActiveOrderId(orderId);
+                  setMobileTab('dashboard');
+                }}
+                onOpenMap={() => setMobileTab('dashboard')}
               />
             </NotifsSidebar>
           </div>

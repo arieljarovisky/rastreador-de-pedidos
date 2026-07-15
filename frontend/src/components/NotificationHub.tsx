@@ -3,12 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { AppNotification } from '../types.js';
-import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight } from 'lucide-react';
+import { AppNotification, Order } from '../types.js';
+import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useModal } from '../context/ModalContext.tsx';
+import { getUndeliveredTodayOrders } from '../utils/deliverySummary.js';
+
+const UNDELIVERED_PREVIEW = 3;
 
 interface NotificationHubProps {
   notifications: AppNotification[];
@@ -17,6 +20,17 @@ interface NotificationHubProps {
   activeUserId: string;
   onToggleCollapse?: () => void;
   showCollapseButton?: boolean;
+  orders?: Order[];
+  onOpenOrder?: (orderId: string) => void;
+  onOpenMap?: () => void;
+}
+
+function isDeadlineNotification(type: AppNotification['type']): boolean {
+  return (
+    type === 'deadline_warning' ||
+    type === 'deadline_urgent' ||
+    type === 'deadline_missed'
+  );
 }
 
 // Sonido de notificación sintetizado mediante Web Audio API para no necesitar un archivo de audio externo
@@ -57,10 +71,18 @@ export default function NotificationHub({
   activeUserId,
   onToggleCollapse,
   showCollapseButton = false,
+  orders = [],
+  onOpenOrder,
+  onOpenMap,
 }: NotificationHubProps) {
   const { alert: showAlert, confirm } = useModal();
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [activeBanner, setActiveBanner] = useState<AppNotification | null>(null);
+
+  const undeliveredToday = useMemo(
+    () => getUndeliveredTodayOrders(orders),
+    [orders]
+  );
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -316,6 +338,56 @@ export default function NotificationHub({
                   </div>
                   <h5 className="font-bold mt-0.5">{notif.title}</h5>
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">{notif.body}</p>
+                  {isDeadlineNotification(notif.type) && onOpenOrder && (
+                    <div className="mt-1.5 space-y-1">
+                      {undeliveredToday.length === 0 ? (
+                        <p className="text-[9px] font-mono text-[var(--color-ok)]">
+                          No quedan pedidos sin entregar hoy.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                            Sin entregar ahora
+                          </p>
+                          <div className="flex flex-col gap-1">
+                            {undeliveredToday.slice(0, UNDELIVERED_PREVIEW).map((order) => (
+                              <button
+                                key={order.id}
+                                type="button"
+                                onClick={() => onOpenOrder(order.id)}
+                                className="w-full text-left px-2 py-1.5 rounded border border-[var(--color-warn)]/30 bg-[var(--color-warn)]/5 hover:bg-[var(--color-warn)]/10 hover:border-[var(--color-warn)]/50 transition group"
+                              >
+                                <span className="flex items-center gap-1.5 min-w-0">
+                                  <MapPin className="w-3 h-3 shrink-0 text-[var(--color-warn)]" />
+                                  <span className="font-mono font-bold text-[10px] text-[var(--color-accent)] group-hover:underline shrink-0">
+                                    {order.id}
+                                  </span>
+                                  <span className="text-[10px] text-[var(--ink-soft)] truncate min-w-0">
+                                    {order.clientName}
+                                  </span>
+                                  <ChevronRight className="w-3 h-3 ml-auto shrink-0 text-[var(--color-text-faint)] group-hover:text-[var(--color-accent)]" />
+                                </span>
+                                {order.address ? (
+                                  <span className="block text-[9px] text-[var(--color-text-muted)] truncate pl-[1.125rem] mt-0.5">
+                                    {order.address}
+                                  </span>
+                                ) : null}
+                              </button>
+                            ))}
+                            {undeliveredToday.length > UNDELIVERED_PREVIEW && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenMap?.()}
+                                className="text-left px-2 py-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                              >
+                                +{undeliveredToday.length - UNDELIVERED_PREVIEW} más en el mapa
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             )}
