@@ -266,8 +266,8 @@ export async function syncMercadoLibreOrderAfterImport(
         substatus: mlSubstatus ?? undefined,
       });
       const comment = repartidorId
-        ? `Importado desde ML · estado ${statusLabel} · repartidor sincronizado`
-        : `Importado desde ML · estado ${statusLabel}`;
+        ? `Importado desde Mercado Libre Flex · ${statusLabel} · repartidor sincronizado`
+        : `Importado desde Mercado Libre Flex · ${statusLabel}`;
 
       const updated = await applyMercadoLibreSyncState(currentOrder.id, {
         status: targetStatus,

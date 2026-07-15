@@ -1,12 +1,14 @@
 import { OrderStatus } from '../../types.js';
 
-const LABELS: Record<OrderStatus, string> = {
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   [OrderStatus.PENDING]: 'En almacén',
   [OrderStatus.ASSIGNED]: 'Asignado',
   [OrderStatus.DELIVERING]: 'En viaje',
   [OrderStatus.DELIVERED]: 'Entregado',
   [OrderStatus.CANCELLED]: 'Cancelado',
 };
+
+const LABELS = ORDER_STATUS_LABELS;
 
 interface StatusBadgeProps {
   status: OrderStatus;

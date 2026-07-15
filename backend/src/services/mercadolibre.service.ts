@@ -704,11 +704,85 @@ export async function fetchMercadoLibreMissedFeeds(
   return data.messages ?? [];
 }
 
+/** Traducciones de status ML → texto legible (español). */
+const ML_STATUS_LABELS: Record<string, string> = {
+  pending: 'Pendiente',
+  handling: 'En preparación',
+  ready_to_ship: 'Listo para enviar',
+  shipped: 'En tránsito',
+  in_transit: 'En tránsito',
+  out_for_delivery: 'En camino al domicilio',
+  on_route: 'En ruta de entrega',
+  soon_deliver: 'Próximo a entregar',
+  delivered: 'Entregado',
+  not_delivered: 'No entregado',
+  cancelled: 'Cancelado',
+};
+
+/** Subestados ML — si hay match, se prioriza este mensaje (más específico). */
+const ML_SUBSTATUS_LABELS: Record<string, string> = {
+  receiver_absent: 'Destinatario ausente en el domicilio',
+  rejected_by_receiver: 'El destinatario rechazó el paquete',
+  bad_address: 'Dirección incorrecta o incompleta',
+  incorrect_address: 'Dirección incorrecta o incompleta',
+  buyer_not_found: 'No se encontró al comprador',
+  not_accessible: 'Domicilio no accesible',
+  dangerous_area: 'Zona de entrega peligrosa',
+  delivery_failed: 'Intento de entrega fallido',
+  returning_to_warehouse: 'Regresa al depósito',
+  returning_to_sender: 'En devolución al vendedor',
+  returned_to_warehouse: 'Devuelto al depósito',
+  returned: 'Devuelto',
+  out_for_delivery: 'En camino al domicilio',
+  on_route: 'En ruta de entrega',
+  in_transit: 'En tránsito',
+  picked_up: 'Colectado por el transportista',
+  in_carriage: 'En transporte',
+  dropped_off: 'Depositado en punto de logística',
+  delivery_in_progress: 'Entrega en curso',
+  soon_deliver: 'Próximo a entregar',
+  ready_to_print: 'Etiqueta lista para imprimir',
+  printed: 'Etiqueta impresa',
+  ready_for_pickup: 'Listo para retiro',
+  in_hub: 'En centro de distribución',
+  buffered: 'En espera en depósito',
+  packing: 'Empaquetando',
+  packed: 'Empaquetado',
+  invoice_pending: 'Factura pendiente',
+  waiting_for_withdrawal: 'Esperando retiro',
+  delayed: 'Demorado',
+  stolen: 'Reportado como robado',
+  damaged: 'Paquete dañado',
+  lost: 'Paquete extraviado',
+  detained: 'Retenido',
+  to_be_agreed: 'Reprogramar entrega',
+  claimed_me: 'Con reclamo en Mercado Libre',
+};
+
+function humanizeMlCode(code: string): string {
+  return code
+    .replace(/[_/]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Etiqueta legible del estado/subestado ML (sin códigos crudos tipo shipped/receiver_absent). */
 export function formatMlShipmentStatusLabel(shipment: Pick<MlShipment, 'status' | 'substatus'>): string {
-  const status = shipment.status?.trim();
-  const substatus = shipment.substatus?.trim();
-  if (status && substatus) return `${status}/${substatus}`;
-  return status ?? substatus ?? 'desconocido';
+  const status = shipment.status?.trim().toLowerCase() ?? '';
+  const substatus = shipment.substatus?.trim().toLowerCase() ?? '';
+
+  if (substatus && ML_SUBSTATUS_LABELS[substatus]) {
+    return ML_SUBSTATUS_LABELS[substatus];
+  }
+  if (status && ML_STATUS_LABELS[status]) {
+    if (substatus) {
+      return `${ML_STATUS_LABELS[status]} · ${humanizeMlCode(substatus)}`;
+    }
+    return ML_STATUS_LABELS[status];
+  }
+  if (substatus) return humanizeMlCode(substatus);
+  if (status) return humanizeMlCode(status);
+  return 'Actualización de envío';
 }
 
 const ML_IN_TRANSIT_SUBSTATUSES = [

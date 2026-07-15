@@ -369,7 +369,7 @@ async function syncOrderStatus(
   const updated = await updateOrderStatusFromMarketplace(
     orderId,
     nextStatus,
-    `Sincronizado desde Mercado Libre (${mlStatusLabel})`
+    `Mercado Libre Flex: ${mlStatusLabel}`
   );
   if (!updated) return;
 
@@ -465,7 +465,7 @@ async function syncOrderFromMlShipment(
 
   const updated = await appendOrderMarketplaceComment(
     existing.id,
-    `Actualización ML Flex (${statusLabel})`
+    `Mercado Libre Flex: ${statusLabel}`
   );
   if (!updated) return;
   const sellerId = await getSellerIdForOrder(existing.id);
@@ -482,7 +482,7 @@ async function handleOrderResource(
   if (mlOrder.status === 'cancelled') {
     const existing = await findImportedMercadoLibreRefGlobal(mlOrderId, integration.userId);
     if (existing) {
-      await syncOrderStatus(existing.id, OrderStatus.CANCELLED, 'orden cancelada');
+      await syncOrderStatus(existing.id, OrderStatus.CANCELLED, 'Orden cancelada');
     }
     return;
   }
@@ -692,7 +692,7 @@ async function handleFlexHandshakeResource(
   const statusLabel = shipment
     ? formatMlShipmentStatusLabel(shipment)
     : 'escaneo Flex';
-  const comment = `${driverNote} · estado ${statusLabel}`;
+  const comment = `${driverNote} · ${statusLabel}`;
 
   const updated = await appendOrderMarketplaceComment(existing.id, comment);
   if (updated) {

@@ -17,7 +17,7 @@ import { buildCordonMapZones } from '../config/ambaCordonZones.js';
 import { matchesOrderFilters } from '../utils/orderFilters.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
-import StatusBadge from './ui/StatusBadge.tsx';
+import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
 import MapComponent from './MapComponent.tsx';
 import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
@@ -1928,6 +1928,8 @@ export default function AdminDashboard({
                 <div className="space-y-1">
                   {selectedOrder.history.map((event, index) => {
                     const isIncident = (event.comment ?? '').startsWith('INCIDENCIA:');
+                    const statusLabel =
+                      ORDER_STATUS_LABELS[event.status as OrderStatus] ?? event.status;
                     return (
                     <div key={index} className="flex items-start gap-2 text-[10px] text-[var(--color-text-muted)] font-mono">
                       {isIncident ? (
@@ -1937,9 +1939,9 @@ export default function AdminDashboard({
                       )}
                       <div>
                         {isIncident ? (
-                          <span className="font-bold text-[var(--color-warn)]">[INCIDENCIA]</span>
+                          <span className="font-bold text-[var(--color-warn)]">[Incidencia]</span>
                         ) : (
-                          <span className="font-bold text-[var(--ink-soft)]">[{event.status.toUpperCase()}]</span>
+                          <span className="font-bold text-[var(--ink-soft)]">[{statusLabel}]</span>
                         )}{' '}
                         - {isIncident ? event.comment!.replace(/^INCIDENCIA:\s*/, '') : (event.comment || 'Cambio de estado')}
                         <span className="text-[var(--color-text-muted)] text-[9px] block">
