@@ -186,25 +186,13 @@ export default function App() {
         localStorage.setItem('lupo_user', JSON.stringify(currentUser));
       }
 
-      const ordersEndpoint =
-        currentUser?.role === UserRole.REPARTIDOR
-          ? { url: '/api/orders/flex-sync', method: 'POST' as const }
-          : { url: '/api/orders', method: 'GET' as const };
-      const ordersRes = await fetch(apiUrl(ordersEndpoint.url), {
-        headers,
-        method: ordersEndpoint.method,
-      });
-      if (ordersRes.ok) {
-        const data = await ordersRes.json();
-        setOrders(Array.isArray(data) ? data : data.orders);
-      }
-
       const notifsRes = await fetch(apiUrl('/api/notifications'), { headers });
       if (notifsRes.ok) {
         const data = await notifsRes.json();
         setNotifications(data);
       }
 
+      // Recalcular deadlines ANTES de cargar pedidos (evita ver "Ayer" con dato viejo).
       if (currentUser?.role === UserRole.STORE_ADMIN || isAgencyAdmin(currentUser?.role) || currentUser?.role === UserRole.REPARTIDOR) {
         const depRes = await fetch(apiUrl('/api/accounts/agency/departure'), { headers });
         if (depRes.ok) {
@@ -218,10 +206,8 @@ export default function App() {
           if (typeof data?.hour === 'number') {
             setDeliveryDeadlineHour(data.hour);
           }
-          let recalculated = typeof data?.recalculated === 'number' ? data.recalculated : 0;
 
-          // Forzar reapliegue una vez por sesión tras deploys (v3).
-          const recalcSessionKey = 'posta_deadline_recalc_v5';
+          const recalcSessionKey = 'posta_deadline_recalc_v6';
           if (!sessionStorage.getItem(recalcSessionKey)) {
             sessionStorage.setItem(recalcSessionKey, '1');
             const forceRes = await fetch(apiUrl('/api/accounts/agency/delivery-deadline/recalculate'), {
@@ -233,17 +219,6 @@ export default function App() {
               if (typeof forceData?.hour === 'number') {
                 setDeliveryDeadlineHour(forceData.hour);
               }
-              if (typeof forceData?.recalculated === 'number') {
-                recalculated = forceData.recalculated;
-              }
-            }
-          }
-
-          if (recalculated > 0) {
-            const ordersRefresh = await fetch(apiUrl('/api/orders'), { headers });
-            if (ordersRefresh.ok) {
-              const refreshed = await ordersRefresh.json();
-              setOrders(Array.isArray(refreshed) ? refreshed : refreshed.orders);
             }
           }
         }
@@ -253,6 +228,19 @@ export default function App() {
           const data = await ppRes.json();
           setPickupPoints(data);
         }
+      }
+
+      const ordersEndpoint =
+        currentUser?.role === UserRole.REPARTIDOR
+          ? { url: '/api/orders/flex-sync', method: 'POST' as const }
+          : { url: '/api/orders', method: 'GET' as const };
+      const ordersRes = await fetch(apiUrl(ordersEndpoint.url), {
+        headers,
+        method: ordersEndpoint.method,
+      });
+      if (ordersRes.ok) {
+        const data = await ordersRes.json();
+        setOrders(Array.isArray(data) ? data : data.orders);
       }
 
       if (currentUser?.role === UserRole.STORE_ADMIN || isAgencyAdmin(currentUser?.role)) {

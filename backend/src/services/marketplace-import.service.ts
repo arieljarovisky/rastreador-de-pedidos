@@ -230,6 +230,8 @@ export async function syncMercadoLibreOrderAfterImport(
           integration,
           flex.externalId
         );
+        // Solo adelantar deadline con lead_time ML; nunca pisar un reprogramado a hoy
+        // con la fecha estimada original (causa del ping-pong PED ausente en "Ayer").
         if (mlDeadline) {
           const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(
             currentOrder.id,

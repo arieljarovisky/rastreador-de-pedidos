@@ -16,7 +16,6 @@ import {
   computeDeliveryDeadline,
   DELIVERY_DEADLINE_HOUR,
   getOperationalDateKey,
-  getOperationalDayBounds,
   getTodayDeadline,
 } from '../utils/delivery-deadline.js';
 import { getAgencyDeliveryDeadlineHour, listAgenciesDeadlineHours } from './agencies.service.js';
@@ -487,6 +486,7 @@ export async function appendOrderMarketplaceComment(
 /**
  * Mueve a HOY pedidos abiertos ausentes/reprogramados trabados en el pasado.
  * (ML: “Envío reprogramado… entregalo hoy”). Incluye PED-2023 por id.
+ * Compara por clave operativa AR (igual que el frontend), no solo por DATETIME SQL.
  */
 export async function forceRescheduledOrdersStuckInPastToToday(
   agencyId?: string
@@ -508,7 +508,6 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     : '0=1';
 
   const todayKey = getOperationalDateKey();
-  const { start: todayStart } = getOperationalDayBounds(todayKey);
   const now = new Date();
   let total = 0;
 
@@ -518,8 +517,11 @@ export async function forceRescheduledOrdersStuckInPastToToday(
 
   for (const agency of agencies) {
     const todayDeadline = getTodayDeadline(agency.deliveryDeadlineHour);
-    const [result] = await pool.query<ResultSetHeader>(
-      `UPDATE orders o
+    const [rows] = await pool.query<
+      Array<{ id: string; delivery_deadline: Date | null } & RowDataPacket>
+    >(
+      `SELECT o.id, o.delivery_deadline
+       FROM orders o
        LEFT JOIN (
          SELECT DISTINCT order_id AS oid
          FROM order_history
@@ -527,10 +529,8 @@ export async function forceRescheduledOrdersStuckInPastToToday(
             OR comment LIKE '%reprogramado%'
             OR comment LIKE '%Reprogramado%'
        ) h ON h.oid = o.id
-       SET o.delivery_deadline = ?, o.updated_at = ?
        WHERE o.archived = 0
          AND o.status NOT IN ('delivered', 'cancelled')
-         AND (o.delivery_deadline IS NULL OR o.delivery_deadline < ?)
          AND (
            ${subClause}
            OR h.oid IS NOT NULL
@@ -543,23 +543,43 @@ export async function forceRescheduledOrdersStuckInPastToToday(
              AND o.seller_id IN (SELECT id FROM users WHERE agency_id = ?)
            )
          )`,
-      [todayDeadline, now, todayStart, agency.id, agency.id]
+      [agency.id, agency.id]
     );
-    total += result.affectedRows ?? 0;
+
+    const stuck = rows.filter((row) => {
+      if (!row.delivery_deadline) return true;
+      return getOperationalDateKey(new Date(row.delivery_deadline)) < todayKey;
+    });
+    if (stuck.length === 0) continue;
+
+    await pool.query(
+      `UPDATE orders
+       SET delivery_deadline = ?, updated_at = ?
+       WHERE id IN (${stuck.map(() => '?').join(',')})`,
+      [todayDeadline, now, ...stuck.map((r) => r.id)]
+    );
+    total += stuck.length;
+    console.log(
+      `[deadlines] → hoy (${agency.deliveryDeadlineHour}:00) agencia ${agency.id}: ${stuck
+        .map((r) => r.id)
+        .join(', ')}`
+    );
   }
 
-  // Cinturón de seguridad: PED-2023 abierto en el pasado → hoy (corte default/agencia).
+  // Cinturón: PED-2023 / PED-2923 abiertos con día operativo < hoy.
   const [ped] = await pool.query<
-    Array<{ id: string; agency_id: string | null } & RowDataPacket>
+    Array<{ id: string; agency_id: string | null; delivery_deadline: Date | null } & RowDataPacket>
   >(
-    `SELECT id, agency_id FROM orders
+    `SELECT id, agency_id, delivery_deadline FROM orders
      WHERE id IN ('PED-2023', 'PED-2923')
        AND archived = 0
-       AND status NOT IN ('delivered', 'cancelled')
-       AND (delivery_deadline IS NULL OR delivery_deadline < ?)`,
-    [todayStart]
+       AND status NOT IN ('delivered', 'cancelled')`
   );
   for (const row of ped) {
+    const currentKey = row.delivery_deadline
+      ? getOperationalDateKey(new Date(row.delivery_deadline))
+      : null;
+    if (currentKey != null && currentKey >= todayKey) continue;
     const hour = row.agency_id
       ? await getAgencyDeliveryDeadlineHour(row.agency_id)
       : DELIVERY_DEADLINE_HOUR;
@@ -568,7 +588,9 @@ export async function forceRescheduledOrdersStuckInPastToToday(
       [getTodayDeadline(hour), now, row.id]
     );
     total += 1;
-    console.log(`[deadlines] Forzado ${row.id} → hoy (${hour}:00)`);
+    console.log(
+      `[deadlines] Forzado ${row.id} → hoy (${hour}:00) desde ${currentKey ?? 'null'}`
+    );
   }
 
   if (total > 0) {
@@ -722,7 +744,10 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
   return updated + forced;
 }
 
-/** Actualiza el corte de entrega si ML promete otro día operativo. */
+/**
+ * Actualiza el corte de entrega si ML promete otro día operativo.
+ * Nunca retrocede el día (el lead_time viejo de ML no puede pisar un reprogramado a hoy).
+ */
 export async function updateOrderDeliveryDeadlineIfNeeded(
   orderId: string,
   newDeadline: Date,
@@ -731,9 +756,13 @@ export async function updateOrderDeliveryDeadlineIfNeeded(
   const order = await getOrderById(orderId);
   if (!order) return null;
 
+  const newKey = getOperationalDateKey(newDeadline);
   const current = order.deliveryDeadline ? new Date(order.deliveryDeadline) : null;
-  if (current && getOperationalDateKey(current) === getOperationalDateKey(newDeadline)) {
-    return null;
+  if (current) {
+    const currentKey = getOperationalDateKey(current);
+    if (currentKey === newKey) return null;
+    // Evita el ping-pong: force→hoy y luego sync ML con fecha antigua → ayer.
+    if (newKey < currentKey) return null;
   }
 
   const now = new Date();
