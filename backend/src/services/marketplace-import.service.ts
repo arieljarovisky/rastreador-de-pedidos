@@ -248,8 +248,8 @@ export async function syncMercadoLibreOrderAfterImport(
           : null;
         const reason =
           nextSubstatus === 'receiver_absent'
-            ? 'Destinatario ausente · reprogramado para el día siguiente'
-            : 'Reprogramado para el día siguiente';
+            ? 'Destinatario ausente · reprogramado para hoy'
+            : 'Reprogramado para hoy';
         const rescheduled = await rescheduleOrderToNextOperationalDay(
           currentOrder.id,
           preferred,

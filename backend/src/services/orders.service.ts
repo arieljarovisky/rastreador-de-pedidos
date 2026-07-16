@@ -17,7 +17,6 @@ import {
   DELIVERY_DEADLINE_HOUR,
   getOperationalDateKey,
   getTodayDeadline,
-  nextOperationalDeliveryDeadline,
 } from '../utils/delivery-deadline.js';
 import { getAgencyDeliveryDeadlineHour } from './agencies.service.js';
 
@@ -523,6 +522,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       delivery_deadline: Date | null;
       ml_shipment_substatus: string | null;
       absent_comment: number;
+      reschedule_comment: number;
     } & RowDataPacket>
   >(
     `SELECT o.id, o.agency_id, o.created_at, o.delivery_deadline,
@@ -530,7 +530,13 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
             (
               SELECT COUNT(*) FROM order_history h
               WHERE h.order_id = o.id AND h.comment LIKE '%ausente%'
-            ) AS absent_comment
+            ) AS absent_comment,
+            (
+              SELECT COUNT(*) FROM order_history h
+              WHERE h.order_id = o.id AND (
+                h.comment LIKE '%reprogramado%' OR h.comment LIKE '%Reprogramado%'
+              )
+            ) AS reschedule_comment
      FROM orders o
      WHERE o.archived = 0
        AND o.status NOT IN (?, ?)
@@ -563,12 +569,25 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     const createdKey = getOperationalDateKey(created);
     const current = row.delivery_deadline ? new Date(row.delivery_deadline) : null;
     const currentKey = current ? getOperationalDateKey(current) : null;
-    const isAbsent =
-      row.ml_shipment_substatus === 'receiver_absent' || Number(row.absent_comment) > 0;
+    const isRescheduled =
+      row.ml_shipment_substatus === 'receiver_absent' ||
+      row.ml_shipment_substatus === 'to_be_agreed' ||
+      row.ml_shipment_substatus === 'bad_address' ||
+      row.ml_shipment_substatus === 'incorrect_address' ||
+      row.ml_shipment_substatus === 'buyer_not_found' ||
+      row.ml_shipment_substatus === 'delivery_failed' ||
+      row.ml_shipment_substatus === 'rejected_by_receiver' ||
+      row.ml_shipment_substatus === 'not_accessible' ||
+      row.ml_shipment_substatus === 'dangerous_area' ||
+      Number(row.absent_comment) > 0 ||
+      Number(row.reschedule_comment) > 0;
 
     let nextDeadline: Date | null = null;
 
-    if (!current || (currentKey != null && currentKey < expectedKey)) {
+    if (isRescheduled && currentKey != null && currentKey < todayKey) {
+      // Ausente / reprogramado trabado en el pasado → hoy (ML: entregar hoy).
+      nextDeadline = getTodayDeadline(hour);
+    } else if (!current || (currentKey != null && currentKey < expectedKey)) {
       // Sin deadline o día demasiado temprano (venta nocturna con corte viejo).
       nextDeadline = expected;
     } else if (currentKey === expectedKey && current!.getTime() !== expected.getTime()) {
@@ -580,9 +599,6 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     ) {
       // Mismo día de creación pero el corte actual indica día siguiente.
       nextDeadline = expected;
-    } else if (isAbsent && currentKey != null && currentKey < todayKey) {
-      // Ausente trabado en el pasado → pasar a hoy.
-      nextDeadline = getTodayDeadline(hour);
     }
 
     // No pisar si el pedido ya está en un día posterior al esperado (reprogramado a futuro).
@@ -668,14 +684,15 @@ export async function updateOrderMlShipmentMeta(
 }
 
 /**
- * Pasa el pedido al siguiente día operativo (o al deadline ML si es más tarde).
- * Usado cuando el comprador estuvo ausente / hay que reprogramar.
- * No vuelve a empujar si el pedido ya está en un día futuro.
+ * Reprograma un pedido ausente / con excepción ML para reintento.
+ * ML pide entregar “hoy”: el deadline operativo pasa al corte de hoy
+ * (o al día futuro que indique ML si es posterior a hoy).
+ * No empuja más si el pedido ya está en un día futuro.
  */
 export async function rescheduleOrderToNextOperationalDay(
   orderId: string,
   preferredDeadline?: Date | null,
-  reason = 'Reprogramado para el día siguiente'
+  reason = 'Reprogramado para hoy'
 ): Promise<Order | null> {
   const order = await getOrderById(orderId);
   if (!order) return null;
@@ -689,7 +706,7 @@ export async function rescheduleOrderToNextOperationalDay(
     : new Date(order.createdAt);
   const currentKey = getOperationalDateKey(base);
 
-  // Ya reprogramado a un día futuro → no seguir corriendo el deadline ni spamear bitácora
+  // Ya en un día futuro → no seguir corriendo el deadline ni spamear bitácora
   if (currentKey > todayKey) {
     return null;
   }
@@ -697,21 +714,26 @@ export async function rescheduleOrderToNextOperationalDay(
   const deadlineHour = order.agencyId
     ? await getAgencyDeliveryDeadlineHour(order.agencyId)
     : undefined;
-  const fallback = nextOperationalDeliveryDeadline(new Date(), deadlineHour);
+  // Por defecto: hoy (mensaje ML “entregalo hoy”).
+  let target = getTodayDeadline(deadlineHour);
   const preferred =
     preferredDeadline && !Number.isNaN(preferredDeadline.getTime()) ? preferredDeadline : null;
 
-  let target = fallback;
   if (preferred) {
     const preferredKey = getOperationalDateKey(preferred);
-    const fallbackKey = getOperationalDateKey(fallback);
-    if (preferredKey >= fallbackKey) {
+    // Solo respetar preferencia ML si apunta a un día posterior a hoy.
+    if (preferredKey > todayKey) {
       target = preferred;
     }
   }
 
-  // Si el target no mueve el día, no escribir nada
-  if (getOperationalDateKey(target) <= currentKey) {
+  const targetKey = getOperationalDateKey(target);
+  // Ya está en el día objetivo
+  if (targetKey === currentKey) {
+    return null;
+  }
+  // No retroceder
+  if (targetKey < currentKey) {
     return null;
   }
 

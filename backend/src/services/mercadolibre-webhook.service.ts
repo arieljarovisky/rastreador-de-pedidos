@@ -507,8 +507,8 @@ async function syncOrderFromMlShipment(
     }
     const reason =
       mlSubstatus === 'receiver_absent'
-        ? 'Destinatario ausente · reprogramado para el día siguiente'
-        : `${statusLabel} · reprogramado para el día siguiente`;
+        ? 'Destinatario ausente · reprogramado para hoy'
+        : `${statusLabel} · reprogramado para hoy`;
     const rescheduled = await rescheduleOrderToNextOperationalDay(
       order.id,
       preferred,

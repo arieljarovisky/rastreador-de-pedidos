@@ -4,6 +4,7 @@ import { syncMensajeriaGrAgency } from './sync-agency-bindings.js';
 import {
   computeDeliveryDeadline,
   nextOperationalDeliveryDeadline,
+  getTodayDeadline,
 } from '../utils/delivery-deadline.js';
 
 async function columnExists(table: string, column: string): Promise<boolean> {
@@ -583,20 +584,26 @@ export async function runMigrations(): Promise<void> {
        )`
   );
 
-  // Corregir deadlines empujados de más por el bug de reprogramación repetida
-  const tomorrow = nextOperationalDeliveryDeadline(new Date());
+  // Ausentes/reprogramados empujados de más → bajar al corte de hoy (ML: entregar hoy)
+  const todayDeadline = getTodayDeadline();
   await pool.query(
     `UPDATE orders
      SET delivery_deadline = ?
-     WHERE ml_shipment_substatus IN (
-       'receiver_absent', 'to_be_agreed', 'bad_address', 'incorrect_address',
-       'buyer_not_found', 'delivery_failed', 'rejected_by_receiver',
-       'not_accessible', 'dangerous_area'
+     WHERE (
+       ml_shipment_substatus IN (
+         'receiver_absent', 'to_be_agreed', 'bad_address', 'incorrect_address',
+         'buyer_not_found', 'delivery_failed', 'rejected_by_receiver',
+         'not_accessible', 'dangerous_area'
+       )
+       OR id IN (
+         SELECT order_id FROM order_history
+         WHERE comment LIKE '%ausente%' OR comment LIKE '%reprogramado%'
+       )
      )
        AND status NOT IN ('delivered', 'cancelled')
        AND delivery_deadline IS NOT NULL
        AND delivery_deadline > ?`,
-    [tomorrow, tomorrow]
+    [todayDeadline, todayDeadline]
   );
 
   // Pedidos abiertos creados de noche con corte viejo (21:00) → día operativo correcto
