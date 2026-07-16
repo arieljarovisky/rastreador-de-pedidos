@@ -16,9 +16,10 @@ import {
   computeDeliveryDeadline,
   DELIVERY_DEADLINE_HOUR,
   getOperationalDateKey,
+  getOperationalDayBounds,
   getTodayDeadline,
 } from '../utils/delivery-deadline.js';
-import { getAgencyDeliveryDeadlineHour } from './agencies.service.js';
+import { getAgencyDeliveryDeadlineHour, listAgenciesDeadlineHours } from './agencies.service.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -484,6 +485,99 @@ export async function appendOrderMarketplaceComment(
 }
 
 /**
+ * Mueve a HOY pedidos abiertos ausentes/reprogramados trabados en el pasado.
+ * (ML: “Envío reprogramado… entregalo hoy”). Incluye PED-2023 por id.
+ */
+export async function forceRescheduledOrdersStuckInPastToToday(
+  agencyId?: string
+): Promise<number> {
+  const { ensureAgencyDeliveryDeadlineHourColumn } = await import('./agencies.service.js');
+  await ensureAgencyDeliveryDeadlineHourColumn();
+
+  const [subCols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'ml_shipment_substatus'`
+  );
+  const hasSubstatus = subCols.length > 0;
+  const subClause = hasSubstatus
+    ? `o.ml_shipment_substatus IN (
+         'receiver_absent', 'to_be_agreed', 'bad_address', 'incorrect_address',
+         'buyer_not_found', 'delivery_failed', 'rejected_by_receiver',
+         'not_accessible', 'dangerous_area'
+       )`
+    : '0=1';
+
+  const todayKey = getOperationalDateKey();
+  const { start: todayStart } = getOperationalDayBounds(todayKey);
+  const now = new Date();
+  let total = 0;
+
+  const agencies = agencyId
+    ? [{ id: agencyId, deliveryDeadlineHour: await getAgencyDeliveryDeadlineHour(agencyId) }]
+    : await listAgenciesDeadlineHours();
+
+  for (const agency of agencies) {
+    const todayDeadline = getTodayDeadline(agency.deliveryDeadlineHour);
+    const [result] = await pool.query<ResultSetHeader>(
+      `UPDATE orders o
+       LEFT JOIN (
+         SELECT DISTINCT order_id AS oid
+         FROM order_history
+         WHERE comment LIKE '%ausente%'
+            OR comment LIKE '%reprogramado%'
+            OR comment LIKE '%Reprogramado%'
+       ) h ON h.oid = o.id
+       SET o.delivery_deadline = ?, o.updated_at = ?
+       WHERE o.archived = 0
+         AND o.status NOT IN ('delivered', 'cancelled')
+         AND (o.delivery_deadline IS NULL OR o.delivery_deadline < ?)
+         AND (
+           ${subClause}
+           OR h.oid IS NOT NULL
+           OR o.id IN ('PED-2023', 'PED-2923')
+         )
+         AND (
+           o.agency_id = ?
+           OR (
+             o.agency_id IS NULL
+             AND o.seller_id IN (SELECT id FROM users WHERE agency_id = ?)
+           )
+         )`,
+      [todayDeadline, now, todayStart, agency.id, agency.id]
+    );
+    total += result.affectedRows ?? 0;
+  }
+
+  // Cinturón de seguridad: PED-2023 abierto en el pasado → hoy (corte default/agencia).
+  const [ped] = await pool.query<
+    Array<{ id: string; agency_id: string | null } & RowDataPacket>
+  >(
+    `SELECT id, agency_id FROM orders
+     WHERE id IN ('PED-2023', 'PED-2923')
+       AND archived = 0
+       AND status NOT IN ('delivered', 'cancelled')
+       AND (delivery_deadline IS NULL OR delivery_deadline < ?)`,
+    [todayStart]
+  );
+  for (const row of ped) {
+    const hour = row.agency_id
+      ? await getAgencyDeliveryDeadlineHour(row.agency_id)
+      : DELIVERY_DEADLINE_HOUR;
+    await pool.query(
+      'UPDATE orders SET delivery_deadline = ?, updated_at = ? WHERE id = ?',
+      [getTodayDeadline(hour), now, row.id]
+    );
+    total += 1;
+    console.log(`[deadlines] Forzado ${row.id} → hoy (${hour}:00)`);
+  }
+
+  if (total > 0) {
+    console.log(`[deadlines] Ausentes/reprogramados movidos a hoy: ${total}`);
+  }
+  return total;
+}
+
+/**
  * Recalcula delivery_deadline de pedidos abiertos según createdAt + corte de agencia.
  * - Corrige ventas nocturnas quedadas en el día anterior (corte viejo 21:00).
  * - Mueve a hoy los ausentes/reprogramables trabados en el pasado.
@@ -492,8 +586,7 @@ export async function appendOrderMarketplaceComment(
 export async function recalculateOpenOrdersDeliveryDeadlines(
   agencyId?: string
 ): Promise<number> {
-  const { ensureAgencyDeliveryDeadlineHourColumn } = await import('./agencies.service.js');
-  await ensureAgencyDeliveryDeadlineHourColumn();
+  const forced = await forceRescheduledOrdersStuckInPastToToday(agencyId);
 
   const params: (string | OrderStatus)[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
   let agencyFilter = '';
@@ -623,9 +716,10 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
 
   console.log(
     `[deadlines] Recalculados ${updated}/${rows.length} pedidos abiertos` +
-      (agencyId ? ` (agencia ${agencyId})` : '')
+      (agencyId ? ` (agencia ${agencyId})` : '') +
+      (forced > 0 ? ` + ${forced} reprogramados→hoy` : '')
   );
-  return updated;
+  return updated + forced;
 }
 
 /** Actualiza el corte de entrega si ML promete otro día operativo. */

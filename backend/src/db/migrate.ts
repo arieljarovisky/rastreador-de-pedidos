@@ -4,7 +4,6 @@ import { syncMensajeriaGrAgency } from './sync-agency-bindings.js';
 import {
   computeDeliveryDeadline,
   nextOperationalDeliveryDeadline,
-  getTodayDeadline,
 } from '../utils/delivery-deadline.js';
 
 async function columnExists(table: string, column: string): Promise<boolean> {
@@ -584,39 +583,13 @@ export async function runMigrations(): Promise<void> {
        )`
   );
 
-  // Ausentes/reprogramados empujados de más → bajar al corte de hoy (ML: entregar hoy)
-  const todayDeadline = getTodayDeadline();
-  await pool.query(
-    `UPDATE orders
-     SET delivery_deadline = ?
-     WHERE (
-       ml_shipment_substatus IN (
-         'receiver_absent', 'to_be_agreed', 'bad_address', 'incorrect_address',
-         'buyer_not_found', 'delivery_failed', 'rejected_by_receiver',
-         'not_accessible', 'dangerous_area'
-       )
-       OR id IN (
-         SELECT order_id FROM order_history
-         WHERE comment LIKE '%ausente%' OR comment LIKE '%reprogramado%'
-       )
-     )
-       AND status NOT IN ('delivered', 'cancelled')
-       AND delivery_deadline IS NOT NULL
-       AND delivery_deadline > ?`,
-    [todayDeadline, todayDeadline]
-  );
-
-  // Pedidos abiertos creados de noche con corte viejo (21:00) → día operativo correcto
+  // Ausentes/reprogramados EN EL PASADO → hoy (PED-2023 y similares).
   try {
     const { recalculateOpenOrdersDeliveryDeadlines } = await import(
       '../services/orders.service.js'
     );
     const updated = await recalculateOpenOrdersDeliveryDeadlines();
-    if (updated > 0) {
-      console.log(
-        `[migrate] Recalculados ${updated} pedido(s) abierto(s) según corte por agencia`
-      );
-    }
+    console.log(`[migrate] Deadlines recalculados/forzados a hoy: ${updated}`);
   } catch (err) {
     console.warn('[migrate] No se pudieron recalcular deadlines abiertos:', err);
   }

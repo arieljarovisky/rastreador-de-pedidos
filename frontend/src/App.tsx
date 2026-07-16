@@ -221,7 +221,7 @@ export default function App() {
           let recalculated = typeof data?.recalculated === 'number' ? data.recalculated : 0;
 
           // Forzar reapliegue una vez por sesión tras deploys (v3).
-          const recalcSessionKey = 'posta_deadline_recalc_v4';
+          const recalcSessionKey = 'posta_deadline_recalc_v5';
           if (!sessionStorage.getItem(recalcSessionKey)) {
             sessionStorage.setItem(recalcSessionKey, '1');
             const forceRes = await fetch(apiUrl('/api/accounts/agency/delivery-deadline/recalculate'), {
