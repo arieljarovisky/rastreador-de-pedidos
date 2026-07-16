@@ -16,6 +16,7 @@ import {
   computeDeliveryDeadline,
   DELIVERY_DEADLINE_HOUR,
   getOperationalDateKey,
+  getTodayDeadline,
   nextOperationalDeliveryDeadline,
 } from '../utils/delivery-deadline.js';
 import { getAgencyDeliveryDeadlineHour } from './agencies.service.js';
@@ -485,8 +486,9 @@ export async function appendOrderMarketplaceComment(
 
 /**
  * Recalcula delivery_deadline de pedidos abiertos según createdAt + corte de agencia.
- * No retrocede pedidos reprogramados a un día posterior (ausente / ML).
- * Sí corrige los que quedaron en un día anterior por el corte viejo (p. ej. 21:00).
+ * - Corrige ventas nocturnas quedadas en el día anterior (corte viejo 21:00).
+ * - Mueve a hoy los ausentes/reprogramables trabados en el pasado.
+ * - No retrocede pedidos que ya están en un día futuro respecto del esperado.
  */
 export async function recalculateOpenOrdersDeliveryDeadlines(
   agencyId?: string
@@ -497,9 +499,21 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
   const params: (string | OrderStatus)[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
   let agencyFilter = '';
   if (agencyId) {
-    agencyFilter = ' AND o.agency_id = ?';
-    params.push(agencyId);
+    // Incluye pedidos sin agency_id pero del seller de esta agencia (datos viejos).
+    agencyFilter = ` AND (
+      o.agency_id = ?
+      OR (o.agency_id IS NULL AND o.seller_id IN (SELECT id FROM users WHERE agency_id = ?))
+    )`;
+    params.push(agencyId, agencyId);
   }
+
+  const hasSubstatus = await (async () => {
+    const [cols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'ml_shipment_substatus'`
+    );
+    return cols.length > 0;
+  })();
 
   const [rows] = await pool.query<
     Array<{
@@ -507,9 +521,16 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       agency_id: string | null;
       created_at: Date;
       delivery_deadline: Date | null;
+      ml_shipment_substatus: string | null;
+      absent_comment: number;
     } & RowDataPacket>
   >(
-    `SELECT o.id, o.agency_id, o.created_at, o.delivery_deadline
+    `SELECT o.id, o.agency_id, o.created_at, o.delivery_deadline,
+            ${hasSubstatus ? 'o.ml_shipment_substatus' : 'NULL AS ml_shipment_substatus'},
+            (
+              SELECT COUNT(*) FROM order_history h
+              WHERE h.order_id = o.id AND h.comment LIKE '%ausente%'
+            ) AS absent_comment
      FROM orders o
      WHERE o.archived = 0
        AND o.status NOT IN (?, ?)
@@ -520,6 +541,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
   const hourByAgency = new Map<string, number>();
   let updated = 0;
   const now = new Date();
+  const todayKey = getOperationalDateKey(now);
 
   for (const row of rows) {
     let hour = DELIVERY_DEADLINE_HOUR;
@@ -528,23 +550,52 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
         hourByAgency.set(row.agency_id, await getAgencyDeliveryDeadlineHour(row.agency_id));
       }
       hour = hourByAgency.get(row.agency_id)!;
+    } else if (agencyId) {
+      if (!hourByAgency.has(agencyId)) {
+        hourByAgency.set(agencyId, await getAgencyDeliveryDeadlineHour(agencyId));
+      }
+      hour = hourByAgency.get(agencyId)!;
     }
 
-    const expected = computeDeliveryDeadline(new Date(row.created_at), hour);
+    const created = new Date(row.created_at);
+    const expected = computeDeliveryDeadline(created, hour);
     const expectedKey = getOperationalDateKey(expected);
+    const createdKey = getOperationalDateKey(created);
     const current = row.delivery_deadline ? new Date(row.delivery_deadline) : null;
     const currentKey = current ? getOperationalDateKey(current) : null;
+    const isAbsent =
+      row.ml_shipment_substatus === 'receiver_absent' || Number(row.absent_comment) > 0;
 
     let nextDeadline: Date | null = null;
+
     if (!current || (currentKey != null && currentKey < expectedKey)) {
-      // Sin deadline o día operativo demasiado temprano (venta nocturna con corte viejo).
+      // Sin deadline o día demasiado temprano (venta nocturna con corte viejo).
       nextDeadline = expected;
     } else if (currentKey === expectedKey && current!.getTime() !== expected.getTime()) {
-      // Mismo día, pero con hora de corte desactualizada.
       nextDeadline = expected;
+    } else if (
+      currentKey != null &&
+      currentKey === createdKey &&
+      expectedKey > createdKey
+    ) {
+      // Mismo día de creación pero el corte actual indica día siguiente.
+      nextDeadline = expected;
+    } else if (isAbsent && currentKey != null && currentKey < todayKey) {
+      // Ausente trabado en el pasado → pasar a hoy.
+      nextDeadline = getTodayDeadline(hour);
+    }
+
+    // No pisar si el pedido ya está en un día posterior al esperado (reprogramado a futuro).
+    if (
+      nextDeadline &&
+      currentKey != null &&
+      currentKey > getOperationalDateKey(nextDeadline)
+    ) {
+      continue;
     }
 
     if (!nextDeadline) continue;
+    if (current && current.getTime() === nextDeadline.getTime()) continue;
 
     await pool.query('UPDATE orders SET delivery_deadline = ?, updated_at = ? WHERE id = ?', [
       nextDeadline,
@@ -554,6 +605,10 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     updated += 1;
   }
 
+  console.log(
+    `[deadlines] Recalculados ${updated}/${rows.length} pedidos abiertos` +
+      (agencyId ? ` (agencia ${agencyId})` : '')
+  );
   return updated;
 }
 

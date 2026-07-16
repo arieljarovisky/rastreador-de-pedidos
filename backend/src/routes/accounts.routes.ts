@@ -35,7 +35,8 @@ import { DELIVERY_DEADLINE_HOUR, getOperationalDateKey } from '../utils/delivery
 
 const router = Router();
 
-/** Evita recalcular en cada poll: una vez por agencia y día operativo. */
+/** Evita recalcular en cada poll. Versión fuerza reintento tras redeploy. */
+const DEADLINE_RECALC_VERSION = 'v3';
 const deadlineRecalcByAgencyDay = new Map<string, string>();
 
 function handleCreateUserError(res: Response, err: unknown): boolean {
@@ -337,7 +338,7 @@ router.get('/agency/delivery-deadline', authenticate, async (req: Request, res: 
     return;
   }
   const hour = await getAgencyDeliveryDeadlineHour(agencyId);
-  const dayKey = getOperationalDateKey();
+  const dayKey = `${DEADLINE_RECALC_VERSION}:${getOperationalDateKey()}`;
   let recalculated = 0;
   if (deadlineRecalcByAgencyDay.get(agencyId) !== dayKey) {
     deadlineRecalcByAgencyDay.set(agencyId, dayKey);
@@ -354,7 +355,7 @@ router.post('/agency/delivery-deadline/recalculate', authenticate, async (req: R
   }
   const hour = await getAgencyDeliveryDeadlineHour(agencyId);
   const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
-  deadlineRecalcByAgencyDay.set(agencyId, getOperationalDateKey());
+  deadlineRecalcByAgencyDay.set(agencyId, `${DEADLINE_RECALC_VERSION}:${getOperationalDateKey()}`);
   res.json({ hour, recalculated });
 });
 

@@ -218,8 +218,28 @@ export default function App() {
           if (typeof data?.hour === 'number') {
             setDeliveryDeadlineHour(data.hour);
           }
-          // El backend puede haber corregido deadlines (ventas nocturnas); refrescar pedidos.
-          if (typeof data?.recalculated === 'number' && data.recalculated > 0) {
+          let recalculated = typeof data?.recalculated === 'number' ? data.recalculated : 0;
+
+          // Forzar reapliegue una vez por sesión tras deploys (v3).
+          const recalcSessionKey = 'posta_deadline_recalc_v3';
+          if (!sessionStorage.getItem(recalcSessionKey)) {
+            sessionStorage.setItem(recalcSessionKey, '1');
+            const forceRes = await fetch(apiUrl('/api/accounts/agency/delivery-deadline/recalculate'), {
+              method: 'POST',
+              headers,
+            });
+            if (forceRes.ok) {
+              const forceData = await forceRes.json();
+              if (typeof forceData?.hour === 'number') {
+                setDeliveryDeadlineHour(forceData.hour);
+              }
+              if (typeof forceData?.recalculated === 'number') {
+                recalculated = forceData.recalculated;
+              }
+            }
+          }
+
+          if (recalculated > 0) {
             const ordersRefresh = await fetch(apiUrl('/api/orders'), { headers });
             if (ordersRefresh.ok) {
               const refreshed = await ordersRefresh.json();
