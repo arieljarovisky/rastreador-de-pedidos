@@ -1,5 +1,7 @@
 /** Default / fallback si la agencia no tiene corte configurado (alineado al corte Flex ML típico 13:00). */
 export const DELIVERY_DEADLINE_HOUR = 13;
+/** Hora límite de entrega del día operativo (Flex “antes de las 21 hs”). Distinta del corte de ventas. */
+export const DELIVERY_SLA_HOUR = 21;
 export const DELIVERY_TIMEZONE = 'America/Argentina/Buenos_Aires';
 export const DELIVERY_TIMEZONE_LABEL = 'Argentina (ART)';
 

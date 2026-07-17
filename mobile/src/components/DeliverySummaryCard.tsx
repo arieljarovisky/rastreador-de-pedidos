@@ -20,7 +20,7 @@ export default function DeliverySummaryCard({ orders, accentColor = colors.accen
   const summary = useMemo(() => computeDeliverySummaryFromOrders(orders), [orders]);
 
   const urgency =
-    summary.isPastDeadline && summary.undelivered > 0
+    summary.overdue > 0
       ? 'overdue'
       : summary.undelivered > 0 && summary.minutesUntilDeadline <= 120
         ? 'warning'

@@ -4,10 +4,12 @@ import { AppNotification, OrderStatus, User, UserRole } from '../types/index.js'
 import { isAgencyAdmin } from '../utils/roles.js';
 import {
   DELIVERY_DEADLINE_HOUR,
+  DELIVERY_SLA_HOUR,
   formatDeadlineHourLabel,
   getOperationalDateKey,
   getTodayDeadline,
   getOperationalDayBounds,
+  deliveryDeadlineForOperationalDate,
   normalizeDeadlineHour,
 } from '../utils/delivery-deadline.js';
 import { createNotification } from './notifications.service.js';
@@ -33,12 +35,12 @@ interface OrderCountRow extends RowDataPacket {
 
 function buildSummary(
   rows: OrderCountRow[],
-  deadlineAt: Date,
+  salesCutoffAt: Date,
   dateKey: string,
   deadlineHour: number = DELIVERY_DEADLINE_HOUR
 ): DeliveryDailySummary {
   const now = Date.now();
-  const deadlineMs = deadlineAt.getTime();
+  const salesCutoffMs = salesCutoffAt.getTime();
   const counts = new Map(rows.map((r) => [r.status, Number(r.cnt)]));
   const cutHour = normalizeDeadlineHour(deadlineHour);
 
@@ -49,18 +51,29 @@ function buildSummary(
   const delivering = counts.get(OrderStatus.DELIVERING) ?? 0;
   const undelivered = pending + assigned + delivering;
   const total = delivered + cancelled + undelivered;
-  const isPastDeadline = now >= deadlineMs;
+
+  const todayKey = getOperationalDateKey();
+  const isViewingToday = dateKey === todayKey;
+  const isPastDeadline = isViewingToday
+    ? now >= salesCutoffMs
+    : dateKey < todayKey;
+  const deliverySlaAt = deliveryDeadlineForOperationalDate(dateKey, DELIVERY_SLA_HOUR);
+  const isPastDeliverySla = isViewingToday
+    ? now >= deliverySlaAt.getTime()
+    : dateKey < todayKey;
 
   return {
     date: dateKey,
     deadlineHour: cutHour,
-    deadlineAt: deadlineAt.toISOString(),
+    deadlineAt: salesCutoffAt.toISOString(),
     total,
     delivered,
     undelivered,
-    overdue: isPastDeadline ? undelivered : 0,
+    overdue: isPastDeliverySla ? undelivered : 0,
     cancelled,
-    minutesUntilDeadline: Math.max(0, Math.floor((deadlineMs - now) / 60_000)),
+    minutesUntilDeadline: isViewingToday
+      ? Math.max(0, Math.floor((salesCutoffMs - now) / 60_000))
+      : 0,
     isPastDeadline,
   };
 }
@@ -99,25 +112,25 @@ export async function getDeliverySummaryForUser(
   const deadlineHour = user.agencyId
     ? await getAgencyDeliveryDeadlineHour(user.agencyId)
     : DELIVERY_DEADLINE_HOUR;
-  const deadlineAt = getTodayDeadline(deadlineHour);
+  const salesCutoffAt = deliveryDeadlineForOperationalDate(dateKey, deadlineHour);
 
   if (user.role === UserRole.STORE_ADMIN) {
     if (!user.agencyId) {
-      return buildSummary([], deadlineAt, dateKey, deadlineHour);
+      return buildSummary([], salesCutoffAt, dateKey, deadlineHour);
     }
     const rows = await queryOrderCounts(user.agencyId, dateKey, user.id);
-    return buildSummary(rows, deadlineAt, dateKey, deadlineHour);
+    return buildSummary(rows, salesCutoffAt, dateKey, deadlineHour);
   }
 
   if (isAgencyAdmin(user.role)) {
     if (!user.agencyId) {
-      return buildSummary([], deadlineAt, dateKey, deadlineHour);
+      return buildSummary([], salesCutoffAt, dateKey, deadlineHour);
     }
     const rows = await queryOrderCounts(user.agencyId, dateKey);
-    return buildSummary(rows, deadlineAt, dateKey, deadlineHour);
+    return buildSummary(rows, salesCutoffAt, dateKey, deadlineHour);
   }
 
-  return buildSummary([], deadlineAt, dateKey, deadlineHour);
+  return buildSummary([], salesCutoffAt, dateKey, deadlineHour);
 }
 
 async function alreadyNotifiedToday(
