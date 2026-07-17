@@ -48,6 +48,7 @@ interface OperationsDashboardProps {
   userRole?: UserRole;
   deadlineHour?: number;
   onSelectOrder?: (orderId: string) => void;
+  onScheduleOrderToday?: (orderId: string) => Promise<void>;
   onGoToOperations?: () => void;
 }
 
@@ -60,6 +61,7 @@ export default function OperationsDashboard({
   userRole,
   deadlineHour = DELIVERY_DEADLINE_HOUR,
   onSelectOrder,
+  onScheduleOrderToday,
   onGoToOperations,
 }: OperationsDashboardProps) {
   const todayKey = getOperationalDateKey();
@@ -299,6 +301,9 @@ export default function OperationsDashboard({
             }
             tone="warn"
             onSelectOrder={onSelectOrder}
+            onScheduleOrderToday={
+              !isToday && onScheduleOrderToday ? onScheduleOrderToday : undefined
+            }
             showSeller={isAgency}
           />
           <OrderListSection
@@ -400,6 +405,7 @@ function OrderListSection({
   emptyMessage,
   tone,
   onSelectOrder,
+  onScheduleOrderToday,
   showSeller,
   showDeliveredAt = false,
   deadlineHour = DELIVERY_DEADLINE_HOUR,
@@ -411,6 +417,7 @@ function OrderListSection({
   emptyMessage: string;
   tone: 'ok' | 'warn' | 'danger';
   onSelectOrder?: (orderId: string) => void;
+  onScheduleOrderToday?: (orderId: string) => Promise<void>;
   showSeller?: boolean;
   showDeliveredAt?: boolean;
   deadlineHour?: number;
@@ -451,11 +458,11 @@ function OrderListSection({
         <>
           <ul className="divide-y divide-[var(--surface-border)]/50">
             {visibleOrders.map((order) => (
-              <li key={order.id}>
+              <li key={order.id} className="px-3 py-3.5 sm:py-2.5 hover:bg-[var(--surface-panel-2)]/60 transition">
                 <button
                   type="button"
                   onClick={() => onSelectOrder?.(order.id)}
-                  className="w-full text-left px-3 py-3.5 sm:py-2.5 hover:bg-[var(--surface-panel-2)]/60 active:bg-[var(--surface-panel-2)] transition min-h-[4.25rem] sm:min-h-0"
+                  className="w-full text-left min-h-[4.25rem] sm:min-h-0"
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-1">
                     <span className="text-[11px] sm:text-[10px] font-mono text-[var(--color-text-faint)]">{order.id}</span>
@@ -490,6 +497,18 @@ function OrderListSection({
                     ) : null;
                   })()}
                 </button>
+                {onScheduleOrderToday && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void onScheduleOrderToday(order.id);
+                    }}
+                    className="mt-2 w-full sm:w-auto px-2.5 py-1.5 rounded-[5px] border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition"
+                  >
+                    Programar para hoy
+                  </button>
+                )}
               </li>
             ))}
           </ul>

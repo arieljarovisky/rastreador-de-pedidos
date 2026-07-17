@@ -230,12 +230,12 @@ export async function syncMercadoLibreOrderAfterImport(
           integration,
           flex.externalId
         );
-        // Solo adelantar deadline con lead_time ML; nunca pisar un reprogramado a hoy
-        // con la fecha estimada original (causa del ping-pong PED ausente en "Ayer").
+        // Alinear deadline con la promesa ML (puede bajar a hoy si quedó mal en mañana).
         if (mlDeadline) {
           const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(
             currentOrder.id,
-            mlDeadline
+            mlDeadline,
+            'Fecha de entrega alineada con Mercado Libre'
           );
           if (withDeadline) currentOrder = withDeadline;
         }
@@ -368,7 +368,8 @@ export async function syncOpenMercadoLibreOrdersInList(orders: Order[]): Promise
       });
       if (
         updated.status !== order.status ||
-        updated.repartidorId !== order.repartidorId
+        updated.repartidorId !== order.repartidorId ||
+        updated.deliveryDeadline !== order.deliveryDeadline
       ) {
         const sellerId = order.sellerId ?? (await getSellerIdForOrder(order.id));
         emitOrderUpdated(updated, sellerId);

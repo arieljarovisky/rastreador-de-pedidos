@@ -281,8 +281,12 @@ export async function createOrder(
   const deadlineHour = agencyId
     ? await getAgencyDeliveryDeadlineHour(agencyId)
     : undefined;
+  // Flex es same-day: sin lead_time de ML, el día operativo es hoy (no el corte post-12 → mañana).
   const deliveryDeadline =
-    data.deliveryDeadline ?? computeDeliveryDeadline(now, deadlineHour);
+    data.deliveryDeadline ??
+    (data.shippingType === 'flex'
+      ? getTodayDeadline(deadlineHour)
+      : computeDeliveryDeadline(now, deadlineHour));
 
   if (data.externalSource && data.externalOrderId) {
     if (sellerId) {
@@ -567,11 +571,12 @@ export async function forceRescheduledOrdersStuckInPastToToday(
   }
 
   // Cinturón: PED-2023 / PED-2923 abiertos con día operativo < hoy.
+  // PED-2075: Flex same-day mal programado en mañana.
   const [ped] = await pool.query<
     Array<{ id: string; agency_id: string | null; delivery_deadline: Date | null } & RowDataPacket>
   >(
     `SELECT id, agency_id, delivery_deadline FROM orders
-     WHERE id IN ('PED-2023', 'PED-2923')
+     WHERE id IN ('PED-2023', 'PED-2923', 'PED-2075')
        AND archived = 0
        AND status NOT IN ('delivered', 'cancelled')`
   );
@@ -579,7 +584,11 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     const currentKey = row.delivery_deadline
       ? getOperationalDateKey(new Date(row.delivery_deadline))
       : null;
-    if (currentKey != null && currentKey >= todayKey) continue;
+    const needsToday =
+      row.id === 'PED-2075'
+        ? currentKey == null || currentKey !== todayKey
+        : currentKey == null || currentKey < todayKey;
+    if (!needsToday) continue;
     const hour = row.agency_id
       ? await getAgencyDeliveryDeadlineHour(row.agency_id)
       : DELIVERY_DEADLINE_HOUR;
@@ -746,7 +755,8 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
 
 /**
  * Actualiza el corte de entrega si ML promete otro día operativo.
- * Nunca retrocede el día (el lead_time viejo de ML no puede pisar un reprogramado a hoy).
+ * Puede bajar el día hasta hoy (p. ej. Flex mal puesto en “mañana”), pero nunca a un día pasado
+ * (evita ping-pong: reprogramado→hoy y luego lead_time viejo → ayer).
  */
 export async function updateOrderDeliveryDeadlineIfNeeded(
   orderId: string,
@@ -757,12 +767,12 @@ export async function updateOrderDeliveryDeadlineIfNeeded(
   if (!order) return null;
 
   const newKey = getOperationalDateKey(newDeadline);
+  const todayKey = getOperationalDateKey(new Date());
   const current = order.deliveryDeadline ? new Date(order.deliveryDeadline) : null;
   if (current) {
     const currentKey = getOperationalDateKey(current);
     if (currentKey === newKey) return null;
-    // Evita el ping-pong: force→hoy y luego sync ML con fecha antigua → ayer.
-    if (newKey < currentKey) return null;
+    if (newKey < currentKey && newKey < todayKey) return null;
   }
 
   const now = new Date();
@@ -777,6 +787,48 @@ export async function updateOrderDeliveryDeadlineIfNeeded(
       [orderId, order.status, 'Mercado Libre', comment, now]
     );
   }
+  return getOrderById(orderId);
+}
+
+/**
+ * Fuerza el día operativo del pedido a hoy (p. ej. Flex “enviar hoy” quedado en mañana).
+ */
+export async function scheduleOrderForToday(
+  user: User,
+  orderId: string,
+  comment = 'Programado para hoy'
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+  const sellerId = order.sellerId ?? (await getSellerIdForOrder(orderId));
+  if (!canViewOrder(user, order, sellerId)) throw new Error('FORBIDDEN');
+  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+    return order;
+  }
+  if (!isAgencyAdmin(user.role) && user.role !== UserRole.STORE_ADMIN) {
+    throw new Error('FORBIDDEN');
+  }
+
+  const deadlineHour = order.agencyId
+    ? await getAgencyDeliveryDeadlineHour(order.agencyId)
+    : DELIVERY_DEADLINE_HOUR;
+  const target = getTodayDeadline(deadlineHour);
+  const todayKey = getOperationalDateKey(target);
+  const currentKey = order.deliveryDeadline
+    ? getOperationalDateKey(new Date(order.deliveryDeadline))
+    : null;
+  if (currentKey === todayKey) return order;
+
+  const now = new Date();
+  await pool.query('UPDATE orders SET delivery_deadline = ?, updated_at = ? WHERE id = ?', [
+    target,
+    now,
+    orderId,
+  ]);
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, order.status, user.name || user.username || user.id, comment, now]
+  );
   return getOrderById(orderId);
 }
 

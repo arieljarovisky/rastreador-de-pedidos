@@ -481,10 +481,12 @@ export function parseMercadoLibreDeliveryDeadline(
   deadlineHour?: number
 ): Date | null {
   if (!leadTime) return null;
+  // estimated_delivery_time = promesa real al comprador (p. ej. Flex “hoy antes de 21 hs”).
+  // limit/final son plazos de cancelación/reclamo, casi siempre días o meses después.
   const iso =
-    leadTime.estimated_delivery_final?.date ??
+    leadTime.estimated_delivery_time?.date ??
     leadTime.estimated_delivery_limit?.date ??
-    leadTime.estimated_delivery_time?.date;
+    leadTime.estimated_delivery_final?.date;
   if (!iso) return null;
   return deliveryDeadlineFromIsoDate(iso, deadlineHour);
 }

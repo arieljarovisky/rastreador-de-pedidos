@@ -15,6 +15,7 @@ import {
   deleteOrder,
   archiveAllFinishedOrders,
   setOrderArchived,
+  scheduleOrderForToday,
 } from '../services/orders.service.js';
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
@@ -200,6 +201,32 @@ router.get('/:id/mercadolibre-label', authenticate, async (req: Request, res: Re
     res.status(status).json({ error: mercadoLibreLabelErrorMessage(code) });
   }
 });
+
+router.post(
+  '/:id/schedule-today',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const order = await scheduleOrderForToday(req.user!, req.params.id);
+      if (!order) {
+        res.status(404).json({ error: 'Pedido no encontrado.' });
+        return;
+      }
+      const sellerId = await getSellerIdForOrder(order.id);
+      emitOrderUpdated(order, sellerId);
+      res.json(order);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'FORBIDDEN') {
+        res.status(403).json({ error: 'No tenés permiso para reprogramar este pedido.' });
+        return;
+      }
+      console.error('[orders] schedule-today', err);
+      res.status(500).json({ error: 'No se pudo programar el pedido para hoy.' });
+    }
+  }
+);
 
 router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
   const { status, repartidorId, comment } = req.body;

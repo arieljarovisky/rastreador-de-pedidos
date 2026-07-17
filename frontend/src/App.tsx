@@ -846,6 +846,19 @@ export default function App() {
     fetchData();
   };
 
+  const handleScheduleOrderToday = async (orderId: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/orders/${orderId}/schedule-today`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo programar el pedido para hoy');
+    }
+    await fetchData();
+  };
+
   const handleUpdateDeparture = async (data: LocationPoint) => {
     if (!token) return;
     const res = await fetch(apiUrl('/api/accounts/agency/departure'), {
@@ -1843,6 +1856,7 @@ export default function App() {
                       setActiveOrderId(orderId);
                       setMobileTab('dashboard');
                     }}
+                    onScheduleOrderToday={handleScheduleOrderToday}
                     onGoToOperations={() => setMobileTab('dashboard')}
                   />
                 </div>
@@ -1867,6 +1881,7 @@ export default function App() {
                     onAssignOrderSeller={handleAssignOrderSeller}
                     onDeleteOrder={handleDeleteOrder}
                     onArchiveOrder={handleArchiveOrder}
+                    onScheduleOrderToday={handleScheduleOrderToday}
                     userRole={user.role}
                     onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
                   />
