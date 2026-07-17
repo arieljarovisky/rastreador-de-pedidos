@@ -56,7 +56,7 @@ export default function App() {
   const [repartidores, setRepartidores] = useState<User[]>([]);
   const [sellers, setSellers] = useState<User[]>([]);
   const [departurePoint, setDeparturePoint] = useState<LocationPoint | null>(null);
-  const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(12);
+  const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(13);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [barrios, setBarrios] = useState<Barrio[]>([]);

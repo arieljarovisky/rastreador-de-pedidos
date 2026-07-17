@@ -201,7 +201,7 @@ export default function SettingsPage({
   onUpdateDefaultShippingRates,
   onDeleteDeliveryZone,
   onUpdateDeparture,
-  deliveryDeadlineHour = 12,
+  deliveryDeadlineHour = 13,
   onUpdateDeliveryDeadlineHour,
   onCreateSeller,
   onFetchSellerDetail,
@@ -489,6 +489,7 @@ export default function SettingsPage({
                 <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
                   Los pedidos cargados a partir de esta hora quedan para el día hábil siguiente
                   (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
+                  Conviene igualarlo al corte Flex de Mercado Libre (p. ej. 13:00).
                   Al guardar se reaplica a los pedidos aún sin entregar.
                   {!onUpdateDeliveryDeadlineHour && (
                     <> Corte actual: <span className="font-mono font-bold text-[var(--ink-soft)]">{String(deliveryDeadlineHour).padStart(2, '0')}:00</span>.</>

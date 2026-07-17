@@ -17,9 +17,11 @@ export async function ensureAgencyDeliveryDeadlineHourColumn(): Promise<void> {
       );
       if (rows.length === 0) {
         await pool.query(
-          'ALTER TABLE agencies ADD COLUMN delivery_deadline_hour TINYINT UNSIGNED NOT NULL DEFAULT 12 AFTER city'
+          `ALTER TABLE agencies ADD COLUMN delivery_deadline_hour TINYINT UNSIGNED NOT NULL DEFAULT ${DELIVERY_DEADLINE_HOUR} AFTER city`
         );
-        console.log('[agencies] Columna delivery_deadline_hour creada (default 12)');
+        console.log(
+          `[agencies] Columna delivery_deadline_hour creada (default ${DELIVERY_DEADLINE_HOUR})`
+        );
       }
     })().catch((err) => {
       deadlineHourColumnReady = null;
