@@ -859,6 +859,84 @@ export async function updateOrderMlShipmentMeta(
 }
 
 /**
+ * Actualiza nombre/teléfono/dirección cuando ML deja de ocultarlos (XXXXXXX → datos reales).
+ * Solo completa campos enmascarados o vacíos; no pisa datos ya buenos.
+ */
+export async function updateOrderContactFromMercadoLibre(
+  orderId: string,
+  data: {
+    clientName?: string;
+    clientPhone?: string;
+    address?: string;
+    lat?: number;
+    lng?: number;
+  }
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+    return order;
+  }
+
+  const isMasked = (v: string | null | undefined) => {
+    const t = (v ?? '').trim();
+    if (!t) return true;
+    return /^X{3,}$/i.test(t) || /^\*{3,}$/.test(t);
+  };
+  const firstLineMasked = (addr: string) => {
+    const first = addr.split(',')[0]?.trim() ?? '';
+    return isMasked(first);
+  };
+
+  const nextName =
+    data.clientName?.trim() && !isMasked(data.clientName) && isMasked(order.clientName)
+      ? data.clientName.trim()
+      : order.clientName;
+  const nextPhone =
+    data.clientPhone?.trim() && !isMasked(data.clientPhone) && isMasked(order.clientPhone)
+      ? data.clientPhone.trim()
+      : order.clientPhone ?? '';
+  const addressNeedsUpdate =
+    Boolean(data.address?.trim()) &&
+    !isMasked(data.address) &&
+    (isMasked(order.address) || firstLineMasked(order.address) || !order.address?.trim());
+  const nextAddress = addressNeedsUpdate ? data.address!.trim() : order.address;
+  const nextLat =
+    addressNeedsUpdate && data.lat != null && Number.isFinite(data.lat) ? data.lat : order.lat;
+  const nextLng =
+    addressNeedsUpdate && data.lng != null && Number.isFinite(data.lng) ? data.lng : order.lng;
+
+  if (
+    nextName === order.clientName &&
+    nextPhone === (order.clientPhone ?? '') &&
+    nextAddress === order.address &&
+    nextLat === order.lat &&
+    nextLng === order.lng
+  ) {
+    return null;
+  }
+
+  const now = new Date();
+  await pool.query(
+    `UPDATE orders
+     SET client_name = ?, client_phone = ?, address = ?, lat = ?, lng = ?, updated_at = ?
+     WHERE id = ?`,
+    [nextName, nextPhone || null, nextAddress, nextLat, nextLng, now, orderId]
+  );
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [
+      orderId,
+      order.status,
+      'Mercado Libre',
+      'Datos del destinatario actualizados (ya no ocultos por ML)',
+      now,
+    ]
+  );
+  return getOrderById(orderId);
+}
+
+/**
  * Reprograma un pedido ausente / con excepción ML para reintento.
  * ML pide entregar “hoy”: el deadline operativo pasa al corte de hoy
  * (o al día futuro que indique ML si es posterior a hoy).

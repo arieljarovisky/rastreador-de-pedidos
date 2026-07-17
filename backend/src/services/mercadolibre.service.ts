@@ -277,25 +277,78 @@ async function mlFetch<T>(
 function formatMlAddress(shipment: MlShipment): string {
   const addr = shipment.receiver_address;
   if (!addr) return '';
-  if (addr.address_line?.trim()) return addr.address_line.trim();
+  const line = unmaskMlText(addr.address_line);
+  if (line) return line;
   const parts = [
-    [addr.street_name, addr.street_number].filter(Boolean).join(' '),
-    addr.city?.name,
-    addr.state?.name,
-    addr.zip_code,
+    [unmaskMlText(addr.street_name), unmaskMlText(addr.street_number)].filter(Boolean).join(' '),
+    unmaskMlText(addr.city?.name),
+    unmaskMlText(addr.state?.name),
+    unmaskMlText(addr.zip_code),
     'Argentina',
   ].filter(Boolean);
+  // Si solo quedó "Argentina", el domicilio sigue oculto.
+  if (parts.length <= 1) return '';
   return parts.join(', ');
 }
 
 function buyerName(order: MlOrder, shipment: MlShipment): string {
-  const receiver = shipment.receiver_address?.receiver_name?.trim();
+  const receiver = unmaskMlText(shipment.receiver_address?.receiver_name);
   if (receiver) return receiver;
-  const first = order.buyer.first_name?.trim() ?? '';
-  const last = order.buyer.last_name?.trim() ?? '';
+  const first = unmaskMlText(order.buyer.first_name);
+  const last = unmaskMlText(order.buyer.last_name);
   const full = `${first} ${last}`.trim();
   if (full) return full;
-  return order.buyer.nickname?.trim() || `Comprador ML #${order.id}`;
+  const nick = unmaskMlText(order.buyer.nickname);
+  if (nick) return nick;
+  return `Comprador ML #${order.id}`;
+}
+
+/** ML oculta PII con "XXXXXXX" hasta confirmar pago / según permisos del token. */
+export function isMercadoLibreMaskedValue(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const t = value.trim();
+  if (!t) return false;
+  return /^X{3,}$/i.test(t) || /^\*{3,}$/.test(t);
+}
+
+function unmaskMlText(value: string | null | undefined): string {
+  const t = value?.trim() ?? '';
+  if (!t || isMercadoLibreMaskedValue(t)) return '';
+  return t;
+}
+
+export function orderHasMaskedMercadoLibreContact(order: Pick<Order, 'clientName' | 'clientPhone' | 'address'>): boolean {
+  const firstLine = order.address?.split(',')[0]?.trim() ?? '';
+  return (
+    isMercadoLibreMaskedValue(order.clientName) ||
+    isMercadoLibreMaskedValue(order.clientPhone) ||
+    isMercadoLibreMaskedValue(order.address) ||
+    isMercadoLibreMaskedValue(firstLine) ||
+    !order.address?.trim()
+  );
+}
+
+/** Datos de contacto legibles desde un shipment ML (sin máscara). */
+export function extractContactFromMlShipment(shipment: MlShipment): {
+  clientName: string;
+  clientPhone: string;
+  address: string;
+  lat?: number;
+  lng?: number;
+} | null {
+  const address = formatMlAddress(shipment);
+  if (!address) return null;
+  const clientName = unmaskMlText(shipment.receiver_address?.receiver_name);
+  const clientPhone = unmaskMlText(shipment.receiver_address?.receiver_phone);
+  const lat = shipment.receiver_address?.latitude;
+  const lng = shipment.receiver_address?.longitude;
+  return {
+    clientName,
+    clientPhone,
+    address,
+    lat: lat != null && Number.isFinite(Number(lat)) ? Number(lat) : undefined,
+    lng: lng != null && Number.isFinite(Number(lng)) ? Number(lng) : undefined,
+  };
 }
 
 export interface MercadoLibreFlexShipment {
@@ -416,6 +469,10 @@ function buildFlexShipmentFromMl(
 
   const lat = shipment.receiver_address?.latitude;
   const lng = shipment.receiver_address?.longitude;
+  const phone =
+    unmaskMlText(shipment.receiver_address?.receiver_phone) ||
+    unmaskMlText(order.buyer.phone?.number) ||
+    '';
 
   return {
     externalId: String(shipment.id),
@@ -424,10 +481,7 @@ function buildFlexShipmentFromMl(
     platform: 'mercadolibre',
     shippingType: 'flex',
     clientName: buyerName(order, shipment),
-    clientPhone:
-      shipment.receiver_address?.receiver_phone?.trim() ||
-      order.buyer.phone?.number?.trim() ||
-      '',
+    clientPhone: phone,
     address,
     lat: lat != null && Number.isFinite(Number(lat)) ? Number(lat) : undefined,
     lng: lng != null && Number.isFinite(Number(lng)) ? Number(lng) : undefined,
