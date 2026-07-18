@@ -36,7 +36,7 @@ import {
 import SellerFilterControl from './SellerFilterControl.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import { matchesOrderFilters } from '../utils/orderFilters.js';
+import { getOrderOperationalDateKey, matchesOrderFilters } from '../utils/orderFilters.js';
 import type { Barrio, DeliveryZone } from '../config/deliveryZones.js';
 
 interface OperationsDashboardProps {
@@ -71,7 +71,7 @@ export default function OperationsDashboard({
   const [repartidorFilterId, setRepartidorFilterId] = useState('');
   const isToday = selectedDateKey === todayKey;
   const isTomorrow = selectedDateKey === tomorrowKey;
-  const canGoForward = selectedDateKey < tomorrowKey;
+  const isFuture = selectedDateKey > todayKey;
 
   const cordonZones = useMemo(
     () => buildCordonMapZones(deliveryZones, barrios),
@@ -92,6 +92,23 @@ export default function OperationsDashboard({
     () => orders.filter((o) => matchesOrderFilters(o, orderFilterContext)),
     [orders, orderFilterContext]
   );
+
+  /** Fechas operativas con al menos un envío (según filtros activos). */
+  const datesWithShipments = useMemo(() => {
+    const keys = new Set<string>();
+    for (const order of scopedOrders) {
+      if (order.archived) continue;
+      keys.add(getOrderOperationalDateKey(order));
+    }
+    return [...keys].sort();
+  }, [scopedOrders]);
+
+  const latestShipmentDateKey = datesWithShipments.at(-1) ?? todayKey;
+  const maxDateKey =
+    latestShipmentDateKey > tomorrowKey ? latestShipmentDateKey : tomorrowKey;
+  const nextShipmentDateKey =
+    datesWithShipments.find((key) => key > selectedDateKey) ?? null;
+  const canGoForward = nextShipmentDateKey != null;
 
   const summary = useMemo(
     () => computeDeliverySummaryFromOrders(scopedOrders, selectedDateKey, cutHour),
@@ -188,13 +205,23 @@ export default function OperationsDashboard({
         <OperationalDatePicker
           layout="navigator"
           value={selectedDateKey}
-          maxDateKey={tomorrowKey}
+          maxDateKey={maxDateKey}
           deadlineHour={cutHour}
           isToday={isToday}
           canGoNextDay={canGoForward}
           onChange={setSelectedDateKey}
-          onPreviousDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, -1))}
-          onNextDay={() => setSelectedDateKey((d) => shiftOperationalDateKey(d, 1))}
+          onPreviousDay={() =>
+            setSelectedDateKey((d) => {
+              for (let i = datesWithShipments.length - 1; i >= 0; i -= 1) {
+                const key = datesWithShipments[i];
+                if (key && key < d) return key;
+              }
+              return shiftOperationalDateKey(d, -1);
+            })
+          }
+          onNextDay={() => {
+            if (nextShipmentDateKey) setSelectedDateKey(nextShipmentDateKey);
+          }}
           onGoToday={() => setSelectedDateKey(todayKey)}
         />
 
@@ -233,7 +260,7 @@ export default function OperationsDashboard({
                 {' · ahora '}
                 {formatArTime()} hs
               </>
-            ) : isTomorrow ? (
+            ) : isFuture ? (
               <> · pedidos programados</>
             ) : (
               <> · día cerrado</>

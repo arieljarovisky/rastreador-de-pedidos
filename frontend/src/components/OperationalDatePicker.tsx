@@ -385,7 +385,8 @@ export default function OperationalDatePicker({
             onClick={onNextDay}
             disabled={!canGoNextDay}
             className="flex items-center justify-center w-12 sm:w-11 min-h-[3.25rem] sm:min-h-0 shrink-0 border-l border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:bg-[var(--surface-panel)]/60 transition disabled:opacity-25 disabled:pointer-events-none"
-            aria-label="Día siguiente"
+            aria-label="Próxima fecha con envíos"
+            title={canGoNextDay ? 'Ir a la próxima fecha con envíos' : 'No hay fechas siguientes con envíos'}
           >
             <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
           </button>
