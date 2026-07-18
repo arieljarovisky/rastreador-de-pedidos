@@ -12,6 +12,7 @@ import {
   applyMercadoLibreSyncState,
   updateOrderDeliveryDeadlineIfNeeded,
   updateOrderMlShipmentMeta,
+  updateOrderContactFromMercadoLibre,
   rescheduleOrderToNextOperationalDay,
   listOpenMercadoLibreOrdersForAgency,
 } from './orders.service.js';
@@ -28,6 +29,8 @@ import {
   syncMercadoLibreFlexOnScan,
   fetchMercadoLibreShipment,
   fetchMercadoLibreFlexAssignment,
+  extractContactFromMlShipment,
+  orderHasMaskedMercadoLibreContact,
   resolveMercadoLibreFlexAssignmentProbe,
   extractMercadoLibreFlexDriverId,
   isMercadoLibreFlexWithCourier,
@@ -226,16 +229,39 @@ export async function syncMercadoLibreOrderAfterImport(
         if (withMeta) currentOrder = withMeta;
       }
       if (liveShipment) {
+        if (orderHasMaskedMercadoLibreContact(currentOrder)) {
+          const contact = extractContactFromMlShipment(liveShipment);
+          if (contact) {
+            let lat = contact.lat;
+            let lng = contact.lng;
+            if ((lat == null || lng == null) && contact.address) {
+              const geocoded = await geocodeAddress(contact.address);
+              if (geocoded) {
+                lat = geocoded.lat;
+                lng = geocoded.lng;
+              }
+            }
+            const withContact = await updateOrderContactFromMercadoLibre(currentOrder.id, {
+              clientName: contact.clientName || undefined,
+              clientPhone: contact.clientPhone || undefined,
+              address: contact.address,
+              lat,
+              lng,
+            });
+            if (withContact) currentOrder = withContact;
+          }
+        }
+
         const mlDeadline = await resolveMercadoLibreFlexDeliveryDeadline(
           integration,
           flex.externalId
         );
-        // Solo adelantar deadline con lead_time ML; nunca pisar un reprogramado a hoy
-        // con la fecha estimada original (causa del ping-pong PED ausente en "Ayer").
+        // Alinear deadline con la promesa ML (puede bajar a hoy si quedó mal en mañana).
         if (mlDeadline) {
           const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(
             currentOrder.id,
-            mlDeadline
+            mlDeadline,
+            'Fecha de entrega alineada con Mercado Libre'
           );
           if (withDeadline) currentOrder = withDeadline;
         }
@@ -368,7 +394,11 @@ export async function syncOpenMercadoLibreOrdersInList(orders: Order[]): Promise
       });
       if (
         updated.status !== order.status ||
-        updated.repartidorId !== order.repartidorId
+        updated.repartidorId !== order.repartidorId ||
+        updated.deliveryDeadline !== order.deliveryDeadline ||
+        updated.clientName !== order.clientName ||
+        updated.address !== order.address ||
+        updated.clientPhone !== order.clientPhone
       ) {
         const sellerId = order.sellerId ?? (await getSellerIdForOrder(order.id));
         emitOrderUpdated(updated, sellerId);

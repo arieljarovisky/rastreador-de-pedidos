@@ -1,6 +1,8 @@
 import { Order, OrderStatus, DeliveryDailySummary } from '../types';
 
-export const DELIVERY_DEADLINE_HOUR = 12;
+export const DELIVERY_DEADLINE_HOUR = 13;
+/** Límite de entrega del día (no confundir con el corte de ventas). */
+export const DELIVERY_SLA_HOUR = 21;
 export const DELIVERY_TIMEZONE = 'America/Argentina/Buenos_Aires';
 export const DELIVERY_TIMEZONE_LABEL = 'Argentina (ART)';
 
@@ -55,6 +57,11 @@ export function getTodayDeadlineInArgentina(date: Date = new Date()): Date {
   return arLocalToUtc(year, month, day, DELIVERY_DEADLINE_HOUR);
 }
 
+function getSlaForDate(date: Date = new Date()): Date {
+  const { year, month, day } = getArDateParts(date);
+  return arLocalToUtc(year, month, day, DELIVERY_SLA_HOUR);
+}
+
 export function getOperationalDateKey(date: Date = new Date()): string {
   const { year, month, day } = getArDateParts(date);
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -103,20 +110,30 @@ export function computeDeliverySummaryFromOrders(
   ).length;
   const total = todayOrders.length;
 
-  const deadlineAt = getTodayDeadlineInArgentina();
+  const salesCutoffAt = getTodayDeadlineInArgentina();
+  const deliverySlaAt = getSlaForDate();
   const now = Date.now();
-  const isPastDeadline = now >= deadlineAt.getTime();
+  const todayKey = getOperationalDateKey();
+  const isViewingToday = dateKey === todayKey;
+  const isPastDeadline = isViewingToday
+    ? now >= salesCutoffAt.getTime()
+    : dateKey < todayKey;
+  const isPastDeliverySla = isViewingToday
+    ? now >= deliverySlaAt.getTime()
+    : dateKey < todayKey;
 
   return {
     date: dateKey,
     deadlineHour: DELIVERY_DEADLINE_HOUR,
-    deadlineAt: deadlineAt.toISOString(),
+    deadlineAt: salesCutoffAt.toISOString(),
     total,
     delivered,
     undelivered,
-    overdue: isPastDeadline ? undelivered : 0,
+    overdue: isPastDeliverySla ? undelivered : 0,
     cancelled,
-    minutesUntilDeadline: Math.max(0, Math.floor((deadlineAt.getTime() - now) / 60_000)),
+    minutesUntilDeadline: isViewingToday
+      ? Math.max(0, Math.floor((salesCutoffAt.getTime() - now) / 60_000))
+      : 0,
     isPastDeadline,
   };
 }

@@ -32,7 +32,7 @@ export default function DeliveryControlPanel({
     summary.total > 0 ? Math.round((summary.delivered / summary.total) * 100) : 0;
 
   const urgency =
-    summary.isPastDeadline && summary.undelivered > 0
+    summary.overdue > 0
       ? 'overdue'
       : summary.undelivered > 0 && summary.minutesUntilDeadline <= 120
         ? 'warning'

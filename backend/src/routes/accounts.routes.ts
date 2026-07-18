@@ -36,7 +36,7 @@ import { DELIVERY_DEADLINE_HOUR, getOperationalDateKey } from '../utils/delivery
 const router = Router();
 
 /** Evita recalcular en cada poll. Versión fuerza reintento tras redeploy. */
-const DEADLINE_RECALC_VERSION = 'v6';
+const DEADLINE_RECALC_VERSION = 'v8';
 const deadlineRecalcByAgencyDay = new Map<string, string>();
 
 function handleCreateUserError(res: Response, err: unknown): boolean {

@@ -43,6 +43,7 @@ interface AdminDashboardProps {
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
   onDeleteOrder?: (orderId: string) => Promise<void>;
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
+  onScheduleOrderToday?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
   onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
 }
@@ -152,6 +153,7 @@ export default function AdminDashboard({
   onAssignOrderSeller,
   onDeleteOrder,
   onArchiveOrder,
+  onScheduleOrderToday,
   userRole = UserRole.STORE_ADMIN,
   onOpenMercadoLibreLabel,
 }: AdminDashboardProps) {
@@ -605,6 +607,35 @@ export default function AdminDashboard({
               undefined,
               'Repartidor desasignado por administración'
             );
+          });
+        },
+      });
+    }
+
+    const todayKey = getOperationalDateKey();
+    const orderDayKey = order.deliveryDeadline
+      ? getOperationalDateKey(new Date(order.deliveryDeadline))
+      : null;
+    if (
+      onScheduleOrderToday &&
+      (agency || isSeller) &&
+      order.status !== OrderStatus.DELIVERED &&
+      order.status !== OrderStatus.CANCELLED &&
+      orderDayKey !== todayKey
+    ) {
+      items.push({
+        id: 'schedule-today',
+        label: 'Programar para hoy',
+        onClick: () => {
+          void confirm({
+            title: 'Programar para hoy',
+            message: `¿Mover ${order.id} al día de hoy?\n\nÚtil para Flex que ML pide entregar hoy y quedó en mañana.`,
+            variant: 'warning',
+            confirmText: 'Mover a hoy',
+            cancelText: 'Cancelar',
+          }).then((ok) => {
+            if (!ok) return;
+            void onScheduleOrderToday(order.id);
           });
         },
       });

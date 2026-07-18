@@ -1,6 +1,8 @@
 import { Order, OrderStatus, DeliveryDailySummary } from '../types.js';
 
-export const DELIVERY_DEADLINE_HOUR = 12;
+export const DELIVERY_DEADLINE_HOUR = 13;
+/** Límite de entrega del día (no confundir con el corte de ventas). */
+export const DELIVERY_SLA_HOUR = 21;
 export const DELIVERY_TIMEZONE = 'America/Argentina/Buenos_Aires';
 export const DELIVERY_TIMEZONE_LABEL = 'Argentina (ART)';
 
@@ -232,8 +234,11 @@ export function getOrderDeliveredAt(order: Order): Date | null {
 }
 
 export function getOrderDeadline(order: Order): Date {
-  if (order.deliveryDeadline) return new Date(order.deliveryDeadline);
-  return getTodayDeadlineInArgentina(new Date(order.createdAt));
+  // Límite de entrega del día (21 hs), no el corte de ventas stampado en deliveryDeadline.
+  const dateKey = order.deliveryDeadline
+    ? getOperationalDateKey(new Date(order.deliveryDeadline))
+    : getOperationalDateKey(new Date(order.createdAt));
+  return getDeadlineForOperationalDate(dateKey, DELIVERY_SLA_HOUR);
 }
 
 export function wasDeliveredAfterDeadline(order: Order): boolean {
@@ -267,25 +272,31 @@ export function computeDeliverySummaryFromOrders(
   const total = todayOrders.length;
 
   const todayKey = getOperationalDateKey();
-  const deadlineAt = getDeadlineForOperationalDate(dateKey, cutHour);
+  const salesCutoffAt = getDeadlineForOperationalDate(dateKey, cutHour);
+  const deliverySlaAt = getDeadlineForOperationalDate(dateKey, DELIVERY_SLA_HOUR);
   const now = Date.now();
   const isViewingToday = dateKey === todayKey;
+  // "Corte vencido" = pasó el corte de ventas (nuevos pedidos → día hábil siguiente).
   const isPastDeadline = isViewingToday
-    ? now >= deadlineAt.getTime()
+    ? now >= salesCutoffAt.getTime()
+    : dateKey < todayKey;
+  // "Fuera de plazo" = sin entregar después del límite de entrega (21 hs), o día pasado.
+  const isPastDeliverySla = isViewingToday
+    ? now >= deliverySlaAt.getTime()
     : dateKey < todayKey;
 
   return {
     date: dateKey,
     deadlineHour: cutHour,
-    deadlineAt: deadlineAt.toISOString(),
+    deadlineAt: salesCutoffAt.toISOString(),
     total,
     delivered,
     undelivered,
-    overdue: isPastDeadline ? undelivered : 0,
+    overdue: isPastDeliverySla ? undelivered : 0,
     deliveredLate,
     cancelled,
     minutesUntilDeadline: isViewingToday
-      ? Math.max(0, Math.floor((deadlineAt.getTime() - now) / 60_000))
+      ? Math.max(0, Math.floor((salesCutoffAt.getTime() - now) / 60_000))
       : 0,
     isPastDeadline,
   };
