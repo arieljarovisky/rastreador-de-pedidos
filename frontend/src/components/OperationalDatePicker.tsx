@@ -34,6 +34,8 @@ interface OperationalDatePickerProps {
   canGoNextDay?: boolean;
   onGoToday?: () => void;
   isToday?: boolean;
+  /** Próxima fecha operativa con envíos (después de `value`). */
+  nextShipmentDateKey?: string | null;
 }
 
 function CalendarPopover({
@@ -42,6 +44,7 @@ function CalendarPopover({
   minDateKey,
   todayKey,
   deadlineHour,
+  nextShipmentDateKey,
   onPick,
   style,
 }: {
@@ -50,6 +53,7 @@ function CalendarPopover({
   minDateKey?: string;
   todayKey: string;
   deadlineHour?: number;
+  nextShipmentDateKey?: string | null;
   onPick: (dateKey: string) => void;
   style: CSSProperties;
 }) {
@@ -57,6 +61,11 @@ function CalendarPopover({
   const maxMonthKey = getOperationalMonthKey(maxDateKey);
   const monthCells = useMemo(() => buildOperationalMonthGrid(viewMonthKey), [viewMonthKey]);
   const canGoNextMonth = viewMonthKey < maxMonthKey;
+  const canGoNextShipment =
+    Boolean(nextShipmentDateKey) &&
+    nextShipmentDateKey !== value &&
+    nextShipmentDateKey! <= maxDateKey &&
+    (!minDateKey || nextShipmentDateKey! >= minDateKey);
 
   useEffect(() => {
     setViewMonthKey(getOperationalMonthKey(value));
@@ -139,20 +148,32 @@ function CalendarPopover({
       </div>
 
       <div className="mt-3 pt-2 border-t border-[var(--surface-border)] flex items-center justify-between gap-2">
-        <p className="text-[9px] font-mono text-[var(--color-text-muted)]">
+        <p className="text-[9px] font-mono text-[var(--color-text-muted)] min-w-0 truncate">
           {deadlineHour != null
             ? `Corte operativo ${deadlineHour}:00 ART`
             : 'Corte operativo ART'}
         </p>
-        {value !== todayKey && (
-          <button
-            type="button"
-            onClick={() => onPick(todayKey)}
-            className="shrink-0 px-2 py-1 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 transition"
-          >
-            Ir a hoy
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {canGoNextShipment && (
+            <button
+              type="button"
+              onClick={() => onPick(nextShipmentDateKey!)}
+              className="px-2 py-1 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 transition"
+              title={`Ir a ${formatOperationalDateShort(nextShipmentDateKey!)}`}
+            >
+              Próximos envíos
+            </button>
+          )}
+          {value !== todayKey && (
+            <button
+              type="button"
+              onClick={() => onPick(todayKey)}
+              className="px-2 py-1 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 transition"
+            >
+              Ir a hoy
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -215,6 +236,7 @@ export default function OperationalDatePicker({
   canGoNextDay = false,
   onGoToday,
   isToday = value === getOperationalDateKey(),
+  nextShipmentDateKey = null,
 }: OperationalDatePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -263,6 +285,7 @@ export default function OperationalDatePicker({
           minDateKey={minDateKey}
           todayKey={todayKey}
           deadlineHour={deadlineHour}
+          nextShipmentDateKey={nextShipmentDateKey}
           onPick={pickDate}
           style={popoverStyle}
         />

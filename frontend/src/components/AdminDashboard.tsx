@@ -14,7 +14,7 @@ import {
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import { matchesOrderFilters } from '../utils/orderFilters.js';
+import { matchesOrderFilters, getOrderOperationalDateKey } from '../utils/orderFilters.js';
 import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
@@ -426,6 +426,22 @@ export default function AdminDashboard({
     () => buildCordonMapZones(deliveryZones, barrios),
     [deliveryZones, barrios]
   );
+
+  /** Fechas operativas con al menos un envío (incluye archivados). */
+  const datesWithShipments = useMemo(() => {
+    const keys = new Set<string>();
+    for (const order of orders) {
+      keys.add(getOrderOperationalDateKey(order));
+    }
+    return [...keys].sort();
+  }, [orders]);
+
+  const latestShipmentDateKey = datesWithShipments.at(-1) ?? todayKey;
+  const datePickerMaxKey =
+    latestShipmentDateKey > tomorrowKey ? latestShipmentDateKey : tomorrowKey;
+  const nextShipmentDateKey =
+    datesWithShipments.find((key) => key > (dateFilterKey || todayKey)) ?? null;
+
   const orderFilterContext = useMemo(
     () => ({
       sellerId: sellerFilterId || undefined,
@@ -1091,7 +1107,8 @@ export default function AdminDashboard({
                 layout="field"
                 label="Fecha"
                 value={dateFilterKey || todayKey}
-                maxDateKey={tomorrowKey}
+                maxDateKey={datePickerMaxKey}
+                nextShipmentDateKey={nextShipmentDateKey}
                 onChange={setDateFilterKey}
               />
               <CordonFilterControl
@@ -1100,7 +1117,7 @@ export default function AdminDashboard({
                 onChange={setCordonFilterId}
               />
             </div>
-            <div className="flex items-center gap-2 -mt-1 px-0.5">
+            <div className="flex items-center gap-2 -mt-1 px-0.5 flex-wrap">
               {dateFilterKey && dateFilterKey !== todayKey ? (
                 <button
                   type="button"
@@ -1117,6 +1134,15 @@ export default function AdminDashboard({
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
                   Mañana
+                </button>
+              ) : null}
+              {nextShipmentDateKey ? (
+                <button
+                  type="button"
+                  onClick={() => setDateFilterKey(nextShipmentDateKey)}
+                  className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                >
+                  Próximos envíos
                 </button>
               ) : null}
               {dateFilterKey ? (
@@ -1212,7 +1238,8 @@ export default function AdminDashboard({
                   layout="field"
                   label="Fecha"
                   value={dateFilterKey || todayKey}
-                  maxDateKey={tomorrowKey}
+                  maxDateKey={datePickerMaxKey}
+                  nextShipmentDateKey={nextShipmentDateKey}
                   onChange={setDateFilterKey}
                 />
                 <div className="min-w-0 flex flex-col gap-1.5">
@@ -1572,10 +1599,11 @@ export default function AdminDashboard({
                         layout="field"
                         label="Fecha"
                         value={dateFilterKey || todayKey}
-                        maxDateKey={tomorrowKey}
+                        maxDateKey={datePickerMaxKey}
+                        nextShipmentDateKey={nextShipmentDateKey}
                         onChange={setDateFilterKey}
                       />
-                      <div className="flex items-center gap-2 px-0.5">
+                      <div className="flex items-center gap-2 px-0.5 flex-wrap">
                         {dateFilterKey && dateFilterKey !== todayKey && (
                           <button
                             type="button"
@@ -1592,6 +1620,15 @@ export default function AdminDashboard({
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
                             Mañana
+                          </button>
+                        )}
+                        {nextShipmentDateKey && (
+                          <button
+                            type="button"
+                            onClick={() => setDateFilterKey(nextShipmentDateKey)}
+                            className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                          >
+                            Próximos envíos
                           </button>
                         )}
                         {dateFilterKey ? (

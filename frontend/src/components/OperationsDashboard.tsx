@@ -227,6 +227,7 @@ export default function OperationsDashboard({
           deadlineHour={cutHour}
           isToday={isToday}
           canGoNextDay={canGoForward}
+          nextShipmentDateKey={nextShipmentDateKey}
           onChange={setSelectedDateKey}
           onPreviousDay={() =>
             setSelectedDateKey((d) => {
