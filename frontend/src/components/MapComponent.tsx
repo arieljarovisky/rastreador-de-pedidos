@@ -166,6 +166,8 @@ interface MapComponentProps {
   showDepartureHub?: boolean;
   /** Dibujar zonas asignadas a repartidores */
   showDeliveryZones?: boolean;
+  /** Si hay filtro de cordón, pintar solo esa zona */
+  focusZoneId?: string | null;
   /**
    * Vista repartidor (panel más chico): padding de fitBounds razonable,
    * sin leyenda de zonas y chrome liviano para que los tiles llenen el mapa.
@@ -320,6 +322,7 @@ export default function MapComponent({
   liveRepartidorLocation = null,
   showDepartureHub = true,
   showDeliveryZones = true,
+  focusZoneId = null,
   compact = false,
 }: MapComponentProps) {
   const theme = usePostaTheme();
@@ -556,7 +559,15 @@ export default function MapComponent({
       }
       if (cancelled) return;
 
-      const paintZones = sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios));
+      const allZones = sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios));
+      const paintZones = focusZoneId
+        ? allZones.filter(
+            (z) =>
+              z.id === focusZoneId ||
+              z.id.endsWith(`_${focusZoneId}`) ||
+              focusZoneId.endsWith(`_${z.id}`)
+          )
+        : allZones;
 
       for (const zone of paintZones) {
         const features = collectZoneGeoFeatures(zone, barrios);
@@ -580,7 +591,7 @@ export default function MapComponent({
     return () => {
       cancelled = true;
     };
-  }, [showDeliveryZones, deliveryZones, barrios]);
+  }, [showDeliveryZones, deliveryZones, barrios, focusZoneId]);
 
   // Actualizar marcadores de pedidos, repartidores y polilíneas cuando cambian los props
   useEffect(() => {
@@ -940,7 +951,13 @@ export default function MapComponent({
 
   const zoneLegend =
     showDeliveryZones && !compact
-      ? sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios))
+      ? sortZonesForMapPaint(buildCordonMapZones(deliveryZones, barrios)).filter((z) =>
+          focusZoneId
+            ? z.id === focusZoneId ||
+              z.id.endsWith(`_${focusZoneId}`) ||
+              focusZoneId.endsWith(`_${z.id}`)
+            : true
+        )
       : [];
 
   return (

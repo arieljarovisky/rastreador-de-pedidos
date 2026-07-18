@@ -15,6 +15,7 @@ import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
 import { matchesOrderFilters } from '../utils/orderFilters.js';
+import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
@@ -192,7 +193,23 @@ export default function AdminDashboard({
   const [mapFilterOpen, setMapFilterOpen] = useState(false);
   const [showMapZones, setShowMapZones] = useState(loadShowMapZones);
   const [showDeliveredOnMap, setShowDeliveredOnMap] = useState(loadShowDeliveredOnMap);
+  const [ambaGeoReady, setAmbaGeoReady] = useState(() => isAmbaGeoLoaded());
   const mapFilterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ambaGeoReady) return;
+    let cancelled = false;
+    void loadAmbaGeoJson()
+      .then(() => {
+        if (!cancelled) setAmbaGeoReady(true);
+      })
+      .catch(() => {
+        // El filtro cae al bbox aproximado si el geo no carga.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ambaGeoReady]);
 
   useEffect(() => {
     try {
@@ -417,8 +434,10 @@ export default function AdminDashboard({
       dateKey: dateFilterKey || undefined,
       deliveryZones,
       barrios,
+      // Fuerza recalcular cordón cuando cargan los polígonos IGN.
+      ambaGeoReady,
     }),
-    [sellerFilterId, cordonFilterId, repartidorFilterId, dateFilterKey, deliveryZones, barrios]
+    [sellerFilterId, cordonFilterId, repartidorFilterId, dateFilterKey, deliveryZones, barrios, ambaGeoReady]
   );
 
   /** Con fecha activa, los archivados de ese día entran en lista/mapa/stats. */
@@ -1686,6 +1705,7 @@ export default function AdminDashboard({
             activeOrderId={activeOrderId}
             onSelectOrder={onSelectOrder}
             showDeliveryZones={showMapZones}
+            focusZoneId={cordonFilterId || null}
           />
           {/* Overlay Map Grid design like in the spec */}
           <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>

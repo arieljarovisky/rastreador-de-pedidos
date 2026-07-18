@@ -85,6 +85,15 @@ function pointInBarrio(lat: number, lng: number, barrio: Barrio): boolean {
   return lat >= barrio.south && lat <= barrio.north && lng >= barrio.west && lng <= barrio.east;
 }
 
+function barrioArea(barrio: Barrio): number {
+  return Math.max(0, barrio.north - barrio.south) * Math.max(0, barrio.east - barrio.west);
+}
+
+/**
+ * Fallback por bbox: elige el barrio más chico que contenga el punto.
+ * Así un partido GBA grande no “roba” un barrio CABA chico, y viceversa
+ * se reduce el solape de rectángulos aproximados.
+ */
 function matchZoneForPoint(
   zones: DeliveryZone[],
   lat: number,
@@ -92,21 +101,28 @@ function matchZoneForPoint(
   barrioCatalog: Barrio[] = []
 ): DeliveryZone | null {
   const catalog = new Map(barrioCatalog.map((b) => [b.id, b]));
+  let best: { zone: DeliveryZone; area: number } | null = null;
 
   for (const zone of zones) {
     if (zone.barrios?.length) {
-      const inZone = zone.barrios.some((id) => {
+      for (const id of zone.barrios) {
         const barrio = catalog.get(id);
-        return barrio ? pointInBarrio(lat, lng, barrio) : false;
-      });
-      if (inZone) return zone;
+        if (!barrio || !pointInBarrio(lat, lng, barrio)) continue;
+        const area = barrioArea(barrio);
+        if (!best || area < best.area) {
+          best = { zone, area };
+        }
+      }
       continue;
     }
     if (lat >= zone.south && lat <= zone.north && lng >= zone.west && lng <= zone.east) {
-      return zone;
+      const area = Math.max(0, zone.north - zone.south) * Math.max(0, zone.east - zone.west);
+      if (!best || area < best.area) {
+        best = { zone, area };
+      }
     }
   }
-  return null;
+  return best?.zone ?? null;
 }
 
 export function findPricingZoneForPoint(
@@ -115,7 +131,7 @@ export function findPricingZoneForPoint(
   lng: number,
   barrioCatalog: Barrio[] = []
 ): DeliveryZone | null {
-  return matchZoneForPoint(pricingZones(zones), lat, lng, barrioCatalog);
+  return matchZoneForPoint(sortPricingZones(pricingZones(zones)), lat, lng, barrioCatalog);
 }
 
 export function findAssignmentZoneForPoint(

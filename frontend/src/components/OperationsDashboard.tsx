@@ -37,6 +37,7 @@ import SellerFilterControl from './SellerFilterControl.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
 import { getOrderOperationalDateKey, matchesOrderFilters } from '../utils/orderFilters.js';
+import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import type { Barrio, DeliveryZone } from '../config/deliveryZones.js';
 
 interface OperationsDashboardProps {
@@ -71,9 +72,23 @@ export default function OperationsDashboard({
   const [sellerFilterId, setSellerFilterId] = useState('');
   const [cordonFilterId, setCordonFilterId] = useState('');
   const [repartidorFilterId, setRepartidorFilterId] = useState('');
+  const [ambaGeoReady, setAmbaGeoReady] = useState(() => isAmbaGeoLoaded());
   const isToday = selectedDateKey === todayKey;
   const isTomorrow = selectedDateKey === tomorrowKey;
   const isFuture = selectedDateKey > todayKey;
+
+  useEffect(() => {
+    if (ambaGeoReady) return;
+    let cancelled = false;
+    void loadAmbaGeoJson()
+      .then(() => {
+        if (!cancelled) setAmbaGeoReady(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [ambaGeoReady]);
 
   const cordonZones = useMemo(
     () => buildCordonMapZones(deliveryZones, barrios),
@@ -86,8 +101,9 @@ export default function OperationsDashboard({
       repartidorId: repartidorFilterId || undefined,
       deliveryZones,
       barrios,
+      ambaGeoReady,
     }),
-    [sellerFilterId, cordonFilterId, repartidorFilterId, deliveryZones, barrios]
+    [sellerFilterId, cordonFilterId, repartidorFilterId, deliveryZones, barrios, ambaGeoReady]
   );
 
   const scopedOrders = useMemo(

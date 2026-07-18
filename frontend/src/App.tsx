@@ -24,6 +24,7 @@ import { apiUrl, oauthReturnOriginQuery } from './api.ts';
 import { mergeRepartidorLocation, mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
+import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
 
 type AppTab = 'panel' | 'dashboard' | 'account' | 'notifications' | 'settings';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
@@ -75,6 +76,10 @@ export default function App() {
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
+  }, []);
+
+  useEffect(() => {
+    void loadAmbaGeoJson().catch(() => {});
   }, []);
 
   useEffect(() => {

@@ -9,10 +9,20 @@ import {
   type Barrio,
   type DeliveryZone,
 } from '../config/deliveryZones.js';
-import { buildCordonMapZones } from '../config/ambaCordonZones.js';
+import { buildCordonMapZones, CORDON_ZONE_IDS } from '../config/ambaCordonZones.js';
+import { findZoneForPointByGeo, isAmbaGeoLoaded } from './zoneMapGeo.js';
 import { getOperationalDateKey } from './deliverySummary.js';
 
 export const UNASSIGNED_REPARTIDOR_FILTER = '__unassigned__';
+
+/** Normaliza ids tipo `agencia_zona_caba` → `zona_caba`. */
+export function canonicalCordonZoneId(zoneId: string | null | undefined): string | null {
+  if (!zoneId) return null;
+  for (const id of CORDON_ZONE_IDS) {
+    if (zoneId === id || zoneId.endsWith(`_${id}`)) return id;
+  }
+  return zoneId;
+}
 
 export function getOrderCordonId(
   order: Order,
@@ -20,7 +30,13 @@ export function getOrderCordonId(
   barrios: Barrio[]
 ): string | null {
   const cordonZones = buildCordonMapZones(deliveryZones, barrios);
-  return findPricingZoneForPoint(cordonZones, order.lat, order.lng, barrios)?.id ?? null;
+  if (isAmbaGeoLoaded()) {
+    const geoZone = findZoneForPointByGeo(cordonZones, order.lat, order.lng, barrios);
+    if (geoZone) return canonicalCordonZoneId(geoZone.id);
+  }
+  return canonicalCordonZoneId(
+    findPricingZoneForPoint(cordonZones, order.lat, order.lng, barrios)?.id ?? null
+  );
 }
 
 /** Día operativo del pedido (corte de entrega o día de creación). */
@@ -55,7 +71,9 @@ export function matchesOrderFilters(
   if (filters.cordonId) {
     const zones = filters.deliveryZones ?? [];
     const barrios = filters.barrios ?? [];
-    if (getOrderCordonId(order, zones, barrios) !== filters.cordonId) return false;
+    const orderCordon = getOrderCordonId(order, zones, barrios);
+    const filterCordon = canonicalCordonZoneId(filters.cordonId);
+    if (!orderCordon || orderCordon !== filterCordon) return false;
   }
 
   if (filters.dateKey && getOrderOperationalDateKey(order) !== filters.dateKey) {

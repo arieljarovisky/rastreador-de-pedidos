@@ -289,3 +289,50 @@ export function sortZonesForMapPaint(zones: DeliveryZone[]): DeliveryZone[] {
     return ai - bi;
   });
 }
+
+/** Prioridad de matching: CABA → 1° → 2° → 3° (polígonos no se solapan). */
+const ZONE_MATCH_ORDER = ['zona_caba', 'zona_cordon_1', 'zona_cordon_2', 'zona_cordon_3'] as const;
+
+function canonicalPaintZoneId(zoneId: string): string {
+  for (const id of ZONE_MATCH_ORDER) {
+    if (zoneId === id || zoneId.endsWith(`_${id}`)) return id;
+  }
+  return zoneId;
+}
+
+export function isAmbaGeoLoaded(): boolean {
+  return ambaGeo != null;
+}
+
+/**
+ * Asigna un punto al cordón usando los mismos polígonos IGN que pinta el mapa.
+ * Evita el error de los bbox aproximados (pedidos en GBA clasificados como CABA).
+ */
+export function findZoneForPointByGeo(
+  zones: DeliveryZone[],
+  lat: number,
+  lng: number,
+  barrioCatalog: Barrio[]
+): DeliveryZone | null {
+  if (!ambaGeo || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  const ordered = [...zones].sort((a, b) => {
+    const ai = ZONE_MATCH_ORDER.indexOf(
+      canonicalPaintZoneId(a.id) as (typeof ZONE_MATCH_ORDER)[number]
+    );
+    const bi = ZONE_MATCH_ORDER.indexOf(
+      canonicalPaintZoneId(b.id) as (typeof ZONE_MATCH_ORDER)[number]
+    );
+    const aIdx = ai === -1 ? 99 : ai;
+    const bIdx = bi === -1 ? 99 : bi;
+    return aIdx - bIdx;
+  });
+
+  for (const zone of ordered) {
+    const features = collectZoneGeoFeatures(zone, barrioCatalog);
+    if (features.some((feature) => featureContainsPoint(lat, lng, feature))) {
+      return zone;
+    }
+  }
+  return null;
+}
