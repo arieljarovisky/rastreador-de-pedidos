@@ -9,7 +9,7 @@ import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgenc
 import {
   Plus, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
   ChevronDown, ChevronUp, Layers, Package, Crown, Settings, ClipboardList, Map,
-  Store, Bike, AlertTriangle, Check, X, Filter,
+  Store, Bike, AlertTriangle, Check, X, Filter, Table2, List, EyeOff, Eye,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -62,12 +62,32 @@ const MAP_ZONES_STORAGE_KEY = 'lupo_map_show_zones';
 const MAP_REPS_STORAGE_KEY = 'lupo_map_repartidor_ids';
 const MAP_DELIVERED_STORAGE_KEY = 'lupo_map_show_delivered';
 const ORDERS_HEADER_COLLAPSED_KEY = 'posta_orders_header_collapsed';
+const ORDERS_LIST_VIEW_KEY = 'posta_orders_list_view';
+const SHOW_MAP_PANEL_KEY = 'posta_show_map_panel';
+
+type OrdersListView = 'cards' | 'table';
 
 function loadOrdersHeaderCollapsed(): boolean {
   try {
     return localStorage.getItem(ORDERS_HEADER_COLLAPSED_KEY) === '1';
   } catch {
     return false;
+  }
+}
+
+function loadOrdersListView(): OrdersListView {
+  try {
+    return localStorage.getItem(ORDERS_LIST_VIEW_KEY) === 'table' ? 'table' : 'cards';
+  } catch {
+    return 'cards';
+  }
+}
+
+function loadShowMapPanel(): boolean {
+  try {
+    return localStorage.getItem(SHOW_MAP_PANEL_KEY) !== '0';
+  } catch {
+    return true;
   }
 }
 
@@ -160,6 +180,8 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
+  const [ordersListView, setOrdersListView] = useState<OrdersListView>(loadOrdersListView);
+  const [showMapPanel, setShowMapPanel] = useState(loadShowMapPanel);
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
   const { confirm, alert: showAlert } = useModal();
   const [incidentDraft, setIncidentDraft] = useState('');
@@ -234,6 +256,22 @@ export default function AdminDashboard({
       // ignore storage errors
     }
   }, [ordersHeaderCollapsed]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ORDERS_LIST_VIEW_KEY, ordersListView);
+    } catch {
+      // ignore storage errors
+    }
+  }, [ordersListView]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHOW_MAP_PANEL_KEY, showMapPanel ? '1' : '0');
+    } catch {
+      // ignore storage errors
+    }
+  }, [showMapPanel]);
 
   const toggleOrdersHeader = useCallback(() => {
     setOrdersHeaderCollapsed((collapsed) => !collapsed);
@@ -654,6 +692,7 @@ export default function AdminDashboard({
     if (
       onScheduleOrderToday &&
       (agency || isSeller) &&
+      order.externalSource !== 'mercadolibre' &&
       order.status !== OrderStatus.DELIVERED &&
       order.status !== OrderStatus.CANCELLED &&
       orderDayKey !== todayKey
@@ -1003,7 +1042,9 @@ export default function AdminDashboard({
       </div>
 
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN */}
-      <div className={`lg:col-span-6 2xl:col-span-5 flex flex-col flex-1 min-h-0 overflow-hidden posta-surface p-2 sm:p-2.5 lg:p-3 ${
+      <div className={`${
+        showMapPanel ? 'lg:col-span-6 2xl:col-span-5' : 'lg:col-span-12'
+      } flex flex-col flex-1 min-h-0 overflow-hidden posta-surface p-2 sm:p-2.5 lg:p-3 ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
@@ -1055,16 +1096,62 @@ export default function AdminDashboard({
                 </span>
               )}
             </div>
-            
-            {userRole === UserRole.STORE_ADMIN && (
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setOrdersListView('cards')}
+                  title="Vista lista"
+                  aria-pressed={ordersListView === 'cards'}
+                  className={`p-1.5 rounded transition ${
+                    ordersListView === 'cards'
+                      ? 'bg-[var(--surface-panel)] text-[var(--color-accent)] shadow-sm'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrdersListView('table')}
+                  title="Vista tabla"
+                  aria-pressed={ordersListView === 'table'}
+                  className={`p-1.5 rounded transition ${
+                    ordersListView === 'table'
+                      ? 'bg-[var(--surface-panel)] text-[var(--color-accent)] shadow-sm'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                  }`}
+                >
+                  <Table2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <button
-                onClick={() => setShowCreateForm(true)}
-                id="btn-toggle-create-form"
-                className="px-2 py-1 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shrink-0"
+                type="button"
+                onClick={() => {
+                  setShowMapPanel((v) => {
+                    const next = !v;
+                    if (next) setAdminMobileTab('map');
+                    else setAdminMobileTab('orders');
+                    return next;
+                  });
+                }}
+                title={showMapPanel ? 'Ocultar mapa' : 'Mostrar mapa'}
+                className="hidden lg:inline-flex items-center gap-1 px-2 py-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 transition"
               >
-                <Plus className="w-3 h-3" /> Cargar envío
+                {showMapPanel ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                <span className="hidden xl:inline">{showMapPanel ? 'Ocultar mapa' : 'Ver mapa'}</span>
               </button>
-            )}
+              {userRole === UserRole.STORE_ADMIN && (
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  id="btn-toggle-create-form"
+                  className="px-2 py-1 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shrink-0"
+                >
+                  <Plus className="w-3 h-3" /> Cargar envío
+                </button>
+              )}
+            </div>
           </div>
 
           {!ordersHeaderCollapsed && (
@@ -1310,9 +1397,11 @@ export default function AdminDashboard({
         </div>
 
         {/* LISTADO DE PEDIDOS / FORMULARIO CREACIÓN (CON SCROLL) */}
-        <div className="flex-1 min-h-0 overflow-y-auto mt-1.5 space-y-1.5 pr-1 scrollbar-thin">
-          
-          {/* Listado de pedidos filtrados (HIGH DENSITY STYLE) */}
+        <div
+          className={`flex-1 min-h-0 overflow-y-auto mt-1.5 pr-1 scrollbar-thin ${
+            ordersListView === 'table' ? '' : 'space-y-1.5'
+          }`}
+        >
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
               <span className="mono-label block mb-2">Sin resultados</span>
@@ -1321,6 +1410,93 @@ export default function AdminDashboard({
                   ? 'No hay pedidos archivados.'
                   : 'Ningún pedido coincide con los filtros aplicados.'}
               </p>
+            </div>
+          ) : ordersListView === 'table' ? (
+            <div className="overflow-x-auto rounded border border-[var(--surface-border)]">
+              <table className="w-full min-w-[36rem] text-left border-collapse">
+                <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
+                  <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                    <th className="px-2 py-2 font-bold">ID</th>
+                    <th className="px-2 py-2 font-bold">Cliente</th>
+                    <th className="px-2 py-2 font-bold">Dirección</th>
+                    <th className="px-2 py-2 font-bold">Estado</th>
+                    {isAgencyAdmin(userRole) && <th className="px-2 py-2 font-bold">Vendedor</th>}
+                    <th className="px-2 py-2 font-bold">Repartidor</th>
+                    <th className="px-2 py-2 font-bold">Hora</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.map((order) => {
+                    const isSelected = order.id === activeOrderId;
+                    const exception = getOrderExceptionBadge(order);
+                    return (
+                      <tr
+                        key={order.id}
+                        onClick={() => onSelectOrder(order.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setContextMenu({ order, x: e.clientX, y: e.clientY });
+                        }}
+                        className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] transition ${
+                          isSelected
+                            ? 'bg-[var(--color-accent)]/10'
+                            : 'hover:bg-[var(--surface-panel-2)]/80'
+                        }`}
+                      >
+                        <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
+                          {order.id}
+                          {order.externalSource === 'mercadolibre' && (
+                            <span className="ml-1 text-[8px] font-bold uppercase text-[var(--color-accent)]">ML</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] max-w-[8rem] truncate">
+                          {order.clientName}
+                        </td>
+                        <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[12rem] truncate">
+                          {order.address}
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <StatusBadge
+                            status={order.status}
+                            label={exception?.label}
+                            tone={exception?.tone}
+                          />
+                        </td>
+                        {isAgencyAdmin(userRole) && (
+                          <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[7rem] truncate">
+                            {order.sellerName ?? '—'}
+                          </td>
+                        )}
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          {order.status === OrderStatus.PENDING && isAgencyAdmin(userRole) ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAssigningOrderId(order.id);
+                              }}
+                              className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
+                            >
+                              Gestionar
+                            </button>
+                          ) : (
+                            <span className="text-[var(--color-text-muted)] truncate max-w-[6rem] inline-block">
+                              {order.repartidorName?.split(' ')[0] ?? 'Sin asignar'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
+                          {new Date(order.createdAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : (
             filteredOrders.map((order) => {
@@ -1342,7 +1518,12 @@ export default function AdminDashboard({
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="mono-label text-[9px]">ID: {order.id}</span>
+                    <span className="mono-label text-[9px]">
+                      ID: {order.id}
+                      {order.externalSource === 'mercadolibre' && (
+                        <span className="ml-1 text-[var(--color-accent)]">ML</span>
+                      )}
+                    </span>
                     <div className="flex items-center gap-1 shrink-0">
                       {order.archived && statusFilter !== 'archived' && (
                         <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-faint)] border border-[var(--surface-border)] px-1 py-0.5 rounded">
@@ -1515,9 +1696,15 @@ export default function AdminDashboard({
       </div>
 
       {/* SECCIÓN DERECHA: MAPA E HISTORIAL */}
-      <div className={`lg:col-span-6 2xl:col-span-7 flex flex-col h-full gap-2 sm:gap-3 overflow-hidden ${
-        adminMobileTab !== 'map' ? 'hidden lg:flex' : 'flex'
-      }`}>
+      <div
+        className={`lg:col-span-6 2xl:col-span-7 flex flex-col h-full gap-2 sm:gap-3 overflow-hidden ${
+          !showMapPanel
+            ? 'hidden'
+            : adminMobileTab !== 'map'
+              ? 'hidden lg:flex'
+              : 'flex'
+        }`}
+      >
         
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[140px] sm:min-h-[180px] md:min-h-[220px] lg:min-h-[250px] xl:min-h-[320px] 2xl:min-h-[380px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">

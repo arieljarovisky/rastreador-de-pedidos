@@ -808,6 +808,9 @@ export async function scheduleOrderForToday(
   if (!isAgencyAdmin(user.role) && user.role !== UserRole.STORE_ADMIN) {
     throw new Error('FORBIDDEN');
   }
+  if (order.externalSource === 'mercadolibre') {
+    throw new Error('ML_SCHEDULE_TODAY_FORBIDDEN');
+  }
 
   const deadlineHour = order.agencyId
     ? await getAgencyDeliveryDeadlineHour(order.agencyId)

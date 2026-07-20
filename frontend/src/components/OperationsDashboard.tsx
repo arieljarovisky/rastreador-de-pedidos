@@ -541,7 +541,7 @@ function OrderListSection({
                     ) : null;
                   })()}
                 </button>
-                {onScheduleOrderToday && (
+                {onScheduleOrderToday && order.externalSource !== 'mercadolibre' && (
                   <button
                     type="button"
                     onClick={(e) => {

@@ -222,6 +222,12 @@ router.post(
         res.status(403).json({ error: 'No tenés permiso para reprogramar este pedido.' });
         return;
       }
+      if (message === 'ML_SCHEDULE_TODAY_FORBIDDEN') {
+        res.status(400).json({
+          error: 'Los envíos de Mercado Libre no se pueden programar para hoy.',
+        });
+        return;
+      }
       console.error('[orders] schedule-today', err);
       res.status(500).json({ error: 'No se pudo programar el pedido para hoy.' });
     }
