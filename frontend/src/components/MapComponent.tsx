@@ -420,17 +420,18 @@ export default function MapComponent({
         ? [departurePoint.lat, departurePoint.lng]
         : DEFAULT_HUB;
 
-      // Flota admin: foco AMBA. Repartidor (compact): se puede alejar a toda Argentina.
-      const gbaBounds = L.latLngBounds([-34.95, -59.0], [-34.25, -57.9]);
+      // Flota admin: AMBA amplio (CABA + cordones 1–3, incl. Campana/Zárate/La Plata).
+      // Repartidor (compact): se puede alejar a toda Argentina.
+      const gbaBounds = L.latLngBounds([-35.2, -59.4], [-33.85, -57.6]);
       const arBounds = L.latLngBounds([-55.2, -73.6], [-21.7, -53.5]);
 
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
         zoom: compact ? 13 : 12,
-        minZoom: compact ? 5 : 9,
+        minZoom: compact ? 5 : 8,
         maxZoom: 18,
         maxBounds: compact ? arBounds : gbaBounds,
-        maxBoundsViscosity: compact ? 0.4 : 0.85,
+        maxBoundsViscosity: compact ? 0.4 : 0.7,
         zoomControl: interactive,
         scrollWheelZoom: interactive,
         dragging: interactive,
