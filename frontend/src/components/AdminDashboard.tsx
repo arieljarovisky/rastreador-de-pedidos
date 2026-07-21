@@ -375,6 +375,31 @@ export default function AdminDashboard({
 
   // Estados para Asignación Rápida
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
+  const assigningOrder = useMemo(
+    () => (assigningOrderId ? orders.find((o) => o.id === assigningOrderId) ?? null : null),
+    [assigningOrderId, orders]
+  );
+
+  const closeAssignModal = useCallback(() => {
+    setAssigningOrderId(null);
+  }, []);
+
+  useEffect(() => {
+    if (!assigningOrderId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeAssignModal();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [assigningOrderId, closeAssignModal]);
+
+  const openAssignModal = useCallback(
+    (orderId: string) => {
+      setAssigningOrderId(orderId);
+      onSelectOrder(orderId);
+    },
+    [onSelectOrder]
+  );
 
   // Aplicar preset de dirección
   const applyPreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
@@ -1003,6 +1028,226 @@ export default function AdminDashboard({
         )
       : null;
 
+  const assignOrderModal =
+    assigningOrder && isAgencyAdmin(userRole)
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            onClick={closeAssignModal}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="assign-order-title"
+              className="relative w-full max-w-md flex flex-col bg-[var(--surface-panel)] border border-[var(--surface-border)] rounded-xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--surface-border)] shrink-0">
+                <div className="min-w-0">
+                  <h3
+                    id="assign-order-title"
+                    className="text-sm font-display font-bold text-[var(--color-text)] flex items-center gap-2"
+                  >
+                    <Bike className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
+                    Gestionar pedido
+                  </h3>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate">
+                    {assigningOrder.id} · {assigningOrder.clientName}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeAssignModal}
+                  className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--surface-panel-2)]"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3">
+                <p className="text-[11px] text-[var(--ink-soft)] flex items-start gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
+                  <span>{assigningOrder.address}</span>
+                </p>
+
+                {onAssignOrderSeller && assigningOrder.status === OrderStatus.PENDING && (
+                  <div className="bg-[var(--color-accent)]/8 border border-[var(--color-accent)]/20 p-2.5 rounded space-y-1.5">
+                    <p className="text-[9px] font-mono font-bold uppercase text-[var(--route-2,var(--color-accent))]">
+                      Asignar envío a vendedor
+                    </p>
+                    {sellers.length === 0 ? (
+                      <p className="text-[9px] text-[var(--color-text-muted)]">
+                        Creá primero un vendedor en el panel superior.
+                      </p>
+                    ) : (
+                      <select
+                        defaultValue={assigningOrder.sellerId ?? ''}
+                        onChange={async (e) => {
+                          if (!e.target.value) return;
+                          try {
+                            await onAssignOrderSeller(assigningOrder.id, e.target.value);
+                          } catch (err: unknown) {
+                            const message =
+                              err instanceof Error ? err.message : 'No se pudo asignar el vendedor';
+                            void showAlert({ title: 'Error al asignar', message, variant: 'error' });
+                          }
+                        }}
+                        className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-1.5 text-[11px] text-[var(--ink-soft)] focus:outline-none"
+                      >
+                        <option value="" disabled>
+                          Seleccionar vendedor...
+                        </option>
+                        {sellers.map((seller) => (
+                          <option key={seller.id} value={seller.id}>
+                            {seller.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                {assigningOrder.status === OrderStatus.PENDING && (
+                  <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] p-2.5 rounded space-y-1.5">
+                    <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)]">
+                      Asignar repartidor
+                    </p>
+                    {(() => {
+                      const orderZone = findAssignmentZoneForPoint(
+                        deliveryZones,
+                        assigningOrder.lat,
+                        assigningOrder.lng,
+                        barrios
+                      );
+                      const suggestedRep = orderZone
+                        ? repartidores.find((r) => r.deliveryZone === orderZone.id)
+                        : null;
+                      return (
+                        <>
+                          {orderZone && (
+                            <p className="text-[9px] font-mono text-[var(--color-text-muted)]">
+                              Zona:{' '}
+                              <span style={{ color: orderZone.color }} className="font-bold">
+                                {orderZone.name}
+                              </span>
+                              {suggestedRep && (
+                                <span className="text-[var(--color-accent)]">
+                                  {' '}
+                                  · Sugerido: {suggestedRep.name}
+                                </span>
+                              )}
+                            </p>
+                          )}
+                          <select
+                            defaultValue={suggestedRep?.id ?? ''}
+                            onChange={async (e) => {
+                              if (!e.target.value) return;
+                              try {
+                                await onUpdateOrderStatus(
+                                  assigningOrder.id,
+                                  OrderStatus.ASSIGNED,
+                                  e.target.value,
+                                  'Pedido asignado desde panel de control'
+                                );
+                                closeAssignModal();
+                              } catch (err: unknown) {
+                                const message =
+                                  err instanceof Error ? err.message : 'No se pudo asignar el repartidor';
+                                void showAlert({ title: 'Error', message, variant: 'error' });
+                              }
+                            }}
+                            className="w-full bg-[var(--surface-panel)] border border-[var(--surface-border)] rounded p-1.5 text-[11px] text-[var(--ink-soft)] focus:outline-none"
+                          >
+                            <option value="" disabled>
+                              Seleccionar repartidor...
+                            </option>
+                            {repartidores.map((rep) => (
+                              <option key={rep.id} value={rep.id}>
+                                {rep.name}
+                                {rep.deliveryZone ? ` (${zoneLabel(deliveryZones, rep.deliveryZone)})` : ''}
+                                {suggestedRep?.id === rep.id ? ' ★' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {assigningOrder.status === OrderStatus.ASSIGNED && assigningOrder.repartidorId && (
+                  <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] p-2.5 rounded space-y-1.5">
+                    <p className="text-[9px] font-mono font-bold uppercase text-[var(--color-text-muted)]">
+                      Gestionar repartidor
+                    </p>
+                    <div className="flex gap-1.5">
+                      <select
+                        defaultValue={assigningOrder.repartidorId}
+                        onChange={async (e) => {
+                          if (!e.target.value || e.target.value === assigningOrder.repartidorId) return;
+                          try {
+                            await onUpdateOrderStatus(
+                              assigningOrder.id,
+                              OrderStatus.ASSIGNED,
+                              e.target.value,
+                              'Repartidor reasignado desde panel de control'
+                            );
+                            closeAssignModal();
+                          } catch (err: unknown) {
+                            const message =
+                              err instanceof Error ? err.message : 'No se pudo reasignar el repartidor';
+                            void showAlert({ title: 'Error', message, variant: 'error' });
+                          }
+                        }}
+                        className="flex-1 min-w-0 bg-[var(--surface-panel)] border border-[var(--surface-border)] rounded p-1.5 text-[11px] text-[var(--ink-soft)] focus:outline-none"
+                      >
+                        {repartidores.map((rep) => (
+                          <option key={rep.id} value={rep.id}>
+                            {rep.name}
+                            {rep.deliveryZone ? ` (${zoneLabel(deliveryZones, rep.deliveryZone)})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void confirm({
+                            title: 'Desasignar repartidor',
+                            message: `¿Quitar a ${assigningOrder.repartidorName ?? 'el repartidor'} del pedido ${assigningOrder.id}?\n\nEl envío volverá a pendiente.`,
+                            variant: 'warning',
+                            confirmText: 'Desasignar',
+                            cancelText: 'Cancelar',
+                          }).then((ok) => {
+                            if (!ok) return;
+                            void onUpdateOrderStatus(
+                              assigningOrder.id,
+                              OrderStatus.PENDING,
+                              undefined,
+                              'Repartidor desasignado por administración'
+                            ).then(() => closeAssignModal());
+                          });
+                        }}
+                        className="shrink-0 px-2 py-1.5 rounded border border-[var(--color-warn)]/30 bg-[var(--color-warn)]/5 text-[var(--color-warn)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-warn)]/10 transition"
+                      >
+                        Desasignar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button type="button" onClick={closeAssignModal} className="btn-secondary px-4 py-2">
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <>
     <div className="flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 h-full min-h-0 overflow-hidden" id="admin-dashboard">
@@ -1474,7 +1719,7 @@ export default function AdminDashboard({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setAssigningOrderId(order.id);
+                                openAssignModal(order.id);
                               }}
                               className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
                             >
@@ -1587,7 +1832,7 @@ export default function AdminDashboard({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setAssigningOrderId(order.id);
+                            openAssignModal(order.id);
                           }}
                           className="shrink-0 bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] transition uppercase tracking-wider"
                         >
@@ -1624,10 +1869,7 @@ export default function AdminDashboard({
                 {(selectedOrder.status === OrderStatus.PENDING || assigningOrderId === selectedOrder.id) && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setAssigningOrderId(selectedOrder.id);
-                      setAdminMobileTab('map');
-                    }}
+                    onClick={() => openAssignModal(selectedOrder.id)}
                     className="px-2 py-1 bg-[var(--color-cta)] text-[#F6F0E4] font-mono font-bold text-[8px] uppercase rounded-[var(--radius-posta)]"
                   >
                     Gestionar
@@ -2295,6 +2537,7 @@ export default function AdminDashboard({
       </div>
     </div>
     {createShipmentModal}
+    {assignOrderModal}
     </>
   );
 }
