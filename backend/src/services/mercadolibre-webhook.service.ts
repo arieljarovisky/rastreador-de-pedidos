@@ -35,6 +35,7 @@ import {
   getOrderById,
   getSellerIdForOrder,
   rescheduleOrderToNextOperationalDay,
+  updateOrderDeliveryDeadlineIfNeeded,
   updateOrderMlShipmentMeta,
   updateOrderStatusFromMarketplace,
 } from './orders.service.js';
@@ -461,8 +462,8 @@ async function syncOrderFromMlShipment(
   const mlSubstatus = shipment.substatus?.trim().toLowerCase() || null;
   const comment = `Mercado Libre Flex: ${statusLabel}`;
   const previousSubstatus = (existing.mlShipmentSubstatus ?? '').trim().toLowerCase() || null;
-  const isNewException =
-    isMlRescheduleSubstatus(mlSubstatus) && previousSubstatus !== mlSubstatus;
+  const isRescheduleException = isMlRescheduleSubstatus(mlSubstatus);
+  const isNewException = isRescheduleException && previousSubstatus !== mlSubstatus;
 
   const storeSubstatus =
     mlStatus === 'delivered' || mlStatus === 'cancelled' ? null : mlSubstatus;
@@ -492,23 +493,41 @@ async function syncOrderFromMlShipment(
     }
   }
 
-  // Ausente / reprogramar: solo la primera vez que aparece esa excepción
+  // Alinear día operativo con lead_time ML (reprogramaciones, EDT nuevo, etc.).
+  let preferred: Date | null = null;
   if (
-    isNewException &&
+    integration &&
+    shipment.id &&
     order.status !== OrderStatus.DELIVERED &&
     order.status !== OrderStatus.CANCELLED
   ) {
-    let preferred: Date | null = null;
-    if (integration && shipment.id) {
-      preferred = await resolveMercadoLibreFlexDeliveryDeadline(
-        integration,
-        String(shipment.id)
+    preferred = await resolveMercadoLibreFlexDeliveryDeadline(
+      integration,
+      String(shipment.id)
+    );
+    if (preferred && !isRescheduleException) {
+      const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(
+        order.id,
+        preferred,
+        'Fecha de entrega alineada con Mercado Libre'
       );
+      if (withDeadline) order = withDeadline;
     }
+  }
+
+  // Ausente / reprogramado por comprador: mover al día que corresponde (hoy o fecha ML).
+  // Idempotente: también corrige si el subestado ya estaba guardado pero el día quedó viejo.
+  if (
+    isRescheduleException &&
+    order.status !== OrderStatus.DELIVERED &&
+    order.status !== OrderStatus.CANCELLED
+  ) {
     const reason =
       mlSubstatus === 'receiver_absent'
         ? 'Destinatario ausente · reprogramado para hoy'
-        : `${statusLabel} · reprogramado para hoy`;
+        : mlSubstatus === 'buyer_rescheduled'
+          ? 'Reprogramado por el comprador'
+          : `${statusLabel} · reprogramado para hoy`;
     const rescheduled = await rescheduleOrderToNextOperationalDay(
       order.id,
       preferred,

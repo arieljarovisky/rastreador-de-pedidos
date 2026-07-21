@@ -19,6 +19,7 @@ import {
   getTodayDeadline,
 } from '../utils/delivery-deadline.js';
 import { getAgencyDeliveryDeadlineHour, listAgenciesDeadlineHours } from './agencies.service.js';
+import { ML_RESCHEDULE_SUBSTATUS_LIST } from '../utils/ml-reschedule.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -504,11 +505,7 @@ export async function forceRescheduledOrdersStuckInPastToToday(
   );
   const hasSubstatus = subCols.length > 0;
   const subClause = hasSubstatus
-    ? `o.ml_shipment_substatus IN (
-         'receiver_absent', 'to_be_agreed', 'bad_address', 'incorrect_address',
-         'buyer_not_found', 'delivery_failed', 'rejected_by_receiver',
-         'not_accessible', 'dangerous_area'
-       )`
+    ? `o.ml_shipment_substatus IN (${ML_RESCHEDULE_SUBSTATUS_LIST.map((s) => `'${s}'`).join(', ')})`
     : '0=1';
 
   const todayKey = getOperationalDateKey();
@@ -558,7 +555,13 @@ export async function forceRescheduledOrdersStuckInPastToToday(
 
     await pool.query(
       `UPDATE orders
-       SET delivery_deadline = ?, updated_at = ?
+       SET delivery_deadline = ?,
+           status = CASE
+             WHEN status = 'delivering' AND repartidor_id IS NOT NULL THEN 'assigned'
+             WHEN status = 'delivering' THEN 'pending'
+             ELSE status
+           END,
+           updated_at = ?
        WHERE id IN (${stuck.map(() => '?').join(',')})`,
       [todayDeadline, now, ...stuck.map((r) => r.id)]
     );
@@ -570,13 +573,21 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     );
   }
 
-  // Cinturón: PED-2023 / PED-2923 abiertos con día operativo < hoy.
+  // Cinturón: pedidos conocidos trabados + reprogramados del comprador en el pasado.
   // PED-2075: Flex same-day mal programado en mañana.
   const [ped] = await pool.query<
-    Array<{ id: string; agency_id: string | null; delivery_deadline: Date | null } & RowDataPacket>
+    Array<
+      {
+        id: string;
+        agency_id: string | null;
+        delivery_deadline: Date | null;
+        status: string;
+        repartidor_id: string | null;
+      } & RowDataPacket
+    >
   >(
-    `SELECT id, agency_id, delivery_deadline FROM orders
-     WHERE id IN ('PED-2023', 'PED-2923', 'PED-2075')
+    `SELECT id, agency_id, delivery_deadline, status, repartidor_id FROM orders
+     WHERE id IN ('PED-2023', 'PED-2923', 'PED-2075', 'PED-2892', 'PED-2894')
        AND archived = 0
        AND status NOT IN ('delivered', 'cancelled')`
   );
@@ -588,17 +599,30 @@ export async function forceRescheduledOrdersStuckInPastToToday(
       row.id === 'PED-2075'
         ? currentKey == null || currentKey !== todayKey
         : currentKey == null || currentKey < todayKey;
-    if (!needsToday) continue;
+    const needsDemote = row.status === 'delivering';
+    if (!needsToday && !needsDemote) continue;
     const hour = row.agency_id
       ? await getAgencyDeliveryDeadlineHour(row.agency_id)
       : DELIVERY_DEADLINE_HOUR;
+    const nextStatus = needsDemote
+      ? row.repartidor_id
+        ? 'assigned'
+        : 'pending'
+      : row.status;
     await pool.query(
-      'UPDATE orders SET delivery_deadline = ?, updated_at = ? WHERE id = ?',
-      [getTodayDeadline(hour), now, row.id]
+      'UPDATE orders SET delivery_deadline = ?, status = ?, updated_at = ? WHERE id = ?',
+      [
+        needsToday ? getTodayDeadline(hour) : row.delivery_deadline,
+        nextStatus,
+        now,
+        row.id,
+      ]
     );
-    total += 1;
+    if (needsToday) total += 1;
     console.log(
-      `[deadlines] Forzado ${row.id} → hoy (${hour}:00) desde ${currentKey ?? 'null'}`
+      `[deadlines] Forzado ${row.id} → ${needsToday ? `hoy (${hour}:00)` : 'mismo día'}` +
+        (needsDemote ? ` · status ${row.status}→${nextStatus}` : '') +
+        ` desde ${currentKey ?? 'null'}`
     );
   }
 
@@ -694,15 +718,10 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     const current = row.delivery_deadline ? new Date(row.delivery_deadline) : null;
     const currentKey = current ? getOperationalDateKey(current) : null;
     const isRescheduled =
-      row.ml_shipment_substatus === 'receiver_absent' ||
-      row.ml_shipment_substatus === 'to_be_agreed' ||
-      row.ml_shipment_substatus === 'bad_address' ||
-      row.ml_shipment_substatus === 'incorrect_address' ||
-      row.ml_shipment_substatus === 'buyer_not_found' ||
-      row.ml_shipment_substatus === 'delivery_failed' ||
-      row.ml_shipment_substatus === 'rejected_by_receiver' ||
-      row.ml_shipment_substatus === 'not_accessible' ||
-      row.ml_shipment_substatus === 'dangerous_area' ||
+      (row.ml_shipment_substatus != null &&
+        (ML_RESCHEDULE_SUBSTATUS_LIST as readonly string[]).includes(
+          row.ml_shipment_substatus
+        )) ||
       Number(row.absent_comment) > 0 ||
       Number(row.reschedule_comment) > 0;
 
@@ -944,6 +963,7 @@ export async function updateOrderContactFromMercadoLibre(
  * ML pide entregar “hoy”: el deadline operativo pasa al corte de hoy
  * (o al día futuro que indique ML si es posterior a hoy).
  * No empuja más si el pedido ya está en un día futuro.
+ * Si estaba “en viaje”, vuelve a asignado/pendiente para el nuevo día.
  */
 export async function rescheduleOrderToNextOperationalDay(
   orderId: string,
@@ -964,6 +984,15 @@ export async function rescheduleOrderToNextOperationalDay(
 
   // Ya en un día futuro → no seguir corriendo el deadline ni spamear bitácora
   if (currentKey > todayKey) {
+    // Igual sacar de “en viaje” si ML ya lo marcó reprogramado.
+    if (order.status === OrderStatus.DELIVERING) {
+      const demoted = order.repartidorId ? OrderStatus.ASSIGNED : OrderStatus.PENDING;
+      return updateOrderStatusFromMarketplace(
+        orderId,
+        demoted,
+        `Mercado Libre Flex: ${reason}`
+      );
+    }
     return null;
   }
 
@@ -986,6 +1015,14 @@ export async function rescheduleOrderToNextOperationalDay(
   const targetKey = getOperationalDateKey(target);
   // Ya está en el día objetivo
   if (targetKey === currentKey) {
+    if (order.status === OrderStatus.DELIVERING) {
+      const demoted = order.repartidorId ? OrderStatus.ASSIGNED : OrderStatus.PENDING;
+      return updateOrderStatusFromMarketplace(
+        orderId,
+        demoted,
+        `Mercado Libre Flex: ${reason}`
+      );
+    }
     return null;
   }
   // No retroceder
@@ -993,7 +1030,27 @@ export async function rescheduleOrderToNextOperationalDay(
     return null;
   }
 
-  return updateOrderDeliveryDeadlineIfNeeded(orderId, target, `Mercado Libre Flex: ${reason}`);
+  const now = new Date();
+  const demoted =
+    order.status === OrderStatus.DELIVERING
+      ? order.repartidorId
+        ? OrderStatus.ASSIGNED
+        : OrderStatus.PENDING
+      : null;
+
+  await pool.query(
+    `UPDATE orders
+     SET delivery_deadline = ?,
+         status = COALESCE(?, status),
+         updated_at = ?
+     WHERE id = ?`,
+    [target, demoted, now, orderId]
+  );
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, demoted ?? order.status, 'Mercado Libre', `Mercado Libre Flex: ${reason}`, now]
+  );
+  return getOrderById(orderId);
 }
 
 export async function updateOrderStatusFromMarketplace(

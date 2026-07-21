@@ -59,6 +59,7 @@ import { sleep } from '../utils/sleep.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
 import { env } from '../config/env.js';
+import { getOperationalDateKey } from '../utils/delivery-deadline.js';
 import {
   ensureAgencyMlBridgeUser,
   getAgencyOperatorForImport,
@@ -217,10 +218,8 @@ export async function syncMercadoLibreOrderAfterImport(
         liveShipment?.substatus ?? flex.mlShipmentSubstatus ?? null;
 
       let currentOrder = order;
-      const previousSubstatus = (order.mlShipmentSubstatus ?? '').trim().toLowerCase() || null;
       const nextSubstatus = (mlSubstatus ?? '').trim().toLowerCase() || null;
-      const isNewException =
-        isMlRescheduleSubstatus(nextSubstatus) && previousSubstatus !== nextSubstatus;
+      const isRescheduleException = isMlRescheduleSubstatus(nextSubstatus);
 
       if (mlStatus || mlSubstatus) {
         const storeSub =
@@ -256,8 +255,25 @@ export async function syncMercadoLibreOrderAfterImport(
           integration,
           flex.externalId
         );
-        // Alinear deadline con la promesa ML (puede bajar a hoy si quedó mal en mañana).
-        if (mlDeadline) {
+        if (
+          isRescheduleException &&
+          currentOrder.status !== OrderStatus.DELIVERED &&
+          currentOrder.status !== OrderStatus.CANCELLED
+        ) {
+          const reason =
+            nextSubstatus === 'receiver_absent'
+              ? 'Destinatario ausente · reprogramado para hoy'
+              : nextSubstatus === 'buyer_rescheduled'
+                ? 'Reprogramado por el comprador'
+                : 'Reprogramado para hoy';
+          const rescheduled = await rescheduleOrderToNextOperationalDay(
+            currentOrder.id,
+            mlDeadline,
+            reason
+          );
+          if (rescheduled) currentOrder = rescheduled;
+        } else if (mlDeadline) {
+          // Alinear deadline con la promesa ML (puede bajar a hoy si quedó mal en mañana).
           const withDeadline = await updateOrderDeliveryDeadlineIfNeeded(
             currentOrder.id,
             mlDeadline,
@@ -265,22 +281,20 @@ export async function syncMercadoLibreOrderAfterImport(
           );
           if (withDeadline) currentOrder = withDeadline;
         }
-      }
-      if (
-        isNewException &&
+      } else if (
+        isRescheduleException &&
         currentOrder.status !== OrderStatus.DELIVERED &&
         currentOrder.status !== OrderStatus.CANCELLED
       ) {
-        const preferred = liveShipment
-          ? await resolveMercadoLibreFlexDeliveryDeadline(integration, flex.externalId)
-          : null;
         const reason =
           nextSubstatus === 'receiver_absent'
             ? 'Destinatario ausente · reprogramado para hoy'
-            : 'Reprogramado para hoy';
+            : nextSubstatus === 'buyer_rescheduled'
+              ? 'Reprogramado por el comprador'
+              : 'Reprogramado para hoy';
         const rescheduled = await rescheduleOrderToNextOperationalDay(
           currentOrder.id,
-          preferred,
+          null,
           reason
         );
         if (rescheduled) currentOrder = rescheduled;
@@ -364,7 +378,7 @@ export async function syncMercadoLibreOrderAfterImport(
   return order;
 }
 
-const ML_LIVE_SYNC_LIMIT = 12;
+const ML_LIVE_SYNC_LIMIT = 24;
 
 function isOpenMercadoLibreOrder(order: Order): boolean {
   return (
@@ -376,12 +390,28 @@ function isOpenMercadoLibreOrder(order: Order): boolean {
   );
 }
 
+/** Prioriza reprogramados / deadline pasado para no quedar fuera del cupo de sync. */
+function mlLiveSyncPriority(order: Order): number {
+  let score = 0;
+  if (isMlRescheduleSubstatus(order.mlShipmentSubstatus)) score += 100;
+  if (order.deliveryDeadline) {
+    const key = getOperationalDateKey(new Date(order.deliveryDeadline));
+    const today = getOperationalDateKey(new Date());
+    if (key < today) score += 50;
+    else if (key === today) score += 10;
+  }
+  if (order.status === OrderStatus.DELIVERING) score += 5;
+  return score;
+}
+
 /** Consulta ML y actualiza pedidos Flex abiertos (respaldo si no llegaron webhooks). */
 export async function syncOpenMercadoLibreOrdersInList(orders: Order[]): Promise<Order[]> {
   const openMl = orders.filter(isOpenMercadoLibreOrder);
   if (openMl.length === 0) return orders;
 
-  const toSync = openMl.slice(0, ML_LIVE_SYNC_LIMIT);
+  const toSync = [...openMl]
+    .sort((a, b) => mlLiveSyncPriority(b) - mlLiveSyncPriority(a))
+    .slice(0, ML_LIVE_SYNC_LIMIT);
   const updates = new Map<string, Order>();
 
   await Promise.all(
@@ -398,7 +428,8 @@ export async function syncOpenMercadoLibreOrdersInList(orders: Order[]): Promise
         updated.deliveryDeadline !== order.deliveryDeadline ||
         updated.clientName !== order.clientName ||
         updated.address !== order.address ||
-        updated.clientPhone !== order.clientPhone
+        updated.clientPhone !== order.clientPhone ||
+        updated.mlShipmentSubstatus !== order.mlShipmentSubstatus
       ) {
         const sellerId = order.sellerId ?? (await getSellerIdForOrder(order.id));
         emitOrderUpdated(updated, sellerId);

@@ -8,12 +8,19 @@ export function getOrderExceptionBadge(order: Order): { label: string; tone: 'wa
 
   const sub = (order.mlShipmentSubstatus ?? '').trim().toLowerCase();
   if (sub === 'receiver_absent') return { label: 'Ausente', tone: 'warn' };
-  if (sub === 'to_be_agreed') return { label: 'Reprogramado', tone: 'warn' };
+  if (sub === 'to_be_agreed' || sub === 'buyer_rescheduled') {
+    return { label: 'Reprogramado', tone: 'warn' };
+  }
   if (sub === 'bad_address' || sub === 'incorrect_address') {
     return { label: 'Dir. incorrecta', tone: 'warn' };
   }
   if (sub === 'rejected_by_receiver') return { label: 'Rechazado', tone: 'warn' };
-  if (sub === 'delivery_failed' || sub === 'buyer_not_found' || sub === 'not_accessible') {
+  if (
+    sub === 'delivery_failed' ||
+    sub === 'buyer_not_found' ||
+    sub === 'not_accessible' ||
+    sub === 'dangerous_area'
+  ) {
     return { label: 'Reprogramado', tone: 'warn' };
   }
 

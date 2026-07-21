@@ -15,6 +15,7 @@ import {
 } from './integrations.service.js';
 import { UserRole } from '../types/index.js';
 import { deliveryDeadlineFromIsoDate } from '../utils/delivery-deadline.js';
+import { isMlRescheduleSubstatus } from '../utils/ml-reschedule.js';
 
 const ML_API = 'https://api.mercadolibre.com';
 const ML_FETCH_TIMEOUT_MS = 20_000;
@@ -814,6 +815,8 @@ const ML_SUBSTATUS_LABELS: Record<string, string> = {
   lost: 'Paquete extraviado',
   detained: 'Retenido',
   to_be_agreed: 'Reprogramar entrega',
+  buyer_rescheduled: 'Envío reprogramado por el comprador',
+  waiting_for_confirmation: 'Esperando confirmación de entrega',
   claimed_me: 'Con reclamo en Mercado Libre',
 };
 
@@ -843,34 +846,22 @@ export function formatMlShipmentStatusLabel(shipment: Pick<MlShipment, 'status' 
   return 'Actualización de envío';
 }
 
-/** Subestados que requieren pasar el pedido al día operativo siguiente. */
-const ML_RESCHEDULE_SUBSTATUSES = new Set([
-  'receiver_absent',
-  'to_be_agreed',
-  'bad_address',
-  'incorrect_address',
-  'buyer_not_found',
-  'delivery_failed',
-  'rejected_by_receiver',
-  'not_accessible',
-  'dangerous_area',
-]);
-
-export function isMlRescheduleSubstatus(substatus?: string | null): boolean {
-  const sub = (substatus ?? '').trim().toLowerCase();
-  return Boolean(sub && ML_RESCHEDULE_SUBSTATUSES.has(sub));
-}
+/**
+ * Subestados ML que implican reintento otro día (p. ej. “Envío reprogramado por el comprador”).
+ * Lista canónica: `utils/ml-reschedule.ts`.
+ */
+export { isMlRescheduleSubstatus, ML_RESCHEDULE_SUBSTATUS_LIST } from '../utils/ml-reschedule.js';
 
 /** Badge corto para UI (Ausente / Reprogramado / …). */
 export function getMlExceptionBadgeLabel(substatus?: string | null): string | null {
   const sub = (substatus ?? '').trim().toLowerCase();
   if (!sub) return null;
   if (sub === 'receiver_absent') return 'Ausente';
-  if (sub === 'to_be_agreed') return 'Reprogramado';
+  if (sub === 'to_be_agreed' || sub === 'buyer_rescheduled') return 'Reprogramado';
   if (sub === 'bad_address' || sub === 'incorrect_address') return 'Dir. incorrecta';
   if (sub === 'rejected_by_receiver') return 'Rechazado';
   if (sub === 'delivery_failed') return 'No entregado';
-  if (ML_RESCHEDULE_SUBSTATUSES.has(sub)) return 'Reprogramado';
+  if (isMlRescheduleSubstatus(sub)) return 'Reprogramado';
   return null;
 }
 
@@ -886,6 +877,9 @@ const ML_IN_TRANSIT_SUBSTATUSES = [
 ];
 
 function isMercadoLibreShipmentInTransit(mlStatus: string, mlSubstatus: string): boolean {
+  // Reprogramado / fallo: aunque el status siga en "shipped", ya no está en viaje.
+  if (isMlRescheduleSubstatus(mlSubstatus)) return false;
+  if (mlStatus === 'not_delivered') return false;
   if (
     ['shipped', 'in_transit', 'out_for_delivery', 'on_route', 'soon_deliver'].includes(mlStatus)
   ) {
@@ -924,6 +918,12 @@ export function mapMercadoLibreShipmentToOrderStatus(
 
   if (status === 'delivered' || sub === 'delivered') return OrderStatus.DELIVERED;
   if (status === 'cancelled') return OrderStatus.CANCELLED;
+
+  // Reprogramación / no entregado: sale de “en viaje” y vuelve a cola del día nuevo.
+  if (isMlRescheduleSubstatus(sub) || status === 'not_delivered') {
+    if (current === OrderStatus.DELIVERED || current === OrderStatus.CANCELLED) return null;
+    return hasRepartidor ? OrderStatus.ASSIGNED : OrderStatus.PENDING;
+  }
 
   const inTransit = isMercadoLibreShipmentInTransit(status, sub);
 
