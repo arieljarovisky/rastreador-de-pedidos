@@ -8,8 +8,8 @@ import { createPortal } from 'react-dom';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import {
   Plus, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
-  ChevronDown, ChevronUp, Layers, Package, Crown, Settings, ClipboardList, Map,
-  Store, Bike, AlertTriangle, Check, X, Filter, Table2, List, EyeOff, Eye,
+  ChevronDown, ChevronUp, Package, Crown, Settings, ClipboardList, Map,
+  Store, Bike, AlertTriangle, Check, X, Filter, EyeOff, Eye,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -58,28 +58,16 @@ const DIRECTORY_PRESETS = [
   { name: 'Recoleta (Av. Las Heras 2100)', lat: -34.5877, lng: -58.3972 },
 ];
 
-const MAP_ZONES_STORAGE_KEY = 'lupo_map_show_zones';
 const MAP_REPS_STORAGE_KEY = 'lupo_map_repartidor_ids';
 const MAP_DELIVERED_STORAGE_KEY = 'lupo_map_show_delivered';
 const ORDERS_HEADER_COLLAPSED_KEY = 'posta_orders_header_collapsed';
-const ORDERS_LIST_VIEW_KEY = 'posta_orders_list_view';
 const SHOW_MAP_PANEL_KEY = 'posta_show_map_panel';
-
-type OrdersListView = 'cards' | 'table';
 
 function loadOrdersHeaderCollapsed(): boolean {
   try {
     return localStorage.getItem(ORDERS_HEADER_COLLAPSED_KEY) === '1';
   } catch {
     return false;
-  }
-}
-
-function loadOrdersListView(): OrdersListView {
-  try {
-    return localStorage.getItem(ORDERS_LIST_VIEW_KEY) === 'table' ? 'table' : 'cards';
-  } catch {
-    return 'cards';
   }
 }
 
@@ -97,17 +85,6 @@ type MapRepartidorPrefs =
   | { kind: 'all' }
   | { kind: 'none' }
   | { kind: 'some'; ids: Set<string> };
-
-function loadShowMapZones(): boolean {
-  try {
-    const value = localStorage.getItem(MAP_ZONES_STORAGE_KEY);
-    if (value === '0') return false;
-    if (value === '1') return true;
-  } catch {
-    // ignore storage errors
-  }
-  return true;
-}
 
 function loadShowDeliveredOnMap(): boolean {
   try {
@@ -181,7 +158,6 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
-  const [ordersListView, setOrdersListView] = useState<OrdersListView>(loadOrdersListView);
   const [showMapPanel, setShowMapPanel] = useState(loadShowMapPanel);
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
   const { confirm, alert: showAlert } = useModal();
@@ -214,7 +190,6 @@ export default function AdminDashboard({
     return new Set();
   });
   const [mapFilterOpen, setMapFilterOpen] = useState(false);
-  const [showMapZones, setShowMapZones] = useState(loadShowMapZones);
   const [showDeliveredOnMap, setShowDeliveredOnMap] = useState(loadShowDeliveredOnMap);
   const [ambaGeoReady, setAmbaGeoReady] = useState(() => isAmbaGeoLoaded());
   const mapFilterRef = useRef<HTMLDivElement>(null);
@@ -236,14 +211,6 @@ export default function AdminDashboard({
 
   useEffect(() => {
     try {
-      localStorage.setItem(MAP_ZONES_STORAGE_KEY, showMapZones ? '1' : '0');
-    } catch {
-      // ignore storage errors
-    }
-  }, [showMapZones]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem(MAP_DELIVERED_STORAGE_KEY, showDeliveredOnMap ? '1' : '0');
     } catch {
       // ignore storage errors
@@ -257,14 +224,6 @@ export default function AdminDashboard({
       // ignore storage errors
     }
   }, [ordersHeaderCollapsed]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(ORDERS_LIST_VIEW_KEY, ordersListView);
-    } catch {
-      // ignore storage errors
-    }
-  }, [ordersListView]);
 
   useEffect(() => {
     try {
@@ -1399,34 +1358,6 @@ export default function AdminDashboard({
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="flex items-center rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)] p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setOrdersListView('cards')}
-                  title="Vista lista"
-                  aria-pressed={ordersListView === 'cards'}
-                  className={`p-1.5 rounded transition ${
-                    ordersListView === 'cards'
-                      ? 'bg-[var(--surface-panel)] text-[var(--color-accent)] shadow-sm'
-                      : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                  }`}
-                >
-                  <List className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOrdersListView('table')}
-                  title="Vista tabla"
-                  aria-pressed={ordersListView === 'table'}
-                  className={`p-1.5 rounded transition ${
-                    ordersListView === 'table'
-                      ? 'bg-[var(--surface-panel)] text-[var(--color-accent)] shadow-sm'
-                      : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                  }`}
-                >
-                  <Table2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -1703,7 +1634,7 @@ export default function AdminDashboard({
             showMapPanel
               ? 'flex-1 min-h-0 overflow-y-auto scrollbar-thin'
               : ''
-          } ${ordersListView === 'table' ? '' : 'space-y-1.5'}`}
+          }`}
         >
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
@@ -1714,7 +1645,7 @@ export default function AdminDashboard({
                   : 'Ningún pedido coincide con los filtros aplicados.'}
               </p>
             </div>
-          ) : ordersListView === 'table' ? (
+          ) : (
             <div className="overflow-x-auto rounded border border-[var(--surface-border)]">
               <table className="w-full min-w-[36rem] text-left border-collapse">
                 <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
@@ -1801,117 +1732,6 @@ export default function AdminDashboard({
                 </tbody>
               </table>
             </div>
-          ) : (
-            filteredOrders.map((order) => {
-              const isSelected = order.id === activeOrderId;
-
-              return (
-                <div
-                  key={order.id}
-                  onClick={() => handleSelectOrder(order.id)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setContextMenu({ order, x: e.clientX, y: e.clientY });
-                  }}
-                  className={`p-2.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
-                    isSelected
-                      ? 'bg-[var(--color-accent)]/5 border-l-2 border-[var(--color-accent)] border-t-[var(--surface-border)] border-r-[var(--surface-border)] border-b-[var(--surface-border)]'
-                      : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)] hover:border-[var(--edge-2,var(--surface-border))]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="mono-label text-[9px]">
-                      ID: {order.id}
-                      {order.externalSource === 'mercadolibre' && (
-                        <span className="ml-1 text-[var(--color-accent)]">ML</span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {order.archived && statusFilter !== 'archived' && (
-                        <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-faint)] border border-[var(--surface-border)] px-1 py-0.5 rounded">
-                          Arch.
-                        </span>
-                      )}
-                      {(() => {
-                        const exception = getOrderExceptionBadge(order);
-                        return (
-                          <StatusBadge
-                            status={order.status}
-                            label={exception?.label}
-                            tone={exception?.tone}
-                          />
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-[var(--color-text)] transition truncate">
-                    {order.clientName}
-                  </h4>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate leading-snug flex items-start gap-1">
-                    <MapPin className="w-3 h-3 shrink-0 mt-0.5 text-[var(--color-text-muted)]" />
-                    <span className="truncate">{order.address}</span>
-                  </p>
-                  {isAgencyAdmin(userRole) && (() => {
-                    const orderZone = findAssignmentZoneForPoint(deliveryZones, order.lat, order.lng, barrios);
-                    if (!orderZone) return null;
-                    return (
-                      <p className="text-[9px] mt-1 font-mono font-bold uppercase tracking-wider flex items-center gap-1" style={{ color: orderZone.color }}>
-                        <Map className="w-3 h-3 shrink-0" />
-                        {orderZone.name}
-                      </p>
-                    );
-                  })()}
-                  {isAgencyAdmin(userRole) && (
-                    <p className="text-[10px] mt-1 font-mono">
-                      {order.sellerName ? (
-                        <span className="text-[var(--route-2,var(--color-accent))] inline-flex items-center gap-1">
-                          <Store className="w-3 h-3 shrink-0" />
-                          {order.sellerName}
-                        </span>
-                      ) : (
-                        <span className="text-[var(--color-warn)] font-bold inline-flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3 shrink-0" />
-                          Sin vendedor asignado
-                        </span>
-                      )}
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between gap-2 mt-1.5 pt-1.5 border-t border-[var(--surface-border)]/30 text-[9px] text-[var(--color-text-muted)] font-mono">
-                    <span className="flex items-center gap-1 shrink-0">
-                      <Clock className="w-3.5 h-3.5 text-[var(--color-text-faint)]" />
-                      {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <div className="flex items-center gap-1.5 min-w-0 justify-end">
-                      {order.status === OrderStatus.PENDING && isAgencyAdmin(userRole) ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAssignModal(order.id);
-                          }}
-                          className="shrink-0 bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] transition uppercase tracking-wider"
-                        >
-                          Gestionar
-                        </button>
-                      ) : order.repartidorName ? (
-                        <span className="text-[var(--color-accent)] font-semibold uppercase tracking-wider text-[8px] bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/10 px-1 py-0.5 rounded truncate max-w-[7rem] inline-flex items-center gap-0.5">
-                          <Bike className="w-2.5 h-2.5 shrink-0" />
-                          {order.repartidorName.split(' ')[0]}
-                        </span>
-                      ) : (
-                        <span className="text-[var(--color-warn)] font-semibold text-[8px] shrink-0 inline-flex items-center gap-0.5">
-                          <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
-                          SIN ASIGNAR
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
           )}
         </div>
 
@@ -2012,20 +1832,6 @@ export default function AdminDashboard({
         {/* Mapa Interactivo */}
         <div className="flex-1 min-h-[140px] sm:min-h-[180px] md:min-h-[220px] lg:min-h-[250px] xl:min-h-[320px] 2xl:min-h-[380px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
           <div ref={mapFilterRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 z-[1100] flex flex-col gap-2 w-[min(11rem,calc(100%-1rem))] sm:w-44 md:w-48">
-            <button
-              type="button"
-              onClick={() => setShowMapZones((visible) => !visible)}
-              title={showMapZones ? 'Ocultar áreas de entrega' : 'Mostrar áreas de entrega'}
-              className={`w-full flex items-center justify-center gap-1.5 rounded-[var(--radius-posta)] px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-[10px] font-semibold ${
-                showMapZones
-                  ? 'bg-[var(--color-accent)]/90 border-[var(--color-accent)] text-white hover:brightness-110'
-                  : 'bg-[var(--surface-panel)]/95 border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:border-[var(--color-accent)]'
-              }`}
-            >
-              <Layers className="w-4 h-4 shrink-0" />
-              <span className="truncate">{showMapZones ? 'Ocultar áreas' : 'Ver áreas'}</span>
-            </button>
-
             <button
               type="button"
               onClick={() => setShowDeliveredOnMap((visible) => !visible)}
@@ -2231,7 +2037,7 @@ export default function AdminDashboard({
             barrios={barrios}
             activeOrderId={activeOrderId}
             onSelectOrder={handleSelectOrder}
-            showDeliveryZones={showMapZones}
+            showDeliveryZones={false}
             focusZoneId={cordonFilterId || null}
           />
           {/* Overlay Map Grid design like in the spec */}
