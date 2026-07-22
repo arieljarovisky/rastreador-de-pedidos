@@ -290,6 +290,15 @@ export default function AdminDashboard({
     }
   }, [activeOrderId]);
 
+  /** Al abrir el mapa, subir el scroll del main para ver el panel completo. */
+  useEffect(() => {
+    if (!showMapPanel) return;
+    const main = document.querySelector('main');
+    if (main instanceof HTMLElement) {
+      main.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [showMapPanel]);
+
   const handleSelectOrder = useCallback(
     (orderId: string | null) => {
       onSelectOrder(orderId);
@@ -1289,8 +1298,14 @@ export default function AdminDashboard({
 
   return (
     <>
-    <div className="flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 h-full min-h-0 overflow-hidden" id="admin-dashboard">
-      {contextMenu && (
+    <div
+      className={`flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 ${
+        showMapPanel
+          ? 'h-[calc(100dvh-7.25rem)] sm:h-[calc(100dvh-7.5rem)] xl:h-[calc(100dvh-5.75rem)] overflow-hidden'
+          : ''
+      }`}
+      id="admin-dashboard"
+    >      {contextMenu && (
         <OrderContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
@@ -1328,7 +1343,9 @@ export default function AdminDashboard({
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN */}
       <div className={`${
         showMapPanel ? 'lg:col-span-6 2xl:col-span-5' : 'lg:col-span-12'
-      } flex flex-col flex-1 min-h-0 overflow-hidden posta-surface p-2 sm:p-2.5 lg:p-3 ${
+      } flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 ${
+        showMapPanel ? 'flex-1 min-h-0 overflow-hidden' : ''
+      } ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
@@ -1680,11 +1697,13 @@ export default function AdminDashboard({
           )}
         </div>
 
-        {/* LISTADO DE PEDIDOS / FORMULARIO CREACIÓN (CON SCROLL) */}
+        {/* LISTADO DE PEDIDOS: con mapa abierto scroll interno; sin mapa crece y scrollea el main */}
         <div
-          className={`flex-1 min-h-0 overflow-y-auto mt-1.5 pr-1 scrollbar-thin ${
-            ordersListView === 'table' ? '' : 'space-y-2'
-          }`}
+          className={`mt-1.5 pr-1 ${
+            showMapPanel
+              ? 'flex-1 min-h-0 overflow-y-auto scrollbar-thin'
+              : ''
+          } ${ordersListView === 'table' ? '' : 'space-y-2'}`}
         >
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">

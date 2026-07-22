@@ -25,13 +25,15 @@ export default function NotifsSidebar({ open, mobileShow, children }: NotifsSide
     );
   }
 
-  // Escritorio: ancho animado, sin reservar espacio cuando está cerrado
+  // Escritorio: ancho animado, sin reservar espacio cuando está cerrado.
+  // sticky + altura de viewport: funciona con main scrolleable (Envíos) y con layout fijo.
   return (
     <aside
       aria-hidden={!showOnDesktop}
       style={{ width: showOnDesktop ? SIDEBAR_WIDTH : 0 }}
       className={[
-        'hidden xl:block h-full shrink-0 overflow-hidden',
+        'hidden xl:block shrink-0 overflow-hidden sticky top-0 self-start',
+        'h-[calc(100dvh-5.75rem)] max-h-[calc(100dvh-5.75rem)]',
         'transition-[width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
         showOnDesktop ? 'opacity-100' : 'opacity-0 pointer-events-none',
       ].join(' ')}

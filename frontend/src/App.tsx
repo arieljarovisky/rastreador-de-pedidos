@@ -1850,16 +1850,26 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
         className={`flex-1 min-h-0 relative ${
-          mobileTab === 'settings' || mobileTab === 'account'
-            ? 'overflow-y-auto scrollbar-thin px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
+          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'dashboard'
+            ? 'overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch] px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
             : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
       >
-        <div className={`app-shell ${mobileTab === 'settings' || mobileTab === 'account' ? '' : 'h-full'}`}>
+        <div
+          className={`app-shell ${
+            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'dashboard'
+              ? ''
+              : 'h-full'
+          }`}
+        >
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col ${
-              mobileTab === 'settings' || mobileTab === 'account' ? 'w-full' : 'xl:flex-row h-full overflow-hidden'
+              mobileTab === 'settings' || mobileTab === 'account'
+                ? 'w-full'
+                : mobileTab === 'dashboard'
+                  ? 'xl:flex-row w-full'
+                  : 'xl:flex-row h-full overflow-hidden'
             } ${mobileTab !== 'settings' && mobileTab !== 'account' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
@@ -1888,7 +1898,7 @@ export default function App() {
                   />
                 </div>
                 <div
-                  className={`flex-1 min-w-0 h-full overflow-hidden transition-all duration-300 ease-out ${
+                  className={`flex-1 min-w-0 w-full transition-all duration-300 ease-out ${
                     mobileTab !== 'dashboard' ? 'hidden' : 'flex flex-col'
                   }`}
                 >
