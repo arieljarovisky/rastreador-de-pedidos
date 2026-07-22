@@ -574,12 +574,7 @@
 }
 
 .leaflet-control-attribution {
-  background: color-mix(in srgb, var(--panel) 85%, transparent) !important;
-  color: var(--text-muted) !important;
-}
-
-.leaflet-control-attribution a {
-  color: var(--accent) !important;
+  display: none !important;
 }
 
 .zone-polygon-label {

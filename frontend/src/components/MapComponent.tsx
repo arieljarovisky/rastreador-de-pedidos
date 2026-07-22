@@ -436,6 +436,7 @@ export default function MapComponent({
         scrollWheelZoom: interactive,
         dragging: interactive,
         touchZoom: interactive,
+        attributionControl: false,
       });
 
       map.on('zoomstart', () => {
