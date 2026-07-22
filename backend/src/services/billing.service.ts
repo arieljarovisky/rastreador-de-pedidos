@@ -84,6 +84,19 @@ function resolveRateForOrder(rates: AgencyShippingRates, shippingType: string | 
 async function resolveOrderShippingRate(order: Order): Promise<number> {
   if (!order.agencyId) return DEFAULT_RATES.standard;
 
+  try {
+    const { resolveShippingAmountForOrder } = await import('./price-lists.service.js');
+    return await resolveShippingAmountForOrder({
+      agencyId: order.agencyId,
+      sellerId: order.sellerId,
+      lat: order.lat,
+      lng: order.lng,
+      shippingType: order.shippingType,
+    });
+  } catch (err) {
+    console.warn('[billing] Fallback a tarifas legacy:', err);
+  }
+
   const zone = await findPricingZoneForPoint(order.agencyId, order.lat, order.lng);
   if (zone?.shippingRates) {
     return resolveRateForOrder(

@@ -159,6 +159,19 @@ export async function listAgencyZoneDriverPayRates(agencyId: string): Promise<Zo
 async function resolveOrderDriverPay(order: Order): Promise<number> {
   if (!order.agencyId) return DEFAULT_DRIVER_PAY.standard;
 
+  try {
+    const { resolveDriverPayAmountForOrder } = await import('./price-lists.service.js');
+    return await resolveDriverPayAmountForOrder({
+      agencyId: order.agencyId,
+      sellerId: order.sellerId,
+      lat: order.lat,
+      lng: order.lng,
+      shippingType: order.shippingType,
+    });
+  } catch (err) {
+    console.warn('[driver-settlement] Fallback a tarifas legacy:', err);
+  }
+
   const zone = await findPricingZoneForPoint(order.agencyId, order.lat, order.lng);
   if (zone?.driverPayRates) {
     return resolveRateForOrder(

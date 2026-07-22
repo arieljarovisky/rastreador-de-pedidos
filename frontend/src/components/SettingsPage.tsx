@@ -118,13 +118,17 @@ interface SettingsPageProps {
     username: string;
     password: string;
     name: string;
+    deliveryDeadlineHour?: number | null;
     pickupLabel?: string;
     pickupAddress?: string;
     pickupLat?: number;
     pickupLng?: number;
   }) => Promise<User>;
   onFetchSellerDetail?: (sellerId: string) => Promise<SellerDetail>;
-  onUpdateSeller?: (sellerId: string, data: { name: string; username: string }) => Promise<User>;
+  onUpdateSeller?: (
+    sellerId: string,
+    data: { name: string; username: string; deliveryDeadlineHour?: number | null }
+  ) => Promise<User>;
   onUpdateSellerPassword?: (sellerId: string, password: string) => Promise<void>;
   onDeleteSeller?: (sellerId: string) => Promise<{ unlinkedOrders: number }>;
   onCreateRepartidor?: (data: { username: string; password: string; name: string; deliveryZone?: string | null }) => Promise<void>;
@@ -222,6 +226,8 @@ export default function SettingsPage({
   const [sellerName, setSellerName] = useState('');
   const [sellerUsername, setSellerUsername] = useState('');
   const [sellerPassword, setSellerPassword] = useState('');
+  /** '' = heredar agencia; número como string para el select. */
+  const [sellerDeadlineHour, setSellerDeadlineHour] = useState('');
   const [sellerPickupLabel, setSellerPickupLabel] = useState('');
   const [sellerPickupAddress, setSellerPickupAddress] = useState('');
   const [sellerPickupLat, setSellerPickupLat] = useState(-34.58);
@@ -239,6 +245,7 @@ export default function SettingsPage({
   const [editingSeller, setEditingSeller] = useState(false);
   const [editSellerName, setEditSellerName] = useState('');
   const [editSellerUsername, setEditSellerUsername] = useState('');
+  const [editSellerDeadlineHour, setEditSellerDeadlineHour] = useState('');
   const [sellerUpdateLoading, setSellerUpdateLoading] = useState(false);
   const [sellerUpdateMessage, setSellerUpdateMessage] = useState<string | null>(null);
   const [deletingSellerId, setDeletingSellerId] = useState<string | null>(null);
@@ -430,10 +437,12 @@ export default function SettingsPage({
                   Corte de ventas del día
                 </p>
                 <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
-                  Los pedidos cargados a partir de esta hora quedan para el día hábil siguiente
+                  Máximo de corte de ventas para la agencia y tope para cada vendedor.
+                  Los pedidos cargados a partir del corte del vendedor quedan para el día hábil siguiente
                   (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
-                  Conviene igualarlo al corte Flex de Mercado Libre (p. ej. 13:00).
-                  Al guardar se reaplica a los pedidos aún sin entregar.
+                  Conviene igualarlo al corte Flex más tarde de tus vendedores (p. ej. 13:00).
+                  Al guardar se reaplica a los pedidos aún sin entregar y se ajustan vendedores que
+                  superen este máximo.
                   {!onUpdateDeliveryDeadlineHour && (
                     <> Corte actual: <span className="font-mono font-bold text-[var(--ink-soft)]">{String(deliveryDeadlineHour).padStart(2, '0')}:00</span>.</>
                   )}
@@ -669,6 +678,11 @@ export default function SettingsPage({
                         onClick={() => {
                           setEditSellerName(sellerDetail.user.name);
                           setEditSellerUsername(sellerDetail.user.username);
+                          setEditSellerDeadlineHour(
+                            sellerDetail.user.deliveryDeadlineHour == null
+                              ? ''
+                              : String(sellerDetail.user.deliveryDeadlineHour)
+                          );
                           setEditingSeller(true);
                           setSellerUpdateMessage(null);
                         }}
@@ -747,6 +761,10 @@ export default function SettingsPage({
                               const updated = await onUpdateSeller(selectedSellerId, {
                                 name: editSellerName,
                                 username: editSellerUsername,
+                                deliveryDeadlineHour:
+                                  editSellerDeadlineHour === ''
+                                    ? null
+                                    : Number(editSellerDeadlineHour),
                               });
                               setSellerDetail((prev) =>
                                 prev ? { ...prev, user: { ...prev.user, ...updated } } : prev
@@ -781,6 +799,26 @@ export default function SettingsPage({
                             className={inputClass}
                             autoComplete="off"
                           />
+                          <label className="block space-y-1">
+                            <span className="mono-label">Corte de ventas</span>
+                            <select
+                              value={editSellerDeadlineHour}
+                              onChange={(e) => setEditSellerDeadlineHour(e.target.value)}
+                              className={inputClass}
+                            >
+                              <option value="">
+                                Igual a la agencia ({String(deliveryDeadlineHour).padStart(2, '0')}:00)
+                              </option>
+                              {Array.from({ length: deliveryDeadlineHour + 1 }, (_, h) => (
+                                <option key={h} value={h}>
+                                  {String(h).padStart(2, '0')}:00
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-[10px] text-[var(--color-text-muted)]">
+                              Pedidos desde esta hora van al día hábil siguiente. Máximo: agencia.
+                            </span>
+                          </label>
                           <div className="flex flex-wrap gap-2">
                             <button
                               type="submit"
@@ -797,6 +835,11 @@ export default function SettingsPage({
                                 if (sellerDetail) {
                                   setEditSellerName(sellerDetail.user.name);
                                   setEditSellerUsername(sellerDetail.user.username);
+                                  setEditSellerDeadlineHour(
+                                    sellerDetail.user.deliveryDeadlineHour == null
+                                      ? ''
+                                      : String(sellerDetail.user.deliveryDeadlineHour)
+                                  );
                                 }
                               }}
                               className={btnGhost}
@@ -824,6 +867,14 @@ export default function SettingsPage({
                         <div>
                           <p className="mono-label">ID</p>
                           <p className="text-[var(--color-text-muted)] font-mono truncate">{sellerDetail.user.id}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="mono-label">Corte de ventas</p>
+                          <p className="text-[var(--ink-soft)] font-mono">
+                            {sellerDetail.user.deliveryDeadlineHour == null
+                              ? `Igual a la agencia (${String(deliveryDeadlineHour).padStart(2, '0')}:00)`
+                              : `${String(sellerDetail.user.deliveryDeadlineHour).padStart(2, '0')}:00`}
+                          </p>
                         </div>
                       </div>
                         </>
@@ -970,12 +1021,15 @@ export default function SettingsPage({
                       name: sellerName,
                       username: sellerUsername,
                       password: sellerPassword,
+                      deliveryDeadlineHour:
+                        sellerDeadlineHour === '' ? null : Number(sellerDeadlineHour),
                       ...pickupPayload,
                     });
                     setSellerFormMessage('Vendedor creado correctamente.');
                     setSellerName('');
                     setSellerUsername('');
                     setSellerPassword('');
+                    setSellerDeadlineHour('');
                     setSellerPickupLabel('');
                     setSellerPickupAddress('');
                     setShowSellerForm(false);
@@ -1013,6 +1067,26 @@ export default function SettingsPage({
                   className={inputClass}
                 />
                 </div>
+                <label className="block space-y-1">
+                  <span className="mono-label">Corte de ventas</span>
+                  <select
+                    value={sellerDeadlineHour}
+                    onChange={(e) => setSellerDeadlineHour(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">
+                      Igual a la agencia ({String(deliveryDeadlineHour).padStart(2, '0')}:00)
+                    </option>
+                    {Array.from({ length: deliveryDeadlineHour + 1 }, (_, h) => (
+                      <option key={h} value={h}>
+                        {String(h).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[10px] text-[var(--color-text-muted)]">
+                    Pedidos desde esta hora van al día hábil siguiente. No puede superar el de la agencia.
+                  </span>
+                </label>
                 <p className="mono-label pt-1">Punto de colecta (opcional)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input

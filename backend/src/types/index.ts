@@ -47,6 +47,8 @@ export interface User {
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];
   deliveryZone?: string | null;
+  /** Corte de ventas del vendedor (0–23). null = hereda el de la agencia. */
+  deliveryDeadlineHour?: number | null;
 }
 
 export interface OrderHistoryEvent {
@@ -135,6 +137,7 @@ export interface DbUserRow {
   departure_lat: number | null;
   departure_lng: number | null;
   delivery_zone: string | null;
+  delivery_deadline_hour: number | null;
   session_token: string | null;
 }
 

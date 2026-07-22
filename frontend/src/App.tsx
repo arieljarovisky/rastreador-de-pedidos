@@ -785,6 +785,7 @@ export default function App() {
     username: string;
     password: string;
     name: string;
+    deliveryDeadlineHour?: number | null;
     pickupLabel?: string;
     pickupAddress?: string;
     pickupLat?: number;
@@ -843,7 +844,7 @@ export default function App() {
 
   const handleUpdateSeller = async (
     sellerId: string,
-    data: { name: string; username: string }
+    data: { name: string; username: string; deliveryDeadlineHour?: number | null }
   ): Promise<User> => {
     if (!token) throw new Error('Sin sesión');
     const res = await fetch(apiUrl(`/api/accounts/sellers/${sellerId}`), {

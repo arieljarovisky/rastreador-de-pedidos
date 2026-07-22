@@ -14,6 +14,7 @@ import {
 } from '../utils/delivery-deadline.js';
 import { createNotification } from './notifications.service.js';
 import { getAgencyDeliveryDeadlineHour } from './agencies.service.js';
+import { resolveSalesCutoffHour } from './users.service.js';
 
 export interface DeliveryDailySummary {
   date: string;
@@ -109,9 +110,12 @@ export async function getDeliverySummaryForUser(
   user: User,
   dateKey: string = getOperationalDateKey()
 ): Promise<DeliveryDailySummary> {
-  const deadlineHour = user.agencyId
-    ? await getAgencyDeliveryDeadlineHour(user.agencyId)
-    : DELIVERY_DEADLINE_HOUR;
+  const deadlineHour =
+    user.role === UserRole.STORE_ADMIN
+      ? await resolveSalesCutoffHour({ sellerId: user.id, agencyId: user.agencyId })
+      : user.agencyId
+        ? await getAgencyDeliveryDeadlineHour(user.agencyId)
+        : DELIVERY_DEADLINE_HOUR;
   const salesCutoffAt = deliveryDeadlineForOperationalDate(dateKey, deadlineHour);
 
   if (user.role === UserRole.STORE_ADMIN) {
@@ -185,9 +189,13 @@ async function loadAgencyDeadlineHour(agencyId: string): Promise<number> {
   return getAgencyDeliveryDeadlineHour(agencyId);
 }
 
+/**
+ * @param forHour Si se pasa, solo notifica a quien tenga el hito (-3h / -1h / corte) en esa hora ART.
+ */
 export async function sendDeadlineWarnings(
   dateKey: string,
-  agencyIds?: string[]
+  agencyIds?: string[],
+  forHour?: number
 ): Promise<void> {
   const [agencies] = await pool.query<Array<{ id: string; name: string } & RowDataPacket>>(
     agencyIds?.length
@@ -197,36 +205,49 @@ export async function sendDeadlineWarnings(
   );
 
   for (const agency of agencies) {
-    const deadlineHour = await loadAgencyDeadlineHour(agency.id);
-    const deadlineAt = getTodayDeadline(deadlineHour);
-    const hourLabel = formatDeadlineHourLabel(deadlineHour);
-    const summary = buildSummary(
-      await queryOrderCounts(agency.id, dateKey),
-      deadlineAt,
-      dateKey,
-      deadlineHour
-    );
-    if (summary.undelivered === 0) continue;
+    const agencyHour = await loadAgencyDeadlineHour(agency.id);
+    const agencyWarningHour = Math.max(0, agencyHour - 3);
 
-    const adminIds = await getAgencyAdminIds(agency.id);
-    const adminBody = `${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar. El corte es a las ${hourLabel} hs.`;
-    for (const adminId of adminIds) {
-      await notifyUserIfNeeded(
-        adminId,
-        'deadline_warning',
+    if (forHour == null || forHour === agencyWarningHour) {
+      const deadlineAt = getTodayDeadline(agencyHour);
+      const hourLabel = formatDeadlineHourLabel(agencyHour);
+      const summary = buildSummary(
+        await queryOrderCounts(agency.id, dateKey),
+        deadlineAt,
         dateKey,
-        'Recordatorio de corte',
-        adminBody
+        agencyHour
       );
+      if (summary.undelivered > 0) {
+        const adminIds = await getAgencyAdminIds(agency.id);
+        const adminBody = `${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar. El corte es a las ${hourLabel} hs.`;
+        for (const adminId of adminIds) {
+          await notifyUserIfNeeded(
+            adminId,
+            'deadline_warning',
+            dateKey,
+            'Recordatorio de corte',
+            adminBody
+          );
+        }
+      }
     }
 
     const sellerIds = await getSellerIds(agency.id);
     for (const sellerId of sellerIds) {
+      const sellerHour = await resolveSalesCutoffHour({
+        sellerId,
+        agencyId: agency.id,
+      });
+      const sellerWarningHour = Math.max(0, sellerHour - 3);
+      if (forHour != null && forHour !== sellerWarningHour) continue;
+
+      const sellerDeadlineAt = getTodayDeadline(sellerHour);
+      const hourLabel = formatDeadlineHourLabel(sellerHour);
       const sellerSummary = buildSummary(
         await queryOrderCounts(agency.id, dateKey, sellerId),
-        deadlineAt,
+        sellerDeadlineAt,
         dateKey,
-        deadlineHour
+        sellerHour
       );
       if (sellerSummary.undelivered === 0) continue;
       await notifyUserIfNeeded(
@@ -242,7 +263,8 @@ export async function sendDeadlineWarnings(
 
 export async function sendDeadlineUrgentAlerts(
   dateKey: string,
-  agencyIds?: string[]
+  agencyIds?: string[],
+  forHour?: number
 ): Promise<void> {
   const [agencies] = await pool.query<Array<{ id: string } & RowDataPacket>>(
     agencyIds?.length
@@ -252,36 +274,48 @@ export async function sendDeadlineUrgentAlerts(
   );
 
   for (const agency of agencies) {
-    const deadlineHour = await loadAgencyDeadlineHour(agency.id);
-    const deadlineAt = getTodayDeadline(deadlineHour);
-    const hourLabel = formatDeadlineHourLabel(deadlineHour);
-    const summary = buildSummary(
-      await queryOrderCounts(agency.id, dateKey),
-      deadlineAt,
-      dateKey,
-      deadlineHour
-    );
-    if (summary.undelivered === 0) continue;
+    const agencyHour = await loadAgencyDeadlineHour(agency.id);
+    const agencyUrgentHour = Math.max(0, agencyHour - 1);
 
-    const adminIds = await getAgencyAdminIds(agency.id);
-    const adminBody = `Queda 1 hora para el corte (${hourLabel}). ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar.`;
-    for (const adminId of adminIds) {
-      await notifyUserIfNeeded(
-        adminId,
-        'deadline_urgent',
+    if (forHour == null || forHour === agencyUrgentHour) {
+      const deadlineAt = getTodayDeadline(agencyHour);
+      const hourLabel = formatDeadlineHourLabel(agencyHour);
+      const summary = buildSummary(
+        await queryOrderCounts(agency.id, dateKey),
+        deadlineAt,
         dateKey,
-        'Última hora',
-        adminBody
+        agencyHour
       );
+      if (summary.undelivered > 0) {
+        const adminIds = await getAgencyAdminIds(agency.id);
+        const adminBody = `Queda 1 hora para el corte (${hourLabel}). ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar.`;
+        for (const adminId of adminIds) {
+          await notifyUserIfNeeded(
+            adminId,
+            'deadline_urgent',
+            dateKey,
+            'Última hora',
+            adminBody
+          );
+        }
+      }
     }
 
     const sellerIds = await getSellerIds(agency.id);
     for (const sellerId of sellerIds) {
+      const sellerHour = await resolveSalesCutoffHour({
+        sellerId,
+        agencyId: agency.id,
+      });
+      const sellerUrgentHour = Math.max(0, sellerHour - 1);
+      if (forHour != null && forHour !== sellerUrgentHour) continue;
+
+      const sellerDeadlineAt = getTodayDeadline(sellerHour);
       const sellerSummary = buildSummary(
         await queryOrderCounts(agency.id, dateKey, sellerId),
-        deadlineAt,
+        sellerDeadlineAt,
         dateKey,
-        deadlineHour
+        sellerHour
       );
       if (sellerSummary.undelivered === 0) continue;
       await notifyUserIfNeeded(
@@ -297,7 +331,8 @@ export async function sendDeadlineUrgentAlerts(
 
 export async function sendDeadlineMissedAlerts(
   dateKey: string,
-  agencyIds?: string[]
+  agencyIds?: string[],
+  forHour?: number
 ): Promise<void> {
   const [agencies] = await pool.query<Array<{ id: string } & RowDataPacket>>(
     agencyIds?.length
@@ -307,36 +342,47 @@ export async function sendDeadlineMissedAlerts(
   );
 
   for (const agency of agencies) {
-    const deadlineHour = await loadAgencyDeadlineHour(agency.id);
-    const deadlineAt = getTodayDeadline(deadlineHour);
-    const hourLabel = formatDeadlineHourLabel(deadlineHour);
-    const summary = buildSummary(
-      await queryOrderCounts(agency.id, dateKey),
-      deadlineAt,
-      dateKey,
-      deadlineHour
-    );
-    if (summary.undelivered === 0) continue;
+    const agencyHour = await loadAgencyDeadlineHour(agency.id);
 
-    const adminIds = await getAgencyAdminIds(agency.id);
-    const adminBody = `Corte de las ${hourLabel}: ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} no entregado${summary.undelivered === 1 ? '' : 's'}.`;
-    for (const adminId of adminIds) {
-      await notifyUserIfNeeded(
-        adminId,
-        'deadline_missed',
+    if (forHour == null || forHour === agencyHour) {
+      const deadlineAt = getTodayDeadline(agencyHour);
+      const hourLabel = formatDeadlineHourLabel(agencyHour);
+      const summary = buildSummary(
+        await queryOrderCounts(agency.id, dateKey),
+        deadlineAt,
         dateKey,
-        'Corte de entrega',
-        adminBody
+        agencyHour
       );
+      if (summary.undelivered > 0) {
+        const adminIds = await getAgencyAdminIds(agency.id);
+        const adminBody = `Corte de las ${hourLabel}: ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} no entregado${summary.undelivered === 1 ? '' : 's'}.`;
+        for (const adminId of adminIds) {
+          await notifyUserIfNeeded(
+            adminId,
+            'deadline_missed',
+            dateKey,
+            'Corte de entrega',
+            adminBody
+          );
+        }
+      }
     }
 
     const sellerIds = await getSellerIds(agency.id);
     for (const sellerId of sellerIds) {
+      const sellerHour = await resolveSalesCutoffHour({
+        sellerId,
+        agencyId: agency.id,
+      });
+      if (forHour != null && forHour !== sellerHour) continue;
+
+      const sellerDeadlineAt = getTodayDeadline(sellerHour);
+      const hourLabel = formatDeadlineHourLabel(sellerHour);
       const sellerSummary = buildSummary(
         await queryOrderCounts(agency.id, dateKey, sellerId),
-        deadlineAt,
+        sellerDeadlineAt,
         dateKey,
-        deadlineHour
+        sellerHour
       );
       if (sellerSummary.undelivered === 0) continue;
       await notifyUserIfNeeded(

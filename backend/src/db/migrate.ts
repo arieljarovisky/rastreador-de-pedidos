@@ -49,6 +49,13 @@ export async function runMigrations(): Promise<void> {
     await pool.query('ALTER TABLE users ADD COLUMN delivery_zone VARCHAR(64) NULL AFTER departure_lng');
   }
 
+  // Corte de ventas por vendedor (NULL = hereda el de la agencia; no puede superar el de la agencia).
+  if (!(await columnExists('users', 'delivery_deadline_hour'))) {
+    await pool.query(
+      'ALTER TABLE users ADD COLUMN delivery_deadline_hour TINYINT UNSIGNED NULL AFTER delivery_zone'
+    );
+  }
+
   if (!(await columnExists('users', 'session_token'))) {
     await pool.query('ALTER TABLE users ADD COLUMN session_token VARCHAR(64) NULL AFTER delivery_zone');
   }
@@ -696,6 +703,63 @@ export async function runMigrations(): Promise<void> {
         CONSTRAINT fk_email_verification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+  }
+
+  if (!(await tableExists('price_lists'))) {
+    await pool.query(`
+      CREATE TABLE price_lists (
+        id VARCHAR(36) PRIMARY KEY,
+        agency_id VARCHAR(36) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        is_default TINYINT(1) NOT NULL DEFAULT 0,
+        shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00,
+        shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00,
+        shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00,
+        driver_pay_flex DECIMAL(12,2) NOT NULL DEFAULT 1500.00,
+        driver_pay_express DECIMAL(12,2) NOT NULL DEFAULT 1800.00,
+        driver_pay_standard DECIMAL(12,2) NOT NULL DEFAULT 1200.00,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        UNIQUE KEY uk_price_lists_agency_name (agency_id, name),
+        INDEX idx_price_lists_agency (agency_id),
+        CONSTRAINT fk_price_lists_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await tableExists('price_list_zone_rates'))) {
+    await pool.query(`
+      CREATE TABLE price_list_zone_rates (
+        price_list_id VARCHAR(36) NOT NULL,
+        zone_key VARCHAR(64) NOT NULL,
+        shipping_rate_flex DECIMAL(12,2) NOT NULL,
+        shipping_rate_express DECIMAL(12,2) NOT NULL,
+        shipping_rate_standard DECIMAL(12,2) NOT NULL,
+        driver_pay_flex DECIMAL(12,2) NOT NULL,
+        driver_pay_express DECIMAL(12,2) NOT NULL,
+        driver_pay_standard DECIMAL(12,2) NOT NULL,
+        PRIMARY KEY (price_list_id, zone_key),
+        CONSTRAINT fk_plzr_list FOREIGN KEY (price_list_id) REFERENCES price_lists(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await columnExists('users', 'price_list_id'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN price_list_id VARCHAR(36) NULL AFTER agency_id');
+    await pool.query('CREATE INDEX idx_users_price_list ON users (price_list_id)');
+    await pool.query(
+      'ALTER TABLE users ADD CONSTRAINT fk_users_price_list FOREIGN KEY (price_list_id) REFERENCES price_lists(id) ON DELETE SET NULL'
+    );
+  }
+
+  // Seed lista default por agencia a partir de tarifas actuales
+  try {
+    const { ensureDefaultPriceListsForAllAgencies } = await import(
+      '../services/price-lists.service.js'
+    );
+    await ensureDefaultPriceListsForAllAgencies();
+  } catch (err) {
+    console.warn('[migrate] No se pudieron seedear listas de precios:', err);
   }
 
   // Deduplicar spam de reprogramación / ausente en bitácora (queda la primera entrada)

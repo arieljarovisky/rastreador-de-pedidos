@@ -52,6 +52,7 @@ export interface User {
   departurePoint?: LocationPoint;
   pickupPoints?: PickupPoint[];
   deliveryZone?: string | null;
+  deliveryDeadlineHour?: number | null;
 }
 
 export interface OrderHistoryEvent {

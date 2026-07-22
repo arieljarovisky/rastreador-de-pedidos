@@ -4,15 +4,45 @@ import crypto from 'crypto';
 import { pool } from '../config/database.js';
 import { DbUserRow, LocationPoint, PickupPoint, User, UserRole, OrderStatus } from '../types/index.js';
 import { listPickupPointsForUser } from './pickup-points.service.js';
-import { getAgencyDeparture, getAgencyById, updateAgencyDeparture as updateAgencyDepartureRecord } from './agencies.service.js';
+import {
+  getAgencyDeparture,
+  getAgencyById,
+  getAgencyDeliveryDeadlineHour,
+  updateAgencyDeparture as updateAgencyDepartureRecord,
+} from './agencies.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import { isValidAssignmentZoneForAgency, isValidZoneForAgency } from './delivery-zones.service.js';
 import { isValidEmail } from '../utils/email.js';
 import { AGENCY_ML_USERNAME_PREFIX } from './agency-ml.service.js';
+import { DELIVERY_DEADLINE_HOUR } from '../utils/delivery-deadline.js';
 
 const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, google_id, email_verified_at,
   current_lat, current_lng, location_updated_at,
-  departure_address, departure_lat, departure_lng, delivery_zone`;
+  departure_address, departure_lat, departure_lng, delivery_zone, delivery_deadline_hour`;
+
+let sellerDeadlineHourColumnReady: Promise<void> | null = null;
+
+/** Garantiza users.delivery_deadline_hour (por si el migrate no corrió aún). */
+export async function ensureSellerDeliveryDeadlineHourColumn(): Promise<void> {
+  if (!sellerDeadlineHourColumnReady) {
+    sellerDeadlineHourColumnReady = (async () => {
+      const [cols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'delivery_deadline_hour'`
+      );
+      if (cols.length === 0) {
+        await pool.query(
+          'ALTER TABLE users ADD COLUMN delivery_deadline_hour TINYINT UNSIGNED NULL AFTER delivery_zone'
+        );
+        console.log('[users] Columna delivery_deadline_hour creada');
+      }
+    })().catch((err) => {
+      sellerDeadlineHourColumnReady = null;
+      throw err;
+    });
+  }
+  await sellerDeadlineHourColumnReady;
+}
 
 function departureFromRow(row: DbUserRow): LocationPoint | undefined {
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
@@ -47,7 +77,61 @@ function rowToUser(row: DbUserRow): User {
   if (row.delivery_zone) {
     user.deliveryZone = row.delivery_zone;
   }
+  if (row.role === UserRole.STORE_ADMIN) {
+    user.deliveryDeadlineHour =
+      row.delivery_deadline_hour == null ? null : Number(row.delivery_deadline_hour);
+  }
   return user;
+}
+
+/** Hora de corte configurada del vendedor (null = hereda agencia). */
+export async function getSellerConfiguredDeadlineHour(
+  sellerId: string
+): Promise<number | null> {
+  await ensureSellerDeliveryDeadlineHourColumn();
+  const [rows] = await pool.query<
+    Array<{ delivery_deadline_hour: number | null } & RowDataPacket>
+  >('SELECT delivery_deadline_hour FROM users WHERE id = ? AND role = ? LIMIT 1', [
+    sellerId,
+    UserRole.STORE_ADMIN,
+  ]);
+  const raw = rows[0]?.delivery_deadline_hour;
+  if (raw == null) return null;
+  const n = Math.trunc(Number(raw));
+  if (!Number.isFinite(n) || n < 0 || n > 23) return null;
+  return n;
+}
+
+/**
+ * Corte de ventas efectivo para un pedido: vendedor (si tiene) limitado al máximo de la agencia.
+ * Sin vendedor → corte de la agencia.
+ */
+export async function resolveSalesCutoffHour(opts: {
+  sellerId?: string | null;
+  agencyId?: string | null;
+}): Promise<number> {
+  const agencyHour = opts.agencyId
+    ? await getAgencyDeliveryDeadlineHour(opts.agencyId)
+    : DELIVERY_DEADLINE_HOUR;
+  if (!opts.sellerId) return agencyHour;
+  const sellerHour = await getSellerConfiguredDeadlineHour(opts.sellerId);
+  if (sellerHour == null) return agencyHour;
+  return Math.min(sellerHour, agencyHour);
+}
+
+/** Baja cortes de vendedores que superan el nuevo máximo de la agencia. */
+export async function clampSellerDeadlineHoursToAgencyMax(
+  agencyId: string,
+  maxHour: number
+): Promise<number> {
+  await ensureSellerDeliveryDeadlineHourColumn();
+  const [result] = await pool.query<ResultSetHeader>(
+    `UPDATE users
+     SET delivery_deadline_hour = ?
+     WHERE agency_id = ? AND role = ? AND delivery_deadline_hour IS NOT NULL AND delivery_deadline_hour > ?`,
+    [maxHour, agencyId, UserRole.STORE_ADMIN, maxHour]
+  );
+  return result.affectedRows;
 }
 
 async function enrichUser(user: User): Promise<User> {
@@ -64,6 +148,7 @@ async function enrichUser(user: User): Promise<User> {
 }
 
 export async function findUserByUsername(username: string): Promise<(DbUserRow & RowDataPacket) | null> {
+  await ensureSellerDeliveryDeadlineHourColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE LOWER(username) = LOWER(?)`,
     [username]
@@ -72,6 +157,7 @@ export async function findUserByUsername(username: string): Promise<(DbUserRow &
 }
 
 export async function findUserByGoogleId(googleId: string): Promise<(DbUserRow & RowDataPacket) | null> {
+  await ensureSellerDeliveryDeadlineHourColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE google_id = ? LIMIT 1`,
     [googleId]
@@ -84,6 +170,7 @@ export function isEmailVerified(row: Pick<DbUserRow, 'email_verified_at'>): bool
 }
 
 export async function getUserById(id: string): Promise<User | null> {
+  await ensureSellerDeliveryDeadlineHourColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE id = ?`,
     [id]
@@ -94,6 +181,7 @@ export async function getUserById(id: string): Promise<User | null> {
 }
 
 export async function getRepartidores(agencyId?: string | null): Promise<User[]> {
+  await ensureSellerDeliveryDeadlineHourColumn();
   if (!agencyId) {
     return [];
   }
@@ -230,6 +318,8 @@ export async function createUser(data: {
   role: UserRole;
   agencyId?: string | null;
   deliveryZone?: string | null;
+  /** Solo vendedores: null/omitido = hereda agencia. */
+  deliveryDeadlineHour?: number | null;
   googleId?: string | null;
   /** Por defecto true (altas internas). El self-signup de agencia pasa false. */
   emailVerified?: boolean;
@@ -293,13 +383,27 @@ export async function createUser(data: {
     }
   }
 
+  let sellerDeadlineHour: number | null = null;
+  if (data.role === UserRole.STORE_ADMIN && data.deliveryDeadlineHour != null) {
+    await ensureSellerDeliveryDeadlineHourColumn();
+    if (!Number.isFinite(data.deliveryDeadlineHour)) throw new Error('INVALID_DEADLINE_HOUR');
+    const hour = Math.trunc(Number(data.deliveryDeadlineHour));
+    if (hour < 0 || hour > 23) throw new Error('INVALID_DEADLINE_HOUR');
+    const agencyMax = data.agencyId
+      ? await getAgencyDeliveryDeadlineHour(data.agencyId)
+      : DELIVERY_DEADLINE_HOUR;
+    if (hour > agencyMax) throw new Error('DEADLINE_ABOVE_AGENCY');
+    sellerDeadlineHour = hour;
+  }
+
   const id = `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const passwordHash = hasPassword && data.password ? await bcrypt.hash(data.password, 10) : null;
   const emailVerifiedAt = data.emailVerified === false ? null : new Date();
 
+  await ensureSellerDeliveryDeadlineHourColumn();
   await pool.query(
-    `INSERT INTO users (id, username, password_hash, google_id, email_verified_at, name, role, agency_id, delivery_zone)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO users (id, username, password_hash, google_id, email_verified_at, name, role, agency_id, delivery_zone, delivery_deadline_hour)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       normalizedUsername,
@@ -310,6 +414,7 @@ export async function createUser(data: {
       data.role,
       data.agencyId ?? null,
       data.deliveryZone ?? null,
+      data.role === UserRole.STORE_ADMIN ? sellerDeadlineHour : null,
     ]
   );
 
@@ -351,6 +456,7 @@ export async function updateRepartidorZone(
 }
 
 export async function listSellers(agencyId: string): Promise<User[]> {
+  await ensureSellerDeliveryDeadlineHourColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users
      WHERE role = ? AND agency_id = ? AND username NOT LIKE ?
@@ -433,7 +539,12 @@ export async function updateSellerPassword(
 
 export async function updateSeller(
   sellerId: string,
-  data: { name: string; username?: string },
+  data: {
+    name: string;
+    username?: string;
+    /** null = heredar agencia; número = corte propio (≤ agencia). undefined = no tocar. */
+    deliveryDeadlineHour?: number | null;
+  },
   agencyId?: string | null
 ): Promise<User> {
   const user = await getUserById(sellerId);
@@ -464,7 +575,35 @@ export async function updateSeller(
     }
   }
 
-  await pool.query('UPDATE users SET name = ?, username = ? WHERE id = ?', [name, username, sellerId]);
+  let deadlineHourSql: number | null | undefined = undefined;
+  if (data.deliveryDeadlineHour !== undefined) {
+    await ensureSellerDeliveryDeadlineHourColumn();
+    if (data.deliveryDeadlineHour === null) {
+      deadlineHourSql = null;
+    } else {
+      if (!Number.isFinite(data.deliveryDeadlineHour)) throw new Error('INVALID_DEADLINE_HOUR');
+      const hour = Math.trunc(Number(data.deliveryDeadlineHour));
+      if (hour < 0 || hour > 23) throw new Error('INVALID_DEADLINE_HOUR');
+      const agencyMax = user.agencyId
+        ? await getAgencyDeliveryDeadlineHour(user.agencyId)
+        : DELIVERY_DEADLINE_HOUR;
+      if (hour > agencyMax) throw new Error('DEADLINE_ABOVE_AGENCY');
+      deadlineHourSql = hour;
+    }
+  }
+
+  if (deadlineHourSql !== undefined) {
+    await pool.query(
+      'UPDATE users SET name = ?, username = ?, delivery_deadline_hour = ? WHERE id = ?',
+      [name, username, deadlineHourSql, sellerId]
+    );
+  } else {
+    await pool.query('UPDATE users SET name = ?, username = ? WHERE id = ?', [
+      name,
+      username,
+      sellerId,
+    ]);
+  }
   const updated = await getUserById(sellerId);
   if (!updated) throw new Error('NOT_FOUND');
   return updated;

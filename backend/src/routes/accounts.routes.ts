@@ -104,7 +104,7 @@ router.put('/sellers/:id/password', authenticate, requireAgencyAdmin(), async (r
 });
 
 router.put('/sellers/:id', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
-  const { name, username } = req.body;
+  const { name, username, deliveryDeadlineHour } = req.body;
   if (!name || typeof name !== 'string') {
     res.status(400).json({ error: 'El nombre es obligatorio.' });
     return;
@@ -113,15 +113,40 @@ router.put('/sellers/:id', authenticate, requireAgencyAdmin(), async (req: Reque
   try {
     const user = await updateSeller(
       req.params.id,
-      { name, username: typeof username === 'string' ? username : undefined },
+      {
+        name,
+        username: typeof username === 'string' ? username : undefined,
+        deliveryDeadlineHour:
+          deliveryDeadlineHour === null
+            ? null
+            : deliveryDeadlineHour === undefined
+              ? undefined
+              : Number(deliveryDeadlineHour),
+      },
       req.user?.agencyId
     );
+    if (req.user?.agencyId && deliveryDeadlineHour !== undefined) {
+      const { recalculateOpenOrdersDeliveryDeadlines } = await import(
+        '../services/orders.service.js'
+      );
+      await recalculateOpenOrdersDeliveryDeadlines(req.user.agencyId);
+    }
     res.json(user);
   } catch (err) {
     if (handleCreateUserError(res, err)) return;
     const message = err instanceof Error ? err.message : '';
     if (message === 'NOT_FOUND') {
       res.status(404).json({ error: 'Vendedor no encontrado.' });
+      return;
+    }
+    if (message === 'INVALID_DEADLINE_HOUR') {
+      res.status(400).json({ error: 'La hora de corte debe ser un número entre 0 y 23.' });
+      return;
+    }
+    if (message === 'DEADLINE_ABOVE_AGENCY') {
+      res.status(400).json({
+        error: 'El corte del vendedor no puede ser posterior al corte de la agencia.',
+      });
       return;
     }
     throw err;
@@ -149,7 +174,8 @@ router.delete('/sellers/:id', authenticate, requireAgencyAdmin(), async (req: Re
 });
 
 router.post('/sellers', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
-  const { username, password, name, pickupLabel, pickupAddress, pickupLat, pickupLng } = req.body;
+  const { username, password, name, pickupLabel, pickupAddress, pickupLat, pickupLng, deliveryDeadlineHour } =
+    req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: 'Usuario, contraseña y nombre son requeridos.' });
     return;
@@ -167,6 +193,10 @@ router.post('/sellers', authenticate, requireAgencyAdmin(), async (req: Request,
       name,
       role: UserRole.STORE_ADMIN,
       agencyId: req.user.agencyId,
+      deliveryDeadlineHour:
+        deliveryDeadlineHour === null || deliveryDeadlineHour === undefined || deliveryDeadlineHour === ''
+          ? null
+          : Number(deliveryDeadlineHour),
     });
 
     if (pickupAddress && pickupLat !== undefined && pickupLng !== undefined) {
@@ -182,6 +212,17 @@ router.post('/sellers', authenticate, requireAgencyAdmin(), async (req: Request,
     res.status(201).json(enriched ?? user);
   } catch (err) {
     if (handleCreateUserError(res, err)) return;
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'INVALID_DEADLINE_HOUR') {
+      res.status(400).json({ error: 'La hora de corte debe ser un número entre 0 y 23.' });
+      return;
+    }
+    if (message === 'DEADLINE_ABOVE_AGENCY') {
+      res.status(400).json({
+        error: 'El corte del vendedor no puede ser posterior al corte de la agencia.',
+      });
+      return;
+    }
     throw err;
   }
 });

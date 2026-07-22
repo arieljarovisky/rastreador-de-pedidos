@@ -10,7 +10,7 @@ import {
   User,
   UserRole,
 } from '../types/index.js';
-import { getRepartidorById, getUserById, updateUserLocation, assertSellerInAgency } from './users.service.js';
+import { getRepartidorById, getUserById, updateUserLocation, assertSellerInAgency, resolveSalesCutoffHour } from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import {
   computeDeliveryDeadline,
@@ -279,15 +279,10 @@ export async function createOrder(
     throw new Error('FORBIDDEN');
   }
 
-  const deadlineHour = agencyId
-    ? await getAgencyDeliveryDeadlineHour(agencyId)
-    : undefined;
-  // Flex es same-day: sin lead_time de ML, el día operativo es hoy (no el corte post-12 → mañana).
+  const deadlineHour = await resolveSalesCutoffHour({ sellerId, agencyId });
+  // Sin deliveryDeadline explícito (p. ej. lead_time ML): post-corte del vendedor → día hábil siguiente.
   const deliveryDeadline =
-    data.deliveryDeadline ??
-    (data.shippingType === 'flex'
-      ? getTodayDeadline(deadlineHour)
-      : computeDeliveryDeadline(now, deadlineHour));
+    data.deliveryDeadline ?? computeDeliveryDeadline(now, deadlineHour);
 
   if (data.externalSource && data.externalOrderId) {
     if (sellerId) {
@@ -633,7 +628,7 @@ export async function forceRescheduledOrdersStuckInPastToToday(
 }
 
 /**
- * Recalcula delivery_deadline de pedidos abiertos según createdAt + corte de agencia.
+ * Recalcula delivery_deadline de pedidos abiertos según createdAt + corte del vendedor (tope agencia).
  * - Corrige ventas nocturnas quedadas en el día anterior (corte viejo 21:00).
  * - Mueve a hoy los ausentes/reprogramables trabados en el pasado.
  * - No retrocede pedidos que ya están en un día futuro respecto del esperado.
@@ -666,6 +661,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     Array<{
       id: string;
       agency_id: string | null;
+      seller_id: string | null;
       created_at: Date;
       delivery_deadline: Date | null;
       ml_shipment_substatus: string | null;
@@ -673,7 +669,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       reschedule_comment: number;
     } & RowDataPacket>
   >(
-    `SELECT o.id, o.agency_id, o.created_at, o.delivery_deadline,
+    `SELECT o.id, o.agency_id, o.seller_id, o.created_at, o.delivery_deadline,
             ${hasSubstatus ? 'o.ml_shipment_substatus' : 'NULL AS ml_shipment_substatus'},
             (
               SELECT COUNT(*) FROM order_history h
@@ -692,23 +688,20 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     params
   );
 
-  const hourByAgency = new Map<string, number>();
+  const hourCache = new Map<string, number>();
   let updated = 0;
   const now = new Date();
   const todayKey = getOperationalDateKey(now);
 
   for (const row of rows) {
-    let hour = DELIVERY_DEADLINE_HOUR;
-    if (row.agency_id) {
-      if (!hourByAgency.has(row.agency_id)) {
-        hourByAgency.set(row.agency_id, await getAgencyDeliveryDeadlineHour(row.agency_id));
-      }
-      hour = hourByAgency.get(row.agency_id)!;
-    } else if (agencyId) {
-      if (!hourByAgency.has(agencyId)) {
-        hourByAgency.set(agencyId, await getAgencyDeliveryDeadlineHour(agencyId));
-      }
-      hour = hourByAgency.get(agencyId)!;
+    const cacheKey = `${row.seller_id ?? ''}:${row.agency_id ?? agencyId ?? ''}`;
+    let hour = hourCache.get(cacheKey);
+    if (hour == null) {
+      hour = await resolveSalesCutoffHour({
+        sellerId: row.seller_id,
+        agencyId: row.agency_id ?? agencyId ?? null,
+      });
+      hourCache.set(cacheKey, hour);
     }
 
     const created = new Date(row.created_at);

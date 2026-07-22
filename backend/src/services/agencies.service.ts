@@ -156,6 +156,8 @@ export async function updateAgencyDeliveryDeadlineHour(
     normalized,
     agencyId,
   ]);
+  const { clampSellerDeadlineHoursToAgencyMax } = await import('./users.service.js');
+  await clampSellerDeadlineHoursToAgencyMax(agencyId, normalized);
   return normalized;
 }
 
