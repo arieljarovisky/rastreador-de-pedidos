@@ -85,9 +85,10 @@ function loadOrdersListView(): OrdersListView {
 
 function loadShowMapPanel(): boolean {
   try {
-    return localStorage.getItem(SHOW_MAP_PANEL_KEY) !== '0';
+    // Por defecto cerrado: la lista de envíos ocupa todo el ancho.
+    return localStorage.getItem(SHOW_MAP_PANEL_KEY) === '1';
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -285,8 +286,20 @@ export default function AdminDashboard({
   useEffect(() => {
     if (activeOrderId) {
       setAdminMobileTab('map');
+      setShowMapPanel(true);
     }
   }, [activeOrderId]);
+
+  const handleSelectOrder = useCallback(
+    (orderId: string | null) => {
+      onSelectOrder(orderId);
+      if (orderId) {
+        setShowMapPanel(true);
+        setAdminMobileTab('map');
+      }
+    },
+    [onSelectOrder]
+  );
 
   useEffect(() => {
     setMapRepartidorIds((prev) => {
@@ -397,9 +410,9 @@ export default function AdminDashboard({
   const openAssignModal = useCallback(
     (orderId: string) => {
       setAssigningOrderId(orderId);
-      onSelectOrder(orderId);
+      handleSelectOrder(orderId);
     },
-    [onSelectOrder]
+    [handleSelectOrder]
   );
 
   // Aplicar preset de dirección
@@ -661,8 +674,7 @@ export default function AdminDashboard({
         id: 'view',
         label: 'Ver en mapa',
         onClick: () => {
-          onSelectOrder(order.id);
-          setAdminMobileTab('map');
+          handleSelectOrder(order.id);
         },
       },
       {
@@ -682,9 +694,8 @@ export default function AdminDashboard({
         id: 'assign-seller',
         label: 'Asignar vendedor',
         onClick: () => {
-          onSelectOrder(order.id);
+          handleSelectOrder(order.id);
           setAssigningOrderId(order.id);
-          setAdminMobileTab('map');
         },
       });
     }
@@ -1672,7 +1683,7 @@ export default function AdminDashboard({
         {/* LISTADO DE PEDIDOS / FORMULARIO CREACIÓN (CON SCROLL) */}
         <div
           className={`flex-1 min-h-0 overflow-y-auto mt-1.5 pr-1 scrollbar-thin ${
-            ordersListView === 'table' ? '' : 'space-y-1.5'
+            ordersListView === 'table' ? '' : 'space-y-2'
           }`}
         >
           {filteredOrders.length === 0 ? (
@@ -1686,16 +1697,16 @@ export default function AdminDashboard({
             </div>
           ) : ordersListView === 'table' ? (
             <div className="overflow-x-auto rounded border border-[var(--surface-border)]">
-              <table className="w-full min-w-[36rem] text-left border-collapse">
+              <table className="w-full min-w-[40rem] text-left border-collapse">
                 <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
-                  <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                    <th className="px-2 py-2 font-bold">ID</th>
-                    <th className="px-2 py-2 font-bold">Cliente</th>
-                    <th className="px-2 py-2 font-bold">Dirección</th>
-                    <th className="px-2 py-2 font-bold">Estado</th>
-                    {isAgencyAdmin(userRole) && <th className="px-2 py-2 font-bold">Vendedor</th>}
-                    <th className="px-2 py-2 font-bold">Repartidor</th>
-                    <th className="px-2 py-2 font-bold">Hora</th>
+                  <tr className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                    <th className="px-3 py-2.5 font-bold">ID</th>
+                    <th className="px-3 py-2.5 font-bold">Cliente</th>
+                    <th className="px-3 py-2.5 font-bold">Dirección</th>
+                    <th className="px-3 py-2.5 font-bold">Estado</th>
+                    {isAgencyAdmin(userRole) && <th className="px-3 py-2.5 font-bold">Vendedor</th>}
+                    <th className="px-3 py-2.5 font-bold">Repartidor</th>
+                    <th className="px-3 py-2.5 font-bold">Hora</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1705,31 +1716,31 @@ export default function AdminDashboard({
                     return (
                       <tr
                         key={order.id}
-                        onClick={() => onSelectOrder(order.id)}
+                        onClick={() => handleSelectOrder(order.id)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setContextMenu({ order, x: e.clientX, y: e.clientY });
                         }}
-                        className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] transition ${
+                        className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-sm transition ${
                           isSelected
                             ? 'bg-[var(--color-accent)]/10'
                             : 'hover:bg-[var(--surface-panel-2)]/80'
                         }`}
                       >
-                        <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
+                        <td className="px-3 py-3 font-mono text-xs text-[var(--color-text-faint)] whitespace-nowrap">
                           {order.id}
                           {order.externalSource === 'mercadolibre' && (
-                            <span className="ml-1 text-[8px] font-bold uppercase text-[var(--color-accent)]">ML</span>
+                            <span className="ml-1 text-[9px] font-bold uppercase text-[var(--color-accent)]">ML</span>
                           )}
                         </td>
-                        <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] max-w-[8rem] truncate">
+                        <td className="px-3 py-3 font-semibold text-[var(--ink-soft)] max-w-[10rem] truncate">
                           {order.clientName}
                         </td>
-                        <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[12rem] truncate">
+                        <td className="px-3 py-3 text-[var(--color-text-muted)] max-w-[16rem] truncate">
                           {order.address}
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           <StatusBadge
                             status={order.status}
                             label={exception?.label}
@@ -1737,11 +1748,11 @@ export default function AdminDashboard({
                           />
                         </td>
                         {isAgencyAdmin(userRole) && (
-                          <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[7rem] truncate">
+                          <td className="px-3 py-3 text-[var(--color-text-muted)] max-w-[8rem] truncate">
                             {order.sellerName ?? '—'}
                           </td>
                         )}
-                        <td className="px-2 py-2 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           {order.status === OrderStatus.PENDING && isAgencyAdmin(userRole) ? (
                             <button
                               type="button"
@@ -1749,17 +1760,17 @@ export default function AdminDashboard({
                                 e.stopPropagation();
                                 openAssignModal(order.id);
                               }}
-                              className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
+                              className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] px-2.5 py-1.5 rounded-[var(--radius-posta)] uppercase tracking-wider"
                             >
                               Gestionar
                             </button>
                           ) : (
-                            <span className="text-[var(--color-text-muted)] truncate max-w-[6rem] inline-block">
+                            <span className="text-[var(--color-text-muted)] truncate max-w-[7rem] inline-block">
                               {order.repartidorName?.split(' ')[0] ?? 'Sin asignar'}
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
+                        <td className="px-3 py-3 font-mono text-xs text-[var(--color-text-faint)] whitespace-nowrap">
                           {new Date(order.createdAt).toLocaleTimeString([], {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -1778,20 +1789,20 @@ export default function AdminDashboard({
               return (
                 <div
                   key={order.id}
-                  onClick={() => onSelectOrder(order.id)}
+                  onClick={() => handleSelectOrder(order.id)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setContextMenu({ order, x: e.clientX, y: e.clientY });
                   }}
-                  className={`p-2.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
+                  className={`p-3.5 rounded border transition cursor-pointer text-left relative overflow-hidden group ${
                     isSelected
                       ? 'bg-[var(--color-accent)]/5 border-l-2 border-[var(--color-accent)] border-t-[var(--surface-border)] border-r-[var(--surface-border)] border-b-[var(--surface-border)]'
                       : 'bg-[var(--surface-panel-2)]/40 border-[var(--surface-border)]/80 hover:bg-[var(--surface-panel)] hover:border-[var(--edge-2,var(--surface-border))]'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="mono-label text-[9px]">
+                    <span className="mono-label text-[11px]">
                       ID: {order.id}
                       {order.externalSource === 'mercadolibre' && (
                         <span className="ml-1 text-[var(--color-accent)]">ML</span>
@@ -1799,7 +1810,7 @@ export default function AdminDashboard({
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
                       {order.archived && statusFilter !== 'archived' && (
-                        <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-faint)] border border-[var(--surface-border)] px-1 py-0.5 rounded">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-faint)] border border-[var(--surface-border)] px-1.5 py-0.5 rounded">
                           Arch.
                         </span>
                       )}
@@ -1816,11 +1827,11 @@ export default function AdminDashboard({
                     </div>
                   </div>
 
-                  <h4 className="font-bold text-xs text-[var(--ink-soft)] mt-1 group-hover:text-[var(--color-text)] transition truncate">
+                  <h4 className="font-bold text-sm text-[var(--ink-soft)] mt-1.5 group-hover:text-[var(--color-text)] transition truncate">
                     {order.clientName}
                   </h4>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate leading-snug flex items-start gap-1">
-                    <MapPin className="w-3 h-3 shrink-0 mt-0.5 text-[var(--color-text-muted)]" />
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1 truncate leading-snug flex items-start gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[var(--color-text-muted)]" />
                     <span className="truncate">{order.address}</span>
                   </p>
                   {isAgencyAdmin(userRole) && (() => {
@@ -1905,14 +1916,17 @@ export default function AdminDashboard({
                 )}
                 <button
                   type="button"
-                  onClick={() => setAdminMobileTab('map')}
+                  onClick={() => {
+                    setShowMapPanel(true);
+                    setAdminMobileTab('map');
+                  }}
                   className="px-2 py-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[var(--ink-soft)] font-mono font-bold text-[8px] uppercase rounded-[var(--radius-posta)]"
                 >
-                  Mapa
+                  Ver mapa
                 </button>
                 <button
                   type="button"
-                  onClick={() => onSelectOrder(null)}
+                  onClick={() => handleSelectOrder(null)}
                   className="px-2 py-1 text-[var(--color-text-muted)] font-mono text-[10px] uppercase"
                   aria-label="Cerrar detalle"
                 >
@@ -2197,7 +2211,7 @@ export default function AdminDashboard({
             deliveryZones={deliveryZones}
             barrios={barrios}
             activeOrderId={activeOrderId}
-            onSelectOrder={onSelectOrder}
+            onSelectOrder={handleSelectOrder}
             showDeliveryZones={showMapZones}
             focusZoneId={cordonFilterId || null}
           />
@@ -2217,7 +2231,7 @@ export default function AdminDashboard({
                   <p className="text-[10px] text-[var(--color-text-muted)] font-sans mt-0.5">Destinatario: {selectedOrder.clientName}</p>
                 </div>
                 <button
-                  onClick={() => onSelectOrder(null)}
+                  onClick={() => handleSelectOrder(null)}
                   className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
                 >
                   [Cerrar]

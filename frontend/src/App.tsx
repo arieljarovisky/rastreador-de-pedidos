@@ -14,7 +14,7 @@ import ShippingAccountPage from './components/ShippingAccountPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
-import { LogOut, Bell, Settings, LayoutDashboard, Map, Wallet } from 'lucide-react';
+import { LogOut, Bell, Settings, LayoutDashboard, Package, Wallet } from 'lucide-react';
 import BootSplash from './components/ui/BootSplash.tsx';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
@@ -1690,14 +1690,14 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setMobileTab('dashboard')}
-                    title="Mapa y pedidos en vivo"
+                    title="Envíos y mapa en vivo"
                     className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                       mobileTab === 'dashboard'
                         ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
                         : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
-                    <Map className="w-3.5 h-3.5" /> Mapa
+                    <Package className="w-3.5 h-3.5" /> Envíos
                   </button>
                   <button
                     type="button"
@@ -1788,8 +1788,8 @@ export default function App() {
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
               }`}
             >
-              <Map className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
-              <span>Mapa</span>
+              <Package className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
+              <span>Envíos</span>
             </button>
             <button
               onClick={() => setMobileTab('account')}
