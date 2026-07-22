@@ -6,7 +6,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, RepartidorMercadoLibreStatus } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
-import LoginScreen, { type AgencyRegisterData } from './components/LoginScreen.tsx';
+import LoginScreen, {
+  type AgencyRegisterData,
+  type AgencyGoogleRegisterData,
+  type RegisterAgencyResult,
+} from './components/LoginScreen.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -56,6 +60,12 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get('resetToken')?.trim() || null;
   });
+  const [verifyToken, setVerifyToken] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('verifyToken')?.trim() || null;
+  });
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null);
 
   // Estados de datos
   const [orders, setOrders] = useState<Order[]>([]);
@@ -86,16 +96,35 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    void fetch(apiUrl('/api/auth/google-config'))
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as { enabled?: boolean; clientId?: string };
+        if (data.enabled && data.clientId) {
+          setGoogleClientId(data.clientId);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const integration = params.get('integration');
     const status = params.get('status');
     const message = params.get('message');
     const tab = params.get('tab');
     const incomingReset = params.get('resetToken')?.trim();
+    const incomingVerify = params.get('verifyToken')?.trim();
     if (incomingReset) {
       setResetToken(incomingReset);
+    }
+    if (incomingVerify) {
+      setVerifyToken(incomingVerify);
+    }
+    if (incomingReset || incomingVerify) {
       const clean = new URL(window.location.href);
       clean.searchParams.delete('resetToken');
+      clean.searchParams.delete('verifyToken');
       window.history.replaceState({}, '', clean.pathname + clean.search);
     }
     if (tab === 'settings') setMobileTabState('settings');
@@ -491,6 +520,23 @@ export default function App() {
     }
   }, [isOnline]);
 
+  const applyAuthSession = (data: { user: User; token: string }) => {
+    localStorage.setItem('lupo_token', data.token);
+    localStorage.setItem('lupo_user', JSON.stringify(data.user));
+    setToken(data.token);
+    setUser(data.user);
+    setAuthError(null);
+    setAuthErrorCode(null);
+    setPendingEmail(null);
+    setVerifyToken(null);
+    if (data.user.departurePoint) {
+      setDeparturePoint(data.user.departurePoint);
+    }
+    if (data.user.pickupPoints) {
+      setPickupPoints(data.user.pickupPoints);
+    }
+  };
+
   const handleLogin = async (username: string, password: string, replaceSession = false) => {
     setLoading(true);
     if (!replaceSession) {
@@ -513,22 +559,14 @@ export default function App() {
       if (!res.ok) {
         const errData = await res.json();
         setAuthErrorCode(errData.code ?? null);
+        if (errData.code === 'EMAIL_NOT_VERIFIED' && errData.email) {
+          setPendingEmail(String(errData.email));
+        }
         throw new Error(errData.error || 'Credenciales incorrectas');
       }
 
       const data = await res.json();
-      localStorage.setItem('lupo_token', data.token);
-      localStorage.setItem('lupo_user', JSON.stringify(data.user));
-      setToken(data.token);
-      setUser(data.user);
-      setAuthError(null);
-      setAuthErrorCode(null);
-      if (data.user.departurePoint) {
-        setDeparturePoint(data.user.departurePoint);
-      }
-      if (data.user.pickupPoints) {
-        setPickupPoints(data.user.pickupPoints);
-      }
+      applyAuthSession(data);
     } catch (err: any) {
       setAuthError(err.message || 'Error en la conexión con el servidor.');
     } finally {
@@ -536,14 +574,12 @@ export default function App() {
     }
   };
 
-  const handleRegister = async (
-    endpoint: '/api/auth/register/agency',
-    data: AgencyRegisterData
-  ) => {
+  const handleRegister = async (data: AgencyRegisterData): Promise<RegisterAgencyResult> => {
     setLoading(true);
     setAuthError(null);
+    setAuthErrorCode(null);
     try {
-      const res = await fetch(apiUrl(endpoint), {
+      const res = await fetch(apiUrl('/api/auth/register/agency'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -555,12 +591,85 @@ export default function App() {
       }
 
       const result = await res.json();
-      localStorage.setItem('lupo_token', result.token);
-      localStorage.setItem('lupo_user', JSON.stringify(result.user));
-      setToken(result.token);
-      setUser(result.user);
+      if (result.pendingVerification) {
+        setPendingEmail(result.email || data.email);
+        return {
+          pendingVerification: true,
+          email: result.email || data.email,
+          message: result.message,
+        };
+      }
+
+      if (result.token && result.user) {
+        applyAuthSession(result);
+      }
+      return { pendingVerification: false };
     } catch (err: any) {
       setAuthError(err.message || 'Error al registrar la cuenta.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async (idToken: string, replaceSession = false) => {
+    setLoading(true);
+    setAuthError(null);
+    setAuthErrorCode(null);
+    try {
+      const res = await fetch(apiUrl('/api/auth/google'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          mode: 'login',
+          replaceSession: replaceSession === true,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        setAuthErrorCode(errData.code ?? null);
+        if (errData.code === 'EMAIL_NOT_VERIFIED' && errData.email) {
+          setPendingEmail(String(errData.email));
+        }
+        throw new Error(errData.error || 'No se pudo ingresar con Google.');
+      }
+      const data = await res.json();
+      applyAuthSession(data);
+    } catch (err: any) {
+      setAuthError(err.message || 'Error al ingresar con Google.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleRegister = async (data: AgencyGoogleRegisterData) => {
+    setLoading(true);
+    setAuthError(null);
+    setAuthErrorCode(null);
+    try {
+      const res = await fetch(apiUrl('/api/auth/google'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken: data.idToken,
+          mode: 'register',
+          agencyName: data.agencyName,
+          adminName: data.adminName,
+          phone: data.phone,
+          cuit: data.cuit,
+          city: data.city,
+          acceptTerms: data.acceptTerms,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'No se pudo registrar con Google.');
+      }
+      const result = await res.json();
+      applyAuthSession(result);
+    } catch (err: any) {
+      setAuthError(err.message || 'Error al registrar con Google.');
     } finally {
       setLoading(false);
     }
@@ -607,6 +716,62 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  const handleResendVerification = async (email: string): Promise<string> => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(apiUrl('/api/auth/resend-verification'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'No se pudo reenviar el correo.');
+      }
+      return (
+        data.message ||
+        'Si ese correo tiene una cuenta pendiente, te enviamos un enlace de activación.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!verifyToken || user) return;
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setAuthError(null);
+      try {
+        const res = await fetch(apiUrl('/api/auth/verify-email'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: verifyToken }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || 'No se pudo activar la cuenta.');
+        }
+        if (!cancelled && data.token && data.user) {
+          applyAuthSession(data);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setVerifyToken(null);
+          setAuthError(err.message || 'No se pudo activar la cuenta.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [verifyToken, user]);
 
   const handleCreateSeller = async (data: {
     username: string;
@@ -1558,12 +1723,17 @@ export default function App() {
     return (
       <LoginScreen
         onLogin={handleLogin}
-        onRegisterAgency={(data) => handleRegister('/api/auth/register/agency', data)}
+        onRegisterAgency={handleRegister}
+        onGoogleLogin={handleGoogleLogin}
+        onGoogleRegister={handleGoogleRegister}
         onForgotPassword={handleForgotPassword}
         onResetPassword={handleResetPassword}
+        onResendVerification={handleResendVerification}
         loading={loading}
         error={authError}
         errorCode={authErrorCode}
+        pendingEmail={pendingEmail}
+        googleClientId={googleClientId}
         initialResetToken={resetToken}
       />
     );

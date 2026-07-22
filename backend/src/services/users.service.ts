@@ -10,7 +10,8 @@ import { isValidAssignmentZoneForAgency, isValidZoneForAgency } from './delivery
 import { isValidEmail } from '../utils/email.js';
 import { AGENCY_ML_USERNAME_PREFIX } from './agency-ml.service.js';
 
-const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, current_lat, current_lng, location_updated_at,
+const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, google_id, email_verified_at,
+  current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng, delivery_zone`;
 
 function departureFromRow(row: DbUserRow): LocationPoint | undefined {
@@ -68,6 +69,18 @@ export async function findUserByUsername(username: string): Promise<(DbUserRow &
     [username]
   );
   return rows[0] ?? null;
+}
+
+export async function findUserByGoogleId(googleId: string): Promise<(DbUserRow & RowDataPacket) | null> {
+  const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
+    `SELECT ${USER_COLUMNS} FROM users WHERE google_id = ? LIMIT 1`,
+    [googleId]
+  );
+  return rows[0] ?? null;
+}
+
+export function isEmailVerified(row: Pick<DbUserRow, 'email_verified_at'>): boolean {
+  return row.email_verified_at != null;
 }
 
 export async function getUserById(id: string): Promise<User | null> {
@@ -212,11 +225,14 @@ export async function getAgencyDepartureForUser(user: User): Promise<LocationPoi
 
 export async function createUser(data: {
   username: string;
-  password: string;
+  password?: string | null;
   name: string;
   role: UserRole;
   agencyId?: string | null;
   deliveryZone?: string | null;
+  googleId?: string | null;
+  /** Por defecto true (altas internas). El self-signup de agencia pasa false. */
+  emailVerified?: boolean;
 }): Promise<User> {
   const normalizedUsername = data.username.trim().toLowerCase();
   if (data.role === UserRole.REPARTIDOR && !isValidEmail(normalizedUsername)) {
@@ -231,7 +247,13 @@ export async function createUser(data: {
   if (normalizedUsername.length < 3) {
     throw new Error('USERNAME_SHORT');
   }
-  if (data.password.length < 6) {
+
+  const hasPassword = Boolean(data.password);
+  const hasGoogle = Boolean(data.googleId);
+  if (!hasPassword && !hasGoogle) {
+    throw new Error('PASSWORD_SHORT');
+  }
+  if (hasPassword && data.password && data.password.length < 6) {
     throw new Error('PASSWORD_SHORT');
   }
   if (!data.name.trim()) {
@@ -264,17 +286,45 @@ export async function createUser(data: {
     throw new Error('USERNAME_TAKEN');
   }
 
+  if (data.googleId) {
+    const byGoogle = await findUserByGoogleId(data.googleId);
+    if (byGoogle) {
+      throw new Error('USERNAME_TAKEN');
+    }
+  }
+
   const id = `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  const passwordHash = await bcrypt.hash(data.password, 10);
+  const passwordHash = hasPassword && data.password ? await bcrypt.hash(data.password, 10) : null;
+  const emailVerifiedAt = data.emailVerified === false ? null : new Date();
 
   await pool.query(
-    `INSERT INTO users (id, username, password_hash, name, role, agency_id, delivery_zone) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, normalizedUsername, passwordHash, data.name.trim(), data.role, data.agencyId ?? null, data.deliveryZone ?? null]
+    `INSERT INTO users (id, username, password_hash, google_id, email_verified_at, name, role, agency_id, delivery_zone)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      normalizedUsername,
+      passwordHash,
+      data.googleId ?? null,
+      emailVerifiedAt,
+      data.name.trim(),
+      data.role,
+      data.agencyId ?? null,
+      data.deliveryZone ?? null,
+    ]
   );
 
   const user = await getUserById(id);
   if (!user) throw new Error('CREATE_FAILED');
   return user;
+}
+
+export async function linkGoogleId(userId: string, googleId: string): Promise<void> {
+  await pool.query(
+    `UPDATE users
+     SET google_id = ?, email_verified_at = COALESCE(email_verified_at, NOW(3))
+     WHERE id = ?`,
+    [googleId, userId]
+  );
 }
 
 export async function updateRepartidorZone(

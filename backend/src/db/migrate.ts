@@ -652,6 +652,52 @@ export async function runMigrations(): Promise<void> {
     `);
   }
 
+  if (!(await columnExists('users', 'google_id'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN google_id VARCHAR(64) NULL AFTER password_hash');
+    await pool.query('CREATE UNIQUE INDEX uk_users_google_id ON users (google_id)');
+  }
+
+  if (!(await columnExists('users', 'email_verified_at'))) {
+    await pool.query(
+      'ALTER TABLE users ADD COLUMN email_verified_at DATETIME(3) NULL AFTER google_id'
+    );
+    // Cuentas existentes siguen pudiendo entrar
+    await pool.query(
+      `UPDATE users SET email_verified_at = COALESCE(created_at, NOW(3))
+       WHERE email_verified_at IS NULL`
+    );
+  }
+
+  // Permitir cuentas solo-Google (sin contraseña local)
+  {
+    const [colRows] = await pool.query<
+      Array<{ IS_NULLABLE: string } & import('mysql2').RowDataPacket>
+    >(
+      `SELECT IS_NULLABLE FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'password_hash'`
+    );
+    if (colRows[0]?.IS_NULLABLE === 'NO') {
+      await pool.query('ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL');
+    }
+  }
+
+  if (!(await tableExists('email_verification_tokens'))) {
+    await pool.query(`
+      CREATE TABLE email_verification_tokens (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at DATETIME(3) NOT NULL,
+        used_at DATETIME(3) NULL,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        UNIQUE KEY uk_email_verification_token_hash (token_hash),
+        INDEX idx_email_verification_user (user_id),
+        INDEX idx_email_verification_expires (expires_at),
+        CONSTRAINT fk_email_verification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
   // Deduplicar spam de reprogramación / ausente en bitácora (queda la primera entrada)
   await pool.query(
     `DELETE h FROM order_history h

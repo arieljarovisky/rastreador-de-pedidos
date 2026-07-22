@@ -1454,6 +1454,45 @@
   cursor: not-allowed;
 }
 
+.auth-split__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.15rem 0;
+  color: var(--auth-muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.auth-split__divider::before,
+.auth-split__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--auth-line);
+}
+
+.auth-google {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.75rem;
+}
+
+.auth-google__btn {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-google--disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .auth-split__back {
   display: inline-flex;
   align-items: center;

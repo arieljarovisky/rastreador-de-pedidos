@@ -125,7 +125,9 @@ export interface DbUserRow {
   name: string;
   role: UserRole;
   agency_id: string | null;
-  password_hash: string;
+  password_hash: string | null;
+  google_id: string | null;
+  email_verified_at: Date | null;
   current_lat: number | null;
   current_lng: number | null;
   location_updated_at: Date | null;

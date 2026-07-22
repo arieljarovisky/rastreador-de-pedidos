@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS agencies (
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(36) PRIMARY KEY,
   username VARCHAR(100) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NULL,
+  google_id VARCHAR(64) NULL UNIQUE,
+  email_verified_at DATETIME(3) NULL,
   name VARCHAR(255) NOT NULL,
   role ENUM('super_admin', 'store_admin', 'logistics_admin', 'repartidor') NOT NULL,
   agency_id VARCHAR(36) NULL,
@@ -198,4 +200,30 @@ CREATE TABLE IF NOT EXISTS billing_ledger_entries (
   CONSTRAINT fk_billing_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
   CONSTRAINT fk_billing_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_billing_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at DATETIME(3) NOT NULL,
+  used_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uk_password_reset_token_hash (token_hash),
+  INDEX idx_password_reset_user (user_id),
+  INDEX idx_password_reset_expires (expires_at),
+  CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at DATETIME(3) NOT NULL,
+  used_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uk_email_verification_token_hash (token_hash),
+  INDEX idx_email_verification_user (user_id),
+  INDEX idx_email_verification_expires (expires_at),
+  CONSTRAINT fk_email_verification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

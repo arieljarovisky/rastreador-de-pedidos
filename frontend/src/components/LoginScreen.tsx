@@ -26,6 +26,7 @@ import {
 import PostaLogo from './ui/PostaLogo.tsx';
 import PostaButton from './ui/PostaButton.tsx';
 import ThemeToggle from './ui/ThemeToggle.tsx';
+import GoogleSignInButton from './GoogleSignInButton.tsx';
 import { applyPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
 import { isValidEmail } from '../utils/email.ts';
 import { formatCuitInput, isValidCuit } from '../utils/cuit.ts';
@@ -37,7 +38,12 @@ import {
   validateStrongPassword,
 } from '../utils/password.ts';
 
-type AuthMode = 'login' | 'register-agency' | 'forgot-password' | 'reset-password';
+type AuthMode =
+  | 'login'
+  | 'register-agency'
+  | 'forgot-password'
+  | 'reset-password'
+  | 'pending-verification';
 type RegisterStep = 1 | 2;
 
 export interface AgencyRegisterData {
@@ -51,14 +57,33 @@ export interface AgencyRegisterData {
   acceptTerms: boolean;
 }
 
+export interface AgencyGoogleRegisterData {
+  idToken: string;
+  agencyName: string;
+  adminName: string;
+  phone: string;
+  cuit: string;
+  city: string;
+  acceptTerms: boolean;
+}
+
+export type RegisterAgencyResult =
+  | { pendingVerification: true; email: string; message?: string }
+  | { pendingVerification?: false };
+
 interface LoginScreenProps {
   onLogin: (username: string, password: string, replaceSession?: boolean) => Promise<void>;
-  onRegisterAgency: (data: AgencyRegisterData) => Promise<void>;
+  onRegisterAgency: (data: AgencyRegisterData) => Promise<RegisterAgencyResult>;
+  onGoogleLogin: (idToken: string, replaceSession?: boolean) => Promise<void>;
+  onGoogleRegister: (data: AgencyGoogleRegisterData) => Promise<void>;
   onForgotPassword: (email: string) => Promise<string>;
   onResetPassword: (token: string, password: string) => Promise<string>;
+  onResendVerification: (email: string) => Promise<string>;
   loading: boolean;
   error: string | null;
   errorCode?: string | null;
+  pendingEmail?: string | null;
+  googleClientId?: string | null;
   /** Token de recuperación desde el link del correo (`?resetToken=`). */
   initialResetToken?: string | null;
 }
@@ -121,11 +146,16 @@ function IconInput({
 export default function LoginScreen({
   onLogin,
   onRegisterAgency,
+  onGoogleLogin,
+  onGoogleRegister,
   onForgotPassword,
   onResetPassword,
+  onResendVerification,
   loading,
   error,
   errorCode = null,
+  pendingEmail = null,
+  googleClientId = null,
   initialResetToken = null,
 }: LoginScreenProps) {
   const [mode, setMode] = useState<AuthMode>(initialResetToken ? 'reset-password' : 'login');
@@ -145,9 +175,11 @@ export default function LoginScreen({
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [resetToken, setResetToken] = useState(initialResetToken ?? '');
+  const [verificationEmail, setVerificationEmail] = useState(pendingEmail ?? '');
   const [showReplaceOption, setShowReplaceOption] = useState(false);
   const theme = usePostaTheme();
   const reducedMotion = useReducedMotion();
+  const googleEnabled = Boolean(googleClientId);
 
   const toggleTheme = () => {
     applyPostaTheme(theme === 'dark' ? 'paper' : 'dark');
@@ -163,6 +195,22 @@ export default function LoginScreen({
       setSuccessMessage(null);
     }
   }, [initialResetToken]);
+
+  useEffect(() => {
+    if (pendingEmail) {
+      setVerificationEmail(pendingEmail);
+      setMode('pending-verification');
+      setSuccessMessage(null);
+      setLocalError(null);
+    }
+  }, [pendingEmail]);
+
+  useEffect(() => {
+    if (errorCode === 'EMAIL_NOT_VERIFIED') {
+      setMode('pending-verification');
+      if (username.trim()) setVerificationEmail(username.trim().toLowerCase());
+    }
+  }, [errorCode, username]);
 
   const resetForm = () => {
     setUsername('');
@@ -223,6 +271,20 @@ export default function LoginScreen({
     e.preventDefault();
     setLocalError(null);
     setSuccessMessage(null);
+
+    if (mode === 'pending-verification') {
+      const target = (verificationEmail || email).trim().toLowerCase();
+      if (!target || !isValidEmail(target)) {
+        setLocalError('Ingresá el correo de la cuenta.');
+        return;
+      }
+      void onResendVerification(target)
+        .then((message) => setSuccessMessage(message))
+        .catch((err: unknown) => {
+          setLocalError(err instanceof Error ? err.message : 'No se pudo reenviar el correo.');
+        });
+      return;
+    }
 
     if (mode === 'forgot-password') {
       if (!email.trim()) {
@@ -322,13 +384,59 @@ export default function LoginScreen({
       cuit,
       city: city.trim(),
       acceptTerms: true,
-    });
+    })
+      .then((result) => {
+        if (result?.pendingVerification) {
+          setVerificationEmail(result.email);
+          setMode('pending-verification');
+          setSuccessMessage(
+            result.message ||
+              'Te enviamos un correo para activar tu cuenta. Revisá tu bandeja (y spam).'
+          );
+          setLocalError(null);
+        }
+      })
+      .catch(() => {
+        /* error lo muestra App vía prop error */
+      });
+  };
+
+  const handleGoogleCredential = (idToken: string) => {
+    setLocalError(null);
+    setSuccessMessage(null);
+
+    if (mode === 'login') {
+      void onGoogleLogin(idToken, showReplaceOption || errorCode === 'SESSION_ALREADY_ACTIVE');
+      return;
+    }
+
+    if (mode === 'register-agency' && registerStep === 2) {
+      if (!acceptTerms) {
+        setLocalError('Debés aceptar la política de privacidad.');
+        return;
+      }
+      const stepErr = validateStep1();
+      if (stepErr) {
+        setLocalError(stepErr);
+        return;
+      }
+      void onGoogleRegister({
+        idToken,
+        agencyName: agencyName.trim(),
+        adminName: adminName.trim() || 'Administrador',
+        phone: normalizePhone(phone),
+        cuit,
+        city: city.trim(),
+        acceptTerms: true,
+      });
+    }
   };
 
   const isRegister = mode === 'register-agency';
   const isForgot = mode === 'forgot-password';
   const isReset = mode === 'reset-password';
-  const isAuthAlt = isForgot || isReset;
+  const isPending = mode === 'pending-verification';
+  const isAuthAlt = isForgot || isReset || isPending;
   const sessionConflict =
     errorCode === 'SESSION_ALREADY_ACTIVE' || showReplaceOption;
   const displayError = localError || error;
@@ -348,31 +456,37 @@ export default function LoginScreen({
       ? 'forgot'
       : isReset
         ? 'reset'
-        : 'login';
+        : isPending
+          ? 'pending'
+          : 'login';
   const crossfadeDuration = reducedMotion ? 0.12 : 0.22;
   const layoutTransition = reducedMotion
     ? { duration: 0.12 }
     : { duration: 0.32, ease: AUTH_EASE };
 
-  const brandTitle = isForgot
-    ? 'Recuperar acceso'
-    : isReset
-      ? 'Nueva contraseña'
-      : isRegister
-        ? registerStep === 1
-          ? 'Registrar agencia'
-          : 'Cuenta del responsable'
-        : 'Iniciar sesión';
+  const brandTitle = isPending
+    ? 'Activá tu cuenta'
+    : isForgot
+      ? 'Recuperar acceso'
+      : isReset
+        ? 'Nueva contraseña'
+        : isRegister
+          ? registerStep === 1
+            ? 'Registrar agencia'
+            : 'Cuenta del responsable'
+          : 'Iniciar sesión';
 
-  const brandSubtitle = isForgot
-    ? 'Te enviamos un enlace al correo con el que registraste la agencia para crear una contraseña nueva.'
-    : isReset
-      ? 'Elegí una contraseña nueva para volver a entrar al panel de tu agencia.'
-      : isRegister
-        ? registerStep === 1
-          ? 'Solo las agencias de logística se registran acá. Los vendedores reciben su cuenta desde el panel de su agencia.'
-          : 'Creá la cuenta del administrador que gestionará la flota y los envíos.'
-        : 'Agencias, vendedores y repartidores: ingresá con las credenciales que te asignaron. El alta de vendedores la hace tu agencia.';
+  const brandSubtitle = isPending
+    ? 'Te enviamos un enlace al correo. Sin activarlo no podés entrar al panel.'
+    : isForgot
+      ? 'Te enviamos un enlace al correo con el que registraste la agencia para crear una contraseña nueva.'
+      : isReset
+        ? 'Elegí una contraseña nueva para volver a entrar al panel de tu agencia.'
+        : isRegister
+          ? registerStep === 1
+            ? 'Solo las agencias de logística se registran acá. Los vendedores reciben su cuenta desde el panel de su agencia.'
+            : 'Creá la cuenta del administrador con correo o con Google.'
+          : 'Agencias, vendedores y repartidores: ingresá con las credenciales que te asignaron. El alta de vendedores la hace tu agencia.';
 
   return (
     <div className="auth-split" id="login-container">
@@ -481,7 +595,12 @@ export default function LoginScreen({
               >
           <div className="auth-split__card-head">
             <h2 className="auth-split__card-title">
-              {isForgot ? (
+              {isPending ? (
+                <>
+                  <Mail className="h-4 w-4 text-[var(--auth-accent)]" />
+                  Revisá tu correo
+                </>
+              ) : isForgot ? (
                 <>
                   <Mail className="h-4 w-4 text-[var(--auth-accent)]" />
                   Olvidé mi contraseña
@@ -504,15 +623,17 @@ export default function LoginScreen({
               )}
             </h2>
             <p className="auth-split__card-sub">
-              {isForgot
-                ? 'Usá el correo con el que registraste la agencia.'
-                : isReset
-                  ? 'Mínimo 8 caracteres, una letra y un número.'
-                  : mode === 'login'
-                    ? 'Agencias, vendedores y repartidores.'
-                    : registerStep === 1
-                      ? 'Paso 1 de 2 · Solo registro de agencias'
-                      : 'Paso 2 de 2 · Revisá y confirmá'}
+              {isPending
+                ? 'Sin activar el correo no podés ingresar.'
+                : isForgot
+                  ? 'Usá el correo con el que registraste la agencia.'
+                  : isReset
+                    ? 'Mínimo 8 caracteres, una letra y un número.'
+                    : mode === 'login'
+                      ? 'Agencias, vendedores y repartidores.'
+                      : registerStep === 1
+                        ? 'Paso 1 de 2 · Solo registro de agencias'
+                        : 'Paso 2 de 2 · Correo o Google'}
             </p>
           </div>
 
@@ -526,6 +647,13 @@ export default function LoginScreen({
           {isForgot && (
             <p className="auth-split__hint">
               Te mandamos un enlace al correo. Si no llega en unos minutos, revisá spam o pedí uno de nuevo.
+            </p>
+          )}
+
+          {isPending && (
+            <p className="auth-split__hint">
+              Buscá el mail de <strong>Posta</strong> y abrí el enlace de activación. Si no llegó, podés
+              reenviarlo abajo.
             </p>
           )}
 
@@ -719,11 +847,45 @@ export default function LoginScreen({
                     </a>
                   </span>
                 </label>
+
+                {googleEnabled ? (
+                  <>
+                    <div className="auth-split__divider" role="separator">
+                      <span>o registrate con</span>
+                    </div>
+                    <GoogleSignInButton
+                      clientId={googleClientId!}
+                      text="signup_with"
+                      disabled={loading || !acceptTerms}
+                      onCredential={handleGoogleCredential}
+                      onError={(message) => setLocalError(message)}
+                    />
+                    {!acceptTerms ? (
+                      <p className="auth-split__card-sub text-center">
+                        Aceptá la política de privacidad para continuar con Google.
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
             )}
 
             {!isRegister && !isAuthAlt && (
               <div className="auth-split__fields">
+                {googleEnabled ? (
+                  <>
+                    <GoogleSignInButton
+                      clientId={googleClientId!}
+                      text="continue_with"
+                      disabled={loading}
+                      onCredential={handleGoogleCredential}
+                      onError={(message) => setLocalError(message)}
+                    />
+                    <div className="auth-split__divider" role="separator">
+                      <span>o con tu usuario</span>
+                    </div>
+                  </>
+                ) : null}
                 <Field label="Usuario">
                   <IconInput
                     icon={UserIcon}
@@ -778,6 +940,22 @@ export default function LoginScreen({
                     disabled={loading || Boolean(successMessage)}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@tuagencia.com.ar"
+                    autoComplete="email"
+                  />
+                </Field>
+              </div>
+            )}
+
+            {isPending && (
+              <div className="auth-split__fields">
+                <Field label="Correo a activar">
+                  <IconInput
+                    icon={Mail}
+                    type="email"
+                    disabled={loading}
+                    value={verificationEmail}
+                    onChange={(e) => setVerificationEmail(e.target.value)}
                     placeholder="admin@tuagencia.com.ar"
                     autoComplete="email"
                   />
@@ -876,22 +1054,26 @@ export default function LoginScreen({
                   type="submit"
                   disabled={
                     loading ||
-                    Boolean(successMessage && isAuthAlt) ||
-                    (isForgot
-                      ? !email.trim()
-                      : isReset
-                        ? !password || !passwordConfirm
-                        : isRegister
-                          ? registerStep === 1
-                            ? !step1Ready
-                            : !step2Ready
-                          : !username.trim() || !password)
+                    Boolean(successMessage && (isForgot || isReset)) ||
+                    (isPending
+                      ? !verificationEmail.trim()
+                      : isForgot
+                        ? !email.trim()
+                        : isReset
+                          ? !password || !passwordConfirm
+                          : isRegister
+                            ? registerStep === 1
+                              ? !step1Ready
+                              : !step2Ready
+                            : !username.trim() || !password)
                   }
                   id="btn-login-submit"
                   className="auth-split__submit flex-1 min-w-0"
                 >
                   {loading ? (
                     'Procesando...'
+                  ) : isPending ? (
+                    'Reenviar activación'
                   ) : isForgot ? (
                     'Enviar enlace'
                   ) : isReset ? (

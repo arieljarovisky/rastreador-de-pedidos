@@ -109,4 +109,8 @@ export const env = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim() || '',
     refreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN?.trim() || '',
   },
+  /** Sign-In with Google (GIS). Reusa GOOGLE_CLIENT_ID del cliente Web. */
+  googleAuth: {
+    clientId: process.env.GOOGLE_CLIENT_ID?.trim() || '',
+  },
 };
