@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'crypto';
 import { env } from '../config/env.js';
 import {
   getIntegration,
@@ -7,6 +8,14 @@ import {
 } from './integrations.service.js';
 
 const TN_AUTH = 'https://www.tiendanube.com/apps';
+const TN_API = 'https://api.tiendanube.com/v1';
+
+const TN_ORDER_WEBHOOK_EVENTS = [
+  'order/paid',
+  'order/updated',
+  'order/cancelled',
+  'app/uninstalled',
+] as const;
 
 interface TnTokenResponse {
   access_token: string;
@@ -45,7 +54,7 @@ interface TnFulfillment {
   destination?: TnDestination;
 }
 
-interface TnOrder {
+export interface TnOrder {
   id: number;
   number?: number;
   created_at: string;
@@ -89,7 +98,7 @@ export async function exchangeTiendaNubeCode(
 
   let storeName = storeId;
   try {
-    const storeRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/store`, {
+    const storeRes = await fetch(`${TN_API}/${storeId}/store`, {
       headers: tnHeaders(token.access_token),
     });
     if (storeRes.ok) {
@@ -101,7 +110,7 @@ export async function exchangeTiendaNubeCode(
     // optional store name
   }
 
-  return upsertIntegration({
+  const integration = await upsertIntegration({
     userId,
     platform: 'tiendanube',
     externalStoreId: storeId,
@@ -109,6 +118,17 @@ export async function exchangeTiendaNubeCode(
     accessToken: token.access_token,
     metadata: { storeName, scope: token.scope },
   });
+
+  try {
+    await ensureTiendaNubeOrderWebhooks(integration);
+  } catch (err) {
+    console.warn(
+      '[TN] No se pudieron registrar webhooks de pedidos tras OAuth:',
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  return integration;
 }
 
 export async function getValidTiendaNubeIntegration(userId: string): Promise<StoreIntegration> {
@@ -267,7 +287,8 @@ export interface TiendaNubeExpressShipment {
   createdAt: string;
 }
 
-function extractTnShipment(order: TnOrder): TiendaNubeExpressShipment | null {
+/** Mapea un pedido TN a envío Express importable, o null si no aplica. */
+export function mapTiendaNubeOrderToShipment(order: TnOrder): TiendaNubeExpressShipment | null {
   if (order.payment_status && order.payment_status !== 'paid') return null;
   if (order.status === 'cancelled' || order.status === 'closed') return null;
 
@@ -319,6 +340,10 @@ function extractTnShipment(order: TnOrder): TiendaNubeExpressShipment | null {
     notes: `Tienda Nube Express · Pedido #${order.number ?? order.id} · ${shippingLabel}`,
     createdAt: order.created_at,
   };
+}
+
+export function isTiendaNubeOrderCancelled(order: TnOrder): boolean {
+  return order.status === 'cancelled' || order.status === 'closed';
 }
 
 export interface TiendaNubeDateRange {
@@ -387,7 +412,7 @@ async function fetchTiendaNubeOrders(
     const params = new URLSearchParams(baseParams);
     params.set('page', String(page));
 
-    const res = await fetch(`https://api.tiendanube.com/v1/${storeId}/orders?${params}`, {
+    const res = await fetch(`${TN_API}/${storeId}/orders?${params}`, {
       headers: tnHeaders(accessToken),
     });
 
@@ -409,6 +434,25 @@ async function fetchTiendaNubeOrders(
 
   return allOrders;
 }
+
+export async function fetchTiendaNubeOrder(
+  storeId: string,
+  accessToken: string,
+  orderId: string | number
+): Promise<TnOrder> {
+  const params = new URLSearchParams({ aggregates: 'fulfillment_orders' });
+  const res = await fetch(`${TN_API}/${storeId}/orders/${orderId}?${params}`, {
+    headers: tnHeaders(accessToken),
+  });
+
+  if (!res.ok) {
+    console.error('[TN] order API error:', res.status, await res.text().catch(() => ''));
+    throw new Error('TN_API_ERROR');
+  }
+
+  return (await res.json()) as TnOrder;
+}
+
 export async function listTiendaNubeExpressShipments(
   userId: string,
   dateRange?: TiendaNubeDateRange
@@ -421,10 +465,96 @@ export async function listTiendaNubeExpressShipments(
 
   const shipments: TiendaNubeExpressShipment[] = [];
   for (const order of orders) {
-    const shipment = extractTnShipment(order);
+    const shipment = mapTiendaNubeOrderToShipment(order);
     if (shipment) shipments.push(shipment);
   }
   return shipments;
+}
+
+export function getTiendaNubeOrderWebhookUrl(): string {
+  return `${env.publicUrl}/api/integrations/tiendanube/webhooks/orders`;
+}
+
+export function verifyTiendaNubeWebhookHmac(
+  rawBody: string | Buffer,
+  hmacHeader: string | undefined
+): boolean {
+  if (!hmacHeader || !env.tiendanube.appSecret) return false;
+
+  const digest = createHmac('sha256', env.tiendanube.appSecret)
+    .update(rawBody)
+    .digest('hex');
+
+  const expected = Buffer.from(digest, 'utf8');
+  const received = Buffer.from(hmacHeader.trim(), 'utf8');
+  if (expected.length !== received.length) return false;
+
+  try {
+    return timingSafeEqual(expected, received);
+  } catch {
+    return false;
+  }
+}
+
+interface TnWebhookRegistration {
+  id: number;
+  event: string;
+  url: string;
+}
+
+async function listTiendaNubeWebhooks(
+  storeId: string,
+  accessToken: string
+): Promise<TnWebhookRegistration[]> {
+  const res = await fetch(`${TN_API}/${storeId}/webhooks?per_page=200`, {
+    headers: tnHeaders(accessToken),
+  });
+  if (!res.ok) {
+    console.error('[TN] list webhooks error:', res.status, await res.text().catch(() => ''));
+    throw new Error('TN_API_ERROR');
+  }
+  const data = (await res.json()) as TnWebhookRegistration[];
+  return Array.isArray(data) ? data : [];
+}
+
+async function createTiendaNubeWebhook(
+  storeId: string,
+  accessToken: string,
+  event: string,
+  url: string
+): Promise<void> {
+  const res = await fetch(`${TN_API}/${storeId}/webhooks`, {
+    method: 'POST',
+    headers: tnHeaders(accessToken),
+    body: JSON.stringify({ event, url }),
+  });
+  if (!res.ok && res.status !== 422) {
+    console.error('[TN] create webhook error:', event, res.status, await res.text().catch(() => ''));
+    throw new Error('TN_API_ERROR');
+  }
+}
+
+/** Registra webhooks de pedidos/desinstalación si faltan (idempotente). */
+export async function ensureTiendaNubeOrderWebhooks(
+  integration: StoreIntegration
+): Promise<{ created: number; existing: number }> {
+  const storeId = integration.externalStoreId;
+  if (!storeId) throw new Error('TN_NOT_CONNECTED');
+
+  const url = getTiendaNubeOrderWebhookUrl();
+  const existing = await listTiendaNubeWebhooks(storeId, integration.accessToken);
+  const covered = new Set(
+    existing.filter((w) => w.url === url).map((w) => w.event)
+  );
+
+  let created = 0;
+  for (const event of TN_ORDER_WEBHOOK_EVENTS) {
+    if (covered.has(event)) continue;
+    await createTiendaNubeWebhook(storeId, integration.accessToken, event, url);
+    created += 1;
+  }
+
+  return { created, existing: TN_ORDER_WEBHOOK_EVENTS.length - created };
 }
 
 export function isTiendaNubeConfigured(): boolean {

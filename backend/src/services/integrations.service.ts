@@ -132,6 +132,22 @@ export async function findMercadoLibreIntegrationByMlUserId(
   return rows[0] ? rowToIntegration(rows[0]) : null;
 }
 
+/** Cuentas TN de vendedores para auto-import Express. */
+export async function listTiendaNubeSellerIntegrationsForAutoImport(): Promise<
+  StoreIntegration[]
+> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT si.* FROM store_integrations si
+     INNER JOIN users u ON u.id = si.user_id
+     WHERE si.platform = 'tiendanube'
+       AND u.role = 'store_admin'
+       AND si.access_token IS NOT NULL
+       AND TRIM(si.access_token) <> ''
+     ORDER BY si.updated_at DESC`
+  );
+  return rows.map(rowToIntegration);
+}
+
 export async function findTiendaNubeIntegrationByStoreId(
   storeId: string | number
 ): Promise<StoreIntegration | null> {

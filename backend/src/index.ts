@@ -6,7 +6,9 @@ import { runMigrations } from './db/migrate.js';
 import { setupSocket } from './realtime/socket.js';
 import { startDeliveryScheduler } from './services/delivery-scheduler.js';
 import { startMercadoLibreFlexAutoImportScheduler } from './services/ml-flex-auto-import.scheduler.js';
+import { startTiendaNubeExpressAutoImportScheduler } from './services/tn-express-auto-import.scheduler.js';
 import { replayMercadoLibreMissedFeeds, getMercadoLibreWebhookUrl } from './services/mercadolibre-webhook.service.js';
+import { getTiendaNubeOrderWebhookUrl } from './services/tiendanube.service.js';
 
 async function start(): Promise<void> {
   if (process.env.DB_RESET_ON_START === 'true') {
@@ -31,6 +33,7 @@ async function start(): Promise<void> {
   setupSocket(server);
   startDeliveryScheduler();
   startMercadoLibreFlexAutoImportScheduler();
+  startTiendaNubeExpressAutoImportScheduler();
 
   server.listen(env.port, '0.0.0.0', () => {
     console.log(`Backend LupoEnvios corriendo en http://localhost:${env.port} (HTTP + WebSocket)`);
@@ -44,6 +47,7 @@ async function start(): Promise<void> {
     console.log(
       `[startup] Webhook ML: ${getMercadoLibreWebhookUrl()} (tópicos: flex-handshakes, shipments, orders_v2)`
     );
+    console.log(`[startup] Webhook TN pedidos: ${getTiendaNubeOrderWebhookUrl()}`);
 
     if (env.mercadolibre.appOwnerAccessToken) {
       void replayMercadoLibreMissedFeeds({ topic: 'flex-handshakes', limit: 30 })

@@ -146,6 +146,8 @@ export interface MarketplaceIntegrationStatus {
   tiendanube: {
     configured: boolean;
     connected: boolean;
+    autoSync?: boolean;
+    orderWebhookUrl?: string;
     account: MarketplaceIntegrationAccount | null;
   };
 }

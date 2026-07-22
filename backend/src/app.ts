@@ -61,7 +61,16 @@ const corsOptions: CorsOptions = {
 app.use(corsPreflight);
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
-app.use(express.json());
+app.use(
+  express.json({
+    verify(req, _res, buf) {
+      const url = (req as Request).originalUrl ?? req.url ?? '';
+      if (url.includes('/api/integrations/tiendanube/webhooks')) {
+        (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      }
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/api/health', (_req, res) => {

@@ -21,6 +21,7 @@ import {
 import {
   exchangeTiendaNubeCode,
   getTiendaNubeAuthUrl,
+  getTiendaNubeOrderWebhookUrl,
   isTiendaNubeConfigured,
 } from '../services/tiendanube.service.js';
 import {
@@ -48,6 +49,11 @@ import {
   type TiendaNubeCustomerRedactPayload,
   type TiendaNubeStoreRedactPayload,
 } from '../services/tiendanube-privacy.service.js';
+import {
+  assertTiendaNubeWebhookHmac,
+  processTiendaNubeOrderWebhook,
+  type TiendaNubeOrderWebhookPayload,
+} from '../services/tiendanube-webhook.service.js';
 
 const router = Router();
 
@@ -175,6 +181,8 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
     tiendanube: {
       configured: isTiendaNubeConfigured(),
       connected: Boolean(tn),
+      autoSync: Boolean(tn),
+      orderWebhookUrl: getTiendaNubeOrderWebhookUrl(),
       privacyWebhooks: getTiendaNubePrivacyWebhookUrls(),
       account: tn ? integrationStatusPublic(tn) : null,
     },
@@ -443,7 +451,36 @@ router.post(
   }
 );
 
+router.post('/tiendanube/webhooks/orders', (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const hmac =
+    (req.get('x-linkedstore-hmac-sha256') || req.get('X-Linkedstore-Hmac-Sha256') || '').trim() ||
+    undefined;
+
+  if (!assertTiendaNubeWebhookHmac(rawBody, hmac)) {
+    console.warn('[tn-webhook] HMAC inválido');
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+
+  res.status(200).send('OK');
+  void processTiendaNubeOrderWebhook(req.body as TiendaNubeOrderWebhookPayload).catch((err) => {
+    console.error('[tn-webhook] process error:', err);
+  });
+});
+
 router.post('/tiendanube/webhooks/store-redact', (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const hmac =
+    (req.get('x-linkedstore-hmac-sha256') || req.get('X-Linkedstore-Hmac-Sha256') || '').trim() ||
+    undefined;
+  // Privacy webhooks del partner portal a veces no traen HMAC; solo rechazar si viene y es inválido.
+  if (hmac && rawBody && !assertTiendaNubeWebhookHmac(rawBody, hmac)) {
+    console.warn('[TN LGPD] store-redact HMAC inválido');
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+
   res.status(200).send('OK');
   void processTiendaNubeStoreRedact(req.body as TiendaNubeStoreRedactPayload).catch((err) => {
     console.error('[TN LGPD] store-redact:', err);
@@ -451,6 +488,16 @@ router.post('/tiendanube/webhooks/store-redact', (req: Request, res: Response) =
 });
 
 router.post('/tiendanube/webhooks/customers-redact', (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const hmac =
+    (req.get('x-linkedstore-hmac-sha256') || req.get('X-Linkedstore-Hmac-Sha256') || '').trim() ||
+    undefined;
+  if (hmac && rawBody && !assertTiendaNubeWebhookHmac(rawBody, hmac)) {
+    console.warn('[TN LGPD] customers-redact HMAC inválido');
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+
   res.status(200).send('OK');
   void processTiendaNubeCustomerRedact(req.body as TiendaNubeCustomerRedactPayload).catch((err) => {
     console.error('[TN LGPD] customers-redact:', err);
@@ -458,6 +505,16 @@ router.post('/tiendanube/webhooks/customers-redact', (req: Request, res: Respons
 });
 
 router.post('/tiendanube/webhooks/customers-data-request', (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const hmac =
+    (req.get('x-linkedstore-hmac-sha256') || req.get('X-Linkedstore-Hmac-Sha256') || '').trim() ||
+    undefined;
+  if (hmac && rawBody && !assertTiendaNubeWebhookHmac(rawBody, hmac)) {
+    console.warn('[TN LGPD] customers-data-request HMAC inválido');
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+
   res.status(200).send('OK');
   void processTiendaNubeCustomerDataRequest(req.body as TiendaNubeCustomerDataRequestPayload).catch((err) => {
     console.error('[TN LGPD] customers-data-request:', err);

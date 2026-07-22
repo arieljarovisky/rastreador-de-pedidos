@@ -49,6 +49,7 @@ import {
   getIntegration,
   listMercadoLibreIntegrationsForAgencyScan,
   listMercadoLibreSellerIntegrationsForAutoImport,
+  listTiendaNubeSellerIntegrationsForAutoImport,
   type IntegrationPlatform,
   type StoreIntegration,
 } from './integrations.service.js';
@@ -923,6 +924,68 @@ export async function importMercadoLibreByRefs(
   return { imported, skipped, orders: orderIds, errors };
 }
 
+export type TiendaNubeImportResult =
+  | { kind: 'imported'; order: Order }
+  | { kind: 'skipped'; reason: string; order?: Order }
+  | { kind: 'error'; message: string; fatal?: boolean };
+
+/** Importa un envío Express de TN (webhook o auto-import). Idempotente. */
+export async function importTiendaNubeExpressShipment(
+  user: User,
+  shipment: TiendaNubeExpressShipment,
+  options?: { notify?: boolean }
+): Promise<TiendaNubeImportResult> {
+  try {
+    const existing = await findOrderByExternal(user.id, 'tiendanube', shipment.externalId);
+    if (existing) {
+      return { kind: 'skipped', reason: 'already_imported', order: existing };
+    }
+
+    const geocoded = await geocodeAddress(shipment.address);
+    if (!geocoded) {
+      return {
+        kind: 'error',
+        message: formatImportError(shipment.externalId, 'GEOCODE_UNAVAILABLE'),
+      };
+    }
+
+    const order = await createOrder(user, {
+      clientName: shipment.clientName,
+      clientPhone: shipment.clientPhone,
+      address: shipment.address,
+      lat: geocoded.lat,
+      lng: geocoded.lng,
+      notes: shipment.notes,
+      externalSource: 'tiendanube',
+      externalOrderId: shipment.externalId,
+      shippingType: shipment.shippingType,
+    });
+
+    const sellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, sellerId);
+
+    if (options?.notify !== false) {
+      await createNotification({
+        id: `n_tn_import_${Date.now()}_${user.id}`,
+        userId: user.id,
+        title: 'Envío importado',
+        body: `Se importó el pedido Tienda Nube Express #${shipment.externalId} como ${order.id}.`,
+        type: 'info',
+        orderId: order.id,
+      });
+    }
+
+    return { kind: 'imported', order };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'error desconocido';
+    return {
+      kind: 'error',
+      message: formatImportError(shipment.externalId, reason),
+      fatal: reason === 'SELLER_NO_AGENCY',
+    };
+  }
+}
+
 export async function listImportableShipments(
   userId: string,
   platform: IntegrationPlatform,
@@ -1555,4 +1618,87 @@ export async function runMercadoLibreFlexAutoImport(): Promise<{
   }
 
   return { accounts: integrations.length, imported, synced, errors };
+}
+
+const TN_AUTO_IMPORT_LOOKBACK_DAYS = Math.max(
+  1,
+  Number(process.env.TN_EXPRESS_AUTO_IMPORT_LOOKBACK_DAYS ?? 5) || 5
+);
+
+const ensuredWebhookIntegrationIds = new Set<string>();
+
+/**
+ * Auto-importa Express de todas las tiendas TN conectadas (respaldo si faltan webhooks).
+ * También asegura el registro de webhooks una vez por integración (idempotente).
+ */
+export async function runTiendaNubeExpressAutoImport(): Promise<{
+  accounts: number;
+  imported: number;
+  skipped: number;
+  errors: number;
+  webhooksEnsured: number;
+}> {
+  const { ensureTiendaNubeOrderWebhooks } = await import('./tiendanube.service.js');
+  const integrations = await listTiendaNubeSellerIntegrationsForAutoImport();
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+  let webhooksEnsured = 0;
+  const dateFrom = isoDateDaysAgo(TN_AUTO_IMPORT_LOOKBACK_DAYS);
+
+  for (const integration of integrations) {
+    try {
+      if (!ensuredWebhookIntegrationIds.has(integration.id)) {
+        try {
+          await ensureTiendaNubeOrderWebhooks(integration);
+          ensuredWebhookIntegrationIds.add(integration.id);
+          webhooksEnsured += 1;
+        } catch (err) {
+          console.warn('[tn-auto-import] ensure webhooks falló', {
+            userId: integration.userId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      const owner = await getUserById(integration.userId);
+      if (!owner || owner.role !== UserRole.STORE_ADMIN) continue;
+
+      const expressShipments = await listTiendaNubeExpressShipments(integration.userId, {
+        dateFrom,
+      });
+
+      for (const shipment of expressShipments) {
+        const result = await importTiendaNubeExpressShipment(owner, shipment, {
+          notify: false,
+        });
+        if (result.kind === 'imported') imported += 1;
+        else if (result.kind === 'skipped') skipped += 1;
+        else {
+          errors += 1;
+          if (result.fatal) break;
+        }
+        await sleep(80);
+      }
+    } catch (err) {
+      errors += 1;
+      console.warn('[tn-auto-import] cuenta falló', {
+        userId: integration.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (imported > 0 || errors > 0) {
+    console.log('[tn-auto-import] corrida', {
+      accounts: integrations.length,
+      lookbackDays: TN_AUTO_IMPORT_LOOKBACK_DAYS,
+      imported,
+      skipped,
+      errors,
+      webhooksEnsured,
+    });
+  }
+
+  return { accounts: integrations.length, imported, skipped, errors, webhooksEnsured };
 }

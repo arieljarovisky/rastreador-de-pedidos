@@ -1056,7 +1056,8 @@ export async function rescheduleOrderToNextOperationalDay(
 export async function updateOrderStatusFromMarketplace(
   orderId: string,
   status: OrderStatus,
-  comment: string
+  comment: string,
+  updatedBy = 'Mercado Libre'
 ): Promise<Order | null> {
   const order = await getOrderById(orderId);
   if (!order) return null;
@@ -1075,7 +1076,7 @@ export async function updateOrderStatusFromMarketplace(
 
   await pool.query(
     `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
-    [orderId, status, 'Mercado Libre', comment, now]
+    [orderId, status, updatedBy, comment, now]
   );
 
   return getOrderById(orderId);

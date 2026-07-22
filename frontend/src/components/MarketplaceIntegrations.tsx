@@ -81,6 +81,7 @@ function PlatformCard({
   connected,
   accountName,
   webhookUrl,
+  autoSync = false,
   shipments,
   shipmentsLoading,
   importLoading,
@@ -108,6 +109,7 @@ function PlatformCard({
   connected: boolean;
   accountName: string | null;
   webhookUrl?: string;
+  autoSync?: boolean;
   shipments: MarketplaceShipmentPreview[];
   shipmentsLoading: boolean;
   importLoading: boolean;
@@ -143,6 +145,9 @@ function PlatformCard({
           {connected && accountName && (
             <p className="text-[10px] text-[var(--color-ok)] mt-0.5 truncate">Conectado: {accountName}</p>
           )}
+          {connected && autoSync && (
+            <p className="text-[10px] text-[var(--color-ok)] mt-0.5">Sync automático activo</p>
+          )}
           {!configured && showMissingCredentials && (
             <p className="text-[10px] text-[var(--color-warn)] mt-0.5">
               Falta configurar credenciales en el servidor.
@@ -151,6 +156,11 @@ function PlatformCard({
           {platform === 'mercadolibre' && configured && webhookUrl && (
             <p className="text-[10px] text-[var(--color-text-muted)] mt-1 break-all">
               Webhook ML: <span className="text-[var(--ink-soft)] font-mono">{webhookUrl}</span>
+            </p>
+          )}
+          {platform === 'tiendanube' && configured && webhookUrl && (
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-1 break-all">
+              Webhook TN: <span className="text-[var(--ink-soft)] font-mono">{webhookUrl}</span>
             </p>
           )}
         </div>
@@ -565,7 +575,7 @@ export default function MarketplaceIntegrations({
             Tiendas conectadas
           </p>
           <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-            Importá envíos Flex (Mercado Libre) y Express (Tienda Nube). ML: importación y estados automáticos vía webhook.
+            Importá envíos Flex (Mercado Libre) y Express (Tienda Nube). Ambos con sync automático vía webhook.
           </p>
         </div>
         <button
@@ -621,7 +631,7 @@ export default function MarketplaceIntegrations({
         />
         <PlatformCard
           title="Tienda Nube"
-          subtitle="Solo envíos Express · filtrá por período"
+          subtitle="Express · sync automático al pagar + import por período"
           icon={<Store className="w-4 h-4 text-violet-400" />}
           platform="tiendanube"
           configured={status?.tiendanube.configured ?? false}
@@ -632,6 +642,8 @@ export default function MarketplaceIntegrations({
           accountName={
             status?.tiendanube.account?.nickname ?? status?.tiendanube.account?.externalStoreId ?? null
           }
+          webhookUrl={status?.tiendanube.orderWebhookUrl}
+          autoSync={status?.tiendanube.autoSync ?? status?.tiendanube.connected ?? false}
           shipments={tnShipments}
           shipmentsLoading={tnLoading}
           importLoading={tnImporting}

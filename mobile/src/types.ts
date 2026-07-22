@@ -134,6 +134,8 @@ export interface IntegrationsStatus {
   tiendanube: {
     configured: boolean;
     connected: boolean;
+    autoSync?: boolean;
+    orderWebhookUrl?: string;
     account: IntegrationAccountStatus | null;
   };
 }
