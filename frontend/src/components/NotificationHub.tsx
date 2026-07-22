@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AppNotification, Order } from '../types.js';
 import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight, MapPin, Bike, Clock, AlertTriangle, Siren, Megaphone } from 'lucide-react';
@@ -144,6 +144,8 @@ export default function NotificationHub({
   const { alert: showAlert, confirm } = useModal();
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [activeBanner, setActiveBanner] = useState<AppNotification | null>(null);
+  /** Evita re-anunciar la misma alerta cuando el poll/socket refresca el array. */
+  const lastAnnouncedIdRef = useRef<string | null>(null);
 
   const undeliveredToday = useMemo(
     () => getUndeliveredTodayOrders(orders),
@@ -158,40 +160,43 @@ export default function NotificationHub({
 
   // Escuchar nuevas notificaciones para disparar efectos visuales y sonoros
   useEffect(() => {
-    if (notifications.length > 0) {
-      const latest = notifications[0];
-      const isRecent = (Date.now() - new Date(latest.createdAt).getTime()) < 5000;
-      
-      if (isRecent && latest.userId !== 'all_read') {
-        // Mostrar banner flotante en pantalla
-        setActiveBanner(latest);
-        playNotificationSound();
+    if (notifications.length === 0) return;
 
-        // Mostrar notificación de navegador nativa si tiene permiso
-        if ('Notification' in window && Notification.permission === 'granted') {
-          try {
-            new window.Notification(latest.title, {
-              body: latest.body,
-              icon: '/icon-posta.svg',
-            });
-          } catch (err) {
-            // Algunos navegadores requieren service worker para notificaciones push
-            navigator.serviceWorker.ready.then((reg) => {
-              reg.showNotification(latest.title, {
-                body: latest.body,
-                icon: '/icon-posta.svg',
-              });
-            });
-          }
-        }
+    const latest = notifications[0];
+    if (latest.userId === 'all_read') return;
+    if (lastAnnouncedIdRef.current === latest.id) return;
 
-        // Descartar banner en 5 segundos
-        const timer = setTimeout(() => {
-          setActiveBanner(null);
-        }, 5000);
-        return () => clearTimeout(timer);
+    const isRecent = Date.now() - new Date(latest.createdAt).getTime() < 5000;
+    if (!isRecent) {
+      lastAnnouncedIdRef.current = latest.id;
+      return;
+    }
+
+    lastAnnouncedIdRef.current = latest.id;
+    setActiveBanner(latest);
+    playNotificationSound();
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new window.Notification(latest.title, {
+          body: latest.body,
+          icon: '/icon-posta.svg',
+        });
+      } catch {
+        // Algunos navegadores requieren service worker para notificaciones push
+        void navigator.serviceWorker.ready.then((reg) => {
+          void reg.showNotification(latest.title, {
+            body: latest.body,
+            icon: '/icon-posta.svg',
+          });
+        });
       }
     }
+
+    const timer = setTimeout(() => {
+      setActiveBanner(null);
+    }, 5000);
+    return () => clearTimeout(timer);
   }, [notifications]);
 
   const requestPermission = async () => {

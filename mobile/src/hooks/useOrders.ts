@@ -190,11 +190,14 @@ export function useOrders(
     }
     socket.on('notification:created', (notification: AppNotification) => {
       onNotificationRef.current?.(notification);
-      void showLocalNotification(notification.title, notification.body, {
-        notificationId: notification.id,
-        type: notification.type,
-        ...(notification.orderId ? { orderId: notification.orderId } : {}),
-      });
+      // Solo alerta local en primer plano; en background llega el push.
+      if (AppState.currentState === 'active') {
+        void showLocalNotification(notification.title, notification.body, {
+          notificationId: notification.id,
+          type: notification.type,
+          ...(notification.orderId ? { orderId: notification.orderId } : {}),
+        });
+      }
     });
 
     return () => {

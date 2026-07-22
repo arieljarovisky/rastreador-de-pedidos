@@ -367,6 +367,7 @@ export default function AdminDashboard({
   const [lat, setLat] = useState(-34.58);
   const [lng, setLng] = useState(-58.40);
   const [notes, setNotes] = useState('');
+  const [createSellerId, setCreateSellerId] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeMessage, setGeocodeMessage] = useState<string | null>(null);
@@ -439,6 +440,7 @@ export default function AdminDashboard({
         lat: finalLat,
         lng: finalLng,
         notes,
+        ...(isAgencyAdmin(userRole) && createSellerId ? { sellerId: createSellerId } : {}),
       });
       // Reset
       setClientName('');
@@ -447,6 +449,7 @@ export default function AdminDashboard({
       setLat(-34.58);
       setLng(-58.40);
       setNotes('');
+      setCreateSellerId('');
       setCoordsConfirmed(false);
       setGeocodeMessage(null);
       setShowLocationMap(false);
@@ -813,8 +816,11 @@ export default function AdminDashboard({
       .filter((o) => matchesOrderFilters(o, orderFilterContext)).length,
   };
 
+  const canCreateShipment =
+    userRole === UserRole.STORE_ADMIN || isAgencyAdmin(userRole);
+
   const createShipmentModal =
-    showCreateForm && userRole === UserRole.STORE_ADMIN
+    showCreateForm && canCreateShipment
       ? createPortal(
           <div
             className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
@@ -851,6 +857,28 @@ export default function AdminDashboard({
               </div>
 
               <form onSubmit={handleSubmitOrder} className="flex flex-col min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
+                {isAgencyAdmin(userRole) && (
+                  <div>
+                    <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">
+                      Vendedor (opcional)
+                    </label>
+                    <select
+                      value={createSellerId}
+                      onChange={(e) => setCreateSellerId(e.target.value)}
+                      className="w-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-2.5 py-1.5 text-xs text-[var(--ink-soft)] focus:outline-none focus:border-[var(--color-accent)] transition-all"
+                    >
+                      <option value="">Sin vendedor asignado</option>
+                      {sellers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[9px] text-[var(--color-text-faint)] font-mono">
+                      Podés asociarlo ahora o asignarlo después desde el pedido.
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[9px] font-mono tracking-wider text-[var(--color-text-muted)] uppercase mb-1">Nombre Cliente *</label>
@@ -1142,7 +1170,7 @@ export default function AdminDashboard({
                 {showMapPanel ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 <span className="hidden xl:inline">{showMapPanel ? 'Ocultar mapa' : 'Ver mapa'}</span>
               </button>
-              {userRole === UserRole.STORE_ADMIN && (
+              {canCreateShipment && (
                 <button
                   onClick={() => setShowCreateForm(true)}
                   id="btn-toggle-create-form"

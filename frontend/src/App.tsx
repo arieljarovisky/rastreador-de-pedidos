@@ -12,7 +12,7 @@ import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import ShippingAccountPage from './components/ShippingAccountPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
-import NotificationHub, { playNotificationSound } from './components/NotificationHub.tsx';
+import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import { LogOut, Bell, Settings, LayoutDashboard, Map, Wallet } from 'lucide-react';
 import BootSplash from './components/ui/BootSplash.tsx';
@@ -401,9 +401,22 @@ export default function App() {
         if (prev.some((n) => n.id === notification.id)) return prev;
         return [notification, ...prev];
       });
-      playNotificationSound();
-      if (notification.orderId) {
-        void fetchData();
+      // El sonido/banner lo maneja NotificationHub (con dedupe por id).
+      // Solo refrescamos pedidos, sin re-setear notificaciones (evita re-disparar alertas).
+      if (notification.orderId && token) {
+        void (async () => {
+          try {
+            const headers = { Authorization: `Bearer ${token}` };
+            const ordersRes = await fetch(apiUrl('/api/orders'), { headers });
+            if (ordersRes.ok) {
+              const data = await ordersRes.json();
+              setOrders(data);
+              setLastSyncAt(new Date());
+            }
+          } catch {
+            /* ignore */
+          }
+        })();
       }
     },
   });
@@ -1033,7 +1046,7 @@ export default function App() {
   };
 
   // Crear nuevo pedido (Admin)
-  const handleCreateOrder = async (orderData: Partial<Order>) => {
+  const handleCreateOrder = async (orderData: Partial<Order> & { sellerId?: string }) => {
     if (!token) return;
     try {
       const res = await fetch(apiUrl('/api/orders'), {
@@ -1045,17 +1058,26 @@ export default function App() {
         body: JSON.stringify(orderData),
       });
 
-      if (!res.ok) throw new Error('Error al guardar pedido');
-      
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? 'Error al guardar pedido'
+        );
+      }
+
       // Sincronizar inmediatamente
       fetchData();
     } catch (e) {
       console.error(e);
       void showAlert({
         title: 'Error al crear pedido',
-        message: 'No se pudo guardar el envío. Verificá la conexión e intentá de nuevo.',
+        message:
+          e instanceof Error
+            ? e.message
+            : 'No se pudo guardar el envío. Verificá la conexión e intentá de nuevo.',
         variant: 'error',
       });
+      throw e;
     }
   };
 

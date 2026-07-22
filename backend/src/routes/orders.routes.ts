@@ -27,6 +27,8 @@ import {
 } from '../services/marketplace-import.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
 import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
+import { pool } from '../config/database.js';
+import { RowDataPacket } from 'mysql2';
 
 function mercadoLibreLabelErrorMessage(code: string): string {
   switch (code) {
@@ -93,14 +95,24 @@ router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER
       sellerId,
     });
 
-    await createNotification({
-      id: `n_order_${Date.now()}`,
-      userId: 'all',
-      title: 'Nuevo pedido disponible',
-      body: `Un nuevo pedido con id ${order.id} está listo para ser entregado en ${address}.`,
-      type: 'info',
-      orderId: order.id,
-    });
+    // Notificar solo a admins de la agencia del pedido (nunca broadcast global `all`).
+    if (order.agencyId) {
+      const [adminRows] = await pool.query<Array<{ id: string } & RowDataPacket>>(
+        `SELECT id FROM users WHERE agency_id = ? AND role IN ('super_admin', 'logistics_admin') AND id != ?`,
+        [order.agencyId, req.user!.id]
+      );
+      const stamp = Date.now();
+      for (const admin of adminRows) {
+        await createNotification({
+          id: `n_order_${stamp}_${admin.id}`,
+          userId: admin.id,
+          title: 'Nuevo pedido disponible',
+          body: `Un nuevo pedido con id ${order.id} está listo para ser entregado en ${address}.`,
+          type: 'info',
+          orderId: order.id,
+        });
+      }
+    }
 
     const assignedSellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, assignedSellerId);

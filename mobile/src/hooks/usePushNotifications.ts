@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
@@ -12,13 +12,17 @@ function ensureNotificationHandler(): void {
   if (notificationHandlerReady) return;
   notificationHandlerReady = true;
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
+    handleNotification: async () => {
+      // En primer plano el socket ya dispara alerta local; el push no debe duplicar.
+      const inForeground = AppState.currentState === 'active';
+      return {
+        shouldShowAlert: !inForeground,
+        shouldPlaySound: !inForeground,
+        shouldSetBadge: true,
+        shouldShowBanner: !inForeground,
+        shouldShowList: !inForeground,
+      };
+    },
   });
 }
 
@@ -137,11 +141,20 @@ export function usePushNotifications({
 }
 
 /** Muestra una notificación local inmediata (p. ej. desde socket en primer plano). */
+const recentLocalNotificationIds = new Set<string>();
+
 export async function showLocalNotification(
   title: string,
   body: string,
   data?: Record<string, string>
 ): Promise<void> {
+  const id = data?.notificationId;
+  if (id) {
+    if (recentLocalNotificationIds.has(id)) return;
+    recentLocalNotificationIds.add(id);
+    setTimeout(() => recentLocalNotificationIds.delete(id), 60_000);
+  }
+
   await ensureAndroidChannel();
   await Notifications.scheduleNotificationAsync({
     content: {
