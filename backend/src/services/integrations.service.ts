@@ -78,7 +78,7 @@ export async function listMercadoLibreIntegrationsForAgency(
   return rows.map(rowToIntegration);
 }
 
-/** Cuentas ML de vendedores / bridge de agencia (no repartidores) para auto-import Flex. */
+/** Cuentas ML de vendedores (no repartidores ni bridge legacy de agencia) para auto-import Flex. */
 export async function listMercadoLibreSellerIntegrationsForAutoImport(): Promise<
   StoreIntegration[]
 > {
@@ -87,38 +87,22 @@ export async function listMercadoLibreSellerIntegrationsForAutoImport(): Promise
      INNER JOIN users u ON u.id = si.user_id
      WHERE si.platform = 'mercadolibre'
        AND u.role = 'store_admin'
+       AND u.username NOT LIKE ?
        AND si.access_token IS NOT NULL
        AND TRIM(si.access_token) <> ''
-     ORDER BY si.updated_at DESC`
+     ORDER BY si.updated_at DESC`,
+    [`${AGENCY_ML_USERNAME_PREFIX}%`]
   );
   return rows.map(rowToIntegration);
-}
-
-export async function getAgencyMercadoLibreIntegration(
-  agencyId: string
-): Promise<StoreIntegration | null> {
-  const [rows] = await pool.query<IntegrationRow[]>(
-    `SELECT si.* FROM store_integrations si
-     INNER JOIN users u ON u.id = si.user_id
-     WHERE si.platform = 'mercadolibre' AND u.agency_id = ? AND u.username LIKE ?
-     LIMIT 1`,
-    [agencyId, `${AGENCY_ML_USERNAME_PREFIX}%`]
-  );
-  return rows[0] ? rowToIntegration(rows[0]) : null;
 }
 
 export async function listMercadoLibreIntegrationsForAgencyScan(
   agencyId: string
 ): Promise<Array<{ integration: StoreIntegration; isAgencyAccount: boolean }>> {
-  const contexts: Array<{ integration: StoreIntegration; isAgencyAccount: boolean }> = [];
-  const agencyIntegration = await getAgencyMercadoLibreIntegration(agencyId);
-  if (agencyIntegration) {
-    contexts.push({ integration: agencyIntegration, isAgencyAccount: true });
-  }
-  for (const integration of await listMercadoLibreIntegrationsForAgency(agencyId)) {
-    contexts.push({ integration, isAgencyAccount: false });
-  }
-  return contexts;
+  return (await listMercadoLibreIntegrationsForAgency(agencyId)).map((integration) => ({
+    integration,
+    isAgencyAccount: false,
+  }));
 }
 
 export async function getIntegration(

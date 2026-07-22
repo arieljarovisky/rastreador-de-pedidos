@@ -1,14 +1,10 @@
-import { randomBytes } from 'crypto';
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { User, UserRole } from '../types/index.js';
-import { createUser, getUserById } from './users.service.js';
+import { getUserById } from './users.service.js';
 
+/** Usuarios bridge legacy (`__agency_ml__…`); ya no se crean nuevas conexiones de agencia a ML. */
 export const AGENCY_ML_USERNAME_PREFIX = '__agency_ml__';
-
-export function agencyMlBridgeUsername(agencyId: string): string {
-  return `${AGENCY_ML_USERNAME_PREFIX}${agencyId}`;
-}
 
 export function isAgencyMlBridgeUsername(username: string): boolean {
   return username.startsWith(AGENCY_ML_USERNAME_PREFIX);
@@ -16,30 +12,6 @@ export function isAgencyMlBridgeUsername(username: string): boolean {
 
 export function isAgencyMlBridgeUser(user: Pick<User, 'username'>): boolean {
   return isAgencyMlBridgeUsername(user.username);
-}
-
-export async function getAgencyMlBridgeUserId(agencyId: string): Promise<string | null> {
-  const [rows] = await pool.query<Array<{ id: string } & RowDataPacket>>(
-    `SELECT id FROM users WHERE agency_id = ? AND username = ? LIMIT 1`,
-    [agencyId, agencyMlBridgeUsername(agencyId)]
-  );
-  return rows[0]?.id ?? null;
-}
-
-export async function ensureAgencyMlBridgeUser(agencyId: string): Promise<User> {
-  const existingId = await getAgencyMlBridgeUserId(agencyId);
-  if (existingId) {
-    const user = await getUserById(existingId);
-    if (user) return user;
-  }
-
-  return createUser({
-    username: agencyMlBridgeUsername(agencyId),
-    password: randomBytes(24).toString('base64url'),
-    name: 'Mercado Libre (agencia)',
-    role: UserRole.STORE_ADMIN,
-    agencyId,
-  });
 }
 
 export async function getAgencyOperatorForImport(agencyId: string): Promise<User | null> {

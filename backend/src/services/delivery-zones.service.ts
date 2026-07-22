@@ -17,9 +17,13 @@ interface DeliveryZoneRow extends RowDataPacket {
   shipping_rate_flex: string | number | null;
   shipping_rate_express: string | number | null;
   shipping_rate_standard: string | number | null;
+  driver_pay_flex: string | number | null;
+  driver_pay_express: string | number | null;
+  driver_pay_standard: string | number | null;
 }
 
 const DEFAULT_ZONE_RATES = { flex: 2800, express: 3200, standard: 2500 };
+const DEFAULT_DRIVER_PAY = { flex: 1500, express: 1800, standard: 1200 };
 
 function toRate(value: string | number | null | undefined, fallback: number): number {
   const n = Number(value ?? fallback);
@@ -51,6 +55,11 @@ function rowToZone(row: DeliveryZoneRow): DeliveryZone {
       express: toRate(row.shipping_rate_express, DEFAULT_ZONE_RATES.express),
       standard: toRate(row.shipping_rate_standard, DEFAULT_ZONE_RATES.standard),
     },
+    driverPayRates: {
+      flex: toRate(row.driver_pay_flex, DEFAULT_DRIVER_PAY.flex),
+      express: toRate(row.driver_pay_express, DEFAULT_DRIVER_PAY.express),
+      standard: toRate(row.driver_pay_standard, DEFAULT_DRIVER_PAY.standard),
+    },
   };
   const barrios = parseBarrios(row.barrios);
   if (barrios) zone.barrios = barrios;
@@ -58,7 +67,8 @@ function rowToZone(row: DeliveryZoneRow): DeliveryZone {
 }
 
 const ZONE_SELECT = `id, agency_id, name, color, south, west, north, east, barrios,
-  shipping_rate_flex, shipping_rate_express, shipping_rate_standard`;
+  shipping_rate_flex, shipping_rate_express, shipping_rate_standard,
+  driver_pay_flex, driver_pay_express, driver_pay_standard`;
 
 export async function listZonesForAgency(agencyId: string): Promise<DeliveryZone[]> {
   const [rows] = await pool.query<DeliveryZoneRow[]>(
@@ -442,28 +452,58 @@ export async function deleteZone(agencyId: string, zoneId: string): Promise<void
 export async function updateZoneShippingRates(
   agencyId: string,
   zoneId: string,
-  rates: { flex?: number; express?: number; standard?: number }
+  rates: {
+    flex?: number;
+    express?: number;
+    standard?: number;
+    driverFlex?: number;
+    driverExpress?: number;
+    driverStandard?: number;
+  }
 ): Promise<DeliveryZone> {
   const existing = await getZoneById(agencyId, zoneId);
   if (!existing) throw new Error('NOT_FOUND');
   if (!isPricingZoneId(zoneId)) throw new Error('ASSIGNMENT_ZONE_NO_RATES');
 
   const currentRates = existing.shippingRates ?? DEFAULT_ZONE_RATES;
+  const currentDriver = existing.driverPayRates ?? DEFAULT_DRIVER_PAY;
   const next = {
     flex: rates.flex ?? currentRates.flex,
     express: rates.express ?? currentRates.express,
     standard: rates.standard ?? currentRates.standard,
   };
+  const nextDriver = {
+    flex: rates.driverFlex ?? currentDriver.flex,
+    express: rates.driverExpress ?? currentDriver.express,
+    standard: rates.driverStandard ?? currentDriver.standard,
+  };
 
-  if (next.flex < 0 || next.express < 0 || next.standard < 0) {
+  if (
+    next.flex < 0 ||
+    next.express < 0 ||
+    next.standard < 0 ||
+    nextDriver.flex < 0 ||
+    nextDriver.express < 0 ||
+    nextDriver.standard < 0
+  ) {
     throw new Error('INVALID_RATES');
   }
 
   await pool.query(
     `UPDATE delivery_zones
-     SET shipping_rate_flex = ?, shipping_rate_express = ?, shipping_rate_standard = ?
+     SET shipping_rate_flex = ?, shipping_rate_express = ?, shipping_rate_standard = ?,
+         driver_pay_flex = ?, driver_pay_express = ?, driver_pay_standard = ?
      WHERE id = ? AND agency_id = ?`,
-    [next.flex, next.express, next.standard, zoneId, agencyId]
+    [
+      next.flex,
+      next.express,
+      next.standard,
+      nextDriver.flex,
+      nextDriver.express,
+      nextDriver.standard,
+      zoneId,
+      agencyId,
+    ]
   );
 
   const zone = await getZoneById(agencyId, zoneId);

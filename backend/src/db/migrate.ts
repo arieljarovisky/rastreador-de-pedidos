@@ -195,6 +195,9 @@ export async function runMigrations(): Promise<void> {
         shipping_rate_flex DECIMAL(12,2) NOT NULL DEFAULT 2800.00,
         shipping_rate_express DECIMAL(12,2) NOT NULL DEFAULT 3200.00,
         shipping_rate_standard DECIMAL(12,2) NOT NULL DEFAULT 2500.00,
+        driver_pay_flex DECIMAL(12,2) NOT NULL DEFAULT 1500.00,
+        driver_pay_express DECIMAL(12,2) NOT NULL DEFAULT 1800.00,
+        driver_pay_standard DECIMAL(12,2) NOT NULL DEFAULT 1200.00,
         created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
         INDEX idx_delivery_zones_agency (agency_id),
         CONSTRAINT fk_delivery_zones_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE
@@ -267,6 +270,70 @@ export async function runMigrations(): Promise<void> {
         CONSTRAINT fk_billing_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
         CONSTRAINT fk_billing_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE,
         CONSTRAINT fk_billing_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  // Pago al repartidor por zona (cordón) y liquidación de flota
+  if (!(await columnExists('delivery_zones', 'driver_pay_flex'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN driver_pay_flex DECIMAL(12,2) NOT NULL DEFAULT 1500.00 AFTER shipping_rate_standard'
+    );
+  }
+  if (!(await columnExists('delivery_zones', 'driver_pay_express'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN driver_pay_express DECIMAL(12,2) NOT NULL DEFAULT 1800.00 AFTER driver_pay_flex'
+    );
+  }
+  if (!(await columnExists('delivery_zones', 'driver_pay_standard'))) {
+    await pool.query(
+      'ALTER TABLE delivery_zones ADD COLUMN driver_pay_standard DECIMAL(12,2) NOT NULL DEFAULT 1200.00 AFTER driver_pay_express'
+    );
+  }
+  if (!(await columnExists('agencies', 'driver_pay_flex'))) {
+    await pool.query(
+      'ALTER TABLE agencies ADD COLUMN driver_pay_flex DECIMAL(12,2) NOT NULL DEFAULT 1500.00 AFTER shipping_rate_standard'
+    );
+  }
+  if (!(await columnExists('agencies', 'driver_pay_express'))) {
+    await pool.query(
+      'ALTER TABLE agencies ADD COLUMN driver_pay_express DECIMAL(12,2) NOT NULL DEFAULT 1800.00 AFTER driver_pay_flex'
+    );
+  }
+  if (!(await columnExists('agencies', 'driver_pay_standard'))) {
+    await pool.query(
+      'ALTER TABLE agencies ADD COLUMN driver_pay_standard DECIMAL(12,2) NOT NULL DEFAULT 1200.00 AFTER driver_pay_express'
+    );
+  }
+  if (!(await columnExists('orders', 'driver_pay_amount'))) {
+    await pool.query(
+      'ALTER TABLE orders ADD COLUMN driver_pay_amount DECIMAL(12,2) NULL AFTER billed_at'
+    );
+  }
+  if (!(await columnExists('orders', 'driver_billed_at'))) {
+    await pool.query(
+      'ALTER TABLE orders ADD COLUMN driver_billed_at DATETIME(3) NULL AFTER driver_pay_amount'
+    );
+    await pool.query('CREATE INDEX idx_orders_driver_billed_at ON orders (driver_billed_at)');
+  }
+  if (!(await tableExists('driver_ledger_entries'))) {
+    await pool.query(`
+      CREATE TABLE driver_ledger_entries (
+        id VARCHAR(36) PRIMARY KEY,
+        agency_id VARCHAR(36) NOT NULL,
+        repartidor_id VARCHAR(36) NOT NULL,
+        order_id VARCHAR(36) NULL,
+        entry_type ENUM('earning', 'payment', 'adjustment') NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        description VARCHAR(500) NOT NULL,
+        created_by VARCHAR(255) NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_driver_ledger_agency_date (agency_id, created_at),
+        INDEX idx_driver_ledger_repartidor_date (repartidor_id, created_at),
+        INDEX idx_driver_ledger_order (order_id),
+        CONSTRAINT fk_driver_ledger_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
+        CONSTRAINT fk_driver_ledger_repartidor FOREIGN KEY (repartidor_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_driver_ledger_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }

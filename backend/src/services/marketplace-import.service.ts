@@ -47,7 +47,6 @@ import {
 } from './tiendanube.service.js';
 import {
   getIntegration,
-  getAgencyMercadoLibreIntegration,
   listMercadoLibreIntegrationsForAgencyScan,
   listMercadoLibreSellerIntegrationsForAutoImport,
   type IntegrationPlatform,
@@ -61,7 +60,6 @@ import { emitOrderUpdated } from '../realtime/io.js';
 import { env } from '../config/env.js';
 import { getOperationalDateKey } from '../utils/delivery-deadline.js';
 import {
-  ensureAgencyMlBridgeUser,
   getAgencyOperatorForImport,
   isAgencyMlBridgeUser,
 } from './agency-ml.service.js';
@@ -117,22 +115,16 @@ type RawShipment = MercadoLibreFlexShipment | TiendaNubeExpressShipment;
 
 async function markImported(
   userId: string,
-  shipments: RawShipment[],
-  options?: { agencyMode?: boolean }
+  shipments: RawShipment[]
 ): Promise<MarketplaceShipmentPreview[]> {
   const previews: MarketplaceShipmentPreview[] = [];
   for (const s of shipments) {
     const existing =
       s.platform === 'mercadolibre'
-        ? options?.agencyMode
-          ? await findImportedMercadoLibreFlexGlobal({
-              externalId: s.externalId,
-              mlOrderId: (s as MercadoLibreFlexShipment).mlOrderId,
-            })
-          : await findImportedMercadoLibreFlex(userId, {
-              externalId: s.externalId,
-              mlOrderId: (s as MercadoLibreFlexShipment).mlOrderId,
-            })
+        ? await findImportedMercadoLibreFlex(userId, {
+            externalId: s.externalId,
+            mlOrderId: (s as MercadoLibreFlexShipment).mlOrderId,
+          })
         : await findOrderByExternal(userId, s.platform, s.externalId);
     previews.push({
       ...s,
@@ -144,8 +136,8 @@ async function markImported(
 
 /**
  * Candidatos de token ML para un pedido.
- * Prioridad: repartidor (courier) → preferido (import) → cuentas ML de la agencia → vendedor.
- * El vendedor desconectado no bloquea: se usa courier/agencia si hay token válido.
+ * Prioridad: repartidor (courier) → preferido (import) → cuentas ML de vendedores de la agencia → vendedor.
+ * El vendedor desconectado no bloquea: se usa courier/vendedor si hay token válido.
  */
 async function listMlIntegrationUserIdsForOrder(
   order: Order,
@@ -524,12 +516,8 @@ async function runFlexScansSync(
     return 0;
   }
 
-  // Misma cuenta ML en agencia/vendedor y repartidor: ML suele devolver assignment sin driver_id.
-  const agencyMl = await getAgencyMercadoLibreIntegration(repartidor.agencyId);
+  // Misma cuenta ML en vendedor y repartidor: ML suele devolver assignment sin driver_id.
   const sharedAccountMlIds = new Set<string>();
-  if (agencyMl?.externalUserId && agencyMl.externalUserId === mlCourierId) {
-    sharedAccountMlIds.add(agencyMl.externalUserId);
-  }
   for (const ctx of contexts) {
     if (ctx.integration.externalUserId && ctx.integration.externalUserId === mlCourierId) {
       sharedAccountMlIds.add(ctx.integration.externalUserId);
@@ -561,7 +549,7 @@ async function runFlexScansSync(
   }
 
   if (sharedAccountMode) {
-    console.log('[ml-flex-sync] modo cuenta ML compartida (agencia/vendedor = courier)', {
+    console.log('[ml-flex-sync] modo cuenta ML compartida (vendedor = courier)', {
       repartidorId: repartidor.id,
       mlCourierId,
     });
@@ -954,117 +942,6 @@ export async function listImportableShipments(
       : undefined;
   const express = await listTiendaNubeExpressShipments(userId, dateRange);
   return markImported(userId, express);
-}
-
-export async function listAgencyImportableShipments(
-  user: User,
-  platform: IntegrationPlatform,
-  options?: MarketplaceListOptions
-): Promise<MarketplaceShipmentPreview[]> {
-  if (!isAgencyAdmin(user.role) || !user.agencyId) {
-    throw new Error('FORBIDDEN');
-  }
-  if (platform !== 'mercadolibre') {
-    throw new Error('FORBIDDEN');
-  }
-
-  const bridge = await ensureAgencyMlBridgeUser(user.agencyId);
-  const integration = await getValidMercadoLibreIntegration(bridge.id);
-  void integration;
-
-  const flex = await listMercadoLibreFlexShipments(bridge.id, {
-    dateFrom: options?.dateFrom,
-    dateTo: options?.dateTo,
-  });
-  return markImported(bridge.id, flex, { agencyMode: true });
-}
-
-export async function importAgencyMarketplaceShipments(
-  user: User,
-  platform: IntegrationPlatform,
-  externalIds?: string[],
-  options?: MarketplaceListOptions
-): Promise<{ imported: number; skipped: number; orders: string[]; errors: string[] }> {
-  if (!isAgencyAdmin(user.role) || !user.agencyId) {
-    throw new Error('FORBIDDEN');
-  }
-  if (platform !== 'mercadolibre') {
-    throw new Error('FORBIDDEN');
-  }
-
-  const bridge = await ensureAgencyMlBridgeUser(user.agencyId);
-  const flexOptions: ImportFlexOptions = {
-    mlIntegrationUserId: bridge.id,
-    agencyMode: true,
-  };
-
-  if (options?.mlRefs?.length) {
-    return importMercadoLibreByRefs(user, options.mlRefs, {
-      notify: true,
-      flexOptions,
-    });
-  }
-
-  const all = await listAgencyImportableShipments(user, platform, options);
-  const matchesExternalId = (s: MarketplaceShipmentPreview, id: string) =>
-    s.externalId === id || s.mlOrderId === id;
-
-  let toImport = all.filter((s) => !s.alreadyImported && s.mlShipmentStatus !== 'delivered');
-  if (externalIds?.length) {
-    toImport = all.filter(
-      (s) => externalIds.some((id) => matchesExternalId(s, id)) && !s.alreadyImported
-    );
-  }
-
-  let imported = 0;
-  let skipped = 0;
-  const orderIds: string[] = [];
-  const errors: string[] = [];
-  const seenMlShipments = new Set<string>();
-
-  for (const shipment of toImport) {
-    if (seenMlShipments.has(shipment.externalId)) {
-      skipped++;
-      continue;
-    }
-    seenMlShipments.add(shipment.externalId);
-
-    const result = await importMercadoLibreFlexShipment(
-      user,
-      shipment as MercadoLibreFlexShipment,
-      flexOptions
-    );
-    if (result.kind === 'imported') {
-      imported++;
-      orderIds.push(result.order.id);
-    } else if (result.kind === 'synced') {
-      skipped++;
-      orderIds.push(result.order.id);
-    } else {
-      errors.push(result.message);
-      skipped++;
-      if (result.fatal) break;
-    }
-  }
-
-  if (imported > 0) {
-    const title = imported === 1 ? 'Envío importado' : 'Envíos importados';
-    const body =
-      imported === 1
-        ? `Se importó 1 pedido de Mercado Libre Flex (agencia) como ${orderIds[0]}.`
-        : `Se importaron ${imported} pedidos de Mercado Libre Flex (agencia).`;
-
-    await createNotification({
-      id: `n_import_agency_${Date.now()}_${user.id}`,
-      userId: user.id,
-      title,
-      body,
-      type: 'info',
-      orderId: orderIds[0],
-    });
-  }
-
-  return { imported, skipped, orders: orderIds, errors };
 }
 
 export async function importMarketplaceShipments(

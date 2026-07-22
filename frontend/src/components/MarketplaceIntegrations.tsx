@@ -24,8 +24,6 @@ export interface MarketplaceIntegrationsProps {
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
   onArchiveAllFinishedOrders?: () => Promise<number>;
-  /** Cuenta ML centralizada de la agencia (sin vendedores). */
-  scope?: 'seller' | 'agency';
 }
 
 const btnPrimary = 'btn-primary px-3 py-1.5 disabled:opacity-50';
@@ -414,9 +412,7 @@ export default function MarketplaceIntegrations({
   onFetchShipments,
   onImport,
   onArchiveAllFinishedOrders,
-  scope = 'seller',
 }: MarketplaceIntegrationsProps) {
-  const isAgencyScope = scope === 'agency';
   const [mlShipments, setMlShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [tnShipments, setTnShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [mlLoading, setMlLoading] = useState(false);
@@ -566,12 +562,10 @@ export default function MarketplaceIntegrations({
       <div className="flex items-center justify-between gap-2 mb-3">
         <div>
           <p className="text-xs font-display font-semibold text-[var(--color-text)]">
-            {isAgencyScope ? 'Mercado Libre (agencia)' : 'Tiendas conectadas'}
+            Tiendas conectadas
           </p>
           <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-            {isAgencyScope
-              ? 'Una sola cuenta ML para todos los envíos, sin crear vendedores. Los pedidos quedan a nombre de la agencia.'
-              : 'Importá envíos Flex (Mercado Libre) y Express (Tienda Nube). ML: importación y estados automáticos vía webhook.'}
+            Importá envíos Flex (Mercado Libre) y Express (Tienda Nube). ML: importación y estados automáticos vía webhook.
           </p>
         </div>
         <button
@@ -594,10 +588,10 @@ export default function MarketplaceIntegrations({
         </p>
       )}
 
-      <div className={`grid grid-cols-1 ${isAgencyScope ? '' : 'lg:grid-cols-2'} gap-3`}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <PlatformCard
           title="Mercado Libre"
-          subtitle={isAgencyScope ? 'Cuenta central de la agencia · envíos Flex' : 'Envíos Flex (self_service)'}
+          subtitle="Envíos Flex (self_service)"
           icon={<ShoppingBag className="w-4 h-4 text-yellow-400" />}
           platform="mercadolibre"
           configured={status?.mercadolibre.configured ?? false}
@@ -625,7 +619,6 @@ export default function MarketplaceIntegrations({
           onImportByMlRef={() => void importByMlRef()}
           mlRefImporting={mlRefImporting}
         />
-        {!isAgencyScope && (
         <PlatformCard
           title="Tienda Nube"
           subtitle="Solo envíos Express · filtrá por período"
@@ -653,7 +646,6 @@ export default function MarketplaceIntegrations({
           onImportAll={() => void runImport('tiendanube')}
           onImportOne={(id) => void runImport('tiendanube', [id])}
         />
-        )}
       </div>
 
       {onArchiveAllFinishedOrders && (

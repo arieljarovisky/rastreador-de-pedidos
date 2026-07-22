@@ -14,6 +14,11 @@ export interface DeliveryZone {
     express: number;
     standard: number;
   };
+  driverPayRates?: {
+    flex: number;
+    express: number;
+    standard: number;
+  };
 }
 
 export const DEFAULT_ZONE_SHIPPING_RATES = {
@@ -22,8 +27,18 @@ export const DEFAULT_ZONE_SHIPPING_RATES = {
   standard: 2500,
 };
 
+export const DEFAULT_ZONE_DRIVER_PAY_RATES = {
+  flex: 1500,
+  express: 1800,
+  standard: 1200,
+};
+
 export function zoneShippingRates(zone: DeliveryZone) {
   return zone.shippingRates ?? DEFAULT_ZONE_SHIPPING_RATES;
+}
+
+export function zoneDriverPayRates(zone: DeliveryZone) {
+  return zone.driverPayRates ?? DEFAULT_ZONE_DRIVER_PAY_RATES;
 }
 
 export interface Barrio {

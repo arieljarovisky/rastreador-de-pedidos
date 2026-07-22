@@ -296,3 +296,38 @@ export interface BillingPaymentOptions {
   balance: number;
   mercadoPagoAvailable: boolean;
 }
+
+export interface DriverLedgerEntry {
+  id: string;
+  agencyId: string;
+  repartidorId: string;
+  repartidorName: string | null;
+  orderId: string | null;
+  entryType: 'earning' | 'payment' | 'adjustment';
+  amount: number;
+  description: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface DriverSettlementSummary {
+  currency: 'ARS';
+  dateFrom: string;
+  dateTo: string;
+  repartidorId: string | null;
+  repartidorName: string | null;
+  totalEarned: number;
+  totalPaid: number;
+  balance: number;
+  deliveredShipments: number;
+  zoneRates: ZoneShippingRates[];
+  defaultRates: AgencyShippingRates;
+  byShippingType: Array<{ shippingType: string; count: number; amount: number }>;
+  repartidores?: Array<{
+    repartidorId: string;
+    repartidorName: string;
+    totalEarned: number;
+    balance: number;
+    deliveredShipments: number;
+  }>;
+}

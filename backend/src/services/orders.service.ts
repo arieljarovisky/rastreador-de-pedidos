@@ -1195,6 +1195,10 @@ export async function applyMercadoLibreSyncState(
     await chargeOrderOnDelivery(updated).catch((err) => {
       console.warn('[billing] No se pudo facturar envío ML entregado:', err);
     });
+    const { accrueDriverPayOnDelivery } = await import('./driver-settlement.service.js');
+    await accrueDriverPayOnDelivery(updated).catch((err) => {
+      console.warn('[driver-settlement] No se pudo liquidar entrega ML:', err);
+    });
   }
 
   return updated;
@@ -1325,6 +1329,10 @@ export async function updateOrderStatus(
     const { chargeOrderOnDelivery } = await import('./billing.service.js');
     await chargeOrderOnDelivery(updated).catch((err) => {
       console.warn('[billing] No se pudo facturar envío entregado:', err);
+    });
+    const { accrueDriverPayOnDelivery } = await import('./driver-settlement.service.js');
+    await accrueDriverPayOnDelivery(updated).catch((err) => {
+      console.warn('[driver-settlement] No se pudo liquidar entrega:', err);
     });
   }
 

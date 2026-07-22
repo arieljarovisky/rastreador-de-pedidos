@@ -31,7 +31,7 @@ import {
 import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
 import AgencyPaymentsPanel from './AgencyPaymentsPanel.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
-import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, zoneShippingRates, DEFAULT_ZONE_SHIPPING_RATES, assignmentZones, sortPricingZones, pricingZoneDisplayName, isDeletableAssignmentZone, isLegacyZoneId, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
+import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, zoneShippingRates, zoneDriverPayRates, DEFAULT_ZONE_SHIPPING_RATES, DEFAULT_ZONE_DRIVER_PAY_RATES, assignmentZones, sortPricingZones, pricingZoneDisplayName, isDeletableAssignmentZone, isLegacyZoneId, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
 const REPARTIDORES_PAGE_SIZE = 8;
@@ -111,9 +111,21 @@ interface SettingsPageProps {
   ) => Promise<DeliveryZone>;
   onUpdateZoneShippingRates?: (
     zoneId: string,
-    rates: { flex: number; express: number; standard: number }
+    rates: {
+      flex: number;
+      express: number;
+      standard: number;
+      driverFlex: number;
+      driverExpress: number;
+      driverStandard: number;
+    }
   ) => Promise<DeliveryZone>;
   onUpdateDefaultShippingRates?: (rates: {
+    flex: number;
+    express: number;
+    standard: number;
+  }) => Promise<{ flex: number; express: number; standard: number }>;
+  onUpdateDefaultDriverPayRates?: (rates: {
     flex: number;
     express: number;
     standard: number;
@@ -166,21 +178,6 @@ interface SettingsPageProps {
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
   onArchiveAllFinishedOrders?: () => Promise<number>;
-  agencyIntegrationStatus?: MarketplaceIntegrationStatus | null;
-  agencyIntegrationStatusLoading?: boolean;
-  agencyIntegrationStatusError?: string | null;
-  onRefreshAgencyIntegrationStatus?: () => Promise<void>;
-  onConnectAgencyMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
-  onDisconnectAgencyMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
-  onFetchAgencyMarketplaceShipments?: (
-    platform: 'mercadolibre' | 'tiendanube',
-    options?: { dateFrom?: string; dateTo?: string }
-  ) => Promise<MarketplaceShipmentPreview[]>;
-  onImportAgencyMarketplaceShipments?: (
-    platform: 'mercadolibre' | 'tiendanube',
-    externalIds?: string[],
-    options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
-  ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
   token?: string;
   onConnectAgencyMercadoPago?: () => Promise<void>;
   onDisconnectAgencyMercadoPago?: () => Promise<void>;
@@ -199,6 +196,7 @@ export default function SettingsPage({
   onUpdateDeliveryZone,
   onUpdateZoneShippingRates,
   onUpdateDefaultShippingRates,
+  onUpdateDefaultDriverPayRates,
   onDeleteDeliveryZone,
   onUpdateDeparture,
   deliveryDeadlineHour = 13,
@@ -224,14 +222,6 @@ export default function SettingsPage({
   onFetchMarketplaceShipments,
   onImportMarketplaceShipments,
   onArchiveAllFinishedOrders,
-  agencyIntegrationStatus = null,
-  agencyIntegrationStatusLoading = false,
-  agencyIntegrationStatusError = null,
-  onRefreshAgencyIntegrationStatus,
-  onConnectAgencyMarketplace,
-  onDisconnectAgencyMarketplace,
-  onFetchAgencyMarketplaceShipments,
-  onImportAgencyMarketplaceShipments,
   token,
   onConnectAgencyMercadoPago,
   onDisconnectAgencyMercadoPago,
@@ -294,12 +284,27 @@ export default function SettingsPage({
   const [barrioSearch, setBarrioSearch] = useState('');
   const [zoneFormLoading, setZoneFormLoading] = useState(false);
   const [zoneFormMessage, setZoneFormMessage] = useState<string | null>(null);
-  const [zoneRateDrafts, setZoneRateDrafts] = useState<Record<string, { flex: string; express: string; standard: string }>>({});
+  const [zoneRateDrafts, setZoneRateDrafts] = useState<
+    Record<
+      string,
+      {
+        flex: string;
+        express: string;
+        standard: string;
+        driverFlex: string;
+        driverExpress: string;
+        driverStandard: string;
+      }
+    >
+  >({});
   const [savingZoneRateId, setSavingZoneRateId] = useState<string | null>(null);
   const [zoneRatesMessage, setZoneRatesMessage] = useState<string | null>(null);
   const [defaultRateFlex, setDefaultRateFlex] = useState(String(DEFAULT_ZONE_SHIPPING_RATES.flex));
   const [defaultRateExpress, setDefaultRateExpress] = useState(String(DEFAULT_ZONE_SHIPPING_RATES.express));
   const [defaultRateStandard, setDefaultRateStandard] = useState(String(DEFAULT_ZONE_SHIPPING_RATES.standard));
+  const [defaultDriverFlex, setDefaultDriverFlex] = useState(String(DEFAULT_ZONE_DRIVER_PAY_RATES.flex));
+  const [defaultDriverExpress, setDefaultDriverExpress] = useState(String(DEFAULT_ZONE_DRIVER_PAY_RATES.express));
+  const [defaultDriverStandard, setDefaultDriverStandard] = useState(String(DEFAULT_ZONE_DRIVER_PAY_RATES.standard));
   const [savingDefaultRates, setSavingDefaultRates] = useState(false);
   const [deletingZoneId, setDeletingZoneId] = useState<string | null>(null);
   const [repartidorSearch, setRepartidorSearch] = useState('');
@@ -439,13 +444,27 @@ export default function SettingsPage({
   );
 
   useEffect(() => {
-    const next: Record<string, { flex: string; express: string; standard: string }> = {};
+    const next: Record<
+      string,
+      {
+        flex: string;
+        express: string;
+        standard: string;
+        driverFlex: string;
+        driverExpress: string;
+        driverStandard: string;
+      }
+    > = {};
     for (const zone of pricingZonesList) {
       const rates = zoneShippingRates(zone);
+      const driver = zoneDriverPayRates(zone);
       next[zone.id] = {
         flex: String(rates.flex),
         express: String(rates.express),
         standard: String(rates.standard),
+        driverFlex: String(driver.flex),
+        driverExpress: String(driver.express),
+        driverStandard: String(driver.standard),
       };
     }
     setZoneRateDrafts(next);
@@ -1113,10 +1132,11 @@ export default function SettingsPage({
                 <SettingsSectionHeader
                   icon={<Wallet className="w-3.5 h-3.5 text-[var(--color-accent)]" />}
                   title="Tarifas por cordón"
-                  meta="CABA y cordones AMBA · precio por envío entregado"
+                  meta="CABA y cordones AMBA · cobro al vendedor y pago al repartidor"
                 />
                 <p className="text-[9px] text-[var(--color-text-muted)] leading-relaxed -mt-1">
-                  Estas zonas definen el precio según dónde cae el destino. No se asignan a repartidores.
+                  Por cada zona definís cuánto se cobra el envío y cuánto se le paga al repartidor al entregar.
+                  Estas zonas no se asignan a la flota.
                 </p>
                 <div className="space-y-2">
                   {pricingZonesList.map((zone) => {
@@ -1124,7 +1144,15 @@ export default function SettingsPage({
                       flex: String(DEFAULT_ZONE_SHIPPING_RATES.flex),
                       express: String(DEFAULT_ZONE_SHIPPING_RATES.express),
                       standard: String(DEFAULT_ZONE_SHIPPING_RATES.standard),
+                      driverFlex: String(DEFAULT_ZONE_DRIVER_PAY_RATES.flex),
+                      driverExpress: String(DEFAULT_ZONE_DRIVER_PAY_RATES.express),
+                      driverStandard: String(DEFAULT_ZONE_DRIVER_PAY_RATES.standard),
                     };
+                    const updateDraft = (patch: Partial<typeof draft>) =>
+                      setZoneRateDrafts((prev) => ({
+                        ...prev,
+                        [zone.id]: { ...draft, ...patch },
+                      }));
                     return (
                       <div
                         key={zone.id}
@@ -1134,49 +1162,73 @@ export default function SettingsPage({
                         <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate">
                           {pricingZoneDisplayName(zone)}
                         </p>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          <label className="flex flex-col gap-0.5">
-                            <span className="mono-label">Flex</span>
-                            <input
-                              className={inputClass}
-                              inputMode="decimal"
-                              value={draft.flex}
-                              onChange={(e) =>
-                                setZoneRateDrafts((prev) => ({
-                                  ...prev,
-                                  [zone.id]: { ...draft, flex: e.target.value },
-                                }))
-                              }
-                            />
-                          </label>
-                          <label className="flex flex-col gap-0.5">
-                            <span className="mono-label">Express</span>
-                            <input
-                              className={inputClass}
-                              inputMode="decimal"
-                              value={draft.express}
-                              onChange={(e) =>
-                                setZoneRateDrafts((prev) => ({
-                                  ...prev,
-                                  [zone.id]: { ...draft, express: e.target.value },
-                                }))
-                              }
-                            />
-                          </label>
-                          <label className="flex flex-col gap-0.5">
-                            <span className="mono-label">Estándar</span>
-                            <input
-                              className={inputClass}
-                              inputMode="decimal"
-                              value={draft.standard}
-                              onChange={(e) =>
-                                setZoneRateDrafts((prev) => ({
-                                  ...prev,
-                                  [zone.id]: { ...draft, standard: e.target.value },
-                                }))
-                              }
-                            />
-                          </label>
+                        <div className="space-y-1.5">
+                          <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                            Cobro del envío (vendedor)
+                          </p>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <label className="flex flex-col gap-0.5">
+                              <span className="mono-label">Flex</span>
+                              <input
+                                className={inputClass}
+                                inputMode="decimal"
+                                value={draft.flex}
+                                onChange={(e) => updateDraft({ flex: e.target.value })}
+                              />
+                            </label>
+                            <label className="flex flex-col gap-0.5">
+                              <span className="mono-label">Express</span>
+                              <input
+                                className={inputClass}
+                                inputMode="decimal"
+                                value={draft.express}
+                                onChange={(e) => updateDraft({ express: e.target.value })}
+                              />
+                            </label>
+                            <label className="flex flex-col gap-0.5">
+                              <span className="mono-label">Estándar</span>
+                              <input
+                                className={inputClass}
+                                inputMode="decimal"
+                                value={draft.standard}
+                                onChange={(e) => updateDraft({ standard: e.target.value })}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                            Pago al repartidor
+                          </p>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <label className="flex flex-col gap-0.5">
+                              <span className="mono-label">Flex</span>
+                              <input
+                                className={inputClass}
+                                inputMode="decimal"
+                                value={draft.driverFlex}
+                                onChange={(e) => updateDraft({ driverFlex: e.target.value })}
+                              />
+                            </label>
+                            <label className="flex flex-col gap-0.5">
+                              <span className="mono-label">Express</span>
+                              <input
+                                className={inputClass}
+                                inputMode="decimal"
+                                value={draft.driverExpress}
+                                onChange={(e) => updateDraft({ driverExpress: e.target.value })}
+                              />
+                            </label>
+                            <label className="flex flex-col gap-0.5">
+                              <span className="mono-label">Estándar</span>
+                              <input
+                                className={inputClass}
+                                inputMode="decimal"
+                                value={draft.driverStandard}
+                                onChange={(e) => updateDraft({ driverStandard: e.target.value })}
+                              />
+                            </label>
+                          </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <button
@@ -1191,6 +1243,9 @@ export default function SettingsPage({
                                   flex: Number(draft.flex),
                                   express: Number(draft.express),
                                   standard: Number(draft.standard),
+                                  driverFlex: Number(draft.driverFlex),
+                                  driverExpress: Number(draft.driverExpress),
+                                  driverStandard: Number(draft.driverStandard),
                                 });
                                 setZoneRatesMessage(`Tarifas de ${pricingZoneDisplayName(zone)} guardadas.`);
                               } catch (err: unknown) {
@@ -1252,26 +1307,54 @@ export default function SettingsPage({
                   })}
                 </div>
 
-                {onUpdateDefaultShippingRates && (
+                {(onUpdateDefaultShippingRates || onUpdateDefaultDriverPayRates) && (
                   <div className="rounded-[5px] border border-dashed border-[var(--surface-border)] bg-[var(--surface-panel-2)]/40 p-2 space-y-2">
                     <p className="text-[11px] font-medium text-[var(--ink-soft)]">Fuera de zona</p>
                     <p className="text-[9px] text-[var(--color-text-muted)]">
                       Se aplica cuando el destino no cae en CABA ni en ningún cordón.
                     </p>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <label className="flex flex-col gap-0.5">
-                        <span className="mono-label">Flex</span>
-                        <input className={inputClass} inputMode="decimal" value={defaultRateFlex} onChange={(e) => setDefaultRateFlex(e.target.value)} />
-                      </label>
-                      <label className="flex flex-col gap-0.5">
-                        <span className="mono-label">Express</span>
-                        <input className={inputClass} inputMode="decimal" value={defaultRateExpress} onChange={(e) => setDefaultRateExpress(e.target.value)} />
-                      </label>
-                      <label className="flex flex-col gap-0.5">
-                        <span className="mono-label">Estándar</span>
-                        <input className={inputClass} inputMode="decimal" value={defaultRateStandard} onChange={(e) => setDefaultRateStandard(e.target.value)} />
-                      </label>
-                    </div>
+                    {onUpdateDefaultShippingRates && (
+                      <div className="space-y-1.5">
+                        <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                          Cobro del envío
+                        </p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Flex</span>
+                            <input className={inputClass} inputMode="decimal" value={defaultRateFlex} onChange={(e) => setDefaultRateFlex(e.target.value)} />
+                          </label>
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Express</span>
+                            <input className={inputClass} inputMode="decimal" value={defaultRateExpress} onChange={(e) => setDefaultRateExpress(e.target.value)} />
+                          </label>
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Estándar</span>
+                            <input className={inputClass} inputMode="decimal" value={defaultRateStandard} onChange={(e) => setDefaultRateStandard(e.target.value)} />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                    {onUpdateDefaultDriverPayRates && (
+                      <div className="space-y-1.5">
+                        <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                          Pago al repartidor
+                        </p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Flex</span>
+                            <input className={inputClass} inputMode="decimal" value={defaultDriverFlex} onChange={(e) => setDefaultDriverFlex(e.target.value)} />
+                          </label>
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Express</span>
+                            <input className={inputClass} inputMode="decimal" value={defaultDriverExpress} onChange={(e) => setDefaultDriverExpress(e.target.value)} />
+                          </label>
+                          <label className="flex flex-col gap-0.5">
+                            <span className="mono-label">Estándar</span>
+                            <input className={inputClass} inputMode="decimal" value={defaultDriverStandard} onChange={(e) => setDefaultDriverStandard(e.target.value)} />
+                          </label>
+                        </div>
+                      </div>
+                    )}
                     <button
                       type="button"
                       disabled={savingDefaultRates}
@@ -1280,11 +1363,20 @@ export default function SettingsPage({
                         setSavingDefaultRates(true);
                         setZoneRatesMessage(null);
                         try {
-                          await onUpdateDefaultShippingRates({
-                            flex: Number(defaultRateFlex),
-                            express: Number(defaultRateExpress),
-                            standard: Number(defaultRateStandard),
-                          });
+                          if (onUpdateDefaultShippingRates) {
+                            await onUpdateDefaultShippingRates({
+                              flex: Number(defaultRateFlex),
+                              express: Number(defaultRateExpress),
+                              standard: Number(defaultRateStandard),
+                            });
+                          }
+                          if (onUpdateDefaultDriverPayRates) {
+                            await onUpdateDefaultDriverPayRates({
+                              flex: Number(defaultDriverFlex),
+                              express: Number(defaultDriverExpress),
+                              standard: Number(defaultDriverStandard),
+                            });
+                          }
                           setZoneRatesMessage('Tarifas fuera de zona guardadas.');
                         } catch (err: unknown) {
                           setZoneRatesMessage(
@@ -1304,7 +1396,9 @@ export default function SettingsPage({
                 {zoneRatesMessage && (
                   <p
                     className={`text-[10px] font-mono ${
-                      zoneRatesMessage.includes('guardad') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+                      zoneRatesMessage.includes('guardad') || zoneRatesMessage.includes('eliminad')
+                        ? 'text-[var(--color-ok)]'
+                        : 'text-[var(--color-danger)]'
                     }`}
                   >
                     {zoneRatesMessage}
@@ -1871,25 +1965,6 @@ export default function SettingsPage({
               onDisconnectMercadoPago={onDisconnectAgencyMercadoPago}
             />
           </section>
-        )}
-        {agency && isAgencyAdmin(userRole) &&
-          onRefreshAgencyIntegrationStatus &&
-          onConnectAgencyMarketplace &&
-          onDisconnectAgencyMarketplace &&
-          onFetchAgencyMarketplaceShipments &&
-          onImportAgencyMarketplaceShipments && (
-          <MarketplaceIntegrations
-            scope="agency"
-            status={agencyIntegrationStatus}
-            statusLoading={agencyIntegrationStatusLoading}
-            statusError={agencyIntegrationStatusError}
-            onRefreshStatus={onRefreshAgencyIntegrationStatus}
-            onConnect={onConnectAgencyMarketplace}
-            onDisconnect={onDisconnectAgencyMarketplace}
-            onFetchShipments={onFetchAgencyMarketplaceShipments}
-            onImport={onImportAgencyMarketplaceShipments}
-            onArchiveAllFinishedOrders={onArchiveAllFinishedOrders}
-          />
         )}
         {agency && isAgencyAdmin(userRole) && (
           <section className={sectionClass}>

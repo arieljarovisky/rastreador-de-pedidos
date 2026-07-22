@@ -135,14 +135,24 @@ router.put('/:id/rates', authenticate, requireAgencyAdmin(), async (req: Request
   const agencyId = requireAgencyId(req, res);
   if (!agencyId) return;
 
-  const { flex, express, standard } = req.body as {
+  const { flex, express, standard, driverFlex, driverExpress, driverStandard } = req.body as {
     flex?: number;
     express?: number;
     standard?: number;
+    driverFlex?: number;
+    driverExpress?: number;
+    driverStandard?: number;
   };
 
   try {
-    const zone = await updateZoneShippingRates(agencyId, req.params.id, { flex, express, standard });
+    const zone = await updateZoneShippingRates(agencyId, req.params.id, {
+      flex,
+      express,
+      standard,
+      driverFlex,
+      driverExpress,
+      driverStandard,
+    });
     res.json(zone);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
