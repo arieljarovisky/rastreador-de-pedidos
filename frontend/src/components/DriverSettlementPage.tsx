@@ -10,6 +10,7 @@ import {
   Receipt,
   Loader2,
   Bike,
+  Download,
 } from 'lucide-react';
 import { DriverLedgerEntry, DriverSettlementSummary, User, isAgencyAdmin } from '../types.js';
 import { apiUrl } from '../api.ts';
@@ -18,6 +19,10 @@ import {
   getOperationalDateKey,
   formatOperationalDateShort,
 } from '../utils/deliverySummary.js';
+import {
+  exportAgencyDriverSettlementExcel,
+  exportDriverSettlementExcel,
+} from '../utils/exportDriverSettlementExcel.js';
 
 interface DriverSettlementPageProps {
   token: string;
@@ -83,6 +88,7 @@ export default function DriverSettlementPage({
   const [paymentNote, setPaymentNote] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const todayKey = getOperationalDateKey();
 
   const applyMonthPreset = (offset: number) => {
@@ -166,6 +172,43 @@ export default function DriverSettlementPage({
     }
   };
 
+  const exportExcel = async () => {
+    if (!summary) return;
+    setExporting(true);
+    setMessage(null);
+    try {
+      const params = new URLSearchParams({ dateFrom, dateTo, limit: '5000' });
+      if (isAgency && selectedRepartidorId) params.set('repartidorId', selectedRepartidorId);
+      const res = await fetch(apiUrl(`/api/driver-settlement/ledger?${params}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json().catch(() => ([]));
+      if (!res.ok) {
+        throw new Error(
+          body && typeof body === 'object' && 'error' in body
+            ? String((body as { error?: string }).error || 'No se pudo exportar.')
+            : 'No se pudo exportar.'
+        );
+      }
+      const exportLedger = body as DriverLedgerEntry[];
+
+      if (isAgency && !selectedRepartidorId) {
+        await exportAgencyDriverSettlementExcel(summary, exportLedger);
+      } else {
+        const label =
+          summary.repartidorName ||
+          repartidores.find((r) => r.id === selectedRepartidorId)?.name ||
+          user.name;
+        await exportDriverSettlementExcel(summary, exportLedger, label);
+      }
+      setMessage('Excel descargado.');
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : 'Error al exportar.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const accountTitle = selectedRepartidorId
     ? `Liquidación · ${summary?.repartidorName ?? 'Repartidor'}`
     : 'Liquidación de repartidores';
@@ -173,17 +216,37 @@ export default function DriverSettlementPage({
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden posta-surface" id="driver-settlement-page">
       <div className="shrink-0 p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3">
-        <div>
-          <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-            Posta · Flota
-          </p>
-          <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5 flex items-center gap-2">
-            <Bike className="w-5 h-5 text-[var(--color-accent)] shrink-0" />
-            {accountTitle}
-          </h1>
-          <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
-            Cada entrega acumula el pago configurado por zona. Registrá acá cuando liquides al repartidor.
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Posta · Flota
+            </p>
+            <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5 flex items-center gap-2">
+              <Bike className="w-5 h-5 text-[var(--color-accent)] shrink-0" />
+              {accountTitle}
+            </h1>
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
+              Cada entrega acumula el pago configurado por zona. Registrá acá cuando liquides al repartidor.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void exportExcel()}
+            disabled={!summary || loading || exporting}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] hover:border-[var(--color-accent)]/50 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] transition disabled:opacity-40 disabled:pointer-events-none"
+            title={
+              isAgency && !selectedRepartidorId
+                ? 'Exportar liquidación de repartidores y movimientos'
+                : 'Exportar liquidación y movimientos'
+            }
+          >
+            {exporting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+            )}
+            {exporting ? 'Exportando…' : 'Excel'}
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -259,7 +322,9 @@ export default function DriverSettlementPage({
         {message && (
           <p
             className={`text-[10px] font-mono ${
-              message.includes('registrad') ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+              message.includes('registrad') || message.includes('descargado')
+                ? 'text-[var(--color-ok)]'
+                : 'text-[var(--color-danger)]'
             }`}
           >
             {message}
