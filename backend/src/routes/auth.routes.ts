@@ -15,6 +15,10 @@ import { UserRole } from '../types/index.js';
 import { isValidEmail } from '../utils/email.js';
 import { isValidCuit, normalizeCuit, formatCuit } from '../utils/cuit.js';
 import { validateStrongPassword } from '../utils/password.js';
+import {
+  requestPasswordReset,
+  resetPasswordWithToken,
+} from '../services/password-reset.service.js';
 
 const router = Router();
 
@@ -240,6 +244,61 @@ router.post('/register/agency', async (req: Request, res: Response) => {
 
 router.get('/me', authenticate, (req: Request, res: Response) => {
   res.json(req.user);
+});
+
+router.post('/forgot-password', async (req: Request, res: Response) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email : '';
+  if (!email.trim()) {
+    res.status(400).json({ error: 'Ingresá el correo de la cuenta.' });
+    return;
+  }
+
+  try {
+    const result = await requestPasswordReset(email);
+    res.json(result);
+  } catch (err) {
+    console.error('[auth] forgot-password:', err);
+    res.json({
+      message:
+        'Si ese correo está registrado, te enviamos un enlace para restablecer la contraseña.',
+    });
+  }
+});
+
+router.post('/reset-password', async (req: Request, res: Response) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  if (!token.trim() || !password) {
+    res.status(400).json({ error: 'Token y nueva contraseña son requeridos.' });
+    return;
+  }
+
+  try {
+    await resetPasswordWithToken(token, password);
+    res.json({ message: 'Contraseña actualizada. Ya podés iniciar sesión.' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'WEAK_PASSWORD') {
+      res.status(400).json({
+        error: 'La contraseña debe tener al menos 8 caracteres, una letra y un número.',
+      });
+      return;
+    }
+    if (message === 'EXPIRED_TOKEN') {
+      res.status(400).json({
+        error: 'El enlace expiró. Pedí uno nuevo desde “Olvidé mi contraseña”.',
+      });
+      return;
+    }
+    if (message === 'INVALID_TOKEN') {
+      res.status(400).json({
+        error: 'El enlace no es válido o ya fue usado. Pedí uno nuevo.',
+      });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;

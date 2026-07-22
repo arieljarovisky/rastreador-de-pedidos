@@ -635,6 +635,23 @@ export async function runMigrations(): Promise<void> {
     }
   }
 
+  if (!(await tableExists('password_reset_tokens'))) {
+    await pool.query(`
+      CREATE TABLE password_reset_tokens (
+        id VARCHAR(36) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at DATETIME(3) NOT NULL,
+        used_at DATETIME(3) NULL,
+        created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        UNIQUE KEY uk_password_reset_token_hash (token_hash),
+        INDEX idx_password_reset_user (user_id),
+        INDEX idx_password_reset_expires (expires_at),
+        CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
   // Deduplicar spam de reprogramación / ausente en bitácora (queda la primera entrada)
   await pool.query(
     `DELETE h FROM order_history h

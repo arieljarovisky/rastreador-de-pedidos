@@ -52,6 +52,10 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('resetToken')?.trim() || null;
+  });
 
   // Estados de datos
   const [orders, setOrders] = useState<Order[]>([]);
@@ -87,6 +91,13 @@ export default function App() {
     const status = params.get('status');
     const message = params.get('message');
     const tab = params.get('tab');
+    const incomingReset = params.get('resetToken')?.trim();
+    if (incomingReset) {
+      setResetToken(incomingReset);
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('resetToken');
+      window.history.replaceState({}, '', clean.pathname + clean.search);
+    }
     if (tab === 'settings') setMobileTabState('settings');
     const subscriptionResult = params.get('subscription');
     if (subscriptionResult === 'success') {
@@ -550,6 +561,48 @@ export default function App() {
       setUser(result.user);
     } catch (err: any) {
       setAuthError(err.message || 'Error al registrar la cuenta.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (email: string): Promise<string> => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(apiUrl('/api/auth/forgot-password'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'No se pudo enviar el correo.');
+      }
+      return (
+        data.message ||
+        'Si ese correo está registrado, te enviamos un enlace para restablecer la contraseña.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (tokenValue: string, password: string): Promise<string> => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(apiUrl('/api/auth/reset-password'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tokenValue, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'No se pudo actualizar la contraseña.');
+      }
+      setResetToken(null);
+      return data.message || 'Contraseña actualizada. Ya podés iniciar sesión.';
     } finally {
       setLoading(false);
     }
@@ -1506,9 +1559,12 @@ export default function App() {
       <LoginScreen
         onLogin={handleLogin}
         onRegisterAgency={(data) => handleRegister('/api/auth/register/agency', data)}
+        onForgotPassword={handleForgotPassword}
+        onResetPassword={handleResetPassword}
         loading={loading}
         error={authError}
         errorCode={authErrorCode}
+        initialResetToken={resetToken}
       />
     );
   }

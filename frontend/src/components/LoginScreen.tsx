@@ -37,7 +37,7 @@ import {
   validateStrongPassword,
 } from '../utils/password.ts';
 
-type AuthMode = 'login' | 'register-agency';
+type AuthMode = 'login' | 'register-agency' | 'forgot-password' | 'reset-password';
 type RegisterStep = 1 | 2;
 
 export interface AgencyRegisterData {
@@ -54,9 +54,13 @@ export interface AgencyRegisterData {
 interface LoginScreenProps {
   onLogin: (username: string, password: string, replaceSession?: boolean) => Promise<void>;
   onRegisterAgency: (data: AgencyRegisterData) => Promise<void>;
+  onForgotPassword: (email: string) => Promise<string>;
+  onResetPassword: (token: string, password: string) => Promise<string>;
   loading: boolean;
   error: string | null;
   errorCode?: string | null;
+  /** Token de recuperación desde el link del correo (`?resetToken=`). */
+  initialResetToken?: string | null;
 }
 
 const FEATURES = [
@@ -117,11 +121,14 @@ function IconInput({
 export default function LoginScreen({
   onLogin,
   onRegisterAgency,
+  onForgotPassword,
+  onResetPassword,
   loading,
   error,
   errorCode = null,
+  initialResetToken = null,
 }: LoginScreenProps) {
-  const [mode, setMode] = useState<AuthMode>('login');
+  const [mode, setMode] = useState<AuthMode>(initialResetToken ? 'reset-password' : 'login');
   const [registerStep, setRegisterStep] = useState<RegisterStep>(1);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -136,6 +143,8 @@ export default function LoginScreen({
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState(initialResetToken ?? '');
   const [showReplaceOption, setShowReplaceOption] = useState(false);
   const theme = usePostaTheme();
   const reducedMotion = useReducedMotion();
@@ -145,6 +154,15 @@ export default function LoginScreen({
   };
 
   const logoVariant = theme === 'paper' ? 'paper' : 'dark';
+
+  useEffect(() => {
+    if (initialResetToken) {
+      setResetToken(initialResetToken);
+      setMode('reset-password');
+      setLocalError(null);
+      setSuccessMessage(null);
+    }
+  }, [initialResetToken]);
 
   const resetForm = () => {
     setUsername('');
@@ -159,6 +177,8 @@ export default function LoginScreen({
     setAcceptTerms(false);
     setRegisterStep(1);
     setLocalError(null);
+    setSuccessMessage(null);
+    if (!initialResetToken) setResetToken('');
   };
 
   const switchMode = (next: AuthMode) => {
@@ -202,6 +222,53 @@ export default function LoginScreen({
   const handleSubmit = (e: React.FormEvent, replaceSession = false) => {
     e.preventDefault();
     setLocalError(null);
+    setSuccessMessage(null);
+
+    if (mode === 'forgot-password') {
+      if (!email.trim()) {
+        setLocalError('Ingresá el correo de la cuenta.');
+        return;
+      }
+      if (!isValidEmail(email.trim())) {
+        setLocalError('Ingresá un correo electrónico válido.');
+        return;
+      }
+      void onForgotPassword(email.trim().toLowerCase())
+        .then((message) => {
+          setSuccessMessage(message);
+        })
+        .catch((err: unknown) => {
+          setLocalError(err instanceof Error ? err.message : 'No se pudo enviar el correo.');
+        });
+      return;
+    }
+
+    if (mode === 'reset-password') {
+      if (!resetToken.trim()) {
+        setLocalError('Falta el enlace de recuperación. Pedí uno nuevo desde “Olvidé mi contraseña”.');
+        return;
+      }
+      const pwdCheck = validateStrongPassword(password);
+      if (!pwdCheck.ok) {
+        setLocalError(pwdCheck.errors.join(' '));
+        return;
+      }
+      if (password !== passwordConfirm) {
+        setLocalError('Las contraseñas no coinciden.');
+        return;
+      }
+      void onResetPassword(resetToken.trim(), password)
+        .then((message) => {
+          setSuccessMessage(message);
+          setPassword('');
+          setPasswordConfirm('');
+          setTimeout(() => switchMode('login'), 1600);
+        })
+        .catch((err: unknown) => {
+          setLocalError(err instanceof Error ? err.message : 'No se pudo actualizar la contraseña.');
+        });
+      return;
+    }
 
     if (mode === 'login') {
       if (!username.trim() || !password) {
@@ -259,6 +326,9 @@ export default function LoginScreen({
   };
 
   const isRegister = mode === 'register-agency';
+  const isForgot = mode === 'forgot-password';
+  const isReset = mode === 'reset-password';
+  const isAuthAlt = isForgot || isReset;
   const sessionConflict =
     errorCode === 'SESSION_ALREADY_ACTIVE' || showReplaceOption;
   const displayError = localError || error;
@@ -272,23 +342,37 @@ export default function LoginScreen({
   const step2Ready =
     adminName.trim() && email.trim() && password && passwordConfirm && acceptTerms;
 
-  const panelKey = isRegister ? `register-${registerStep}` : 'login';
+  const panelKey = isRegister
+    ? `register-${registerStep}`
+    : isForgot
+      ? 'forgot'
+      : isReset
+        ? 'reset'
+        : 'login';
   const crossfadeDuration = reducedMotion ? 0.12 : 0.22;
   const layoutTransition = reducedMotion
     ? { duration: 0.12 }
     : { duration: 0.32, ease: AUTH_EASE };
 
-  const brandTitle = isRegister
-    ? registerStep === 1
-      ? 'Registrar agencia'
-      : 'Cuenta del responsable'
-    : 'Iniciar sesión';
+  const brandTitle = isForgot
+    ? 'Recuperar acceso'
+    : isReset
+      ? 'Nueva contraseña'
+      : isRegister
+        ? registerStep === 1
+          ? 'Registrar agencia'
+          : 'Cuenta del responsable'
+        : 'Iniciar sesión';
 
-  const brandSubtitle = isRegister
-    ? registerStep === 1
-      ? 'Solo las agencias de logística se registran acá. Los vendedores reciben su cuenta desde el panel de su agencia.'
-      : 'Creá la cuenta del administrador que gestionará la flota y los envíos.'
-    : 'Agencias, vendedores y repartidores: ingresá con las credenciales que te asignaron. El alta de vendedores la hace tu agencia.';
+  const brandSubtitle = isForgot
+    ? 'Te enviamos un enlace al correo con el que registraste la agencia para crear una contraseña nueva.'
+    : isReset
+      ? 'Elegí una contraseña nueva para volver a entrar al panel de tu agencia.'
+      : isRegister
+        ? registerStep === 1
+          ? 'Solo las agencias de logística se registran acá. Los vendedores reciben su cuenta desde el panel de su agencia.'
+          : 'Creá la cuenta del administrador que gestionará la flota y los envíos.'
+        : 'Agencias, vendedores y repartidores: ingresá con las credenciales que te asignaron. El alta de vendedores la hace tu agencia.';
 
   return (
     <div className="auth-split" id="login-container">
@@ -353,11 +437,11 @@ export default function LoginScreen({
             <button
               type="button"
               role="tab"
-              aria-selected={mode === 'login'}
+              aria-selected={mode === 'login' || isAuthAlt}
               onClick={() => switchMode('login')}
-              className={`auth-split__tab ${mode === 'login' ? 'auth-split__tab--active' : ''}`}
+              className={`auth-split__tab ${mode === 'login' || isAuthAlt ? 'auth-split__tab--active' : ''}`}
             >
-              {mode === 'login' ? (
+              {mode === 'login' || isAuthAlt ? (
                 <motion.span
                   layoutId="auth-tab-pill"
                   className="auth-split__tab-pill"
@@ -397,7 +481,17 @@ export default function LoginScreen({
               >
           <div className="auth-split__card-head">
             <h2 className="auth-split__card-title">
-              {mode === 'login' ? (
+              {isForgot ? (
+                <>
+                  <Mail className="h-4 w-4 text-[var(--auth-accent)]" />
+                  Olvidé mi contraseña
+                </>
+              ) : isReset ? (
+                <>
+                  <Key className="h-4 w-4 text-[var(--auth-accent)]" />
+                  Elegí una contraseña nueva
+                </>
+              ) : mode === 'login' ? (
                 <>
                   <Lock className="h-4 w-4 text-[var(--auth-accent)]" />
                   Iniciar sesión
@@ -410,11 +504,15 @@ export default function LoginScreen({
               )}
             </h2>
             <p className="auth-split__card-sub">
-              {mode === 'login'
-                ? 'Agencias, vendedores y repartidores.'
-                : registerStep === 1
-                  ? 'Paso 1 de 2 · Solo registro de agencias'
-                  : 'Paso 2 de 2 · Revisá y confirmá'}
+              {isForgot
+                ? 'Usá el correo con el que registraste la agencia.'
+                : isReset
+                  ? 'Mínimo 8 caracteres, una letra y un número.'
+                  : mode === 'login'
+                    ? 'Agencias, vendedores y repartidores.'
+                    : registerStep === 1
+                      ? 'Paso 1 de 2 · Solo registro de agencias'
+                      : 'Paso 2 de 2 · Revisá y confirmá'}
             </p>
           </div>
 
@@ -422,6 +520,12 @@ export default function LoginScreen({
             <p className="auth-split__hint">
               <strong>¿Sos vendedor?</strong> Ingresá con el usuario y contraseña que te dio tu agencia.
               No podés registrarte solo: tu agencia te crea la cuenta desde Configuración.
+            </p>
+          )}
+
+          {isForgot && (
+            <p className="auth-split__hint">
+              Te mandamos un enlace al correo. Si no llega en unos minutos, revisá spam o pedí uno de nuevo.
             </p>
           )}
 
@@ -447,8 +551,14 @@ export default function LoginScreen({
             </div>
           )}
 
+          {successMessage && (
+            <div className="auth-split__success" role="status">
+              {successMessage}
+            </div>
+          )}
+
           <form
-            onSubmit={(e) => handleSubmit(e, sessionConflict && !isRegister)}
+            onSubmit={(e) => handleSubmit(e, sessionConflict && mode === 'login')}
             className="auth-split__form"
             noValidate
           >
@@ -612,7 +722,7 @@ export default function LoginScreen({
               </div>
             )}
 
-            {!isRegister && (
+            {!isRegister && !isAuthAlt && (
               <div className="auth-split__fields">
                 <Field label="Usuario">
                   <IconInput
@@ -648,40 +758,144 @@ export default function LoginScreen({
                     </button>
                   </div>
                 </Field>
+                <button
+                  type="button"
+                  className="auth-split__back self-start"
+                  disabled={loading}
+                  onClick={() => switchMode('forgot-password')}
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+            )}
+
+            {isForgot && (
+              <div className="auth-split__fields">
+                <Field label="Correo de la agencia">
+                  <IconInput
+                    icon={Mail}
+                    type="email"
+                    disabled={loading || Boolean(successMessage)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@tuagencia.com.ar"
+                    autoComplete="email"
+                  />
+                </Field>
+              </div>
+            )}
+
+            {isReset && (
+              <div className="auth-split__fields">
+                <Field label="Nueva contraseña">
+                  <div className="auth-field__wrap">
+                    <span className="auth-field__icon" aria-hidden="true">
+                      <Key className="h-4 w-4" />
+                    </span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      disabled={loading || Boolean(successMessage)}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Mín. 8 caracteres, letra y número"
+                      className="auth-input auth-input--icon auth-input--icon-right"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="auth-field__toggle"
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {password.length > 0 && (
+                    <div className="auth-strength">
+                      <div className="auth-strength__track">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <span
+                            key={i}
+                            className={`auth-strength__bar ${
+                              i < passwordScore ? strengthBarClass : ''
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <p className="auth-strength__label">{passwordMeta.label}</p>
+                    </div>
+                  )}
+                </Field>
+                <Field label="Confirmar contraseña">
+                  <div className="auth-field__wrap">
+                    <span className="auth-field__icon" aria-hidden="true">
+                      <Key className="h-4 w-4" />
+                    </span>
+                    <input
+                      type={showPasswordConfirm ? 'text' : 'password'}
+                      disabled={loading || Boolean(successMessage)}
+                      value={passwordConfirm}
+                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      placeholder="Repetí la contraseña"
+                      className="auth-input auth-input--icon auth-input--icon-right"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                      className="auth-field__toggle"
+                      aria-label={showPasswordConfirm ? 'Ocultar confirmación' : 'Mostrar confirmación'}
+                    >
+                      {showPasswordConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </Field>
               </div>
             )}
 
             <div
-              className={`auth-split__actions ${sessionConflict && !isRegister ? 'auth-split__actions--stacked' : ''}`}
+              className={`auth-split__actions ${sessionConflict && mode === 'login' ? 'auth-split__actions--stacked' : ''}`}
             >
-              {isRegister && registerStep === 2 && (
+              {(isRegister && registerStep === 2) || isAuthAlt ? (
                 <button
                   type="button"
                   className="auth-split__back"
                   disabled={loading}
-                  onClick={goBackToStep1}
+                  onClick={() => {
+                    if (isAuthAlt) switchMode('login');
+                    else goBackToStep1();
+                  }}
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
                   Volver
                 </button>
-              )}
+              ) : null}
 
-              {!sessionConflict || isRegister ? (
+              {!sessionConflict || isRegister || isAuthAlt ? (
                 <PostaButton
                   type="submit"
                   disabled={
                     loading ||
-                    (isRegister
-                      ? registerStep === 1
-                        ? !step1Ready
-                        : !step2Ready
-                      : !username.trim() || !password)
+                    Boolean(successMessage && isAuthAlt) ||
+                    (isForgot
+                      ? !email.trim()
+                      : isReset
+                        ? !password || !passwordConfirm
+                        : isRegister
+                          ? registerStep === 1
+                            ? !step1Ready
+                            : !step2Ready
+                          : !username.trim() || !password)
                   }
                   id="btn-login-submit"
                   className="auth-split__submit flex-1 min-w-0"
                 >
                   {loading ? (
                     'Procesando...'
+                  ) : isForgot ? (
+                    'Enviar enlace'
+                  ) : isReset ? (
+                    'Guardar contraseña'
                   ) : isRegister ? (
                     registerStep === 1 ? (
                       <span className="inline-flex items-center justify-center gap-1.5">
@@ -697,7 +911,7 @@ export default function LoginScreen({
                 </PostaButton>
               ) : null}
 
-              {sessionConflict && !isRegister && (
+              {sessionConflict && mode === 'login' && (
                 <PostaButton
                   type="button"
                   disabled={loading || !username.trim() || !password}

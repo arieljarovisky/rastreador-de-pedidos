@@ -54,6 +54,12 @@ export const env = {
   ),
   publicUrl: resolvePublicUrl(),
   frontendUrl: (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, ''),
+  mail: {
+    resendApiKey: process.env.RESEND_API_KEY?.trim() || '',
+    from:
+      process.env.MAIL_FROM?.trim() ||
+      'Posta <noreply@enviosposta.com.ar>',
+  },
   mercadolibre: {
     appId: process.env.ML_APP_ID?.trim() || '',
     appSecret: process.env.ML_APP_SECRET?.trim() || '',
