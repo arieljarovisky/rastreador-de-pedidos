@@ -536,7 +536,7 @@ export default function DriverSettlementPage({
                     Pago al repartidor por zona
                   </h2>
                   <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5">
-                    Configurá los montos en Ajustes → Tarifas por cordón.
+                    Configurá los montos en Precios → Listas de precios.
                   </p>
                 </div>
                 <div className="divide-y divide-[var(--surface-border)]/60">

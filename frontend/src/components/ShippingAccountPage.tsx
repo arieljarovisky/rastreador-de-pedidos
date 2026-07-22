@@ -541,7 +541,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
                     Tarifas vigentes por zona
                   </h2>
                   <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5">
-                    Configurá los precios en Ajustes → Zonas de entrega.
+                    Configurá los precios en Precios → Listas de precios.
                   </p>
                 </div>
                 <div className="divide-y divide-[var(--surface-border)]/60">
