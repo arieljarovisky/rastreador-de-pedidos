@@ -1476,21 +1476,95 @@
 }
 
 .auth-google {
+  position: relative;
   display: flex;
+  align-items: stretch;
   justify-content: center;
   width: 100%;
   min-height: 2.75rem;
+  isolation: isolate;
+}
+
+.auth-google__face {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid color-mix(in srgb, var(--auth-stamp) 55%, var(--auth-line));
+  background: color-mix(in srgb, var(--auth-stamp) 14%, var(--auth-panel-2));
+  color: var(--auth-text);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.auth-google:hover:not(.auth-google--disabled) .auth-google__face {
+  background: color-mix(in srgb, var(--auth-stamp) 22%, var(--auth-panel-2));
+  border-color: var(--auth-stamp);
+}
+
+.auth-google__icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 0.25rem;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.auth-google__g {
+  width: 0.95rem;
+  height: 0.95rem;
+  display: block;
+}
+
+.auth-google__label {
+  line-height: 1.2;
+}
+
+.auth-google__gis {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0.011;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.auth-google__gis > div,
+.auth-google__gis iframe {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+}
+
+.auth-google--loading .auth-google__gis {
+  pointer-events: none;
+}
+
+.auth-google--disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .auth-google__btn {
   width: 100%;
   display: flex;
   justify-content: center;
-}
-
-.auth-google--disabled {
-  opacity: 0.45;
-  pointer-events: none;
 }
 
 .auth-split__back {
