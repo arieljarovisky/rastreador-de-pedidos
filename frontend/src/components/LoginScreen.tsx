@@ -760,7 +760,7 @@ export default function LoginScreen({
                 </Field>
                 <button
                   type="button"
-                  className="auth-split__back self-start"
+                  className="auth-split__forgot"
                   disabled={loading}
                   onClick={() => switchMode('forgot-password')}
                 >
