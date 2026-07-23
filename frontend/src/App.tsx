@@ -2155,14 +2155,7 @@ export default function App() {
 
             {mobileTab === 'prices' && token && isAgencyAdmin(user.role) && (
               <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-                <PriceListsPage
-                  token={token}
-                  deliveryZones={deliveryZones}
-                  onUpdateZoneShippingRates={handleUpdateZoneShippingRates}
-                  onUpdateDefaultShippingRates={handleUpdateDefaultShippingRates}
-                  onUpdateDefaultDriverPayRates={handleUpdateDefaultDriverPayRates}
-                  onDeleteDeliveryZone={handleDeleteDeliveryZone}
-                />
+                <PriceListsPage token={token} />
               </div>
             )}
 
