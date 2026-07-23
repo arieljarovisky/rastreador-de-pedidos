@@ -31,6 +31,7 @@ import {
   shiftOperationalDateKey,
   formatOperationalDateShort,
   DELIVERY_DEADLINE_HOUR,
+  DELIVERY_SLA_HOUR,
   DELIVERY_TIMEZONE_LABEL,
   formatArTime,
 } from '../utils/deliverySummary.js';
@@ -372,7 +373,7 @@ export default function OperationsDashboard({
             orders={deliveredLate}
             emptyMessage={
               isToday
-                ? `Ningún pedido entregado después del corte de las ${cutHour}:00.`
+                ? `Ningún pedido entregado después de las ${DELIVERY_SLA_HOUR}:00.`
                 : isTomorrow
                   ? 'Ningún pedido de mañana entregado fuera de plazo.'
                   : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
@@ -381,7 +382,7 @@ export default function OperationsDashboard({
             onSelectOrder={onSelectOrder}
             showSeller={isAgency}
             showDeliveredAt
-            deadlineHour={cutHour}
+            deadlineHour={DELIVERY_SLA_HOUR}
             className="md:col-span-2 xl:col-span-1"
           />
 
