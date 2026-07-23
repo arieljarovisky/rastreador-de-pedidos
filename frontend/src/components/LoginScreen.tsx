@@ -295,9 +295,12 @@ export default function LoginScreen({
         setLocalError('Ingresá un correo electrónico válido.');
         return;
       }
-      void onForgotPassword(email.trim().toLowerCase())
-        .then((message) => {
-          setSuccessMessage(message);
+      const targetEmail = email.trim().toLowerCase();
+      void onForgotPassword(targetEmail)
+        .then(() => {
+          setSuccessMessage(
+            `Se envió el correo correctamente a ${targetEmail}. Revisá tu bandeja de entrada (y spam) para restablecer la contraseña.`
+          );
         })
         .catch((err: unknown) => {
           setLocalError(err instanceof Error ? err.message : 'No se pudo enviar el correo.');
