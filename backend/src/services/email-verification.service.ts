@@ -4,6 +4,7 @@ import { pool } from '../config/database.js';
 import { env } from '../config/env.js';
 import { isValidEmail } from '../utils/email.js';
 import { findUserByUsername, getUserById } from './users.service.js';
+import { buildTransactionalEmailHtml } from '../utils/email-templates.js';
 import { sendMail } from './mail.service.js';
 import { User } from '../types/index.js';
 
@@ -26,14 +27,6 @@ function hashToken(token: string): string {
 function buildVerifyUrl(token: string): string {
   const base = env.frontendUrl.replace(/\/$/, '');
   return `${base}/app?verifyToken=${encodeURIComponent(token)}`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 export async function sendEmailVerification(userId: string): Promise<void> {
@@ -68,20 +61,24 @@ export async function sendEmailVerification(userId: string): Promise<void> {
   );
 
   const verifyUrl = buildVerifyUrl(token);
-  const html = `
-    <p>Hola${user.name ? ` ${escapeHtml(user.name)}` : ''},</p>
-    <p>Confirmá tu correo para activar tu cuenta de agencia en Posta.</p>
-    <p><a href="${verifyUrl}">Activar cuenta</a></p>
-    <p>El enlace vence en 24 horas. Si no creaste esta cuenta, ignorá este correo.</p>
-    <p style="color:#666;font-size:12px;">Si el botón no funciona, copiá esta URL:<br>${escapeHtml(verifyUrl)}</p>
-  `;
+  const html = buildTransactionalEmailHtml({
+    preheader: 'Confirmá tu correo para activar tu cuenta de agencia. Vence en 24 horas.',
+    greetingName: user.name,
+    title: 'Activá tu cuenta',
+    bodyHtml:
+      '<p style="margin:0;">Confirmá tu correo para activar tu cuenta de agencia en Posta.</p>',
+    ctaLabel: 'Activar cuenta',
+    ctaUrl: verifyUrl,
+    expiryNote: 'El enlace vence en 24 horas.',
+    ignoreNote: 'Si no creaste esta cuenta, ignorá este correo.',
+  });
 
   try {
     const result = await sendMail({
       to: user.username,
       subject: 'Activá tu cuenta — Posta',
       html,
-      text: `Activá tu cuenta en Posta:\n\n${verifyUrl}\n\nEl enlace vence en 24 horas.`,
+      text: `Hola${user.name ? ` ${user.name}` : ''},\n\nConfirmá tu correo para activar tu cuenta de agencia en Posta.\n\nActivar cuenta:\n${verifyUrl}\n\nEl enlace vence en 24 horas. Si no creaste esta cuenta, ignorá este correo.`,
     });
     if (!result.sent) {
       console.info(`[email-verification] Link de desarrollo para ${user.username}: ${verifyUrl}`);

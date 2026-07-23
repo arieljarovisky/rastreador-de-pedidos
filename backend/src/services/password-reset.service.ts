@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
 import { isValidEmail } from '../utils/email.js';
 import { validateStrongPassword } from '../utils/password.js';
 import { findUserByUsername } from './users.service.js';
+import { buildTransactionalEmailHtml } from '../utils/email-templates.js';
 import { sendMail } from './mail.service.js';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
@@ -60,20 +61,24 @@ export async function requestPasswordReset(emailRaw: string): Promise<{ message:
   );
 
   const resetUrl = buildResetUrl(token);
-  const html = `
-    <p>Hola${user.name ? ` ${escapeHtml(user.name)}` : ''},</p>
-    <p>Recibimos un pedido para restablecer la contraseña de tu cuenta en Posta.</p>
-    <p><a href="${resetUrl}">Restablecer contraseña</a></p>
-    <p>El enlace vence en 1 hora. Si no pediste este cambio, ignorá este correo.</p>
-    <p style="color:#666;font-size:12px;">Si el botón no funciona, copiá esta URL:<br>${escapeHtml(resetUrl)}</p>
-  `;
+  const html = buildTransactionalEmailHtml({
+    preheader: 'Usá este enlace para restablecer tu contraseña. Vence en 1 hora.',
+    greetingName: user.name,
+    title: 'Restablecé tu contraseña',
+    bodyHtml:
+      '<p style="margin:0;">Recibimos un pedido para restablecer la contraseña de tu cuenta en Posta.</p>',
+    ctaLabel: 'Restablecer contraseña',
+    ctaUrl: resetUrl,
+    expiryNote: 'El enlace vence en 1 hora.',
+    ignoreNote: 'Si no pediste este cambio, ignorá este correo.',
+  });
 
   try {
     const result = await sendMail({
       to: user.username,
       subject: 'Restablecé tu contraseña — Posta',
       html,
-      text: `Restablecé tu contraseña en Posta:\n\n${resetUrl}\n\nEl enlace vence en 1 hora.`,
+      text: `Hola${user.name ? ` ${user.name}` : ''},\n\nRecibimos un pedido para restablecer la contraseña de tu cuenta en Posta.\n\nRestablecer contraseña:\n${resetUrl}\n\nEl enlace vence en 1 hora. Si no pediste este cambio, ignorá este correo.`,
     });
     if (!result.sent) {
       console.info(`[password-reset] Link de desarrollo para ${user.username}: ${resetUrl}`);
@@ -152,12 +157,4 @@ export async function resetPasswordWithToken(
   } finally {
     connection.release();
   }
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
