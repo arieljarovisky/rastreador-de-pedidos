@@ -22,6 +22,7 @@ import {
   exchangeTiendaNubeCode,
   getTiendaNubeAuthUrl,
   getTiendaNubeOrderWebhookUrl,
+  getTiendaNubeShippingRatesUrl,
   isTiendaNubeConfigured,
 } from '../services/tiendanube.service.js';
 import {
@@ -54,6 +55,10 @@ import {
   processTiendaNubeOrderWebhook,
   type TiendaNubeOrderWebhookPayload,
 } from '../services/tiendanube-webhook.service.js';
+import {
+  quoteTiendaNubePostaExpressRates,
+  type TnShippingRatesRequest,
+} from '../services/tiendanube-shipping-rates.service.js';
 
 const router = Router();
 
@@ -183,6 +188,10 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
       connected: Boolean(tn),
       autoSync: Boolean(tn),
       orderWebhookUrl: getTiendaNubeOrderWebhookUrl(),
+      shippingRatesUrl: getTiendaNubeShippingRatesUrl(),
+      shippingCarrierReady: Boolean(
+        tn?.metadata && typeof tn.metadata.shippingCarrierId === 'number'
+      ),
       privacyWebhooks: getTiendaNubePrivacyWebhookUrls(),
       account: tn ? integrationStatusPublic(tn) : null,
     },
@@ -450,6 +459,22 @@ router.post(
     }
   }
 );
+
+router.post('/tiendanube/shipping/rates', async (req: Request, res: Response) => {
+  try {
+    const result = await quoteTiendaNubePostaExpressRates(req.body as TnShippingRatesRequest);
+    if (!result.ok) {
+      console.log('[tn-rates] 422', { reason: result.reason, store_id: req.body?.store_id });
+      res.status(422).json({ error: result.reason });
+      return;
+    }
+    res.status(200).json({ rates: result.rates });
+  } catch (err) {
+    console.error('[tn-rates] error:', err);
+    // 422 (no 5xx) para no abrir el circuit breaker de TN
+    res.status(422).json({ error: 'rate_error' });
+  }
+});
 
 router.post('/tiendanube/webhooks/orders', (req: Request, res: Response) => {
   const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;

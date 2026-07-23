@@ -68,6 +68,7 @@ export interface TnOrder {
   shipping_address?: TnDestination;
   shipping_option?: string;
   shipping_option_code?: string;
+  shipping_option_reference?: string;
   fulfillments?: TnFulfillment[];
   fulfillment_orders?: TnFulfillment[];
 }
@@ -128,7 +129,16 @@ export async function exchangeTiendaNubeCode(
     );
   }
 
-  return integration;
+  try {
+    await ensureTiendaNubeShippingCarrier(integration);
+  } catch (err) {
+    console.warn(
+      '[TN] No se pudo registrar Shipping Carrier Posta tras OAuth:',
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  return (await getIntegration(userId, 'tiendanube')) ?? integration;
 }
 
 export async function getValidTiendaNubeIntegration(userId: string): Promise<StoreIntegration> {
@@ -209,6 +219,11 @@ function isExpressShipping(text: string | undefined): boolean {
 
   if (isStandardShipping(text)) return false;
 
+  // Carrier / opción Posta (Shipping Carrier code "express" o nombre "Posta …")
+  if (normalized === 'express' || normalized.includes('posta')) {
+    return true;
+  }
+
   if (
     /\bexpress\b/.test(normalized) ||
     normalized.includes('_express') ||
@@ -239,6 +254,39 @@ function isExpressShipping(text: string | undefined): boolean {
   return false;
 }
 
+function orderIsPostaExpress(order: TnOrder): boolean {
+  if (order.shipping_option_reference && normalizeShippingText(order.shipping_option_reference).includes('posta')) {
+    return true;
+  }
+
+  for (const fulfillment of getOrderFulfillments(order)) {
+    if (fulfillmentIsPickup(fulfillment)) continue;
+    const optionCode = fulfillment.shipping?.option?.code;
+    const optionName = fulfillment.shipping?.option?.name;
+    const carrierName = fulfillment.shipping?.carrier?.name;
+    const carrierNorm = carrierName ? normalizeShippingText(carrierName) : '';
+    if (carrierNorm.includes('posta')) {
+      if (
+        !optionCode ||
+        optionCode === 'express' ||
+        isExpressShipping(optionCode) ||
+        isExpressShipping(optionName)
+      ) {
+        return true;
+      }
+    }
+    if (optionCode === 'express' && (carrierNorm.includes('posta') || isExpressShipping(optionName))) {
+      return true;
+    }
+  }
+
+  if (order.shipping_option_code === 'express' && isExpressShipping(order.shipping_option)) {
+    return true;
+  }
+
+  return false;
+}
+
 function fulfillmentIsPickup(fulfillment: TnFulfillment): boolean {
   if (fulfillment.shipping?.pickup_details) return true;
   const type = fulfillment.shipping?.type?.toLowerCase() ?? '';
@@ -255,6 +303,8 @@ function fulfillmentIsPickup(fulfillment: TnFulfillment): boolean {
 }
 
 function orderIsExpress(order: TnOrder): boolean {
+  if (orderIsPostaExpress(order)) return true;
+
   if (isExpressShipping(order.shipping_option) || isExpressShipping(order.shipping_option_code)) {
     return true;
   }
@@ -330,6 +380,9 @@ export function mapTiendaNubeOrderToShipment(order: TnOrder): TiendaNubeExpressS
     order.shipping_option ||
     'Envío';
 
+  const isPosta = orderIsPostaExpress(order);
+  const prefix = isPosta ? 'Posta Express' : 'Tienda Nube Express';
+
   return {
     externalId: String(order.id),
     platform: 'tiendanube',
@@ -337,7 +390,7 @@ export function mapTiendaNubeOrderToShipment(order: TnOrder): TiendaNubeExpressS
     clientName,
     clientPhone,
     address,
-    notes: `Tienda Nube Express · Pedido #${order.number ?? order.id} · ${shippingLabel}`,
+    notes: `${prefix} · Pedido #${order.number ?? order.id} · ${shippingLabel}`,
     createdAt: order.created_at,
   };
 }
@@ -555,6 +608,175 @@ export async function ensureTiendaNubeOrderWebhooks(
   }
 
   return { created, existing: TN_ORDER_WEBHOOK_EVENTS.length - created };
+}
+
+const POSTA_CARRIER_NAME = 'Posta';
+const POSTA_EXPRESS_OPTION_CODE = 'express';
+const POSTA_EXPRESS_OPTION_NAME = 'Posta Express';
+
+export function getTiendaNubeShippingRatesUrl(): string {
+  return `${env.publicUrl}/api/integrations/tiendanube/shipping/rates`;
+}
+
+interface TnShippingCarrier {
+  id: number;
+  name: string;
+  callback_url?: string;
+  types?: string;
+  active?: boolean;
+}
+
+interface TnShippingCarrierOption {
+  id: number;
+  code: string;
+  name: string;
+  active?: boolean;
+}
+
+async function listTiendaNubeShippingCarriers(
+  storeId: string,
+  accessToken: string
+): Promise<TnShippingCarrier[]> {
+  const res = await fetch(`${TN_API}/${storeId}/shipping_carriers`, {
+    headers: tnHeaders(accessToken),
+  });
+  if (!res.ok) {
+    console.error('[TN] list shipping_carriers error:', res.status, await res.text().catch(() => ''));
+    throw new Error('TN_API_ERROR');
+  }
+  const data = (await res.json()) as TnShippingCarrier[];
+  return Array.isArray(data) ? data : [];
+}
+
+async function createTiendaNubeShippingCarrier(
+  storeId: string,
+  accessToken: string
+): Promise<TnShippingCarrier> {
+  const res = await fetch(`${TN_API}/${storeId}/shipping_carriers`, {
+    method: 'POST',
+    headers: tnHeaders(accessToken),
+    body: JSON.stringify({
+      name: POSTA_CARRIER_NAME,
+      callback_url: getTiendaNubeShippingRatesUrl(),
+      types: 'ship',
+      active: true,
+    }),
+  });
+  if (!res.ok) {
+    console.error('[TN] create shipping_carrier error:', res.status, await res.text().catch(() => ''));
+    throw new Error('TN_API_ERROR');
+  }
+  return (await res.json()) as TnShippingCarrier;
+}
+
+async function updateTiendaNubeShippingCarrierCallback(
+  storeId: string,
+  accessToken: string,
+  carrierId: number
+): Promise<void> {
+  const res = await fetch(`${TN_API}/${storeId}/shipping_carriers/${carrierId}`, {
+    method: 'PUT',
+    headers: tnHeaders(accessToken),
+    body: JSON.stringify({
+      callback_url: getTiendaNubeShippingRatesUrl(),
+      types: 'ship',
+      active: true,
+    }),
+  });
+  if (!res.ok) {
+    console.error('[TN] update shipping_carrier error:', res.status, await res.text().catch(() => ''));
+    throw new Error('TN_API_ERROR');
+  }
+}
+
+async function listTiendaNubeShippingCarrierOptions(
+  storeId: string,
+  accessToken: string,
+  carrierId: number
+): Promise<TnShippingCarrierOption[]> {
+  const res = await fetch(`${TN_API}/${storeId}/shipping_carriers/${carrierId}/options`, {
+    headers: tnHeaders(accessToken),
+  });
+  if (!res.ok) {
+    console.error('[TN] list shipping options error:', res.status, await res.text().catch(() => ''));
+    throw new Error('TN_API_ERROR');
+  }
+  const data = (await res.json()) as TnShippingCarrierOption[];
+  return Array.isArray(data) ? data : [];
+}
+
+async function createTiendaNubeShippingCarrierOption(
+  storeId: string,
+  accessToken: string,
+  carrierId: number
+): Promise<TnShippingCarrierOption> {
+  const res = await fetch(`${TN_API}/${storeId}/shipping_carriers/${carrierId}/options`, {
+    method: 'POST',
+    headers: tnHeaders(accessToken),
+    body: JSON.stringify({
+      code: POSTA_EXPRESS_OPTION_CODE,
+      name: POSTA_EXPRESS_OPTION_NAME,
+      allow_free_shipping: false,
+      active: true,
+    }),
+  });
+  if (!res.ok) {
+    console.error('[TN] create shipping option error:', res.status, await res.text().catch(() => ''));
+    throw new Error('TN_API_ERROR');
+  }
+  return (await res.json()) as TnShippingCarrierOption;
+}
+
+/**
+ * Registra el carrier Posta + opción Express en la tienda TN (idempotente).
+ * Requiere que TN haya habilitado shipping endpoints para la app.
+ */
+export async function ensureTiendaNubeShippingCarrier(
+  integration: StoreIntegration
+): Promise<{ carrierId: number; optionId: number }> {
+  const storeId = integration.externalStoreId;
+  if (!storeId) throw new Error('TN_NOT_CONNECTED');
+
+  const carriers = await listTiendaNubeShippingCarriers(storeId, integration.accessToken);
+  let carrier =
+    carriers.find((c) => c.name.toLowerCase() === POSTA_CARRIER_NAME.toLowerCase()) ??
+    carriers.find((c) => (c.callback_url ?? '').includes('/tiendanube/shipping/rates'));
+
+  if (!carrier) {
+    carrier = await createTiendaNubeShippingCarrier(storeId, integration.accessToken);
+  } else {
+    const expectedUrl = getTiendaNubeShippingRatesUrl();
+    if (carrier.callback_url !== expectedUrl || carrier.active === false) {
+      await updateTiendaNubeShippingCarrierCallback(storeId, integration.accessToken, carrier.id);
+    }
+  }
+
+  const options = await listTiendaNubeShippingCarrierOptions(
+    storeId,
+    integration.accessToken,
+    carrier.id
+  );
+  let option = options.find((o) => o.code === POSTA_EXPRESS_OPTION_CODE);
+  if (!option) {
+    option = await createTiendaNubeShippingCarrierOption(
+      storeId,
+      integration.accessToken,
+      carrier.id
+    );
+  }
+
+  await upsertIntegration({
+    userId: integration.userId,
+    platform: 'tiendanube',
+    accessToken: integration.accessToken,
+    metadata: {
+      ...(integration.metadata ?? {}),
+      shippingCarrierId: carrier.id,
+      shippingExpressOptionId: option.id,
+    },
+  });
+
+  return { carrierId: carrier.id, optionId: option.id };
 }
 
 export function isTiendaNubeConfigured(): boolean {

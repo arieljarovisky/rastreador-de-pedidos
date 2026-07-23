@@ -148,6 +148,11 @@ function PlatformCard({
           {connected && autoSync && (
             <p className="text-[10px] text-[var(--color-ok)] mt-0.5">Sync automático activo</p>
           )}
+          {connected && platform === 'tiendanube' && (
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+              Posta Express aparece en el checkout de Tienda Nube según CP (solo AMBA).
+            </p>
+          )}
           {!configured && showMissingCredentials && (
             <p className="text-[10px] text-[var(--color-warn)] mt-0.5">
               Falta configurar credenciales en el servidor.
@@ -631,7 +636,7 @@ export default function MarketplaceIntegrations({
         />
         <PlatformCard
           title="Tienda Nube"
-          subtitle="Express · sync automático al pagar + import por período"
+          subtitle="Posta Express en checkout (AMBA) · sync + import por período"
           icon={<Store className="w-4 h-4 text-violet-400" />}
           platform="tiendanube"
           configured={status?.tiendanube.configured ?? false}

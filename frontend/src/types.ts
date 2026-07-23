@@ -150,6 +150,8 @@ export interface MarketplaceIntegrationStatus {
     connected: boolean;
     autoSync?: boolean;
     orderWebhookUrl?: string;
+    shippingRatesUrl?: string;
+    shippingCarrierReady?: boolean;
     account: MarketplaceIntegrationAccount | null;
   };
 }

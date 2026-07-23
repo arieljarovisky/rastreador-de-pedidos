@@ -137,6 +137,8 @@ export interface IntegrationsStatus {
     connected: boolean;
     autoSync?: boolean;
     orderWebhookUrl?: string;
+    shippingRatesUrl?: string;
+    shippingCarrierReady?: boolean;
     account: IntegrationAccountStatus | null;
   };
 }

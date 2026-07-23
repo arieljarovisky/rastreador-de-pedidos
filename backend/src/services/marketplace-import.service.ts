@@ -1638,7 +1638,9 @@ export async function runTiendaNubeExpressAutoImport(): Promise<{
   errors: number;
   webhooksEnsured: number;
 }> {
-  const { ensureTiendaNubeOrderWebhooks } = await import('./tiendanube.service.js');
+  const { ensureTiendaNubeOrderWebhooks, ensureTiendaNubeShippingCarrier } = await import(
+    './tiendanube.service.js'
+  );
   const integrations = await listTiendaNubeSellerIntegrationsForAutoImport();
   let imported = 0;
   let skipped = 0;
@@ -1651,10 +1653,11 @@ export async function runTiendaNubeExpressAutoImport(): Promise<{
       if (!ensuredWebhookIntegrationIds.has(integration.id)) {
         try {
           await ensureTiendaNubeOrderWebhooks(integration);
+          await ensureTiendaNubeShippingCarrier(integration);
           ensuredWebhookIntegrationIds.add(integration.id);
           webhooksEnsured += 1;
         } catch (err) {
-          console.warn('[tn-auto-import] ensure webhooks falló', {
+          console.warn('[tn-auto-import] ensure webhooks/carrier falló', {
             userId: integration.userId,
             error: err instanceof Error ? err.message : String(err),
           });

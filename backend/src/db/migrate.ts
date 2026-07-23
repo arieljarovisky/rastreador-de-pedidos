@@ -752,6 +752,20 @@ export async function runMigrations(): Promise<void> {
     );
   }
 
+  if (!(await tableExists('postal_code_geo_cache'))) {
+    await pool.query(`
+      CREATE TABLE postal_code_geo_cache (
+        postal_code VARCHAR(16) NOT NULL PRIMARY KEY,
+        lat DOUBLE NOT NULL,
+        lng DOUBLE NOT NULL,
+        zone_key VARCHAR(64) NULL,
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        INDEX idx_postal_geo_zone (zone_key),
+        INDEX idx_postal_geo_updated (updated_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
   // Seed lista default por agencia a partir de tarifas actuales
   try {
     const { ensureDefaultPriceListsForAllAgencies } = await import(
