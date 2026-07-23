@@ -371,7 +371,7 @@ export async function syncMercadoLibreOrderAfterImport(
   return order;
 }
 
-const ML_LIVE_SYNC_LIMIT = 24;
+const ML_LIVE_SYNC_LIMIT = 12;
 
 function isOpenMercadoLibreOrder(order: Order): boolean {
   return (

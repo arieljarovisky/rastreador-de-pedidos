@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { api } from '../api';
-import { socketUrl, POLL_INTERVAL_MS, REPARTIDOR_FLEX_POLL_MS } from '../config';
+import { socketUrl, POLL_INTERVAL_MS } from '../config';
 import { Order, User, AppNotification } from '../types';
 import { normalizeOrder, normalizeOrders } from '../utils/normalizeOrder';
 import { mergeRepartidorLocation, mergeRepartidoresFromServer } from '../utils/repartidorLocation';
@@ -113,10 +113,11 @@ export function useOrders(
     });
   }, [trackRepartidores]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { forceFlexSync?: boolean }) => {
     if (!token) return;
     try {
-      const ordersPromise = flexSync
+      const useFlex = Boolean(flexSync && opts?.forceFlexSync);
+      const ordersPromise = useFlex
         ? api.syncFlexOrders(token).then((r) => r.orders)
         : api.getOrders(token);
       const requests: [Promise<Order[]>, Promise<User[] | null>] = [
@@ -134,9 +135,9 @@ export function useOrders(
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await load({ forceFlexSync: flexSync });
     setRefreshing(false);
-  }, [load]);
+  }, [load, flexSync]);
 
   useEffect(() => {
     if (!token) {
@@ -149,13 +150,13 @@ export function useOrders(
     const isInitial = !initialLoadDoneRef.current;
     if (isInitial) setLoading(true);
 
-    load()
+    load({ forceFlexSync: flexSync })
       .catch(() => undefined)
       .finally(() => {
         setLoading(false);
         initialLoadDoneRef.current = true;
       });
-  }, [token, load]);
+  }, [token, load, flexSync]);
 
   useEffect(() => {
     if (!token) return;
@@ -217,23 +218,20 @@ export function useOrders(
   useEffect(() => {
     if (!token || !flexSync) return;
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void load();
+      if (state === 'active') void load({ forceFlexSync: true });
     });
     return () => sub.remove();
   }, [token, flexSync, load]);
 
   useEffect(() => {
     if (!token) return;
-    const pollMs = flexSync
-      ? REPARTIDOR_FLEX_POLL_MS
-      : connected
-        ? POLL_INTERVAL_MS * 5
-        : POLL_INTERVAL_MS;
+    // Poll liviano (GET). Flex forzado solo al abrir / volver a foreground / pull-to-refresh.
+    const pollMs = connected ? POLL_INTERVAL_MS * 5 : POLL_INTERVAL_MS;
     const interval = setInterval(() => {
       void load();
     }, pollMs);
     return () => clearInterval(interval);
-  }, [token, connected, load, flexSync]);
+  }, [token, connected, load]);
 
   return {
     orders,

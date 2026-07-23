@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticate, requireRoles, requireAgencyAdmin } from '../middleware/auth.js';
-import { UserRole, OrderStatus } from '../types/index.js';
+import { UserRole, OrderStatus, Order, User } from '../types/index.js';
 import {
   listOrdersForUser,
   getOrderById,
@@ -51,6 +51,28 @@ function mercadoLibreLabelErrorMessage(code: string): string {
 
 const router = Router();
 
+/** Evita apilar syncs ML/Flex por polling frecuente del mismo usuario. */
+const recentBackgroundSyncByUser = new Map<string, number>();
+const BACKGROUND_SYNC_COOLDOWN_MS = 25_000;
+
+function scheduleOrdersBackgroundSync(user: User, orders: Order[]) {
+  const now = Date.now();
+  const last = recentBackgroundSyncByUser.get(user.id) ?? 0;
+  if (now - last < BACKGROUND_SYNC_COOLDOWN_MS) return;
+  recentBackgroundSyncByUser.set(user.id, now);
+
+  void (async () => {
+    try {
+      if (user.role === UserRole.REPARTIDOR) {
+        await syncFlexScansForRepartidor(user);
+      }
+      await syncOpenMercadoLibreOrdersInList(orders);
+    } catch (err) {
+      console.error('[orders] background sync failed', err);
+    }
+  })();
+}
+
 router.get('/delivery-summary', authenticate, requireRoles(
   UserRole.STORE_ADMIN,
   UserRole.SUPER_ADMIN,
@@ -62,19 +84,19 @@ router.get('/delivery-summary', authenticate, requireRoles(
 });
 
 router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  await syncFlexScansForRepartidor(req.user!, { force: true });
-  const orders = await listOrdersForUser(req.user!);
-  const synced = await syncOpenMercadoLibreOrdersInList(orders);
-  res.json({ synced: synced.length, orders: synced });
+  const synced = await syncFlexScansForRepartidor(req.user!, { force: true });
+  const orders = await listOrdersForUser(req.user!, { mode: 'list' });
+  // ML live sync en background: el listado responde ya; updates llegan por WS.
+  void syncOpenMercadoLibreOrdersInList(orders).catch((err) => {
+    console.error('[orders/flex-sync] background ML sync failed', err);
+  });
+  res.json({ synced, orders });
 });
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
-  if (req.user!.role === UserRole.REPARTIDOR) {
-    await syncFlexScansForRepartidor(req.user!);
-  }
-  const orders = await listOrdersForUser(req.user!);
-  const synced = await syncOpenMercadoLibreOrdersInList(orders);
-  res.json(synced);
+  const orders = await listOrdersForUser(req.user!, { mode: 'list' });
+  res.json(orders);
+  scheduleOrdersBackgroundSync(req.user!, orders);
 });
 
 router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {

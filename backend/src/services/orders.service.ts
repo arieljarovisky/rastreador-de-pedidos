@@ -72,16 +72,59 @@ async function loadHistoryForOrders(orderIds: string[]): Promise<Map<string, Ord
   return map;
 }
 
-async function loadLocationsForOrders(orderIds: string[]): Promise<Map<string, LocationHistoryPoint[]>> {
+/** Tope de puntos GPS por pedido en listados (el mapa solo usa el último; el detalle pide full). */
+const LIST_LOCATION_POINTS_PER_ORDER = 60;
+
+async function loadLocationsForOrders(
+  orderIds: string[],
+  options?: { maxPerOrder?: number }
+): Promise<Map<string, LocationHistoryPoint[]>> {
   const map = new Map<string, LocationHistoryPoint[]>();
   if (orderIds.length === 0) return map;
 
   const placeholders = orderIds.map(() => '?').join(',');
-  const [rows] = await pool.query<LocationRow[]>(
-    `SELECT order_id, lat, lng, created_at
-     FROM order_location_history WHERE order_id IN (${placeholders}) ORDER BY created_at ASC`,
-    orderIds
-  );
+  const maxPerOrder = options?.maxPerOrder;
+
+  let rows: LocationRow[];
+  if (maxPerOrder != null && maxPerOrder > 0) {
+    // Solo los últimos N puntos por pedido (evita payload de miles de GPS).
+    try {
+      const [ranked] = await pool.query<LocationRow[]>(
+        `SELECT order_id, lat, lng, created_at FROM (
+           SELECT order_id, lat, lng, created_at,
+                  ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY created_at DESC) AS rn
+           FROM order_location_history
+           WHERE order_id IN (${placeholders})
+         ) t
+         WHERE t.rn <= ?
+         ORDER BY t.order_id, t.created_at ASC`,
+        [...orderIds, maxPerOrder]
+      );
+      rows = ranked;
+    } catch {
+      // Fallback sin window functions: solo el último punto por pedido.
+      const [latest] = await pool.query<LocationRow[]>(
+        `SELECT olh.order_id, olh.lat, olh.lng, olh.created_at
+         FROM order_location_history olh
+         INNER JOIN (
+           SELECT order_id, MAX(created_at) AS max_ts
+           FROM order_location_history
+           WHERE order_id IN (${placeholders})
+           GROUP BY order_id
+         ) latest
+           ON latest.order_id = olh.order_id AND olh.created_at = latest.max_ts`,
+        orderIds
+      );
+      rows = latest;
+    }
+  } else {
+    const [all] = await pool.query<LocationRow[]>(
+      `SELECT order_id, lat, lng, created_at
+       FROM order_location_history WHERE order_id IN (${placeholders}) ORDER BY created_at ASC`,
+      orderIds
+    );
+    rows = all;
+  }
 
   for (const row of rows) {
     const list = map.get(row.order_id) ?? [];
@@ -142,11 +185,30 @@ const ORDER_SELECT = `
   LEFT JOIN users s ON s.id = o.seller_id
 `;
 
-async function enrichOrders(rows: OrderWithRepartidorRow[]): Promise<Order[]> {
+export type EnrichOrdersMode = 'full' | 'list';
+
+async function enrichOrders(
+  rows: OrderWithRepartidorRow[],
+  mode: EnrichOrdersMode = 'full'
+): Promise<Order[]> {
   const ids = rows.map((r) => r.id);
+  // En listado solo traemos GPS de pedidos en ruta (ahorra MB de entregados/pendientes).
+  const locationIds =
+    mode === 'list'
+      ? rows
+          .filter(
+            (r) =>
+              r.status === OrderStatus.DELIVERING || r.status === OrderStatus.ASSIGNED
+          )
+          .map((r) => r.id)
+      : ids;
+
   const [historyMap, locationMap] = await Promise.all([
     loadHistoryForOrders(ids),
-    loadLocationsForOrders(ids),
+    loadLocationsForOrders(
+      locationIds,
+      mode === 'list' ? { maxPerOrder: LIST_LOCATION_POINTS_PER_ORDER } : undefined
+    ),
   ]);
   return rows.map((row) =>
     rowToOrder(row, historyMap.get(row.id) ?? [], locationMap.get(row.id) ?? [])
@@ -168,8 +230,12 @@ export async function getOrderById(id: string): Promise<Order | null> {
   return orders[0] ?? null;
 }
 
-export async function listOrdersForUser(user: User): Promise<Order[]> {
+export async function listOrdersForUser(
+  user: User,
+  options?: { mode?: EnrichOrdersMode }
+): Promise<Order[]> {
   let rows: OrderWithRepartidorRow[];
+  const mode = options?.mode ?? 'list';
 
   if (user.role === UserRole.STORE_ADMIN) {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
@@ -191,7 +257,7 @@ export async function listOrdersForUser(user: User): Promise<Order[]> {
     );
   }
 
-  return enrichOrders(rows);
+  return enrichOrders(rows, mode);
 }
 
 export function canViewOrder(user: User, order: Order, sellerId?: string | null): boolean {

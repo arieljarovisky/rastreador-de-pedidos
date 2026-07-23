@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, RepartidorMercadoLibreStatus } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen, {
@@ -61,6 +61,8 @@ export default function App() {
   const { alert: showAlert, confirm: showConfirm } = useModal();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const userRef = useRef<User | null>(null);
+  userRef.current = user;
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
@@ -221,13 +223,13 @@ export default function App() {
     };
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (opts?: { forceFlexSync?: boolean }) => {
     if (!token) return;
 
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
-      let currentUser = user;
+      let currentUser = userRef.current;
       const meRes = await fetch(apiUrl('/api/auth/me'), { headers });
       if (meRes.ok) {
         currentUser = await meRes.json();
@@ -235,111 +237,118 @@ export default function App() {
         localStorage.setItem('lupo_user', JSON.stringify(currentUser));
       }
 
-      const notifsRes = await fetch(apiUrl('/api/notifications'), { headers });
-      if (notifsRes.ok) {
-        const data = await notifsRes.json();
-        setNotifications(data);
-      }
+      const isOpsRole =
+        currentUser?.role === UserRole.STORE_ADMIN ||
+        isAgencyAdmin(currentUser?.role) ||
+        currentUser?.role === UserRole.REPARTIDOR;
+      const isAdminLike =
+        currentUser?.role === UserRole.STORE_ADMIN || isAgencyAdmin(currentUser?.role);
 
-      // Recalcular deadlines ANTES de cargar pedidos (evita ver "Ayer" con dato viejo).
-      if (currentUser?.role === UserRole.STORE_ADMIN || isAgencyAdmin(currentUser?.role) || currentUser?.role === UserRole.REPARTIDOR) {
-        const depRes = await fetch(apiUrl('/api/accounts/agency/departure'), { headers });
-        if (depRes.ok) {
-          const data = await depRes.json();
-          setDeparturePoint(data);
-        }
+      const useFlexSync =
+        Boolean(opts?.forceFlexSync) && currentUser?.role === UserRole.REPARTIDOR;
 
-        const deadlineRes = await fetch(apiUrl('/api/accounts/agency/delivery-deadline'), { headers });
-        if (deadlineRes.ok) {
-          const data = await deadlineRes.json();
-          if (typeof data?.hour === 'number') {
-            setDeliveryDeadlineHour(data.hour);
-          }
+      const ordersPromise = fetch(
+        apiUrl(useFlexSync ? '/api/orders/flex-sync' : '/api/orders'),
+        { headers, method: useFlexSync ? 'POST' : 'GET' }
+      ).then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        setOrders(Array.isArray(data) ? data : data.orders);
+      });
 
-          const recalcSessionKey = 'posta_deadline_recalc_v6';
-          if (!sessionStorage.getItem(recalcSessionKey)) {
-            sessionStorage.setItem(recalcSessionKey, '1');
-            const forceRes = await fetch(apiUrl('/api/accounts/agency/delivery-deadline/recalculate'), {
-              method: 'POST',
-              headers,
-            });
-            if (forceRes.ok) {
-              const forceData = await forceRes.json();
-              if (typeof forceData?.hour === 'number') {
-                setDeliveryDeadlineHour(forceData.hour);
+      const notifsPromise = fetch(apiUrl('/api/notifications'), { headers }).then(async (res) => {
+        if (!res.ok) return;
+        setNotifications(await res.json());
+      });
+
+      const opsPromise = isOpsRole
+        ? (async () => {
+            const [depRes, deadlineRes, ppRes] = await Promise.all([
+              fetch(apiUrl('/api/accounts/agency/departure'), { headers }),
+              fetch(apiUrl('/api/accounts/agency/delivery-deadline'), { headers }),
+              fetch(apiUrl('/api/accounts/pickup-points'), { headers }),
+            ]);
+            if (depRes.ok) setDeparturePoint(await depRes.json());
+            if (ppRes.ok) setPickupPoints(await ppRes.json());
+            if (deadlineRes.ok) {
+              const data = await deadlineRes.json();
+              if (typeof data?.hour === 'number') setDeliveryDeadlineHour(data.hour);
+
+              const recalcSessionKey = 'posta_deadline_recalc_v6';
+              if (!sessionStorage.getItem(recalcSessionKey)) {
+                sessionStorage.setItem(recalcSessionKey, '1');
+                const forceRes = await fetch(
+                  apiUrl('/api/accounts/agency/delivery-deadline/recalculate'),
+                  { method: 'POST', headers }
+                );
+                if (forceRes.ok) {
+                  const forceData = await forceRes.json();
+                  if (typeof forceData?.hour === 'number') {
+                    setDeliveryDeadlineHour(forceData.hour);
+                  }
+                }
               }
             }
-          }
-        }
+          })()
+        : Promise.resolve();
 
-        const ppRes = await fetch(apiUrl('/api/accounts/pickup-points'), { headers });
-        if (ppRes.ok) {
-          const data = await ppRes.json();
-          setPickupPoints(data);
-        }
-      }
+      const repsPromise = isAdminLike
+        ? fetch(apiUrl('/api/repartidores'), { headers }).then(async (res) => {
+            if (!res.ok) return;
+            const data = await res.json();
+            setRepartidores((prev) => mergeRepartidoresFromServer(prev, data));
+          })
+        : Promise.resolve();
 
-      const ordersEndpoint =
+      const sellersPromise = isAgencyAdmin(currentUser?.role)
+        ? fetch(apiUrl('/api/accounts/sellers'), { headers }).then(async (res) => {
+            if (!res.ok) return;
+            setSellers(await res.json());
+          })
+        : Promise.resolve();
+
+      const repMlPromise =
         currentUser?.role === UserRole.REPARTIDOR
-          ? { url: '/api/orders/flex-sync', method: 'POST' as const }
-          : { url: '/api/orders', method: 'GET' as const };
-      const ordersRes = await fetch(apiUrl(ordersEndpoint.url), {
-        headers,
-        method: ordersEndpoint.method,
-      });
-      if (ordersRes.ok) {
-        const data = await ordersRes.json();
-        setOrders(Array.isArray(data) ? data : data.orders);
-      }
+          ? fetch(apiUrl('/api/integrations/repartidor/status'), { headers }).then(async (res) => {
+              if (!res.ok) return;
+              setRepartidorMlStatus((await res.json()) as RepartidorMercadoLibreStatus);
+            })
+          : Promise.resolve();
 
-      if (currentUser?.role === UserRole.STORE_ADMIN || isAgencyAdmin(currentUser?.role)) {
-        const repsRes = await fetch(apiUrl('/api/repartidores'), { headers });
-        if (repsRes.ok) {
-          const data = await repsRes.json();
-          setRepartidores((prev) => mergeRepartidoresFromServer(prev, data));
-        }
-      }
+      const integrationsPromise =
+        currentUser?.role === UserRole.STORE_ADMIN
+          ? fetch(apiUrl('/api/integrations/status'), { headers }).then(async (res) => {
+              if (!res.ok) return;
+              setIntegrationStatus(await res.json());
+            })
+          : Promise.resolve();
 
-      if (isAgencyAdmin(currentUser?.role)) {
-        const sellersRes = await fetch(apiUrl('/api/accounts/sellers'), { headers });
-        if (sellersRes.ok) {
-          const data = await sellersRes.json();
-          setSellers(data);
-        }
-      }
+      const zonesPromise = currentUser?.agencyId
+        ? Promise.all([
+            fetch(apiUrl('/api/delivery-zones'), { headers }),
+            fetch(apiUrl('/api/delivery-zones/barrios'), { headers }),
+          ]).then(async ([zonesRes, barriosRes]) => {
+            if (zonesRes.ok) setDeliveryZones(await zonesRes.json());
+            if (barriosRes.ok) setBarrios(await barriosRes.json());
+          })
+        : Promise.resolve();
 
-      if (currentUser?.role === UserRole.REPARTIDOR) {
-        const repMlRes = await fetch(apiUrl('/api/integrations/repartidor/status'), { headers });
-        if (repMlRes.ok) {
-          setRepartidorMlStatus((await repMlRes.json()) as RepartidorMercadoLibreStatus);
-        }
-      }
-
-      if (currentUser?.role === UserRole.STORE_ADMIN) {
-        const intRes = await fetch(apiUrl('/api/integrations/status'), { headers });
-        if (intRes.ok) {
-          setIntegrationStatus(await intRes.json());
-        }
-      }
-
-      if (currentUser?.agencyId) {
-        const [zonesRes, barriosRes] = await Promise.all([
-          fetch(apiUrl('/api/delivery-zones'), { headers }),
-          fetch(apiUrl('/api/delivery-zones/barrios'), { headers }),
-        ]);
-        if (zonesRes.ok) {
-          setDeliveryZones(await zonesRes.json());
-        }
-        if (barriosRes.ok) {
-          setBarrios(await barriosRes.json());
-        }
-      }
+      await Promise.all([
+        ordersPromise,
+        notifsPromise,
+        opsPromise,
+        repsPromise,
+        sellersPromise,
+        repMlPromise,
+        integrationsPromise,
+        zonesPromise,
+      ]);
 
       setLastSyncAt(new Date());
     } catch (e) {
       console.warn('Error syncing data from server.', e);
     }
-  }, [token, user?.role]);
+  }, [token]);
 
   const mergeOrder = useCallback((order: Order) => {
     let deselectOrderId: string | null = null;
@@ -458,13 +467,14 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
 
-    fetchData();
+    void fetchData({ forceFlexSync: user?.role === UserRole.REPARTIDOR });
 
     const intervalMs =
       user?.role === UserRole.REPARTIDOR ? 10_000 : wsConnected ? 45_000 : 8_000;
     const interval = setInterval(() => {
       if (navigator.onLine) {
-        fetchData();
+        // Poll liviano: GET /orders (sync ML/Flex corre en background en el server).
+        void fetchData();
       }
     }, intervalMs);
 
@@ -475,7 +485,9 @@ export default function App() {
   useEffect(() => {
     if (!token || user?.role !== UserRole.REPARTIDOR) return;
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void fetchData();
+      if (document.visibilityState === 'visible') {
+        void fetchData({ forceFlexSync: true });
+      }
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
@@ -505,13 +517,19 @@ export default function App() {
     return () => clearInterval(interval);
   }, [token, user?.role]);
 
-  // Almacenar en caché local para soporte offline
+  // Almacenar en caché local para soporte offline (sin GPS pesado)
   useEffect(() => {
-    if (orders.length > 0) {
-      localStorage.setItem('cached_orders', JSON.stringify(orders));
+    if (orders.length === 0) return;
+    try {
+      const slim = orders.map((o) => ({
+        ...o,
+        locationHistory: o.locationHistory?.slice(-3) ?? [],
+      }));
+      localStorage.setItem('cached_orders', JSON.stringify(slim));
+    } catch {
+      // quota / private mode
     }
   }, [orders]);
-
   useEffect(() => {
     if (notifications.length > 0) {
       localStorage.setItem('cached_notifications', JSON.stringify(notifications));
