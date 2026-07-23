@@ -15,6 +15,9 @@ import {
   updateRepartidorZone,
   clearRepartidorSessionForAgency,
   assertSellerInAgency,
+  resolveSalesCutoffHour,
+  getSellerConfiguredDeadlineHour,
+  updateOwnSellerDeliveryDeadlineHour,
 } from '../services/users.service.js';
 import {
   listPickupPointsForUser,
@@ -373,19 +376,35 @@ router.put('/agency/departure', authenticate, requireAgencyAdmin(), async (req: 
 });
 
 router.get('/agency/delivery-deadline', authenticate, async (req: Request, res: Response) => {
-  const agencyId = req.user!.agencyId;
+  const user = req.user!;
+  const agencyId = user.agencyId;
   if (!agencyId) {
-    res.json({ hour: DELIVERY_DEADLINE_HOUR, recalculated: 0 });
+    res.json({
+      hour: DELIVERY_DEADLINE_HOUR,
+      agencyMaxHour: DELIVERY_DEADLINE_HOUR,
+      sellerHour: null,
+      recalculated: 0,
+    });
     return;
   }
-  const hour = await getAgencyDeliveryDeadlineHour(agencyId);
+
+  const agencyMaxHour = await getAgencyDeliveryDeadlineHour(agencyId);
+  let sellerHour: number | null = null;
+  let hour = agencyMaxHour;
+
+  if (user.role === UserRole.STORE_ADMIN) {
+    sellerHour = await getSellerConfiguredDeadlineHour(user.id);
+    hour = await resolveSalesCutoffHour({ sellerId: user.id, agencyId });
+  }
+
   const dayKey = `${DEADLINE_RECALC_VERSION}:${getOperationalDateKey()}`;
   let recalculated = 0;
   if (deadlineRecalcByAgencyDay.get(agencyId) !== dayKey) {
     deadlineRecalcByAgencyDay.set(agencyId, dayKey);
     recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
   }
-  res.json({ hour, recalculated });
+
+  res.json({ hour, agencyMaxHour, sellerHour, recalculated });
 });
 
 router.post('/agency/delivery-deadline/recalculate', authenticate, async (req: Request, res: Response) => {
@@ -394,10 +413,18 @@ router.post('/agency/delivery-deadline/recalculate', authenticate, async (req: R
     res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
     return;
   }
-  const hour = await getAgencyDeliveryDeadlineHour(agencyId);
+  const agencyMaxHour = await getAgencyDeliveryDeadlineHour(agencyId);
+  const hour =
+    req.user!.role === UserRole.STORE_ADMIN
+      ? await resolveSalesCutoffHour({ sellerId: req.user!.id, agencyId })
+      : agencyMaxHour;
+  const sellerHour =
+    req.user!.role === UserRole.STORE_ADMIN
+      ? await getSellerConfiguredDeadlineHour(req.user!.id)
+      : null;
   const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
   deadlineRecalcByAgencyDay.set(agencyId, `${DEADLINE_RECALC_VERSION}:${getOperationalDateKey()}`);
-  res.json({ hour, recalculated });
+  res.json({ hour, agencyMaxHour, sellerHour, recalculated });
 });
 
 router.put('/agency/delivery-deadline', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
@@ -410,7 +437,7 @@ router.put('/agency/delivery-deadline', authenticate, requireAgencyAdmin(), asyn
   try {
     const saved = await updateAgencyDeliveryDeadlineHour(agencyId, hour);
     const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
-    res.json({ hour: saved, recalculated });
+    res.json({ hour: saved, agencyMaxHour: saved, sellerHour: null, recalculated });
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'INVALID_HOUR') {
@@ -425,6 +452,51 @@ router.put('/agency/delivery-deadline', authenticate, requireAgencyAdmin(), asyn
   }
 });
 
+/** Vendedor: actualiza su propio corte (≤ máximo de la agencia). null = heredar agencia. */
+router.put(
+  '/seller/delivery-deadline',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    const raw = req.body?.hour;
+    const hour =
+      raw === null || raw === undefined || raw === ''
+        ? null
+        : Number(raw);
+
+    try {
+      const result = await updateOwnSellerDeliveryDeadlineHour(req.user!, hour);
+      const recalculated = req.user!.agencyId
+        ? await recalculateOpenOrdersDeliveryDeadlines(req.user!.agencyId)
+        : 0;
+      res.json({ ...result, recalculated });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'FORBIDDEN') {
+        res.status(403).json({ error: 'Solo un vendedor puede cambiar su propio corte.' });
+        return;
+      }
+      if (message === 'SELLER_NO_AGENCY') {
+        res.status(400).json({
+          error:
+            'Tu cuenta no está asociada a una agencia. Pedile a tu agencia que verifique tu usuario.',
+        });
+        return;
+      }
+      if (message === 'INVALID_DEADLINE_HOUR') {
+        res.status(400).json({ error: 'La hora de corte debe ser un número entre 0 y 23.' });
+        return;
+      }
+      if (message === 'DEADLINE_ABOVE_AGENCY') {
+        res.status(400).json({
+          error: 'El corte del vendedor no puede ser posterior al corte de la agencia.',
+        });
+        return;
+      }
+      throw err;
+    }
+  }
+);
 router.get('/pickup-points', authenticate, async (req: Request, res: Response) => {
   const user = req.user!;
 

@@ -112,8 +112,13 @@ interface SettingsPageProps {
   onDeleteDeliveryZone?: (zoneId: string) => Promise<void>;
   onOpenPriceLists?: () => void;
   onUpdateDeparture?: (data: LocationPoint) => Promise<void>;
+  /** Corte efectivo del usuario (agencia o vendedor). */
   deliveryDeadlineHour?: number;
-  onUpdateDeliveryDeadlineHour?: (hour: number) => Promise<void>;
+  /** Tope de la agencia (para validar el corte del vendedor). */
+  agencyMaxDeadlineHour?: number;
+  /** Corte propio del vendedor logueado; null = hereda agencia. */
+  ownSellerDeadlineHour?: number | null;
+  onUpdateDeliveryDeadlineHour?: (hour: number | null) => Promise<void>;
   onCreateSeller?: (data: {
     username: string;
     password: string;
@@ -182,6 +187,8 @@ export default function SettingsPage({
   onOpenPriceLists,
   onUpdateDeparture,
   deliveryDeadlineHour = 13,
+  agencyMaxDeadlineHour,
+  ownSellerDeadlineHour = null,
   onUpdateDeliveryDeadlineHour,
   onCreateSeller,
   onFetchSellerDetail,
@@ -210,6 +217,8 @@ export default function SettingsPage({
 }: SettingsPageProps) {
   const userRole = user.role;
   const agency = isAgencyAdmin(userRole);
+  const isSeller = userRole === UserRole.STORE_ADMIN;
+  const agencyCap = agencyMaxDeadlineHour ?? deliveryDeadlineHour;
   const { confirm, alert: showAlert } = useModal();
 
   const [showDepartureForm, setShowDepartureForm] = useState(false);
@@ -218,7 +227,10 @@ export default function SettingsPage({
   const [departureLng, setDepartureLng] = useState(departurePoint?.lng ?? -58.4306);
   const [departureLoading, setDepartureLoading] = useState(false);
   const [departureMessage, setDepartureMessage] = useState<string | null>(null);
-  const [deadlineHourDraft, setDeadlineHourDraft] = useState(deliveryDeadlineHour);
+  /** -1 = heredar agencia (solo vendedor). */
+  const [deadlineHourDraft, setDeadlineHourDraft] = useState(
+    isSeller && ownSellerDeadlineHour == null ? -1 : deliveryDeadlineHour
+  );
   const [deadlineLoading, setDeadlineLoading] = useState(false);
   const [deadlineMessage, setDeadlineMessage] = useState<string | null>(null);
 
@@ -293,8 +305,12 @@ export default function SettingsPage({
   }, [departurePoint]);
 
   useEffect(() => {
-    setDeadlineHourDraft(deliveryDeadlineHour);
-  }, [deliveryDeadlineHour]);
+    if (isSeller) {
+      setDeadlineHourDraft(ownSellerDeadlineHour == null ? -1 : ownSellerDeadlineHour);
+    } else {
+      setDeadlineHourDraft(deliveryDeadlineHour);
+    }
+  }, [deliveryDeadlineHour, ownSellerDeadlineHour, isSeller]);
 
   const applyDeparturePreset = (preset: (typeof DIRECTORY_PRESETS)[0]) => {
     setDepartureAddress(preset.name);
@@ -437,14 +453,36 @@ export default function SettingsPage({
                   Corte de ventas del día
                 </p>
                 <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
-                  Máximo de corte de ventas para la agencia y tope para cada vendedor.
-                  Los pedidos cargados a partir del corte del vendedor quedan para el día hábil siguiente
-                  (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
-                  Conviene igualarlo al corte Flex más tarde de tus vendedores (p. ej. 13:00).
-                  Al guardar se reaplica a los pedidos aún sin entregar y se ajustan vendedores que
-                  superen este máximo.
+                  {isSeller ? (
+                    <>
+                      Definí hasta qué hora se cargan pedidos para el día de hoy.
+                      Después de tu corte, los nuevos envíos quedan para el día hábil siguiente
+                      (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
+                      No puede ser más tarde que el máximo de tu agencia (
+                      <span className="font-mono font-bold text-[var(--ink-soft)]">
+                        {String(agencyCap).padStart(2, '0')}:00
+                      </span>
+                      ).
+                    </>
+                  ) : (
+                    <>
+                      Máximo de corte de ventas para la agencia y tope para cada vendedor.
+                      Los pedidos cargados a partir del corte del vendedor quedan para el día hábil siguiente
+                      (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
+                      Conviene igualarlo al corte Flex más tarde de tus vendedores (p. ej. 13:00).
+                      Al guardar se reaplica a los pedidos aún sin entregar y se ajustan vendedores que
+                      superen este máximo.
+                    </>
+                  )}
                   {!onUpdateDeliveryDeadlineHour && (
-                    <> Corte actual: <span className="font-mono font-bold text-[var(--ink-soft)]">{String(deliveryDeadlineHour).padStart(2, '0')}:00</span>.</>
+                    <>
+                      {' '}
+                      Corte actual:{' '}
+                      <span className="font-mono font-bold text-[var(--ink-soft)]">
+                        {String(deliveryDeadlineHour).padStart(2, '0')}:00
+                      </span>
+                      .
+                    </>
                   )}
                 </p>
               </div>
@@ -457,7 +495,17 @@ export default function SettingsPage({
                       setDeadlineLoading(true);
                       setDeadlineMessage(null);
                       try {
-                        await onUpdateDeliveryDeadlineHour(deadlineHourDraft);
+                        if (isSeller) {
+                          const hour = deadlineHourDraft < 0 ? null : deadlineHourDraft;
+                          if (hour != null && hour > agencyCap) {
+                            throw new Error(
+                              `El corte no puede ser después de las ${String(agencyCap).padStart(2, '0')}:00 (máximo de la agencia).`
+                            );
+                          }
+                          await onUpdateDeliveryDeadlineHour(hour);
+                        } else {
+                          await onUpdateDeliveryDeadlineHour(deadlineHourDraft);
+                        }
                         setDeadlineMessage('Horario de corte actualizado y aplicado a pedidos abiertos.');
                       } catch (err: unknown) {
                         const message = err instanceof Error ? err.message : 'Error al guardar.';
@@ -476,11 +524,19 @@ export default function SettingsPage({
                         onChange={(e) => setDeadlineHourDraft(Number(e.target.value))}
                         className={inputClass}
                       >
-                        {Array.from({ length: 24 }, (_, hour) => (
-                          <option key={hour} value={hour}>
-                            {String(hour).padStart(2, '0')}:00
+                        {isSeller && (
+                          <option value={-1}>
+                            Igual a la agencia ({String(agencyCap).padStart(2, '0')}:00)
                           </option>
-                        ))}
+                        )}
+                        {Array.from(
+                          { length: (isSeller ? agencyCap : 23) + 1 },
+                          (_, hour) => (
+                            <option key={hour} value={hour}>
+                              {String(hour).padStart(2, '0')}:00
+                            </option>
+                          )
+                        )}
                       </select>
                     </label>
                     <button type="submit" disabled={deadlineLoading} className={btnGhost}>

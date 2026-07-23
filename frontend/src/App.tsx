@@ -83,6 +83,8 @@ export default function App() {
   const [sellers, setSellers] = useState<User[]>([]);
   const [departurePoint, setDeparturePoint] = useState<LocationPoint | null>(null);
   const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(13);
+  const [agencyMaxDeadlineHour, setAgencyMaxDeadlineHour] = useState(13);
+  const [ownSellerDeadlineHour, setOwnSellerDeadlineHour] = useState<number | null>(null);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [barrios, setBarrios] = useState<Barrio[]>([]);
@@ -273,6 +275,14 @@ export default function App() {
             if (deadlineRes.ok) {
               const data = await deadlineRes.json();
               if (typeof data?.hour === 'number') setDeliveryDeadlineHour(data.hour);
+              if (typeof data?.agencyMaxHour === 'number') {
+                setAgencyMaxDeadlineHour(data.agencyMaxHour);
+              }
+              if ('sellerHour' in data) {
+                setOwnSellerDeadlineHour(
+                  typeof data.sellerHour === 'number' ? data.sellerHour : null
+                );
+              }
 
               const recalcSessionKey = 'posta_deadline_recalc_v6';
               if (!sessionStorage.getItem(recalcSessionKey)) {
@@ -285,6 +295,14 @@ export default function App() {
                   const forceData = await forceRes.json();
                   if (typeof forceData?.hour === 'number') {
                     setDeliveryDeadlineHour(forceData.hour);
+                  }
+                  if (typeof forceData?.agencyMaxHour === 'number') {
+                    setAgencyMaxDeadlineHour(forceData.agencyMaxHour);
+                  }
+                  if ('sellerHour' in forceData) {
+                    setOwnSellerDeadlineHour(
+                      typeof forceData.sellerHour === 'number' ? forceData.sellerHour : null
+                    );
                   }
                 }
               }
@@ -1159,16 +1177,24 @@ export default function App() {
     });
   };
 
-  const handleUpdateDeliveryDeadlineHour = async (hour: number) => {
+  const handleUpdateDeliveryDeadlineHour = async (hour: number | null) => {
     if (!token) return;
-    const res = await fetch(apiUrl('/api/accounts/agency/delivery-deadline'), {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ hour }),
-    });
+    const isSeller = userRef.current?.role === UserRole.STORE_ADMIN;
+    const res = await fetch(
+      apiUrl(
+        isSeller
+          ? '/api/accounts/seller/delivery-deadline'
+          : '/api/accounts/agency/delivery-deadline'
+      ),
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ hour }),
+      }
+    );
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'No se pudo guardar el horario de corte');
@@ -1176,6 +1202,12 @@ export default function App() {
     const data = await res.json();
     if (typeof data?.hour === 'number') {
       setDeliveryDeadlineHour(data.hour);
+    }
+    if (typeof data?.agencyMaxHour === 'number') {
+      setAgencyMaxDeadlineHour(data.agencyMaxHour);
+    }
+    if ('sellerHour' in data) {
+      setOwnSellerDeadlineHour(typeof data.sellerHour === 'number' ? data.sellerHour : null);
     }
     await fetchData();
   };
@@ -2194,8 +2226,12 @@ export default function App() {
                   onDeleteDeliveryZone={isAgencyAdmin(user.role) ? handleDeleteDeliveryZone : undefined}
                   onUpdateDeparture={isAgencyAdmin(user.role) ? handleUpdateDeparture : undefined}
                   deliveryDeadlineHour={deliveryDeadlineHour}
+                  agencyMaxDeadlineHour={agencyMaxDeadlineHour}
+                  ownSellerDeadlineHour={ownSellerDeadlineHour}
                   onUpdateDeliveryDeadlineHour={
-                    isAgencyAdmin(user.role) ? handleUpdateDeliveryDeadlineHour : undefined
+                    isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
+                      ? handleUpdateDeliveryDeadlineHour
+                      : undefined
                   }
                   onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
                   onFetchSellerDetail={isAgencyAdmin(user.role) ? handleFetchSellerDetail : undefined}

@@ -609,6 +609,45 @@ export async function updateSeller(
   return updated;
 }
 
+/**
+ * El vendedor actualiza su propio corte de ventas (null = heredar agencia).
+ * No puede superar el máximo de la agencia.
+ */
+export async function updateOwnSellerDeliveryDeadlineHour(
+  seller: User,
+  deliveryDeadlineHour: number | null
+): Promise<{ hour: number; agencyMaxHour: number; sellerHour: number | null }> {
+  if (seller.role !== UserRole.STORE_ADMIN) {
+    throw new Error('FORBIDDEN');
+  }
+  if (!seller.agencyId) {
+    throw new Error('SELLER_NO_AGENCY');
+  }
+
+  await ensureSellerDeliveryDeadlineHourColumn();
+  const agencyMaxHour = await getAgencyDeliveryDeadlineHour(seller.agencyId);
+
+  let sellerHour: number | null;
+  if (deliveryDeadlineHour === null) {
+    sellerHour = null;
+  } else {
+    if (!Number.isFinite(deliveryDeadlineHour)) throw new Error('INVALID_DEADLINE_HOUR');
+    const hour = Math.trunc(Number(deliveryDeadlineHour));
+    if (hour < 0 || hour > 23) throw new Error('INVALID_DEADLINE_HOUR');
+    if (hour > agencyMaxHour) throw new Error('DEADLINE_ABOVE_AGENCY');
+    sellerHour = hour;
+  }
+
+  await pool.query('UPDATE users SET delivery_deadline_hour = ? WHERE id = ? AND role = ?', [
+    sellerHour,
+    seller.id,
+    UserRole.STORE_ADMIN,
+  ]);
+
+  const hour = sellerHour == null ? agencyMaxHour : Math.min(sellerHour, agencyMaxHour);
+  return { hour, agencyMaxHour, sellerHour };
+}
+
 export async function deleteSeller(
   sellerId: string,
   agencyId?: string | null
