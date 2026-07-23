@@ -19,6 +19,7 @@ import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
+import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
 import MapComponent from './MapComponent.tsx';
 import LocationPreviewMap from './LocationPreviewMap.tsx';
@@ -1679,10 +1680,10 @@ export default function AdminDashboard({
                         }`}
                       >
                         <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
-                          {order.id}
-                          {order.externalSource === 'mercadolibre' && (
-                            <span className="ml-1 text-[8px] font-bold uppercase text-[var(--color-accent)]">ML</span>
-                          )}
+                          <span className="inline-flex items-center gap-1">
+                            {order.id}
+                            <MarketplaceSourceIcon source={order.externalSource} />
+                          </span>
                         </td>
                         <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] max-w-[8rem] truncate">
                           {order.clientName}
@@ -1740,7 +1741,10 @@ export default function AdminDashboard({
           <div className="lg:hidden shrink-0 border-t border-[var(--surface-border)] bg-[var(--surface-panel)] flex flex-col max-h-[min(44dvh,340px)] safe-bottom">
             <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--surface-border)] shrink-0">
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-mono font-bold text-[var(--color-accent)] truncate">{selectedOrder.id}</p>
+                <p className="text-[10px] font-mono font-bold text-[var(--color-accent)] truncate inline-flex items-center gap-1.5">
+                  {selectedOrder.id}
+                  <MarketplaceSourceIcon source={selectedOrder.externalSource} />
+                </p>
                 <p className="text-xs font-bold text-[var(--ink-soft)] truncate">{selectedOrder.clientName}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -2052,6 +2056,7 @@ export default function AdminDashboard({
                 <div>
                   <h3 className="font-bold text-xs lg:text-sm text-[var(--color-text)] flex items-center gap-1.5 uppercase font-mono tracking-wider">
                     📦 Envío {selectedOrder.id}
+                    <MarketplaceSourceIcon source={selectedOrder.externalSource} size="md" />
                   </h3>
                   <p className="text-[10px] text-[var(--color-text-muted)] font-sans mt-0.5">Destinatario: {selectedOrder.clientName}</p>
                 </div>

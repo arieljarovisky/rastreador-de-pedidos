@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Order } from '../types';
 import { colors, fonts, radius, spacing, statusStyle, typography } from '../theme';
 import PostaIcon from './icons/PostaIcons';
@@ -7,11 +7,30 @@ import StatusBadge from './StatusBadge';
 import IconLabelRow from './ui/IconLabelRow';
 import MonoLabel from './ui/MonoLabel';
 
+const tiendanubeLogo = require('../../assets/tiendanube-logo.png');
+const mercadolibreLogo = require('../../assets/mercadolibre-logo.png');
+
 interface Props {
   order: Order;
   onPress: () => void;
   showRepartidor?: boolean;
   showSeller?: boolean;
+}
+
+function SourceLogo({ source }: { source?: string | null }) {
+  if (source === 'tiendanube') {
+    return (
+      <View style={styles.tnLogoWrap}>
+        <Image source={tiendanubeLogo} style={styles.sourceLogo} resizeMode="contain" accessibilityLabel="Tienda Nube" />
+      </View>
+    );
+  }
+  if (source === 'mercadolibre') {
+    return (
+      <Image source={mercadolibreLogo} style={styles.sourceLogo} resizeMode="contain" accessibilityLabel="Mercado Libre" />
+    );
+  }
+  return null;
 }
 
 export default function OrderCard({ order, onPress, showRepartidor, showSeller }: Props) {
@@ -26,7 +45,10 @@ export default function OrderCard({ order, onPress, showRepartidor, showSeller }
 
       <View style={styles.content}>
         <View style={styles.headerRow}>
-          <MonoLabel color={colors.textFaint}>#{order.id.slice(-6)}</MonoLabel>
+          <View style={styles.idRow}>
+            <MonoLabel color={colors.textFaint}>#{order.id.slice(-6)}</MonoLabel>
+            <SourceLogo source={order.externalSource} />
+          </View>
           <StatusBadge status={order.status} />
         </View>
 
@@ -59,13 +81,7 @@ export default function OrderCard({ order, onPress, showRepartidor, showSeller }
         ) : null}
 
         <View style={styles.footerRow}>
-          {order.externalSource ? (
-            <View style={styles.sourcePill}>
-              <MonoLabel color={colors.textMuted}>{order.externalSource}</MonoLabel>
-            </View>
-          ) : (
-            <View />
-          )}
+          <View />
           <View style={styles.detailLink}>
             <Text style={styles.detailText}>Ver detalle</Text>
             <PostaIcon name="chevronRight" size={14} color={colors.accent} />
@@ -100,6 +116,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  tnLogoWrap: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 3,
+    padding: 1,
+  },
+  sourceLogo: {
+    width: 14,
+    height: 14,
+  },
   client: {
     ...typography.displaySection(16, colors.text),
   },
@@ -122,14 +152,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-  },
-  sourcePill: {
-    backgroundColor: colors.surfaceAlt,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   detailLink: {
     flexDirection: 'row',

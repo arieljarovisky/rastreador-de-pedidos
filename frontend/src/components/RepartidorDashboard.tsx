@@ -8,6 +8,7 @@ import { Order, OrderStatus, User, LocationPoint, PickupPoint, RepartidorMercado
 import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText } from 'lucide-react';
 import { useModal } from '../context/ModalContext.tsx';
 import MapComponent from './MapComponent.tsx';
+import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 
 function getCollectLabel(
   order: Order,
@@ -369,7 +370,10 @@ export default function RepartidorDashboard({
                     }`}
                   >
                     <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-mono font-bold text-[var(--color-text-muted)]">{order.id}</span>
+                      <span className="inline-flex items-center gap-1.5 font-mono font-bold text-[var(--color-text-muted)]">
+                        {order.id}
+                        <MarketplaceSourceIcon source={order.externalSource} />
+                      </span>
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                         order.status === OrderStatus.DELIVERING ? 'bg-amber-500/10 text-[var(--color-warn)]' : 'bg-blue-500/10 text-[var(--color-accent)]'
                       }`}>
@@ -393,7 +397,10 @@ export default function RepartidorDashboard({
                     className="p-3 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/40 text-left space-y-2"
                   >
                     <div className="flex items-center justify-between text-[10px] font-mono">
-                      <span className="font-bold text-[var(--color-text-muted)]">{order.id}</span>
+                      <span className="inline-flex items-center gap-1.5 font-bold text-[var(--color-text-muted)]">
+                        {order.id}
+                        <MarketplaceSourceIcon source={order.externalSource} />
+                      </span>
                       <span className="text-[var(--color-accent)] truncate max-w-[120px]">
                         {getCollectLabel(order, pickupPoints, departurePoint)}
                       </span>
@@ -448,8 +455,9 @@ export default function RepartidorDashboard({
                   >
                     ← Volver a la Lista
                   </button>
-                  <span className="text-[10px] font-mono font-bold text-[var(--color-text-muted)]">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-[var(--color-text-muted)]">
                     {selectedOrder.id}
+                    <MarketplaceSourceIcon source={selectedOrder.externalSource} />
                   </span>
                 </div>
 
