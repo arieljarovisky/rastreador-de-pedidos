@@ -14,6 +14,9 @@ import {
   CircleDollarSign,
   Bike,
   Users,
+  Search,
+  ArrowRight,
+  Check,
 } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import { useModal } from '../context/ModalContext.tsx';
@@ -56,12 +59,19 @@ interface SellerAssignment {
 }
 
 type DraftTrio = { flex: string; express: string; standard: string };
+type RateKey = keyof DraftTrio;
 
 interface PriceListsPageProps {
   token: string;
 }
 
 const OUTSIDE_KEY = '__outside__';
+
+const RATE_ROWS: { key: RateKey; label: string; hint: string }[] = [
+  { key: 'flex', label: 'Flex', hint: 'Mercado Libre Flex' },
+  { key: 'express', label: 'Express', hint: 'Tienda Nube Express' },
+  { key: 'standard', label: 'Estándar', hint: 'Carga manual' },
+];
 
 function formatArs(amount: number): string {
   return new Intl.NumberFormat('es-AR', {
@@ -83,8 +93,18 @@ function draftToTrio(d: DraftTrio): RateTrio | null {
   return { flex, express, standard };
 }
 
-const inputClass =
-  'w-full rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel)] px-2.5 py-2 text-sm font-mono text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]/50';
+function parseDraftAmount(value: string): number {
+  const n = Number(String(value).replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function zoneColor(zoneKey: string): string {
+  if (zoneKey === OUTSIDE_KEY) return '#888';
+  if (zoneKey === 'zona_caba') return '#F9E04B';
+  if (zoneKey === 'zona_cordon_1') return '#6BCB9A';
+  if (zoneKey === 'zona_cordon_2') return '#6BA4E8';
+  return '#B5E48C';
+}
 
 export default function PriceListsPage({ token }: PriceListsPageProps) {
   const { confirm } = useModal();
@@ -103,6 +123,13 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [messageOk, setMessageOk] = useState(true);
   const [newListName, setNewListName] = useState('');
+  const [listQuery, setListQuery] = useState('');
+  const [sellerQuery, setSellerQuery] = useState('');
+  const [baseline, setBaseline] = useState<{
+    name: string;
+    ship: DraftTrio;
+    driver: DraftTrio;
+  } | null>(null);
 
   const headers = useMemo(
     () => ({
@@ -166,36 +193,75 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
 
   useEffect(() => {
     if (!list) return;
+    let ship: DraftTrio;
+    let driver: DraftTrio;
     if (selectedZoneKey === OUTSIDE_KEY) {
-      setShipDraft(trioToDraft(list.outsideShipping));
-      setDriverDraft(trioToDraft(list.outsideDriverPay));
-      return;
+      ship = trioToDraft(list.outsideShipping);
+      driver = trioToDraft(list.outsideDriverPay);
+    } else {
+      const zr = list.zoneRates.find((z) => z.zoneKey === selectedZoneKey);
+      if (!zr) return;
+      ship = trioToDraft(zr.shipping);
+      driver = trioToDraft(zr.driverPay);
     }
-    const zr = list.zoneRates.find((z) => z.zoneKey === selectedZoneKey);
-    if (zr) {
-      setShipDraft(trioToDraft(zr.shipping));
-      setDriverDraft(trioToDraft(zr.driverPay));
-    }
+    setShipDraft(ship);
+    setDriverDraft(driver);
+    setBaseline({ name: list.name, ship, driver });
   }, [list, selectedZoneKey]);
 
   const zoneOptions = useMemo(() => {
     if (!list) return [];
     return [
-      { key: OUTSIDE_KEY, name: 'Fuera de zona', color: '#888' },
+      { key: OUTSIDE_KEY, name: 'Fuera de zona', color: zoneColor(OUTSIDE_KEY) },
       ...list.zoneRates.map((z) => ({
         key: z.zoneKey,
         name: z.zoneName,
-        color:
-          z.zoneKey === 'zona_caba'
-            ? '#F9E04B'
-            : z.zoneKey === 'zona_cordon_1'
-              ? '#6BCB9A'
-              : z.zoneKey === 'zona_cordon_2'
-                ? '#6BA4E8'
-                : '#B5E48C',
+        color: zoneColor(z.zoneKey),
       })),
     ];
   }, [list]);
+
+  const selectedZone = zoneOptions.find((z) => z.key === selectedZoneKey) ?? zoneOptions[0];
+
+  const filteredSummaries = useMemo(() => {
+    const q = listQuery.trim().toLowerCase();
+    if (!q) return summaries;
+    return summaries.filter((s) => s.name.toLowerCase().includes(q));
+  }, [summaries, listQuery]);
+
+  const filteredAssignments = useMemo(() => {
+    const q = sellerQuery.trim().toLowerCase();
+    if (!q) return assignments;
+    return assignments.filter(
+      (a) =>
+        a.sellerName.toLowerCase().includes(q) ||
+        (a.priceListName ?? 'lista general').toLowerCase().includes(q)
+    );
+  }, [assignments, sellerQuery]);
+
+  const isDirty = useMemo(() => {
+    if (!baseline || !list) return false;
+    const nameChanged = !list.isDefault && listName.trim() !== baseline.name.trim();
+    const shipChanged =
+      shipDraft.flex !== baseline.ship.flex ||
+      shipDraft.express !== baseline.ship.express ||
+      shipDraft.standard !== baseline.ship.standard;
+    const driverChanged =
+      driverDraft.flex !== baseline.driver.flex ||
+      driverDraft.express !== baseline.driver.express ||
+      driverDraft.standard !== baseline.driver.standard;
+    return nameChanged || shipChanged || driverChanged;
+  }, [baseline, list, listName, shipDraft, driverDraft]);
+
+  const margins = useMemo(
+    () =>
+      RATE_ROWS.map(({ key }) => {
+        const ship = parseDraftAmount(shipDraft[key]);
+        const driver = parseDraftAmount(driverDraft[key]);
+        return { key, ship, driver, margin: ship - driver };
+      }),
+    [shipDraft, driverDraft]
+  );
 
   const handleCreate = async () => {
     const name = newListName.trim() || `Lista ${summaries.length + 1}`;
@@ -327,116 +393,140 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
     return (
       <div className="flex h-full min-h-[40vh] items-center justify-center text-[var(--color-text-muted)]">
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-        Cargando listas…
+        <span className="text-xs font-mono">Cargando listas…</span>
       </div>
     );
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-[var(--surface-bg)]">
-      <header className="shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel)] px-4 py-3 sm:px-6">
-        <div className="flex flex-col gap-3 max-w-6xl mx-auto w-full">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-accent)]">
-              <Tags className="h-4 w-4" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-base sm:text-lg font-semibold text-[var(--color-text)] tracking-tight">
-                Listas de precios
-              </h1>
-              <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed max-w-2xl">
-                Creá distintas listas (cobro al vendedor + pago al repartidor por zona) y asigná cada
-                vendedor a la que corresponda. Si un vendedor no tiene lista, usa la{' '}
-                <strong className="text-[var(--color-text)]">Lista general</strong>.
-              </p>
-            </div>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-[var(--surface-bg)]" id="price-lists-page">
+      <header className="shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel)] px-3 sm:px-4 py-3 space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Posta · Precios
+            </p>
+            <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5 flex items-center gap-2">
+              <Tags className="w-5 h-5 text-[var(--color-accent)] shrink-0" />
+              Listas de precios
+            </h1>
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-1 max-w-2xl leading-relaxed">
+              Definí cobro al vendedor y pago al repartidor por zona. Los vendedores sin asignación usan la{' '}
+              <span className="text-[var(--ink-soft)] font-medium">Lista general</span>.
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1 p-1 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/40">
+          {tab === 'lists' && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <input
+                className="posta-input px-2.5 py-2 text-xs font-mono w-[10.5rem] sm:w-44"
+                placeholder="Nombre de lista nueva"
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleCreate();
+                }}
+              />
               <button
                 type="button"
-                onClick={() => setTab('lists')}
-                className={`px-3 py-1.5 rounded-[4px] text-[10px] font-mono font-bold uppercase tracking-wide transition ${
-                  tab === 'lists'
-                    ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
-                    : 'text-[var(--color-text-muted)]'
-                }`}
+                disabled={creating}
+                onClick={() => void handleCreate()}
+                className="btn-secondary px-3 py-2 disabled:opacity-50"
+                title="Clona la lista seleccionada"
               >
-                Editar listas
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('sellers')}
-                className={`px-3 py-1.5 rounded-[4px] text-[10px] font-mono font-bold uppercase tracking-wide transition ${
-                  tab === 'sellers'
-                    ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
-                    : 'text-[var(--color-text-muted)]'
-                }`}
-              >
-                Asignar vendedores
+                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Nueva lista
               </button>
             </div>
+          )}
+        </div>
 
-            {tab === 'lists' && (
-              <div className="flex flex-wrap items-center gap-1.5 ml-auto">
-                <input
-                  className={`${inputClass} !w-40 !py-1.5 text-xs`}
-                  placeholder="Nombre de lista nueva"
-                  value={newListName}
-                  onChange={(e) => setNewListName(e.target.value)}
-                />
-                <button
-                  type="button"
-                  disabled={creating}
-                  onClick={() => void handleCreate()}
-                  className="inline-flex items-center gap-1 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--color-text)] hover:border-[var(--color-accent)]/40 disabled:opacity-50"
-                >
-                  {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                  Nueva lista
-                </button>
-              </div>
-            )}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex p-1 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50">
+            <button
+              type="button"
+              onClick={() => setTab('lists')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+                tab === 'lists'
+                  ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+              }`}
+            >
+              <CircleDollarSign className="h-3 w-3" />
+              Editar listas
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('sellers')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+                tab === 'sellers'
+                  ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+              }`}
+            >
+              <Users className="h-3 w-3" />
+              Asignar vendedores
+              {assignments.length > 0 ? (
+                <span className="ml-0.5 tabular-nums opacity-80">{assignments.length}</span>
+              ) : null}
+            </button>
           </div>
+
+          {message ? (
+            <p
+              className={`text-[10px] font-mono sm:ml-auto ${
+                messageOk ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+              }`}
+            >
+              {message}
+            </p>
+          ) : null}
         </div>
       </header>
 
-      {message ? (
-        <p
-          className={`px-4 sm:px-6 pt-2 text-xs font-mono max-w-6xl mx-auto w-full ${
-            messageOk ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
-          }`}
-        >
-          {message}
-        </p>
-      ) : null}
-
       {tab === 'sellers' ? (
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4">
           <div className="max-w-3xl mx-auto space-y-3">
-            <div className="flex items-center gap-2 text-[var(--color-text)]">
-              <Users className="h-4 w-4 text-[var(--color-accent)]" />
-              <h2 className="text-sm font-semibold">Qué lista usa cada vendedor</h2>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3 justify-between">
+              <div>
+                <h2 className="text-sm font-display font-semibold text-[var(--ink-soft)] flex items-center gap-2">
+                  <Users className="h-4 w-4 text-[var(--color-accent)]" />
+                  Qué lista usa cada vendedor
+                </h2>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                  Cambiá la asignación y se aplica al instante.
+                </p>
+              </div>
+              <label className="relative block w-full sm:w-56">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-text-faint)]" />
+                <input
+                  className="posta-input pl-8 pr-2.5 py-2 text-xs"
+                  placeholder="Buscar vendedor…"
+                  value={sellerQuery}
+                  onChange={(e) => setSellerQuery(e.target.value)}
+                />
+              </label>
             </div>
+
             {assignments.length === 0 ? (
-              <p className="text-xs text-[var(--color-text-muted)]">Todavía no hay vendedores.</p>
+              <div className="posta-empty">Todavía no hay vendedores.</div>
+            ) : filteredAssignments.length === 0 ? (
+              <div className="posta-empty">Ningún vendedor coincide con la búsqueda.</div>
             ) : (
-              <div className="rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] divide-y divide-[var(--surface-border)]">
-                {assignments.map((a) => (
+              <div className="rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel)] divide-y divide-[var(--surface-border)] overflow-hidden">
+                {filteredAssignments.map((a) => (
                   <div
                     key={a.sellerId}
-                    className="flex flex-col sm:flex-row sm:items-center gap-2 px-3.5 py-3"
+                    className="flex flex-col sm:flex-row sm:items-center gap-2.5 px-3.5 py-3 hover:bg-[var(--surface-panel-2)]/40 transition"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-[var(--color-text)] truncate">
-                        {a.sellerName}
-                      </p>
-                      <p className="text-[10px] text-[var(--color-text-muted)]">
-                        Actual: {a.priceListName ?? 'Lista general (default)'}
+                      <p className="text-sm font-medium text-[var(--ink-soft)] truncate">{a.sellerName}</p>
+                      <p className="text-[10px] font-mono text-[var(--color-text-muted)] mt-0.5">
+                        Actual · {a.priceListName ?? 'Lista general'}
                       </p>
                     </div>
                     <select
-                      className={`${inputClass} sm:!w-56 !py-1.5 text-xs`}
+                      className="posta-input px-2.5 py-2 text-xs sm:w-56"
                       value={a.priceListId ?? ''}
                       onChange={(e) =>
                         void handleAssign(a.sellerId, e.target.value ? e.target.value : null)
@@ -459,201 +549,325 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="h-full max-w-6xl mx-auto w-full flex flex-col md:flex-row min-h-0">
-            <aside className="md:w-56 shrink-0 border-b md:border-b-0 md:border-r border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-y-auto">
-              <p className="px-4 pt-3 pb-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                Listas
-              </p>
-              <nav className="px-2 pb-3 space-y-0.5">
-                {summaries.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      void loadList(s.id);
-                      setMessage(null);
-                    }}
-                    className={`w-full text-left rounded-[5px] px-3 py-2.5 transition border ${
-                      selectedListId === s.id
-                        ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/35 text-[var(--color-text)]'
-                        : 'border-transparent hover:bg-[var(--surface-panel-2)] text-[var(--color-text-muted)]'
-                    }`}
-                  >
-                    <span className="text-sm font-medium block truncate">{s.name}</span>
-                    <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
-                      {s.isDefault ? 'Default · ' : ''}
-                      {s.sellerCount} vendedor{s.sellerCount === 1 ? '' : 'es'}
-                    </span>
-                  </button>
-                ))}
+          <div className="h-full w-full flex flex-col lg:flex-row min-h-0">
+            {/* Listas */}
+            <aside className="lg:w-60 xl:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-[var(--surface-border)] bg-[var(--surface-panel)] flex flex-col min-h-0 max-h-[38vh] lg:max-h-none">
+              <div className="px-3 pt-3 pb-2 space-y-2 shrink-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="mono-label">Listas</p>
+                  <span className="text-[10px] font-mono text-[var(--color-text-faint)] tabular-nums">
+                    {summaries.length}
+                  </span>
+                </div>
+                <label className="relative block">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-text-faint)]" />
+                  <input
+                    className="posta-input pl-8 pr-2.5 py-1.5 text-xs"
+                    placeholder="Filtrar…"
+                    value={listQuery}
+                    onChange={(e) => setListQuery(e.target.value)}
+                  />
+                </label>
+              </div>
+              <nav className="flex-1 overflow-y-auto px-2 pb-3 space-y-1 scrollbar-thin">
+                {filteredSummaries.length === 0 ? (
+                  <p className="px-2 py-4 text-[11px] text-[var(--color-text-muted)] text-center">
+                    Sin resultados
+                  </p>
+                ) : (
+                  filteredSummaries.map((s) => {
+                    const active = selectedListId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          void loadList(s.id);
+                          setMessage(null);
+                        }}
+                        className={`w-full text-left rounded-[var(--radius-posta)] px-3 py-2.5 transition border ${
+                          active
+                            ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--ink-soft)] shadow-[inset_3px_0_0_var(--color-accent)]'
+                            : 'border-transparent hover:bg-[var(--surface-panel-2)] text-[var(--color-text-muted)]'
+                        }`}
+                      >
+                        <span className="text-sm font-display font-semibold block truncate">
+                          {s.name}
+                        </span>
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {s.isDefault ? (
+                            <span className="status-badge" data-status="assigned">
+                              Default
+                            </span>
+                          ) : null}
+                          <span className="text-[10px] font-mono text-[var(--color-text-faint)]">
+                            {s.sellerCount} vend.
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
               </nav>
             </aside>
 
-            <div className="flex-1 min-w-0 flex flex-col md:flex-row min-h-0">
-              <aside className="md:w-44 shrink-0 border-b md:border-b-0 md:border-r border-[var(--surface-border)] overflow-y-auto bg-[var(--surface-panel-2)]/20">
-                <p className="px-3 pt-3 pb-1 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                  Zonas
-                </p>
-                <div className="px-2 pb-3 space-y-0.5">
-                  {zoneOptions.map((z) => (
-                    <button
-                      key={z.key}
-                      type="button"
-                      onClick={() => setSelectedZoneKey(z.key)}
-                      className={`w-full text-left rounded-[5px] px-2.5 py-2 text-xs transition ${
-                        selectedZoneKey === z.key
-                          ? 'bg-[var(--surface-panel)] text-[var(--color-text)] border border-[var(--surface-border)]'
-                          : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                      }`}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
+            {/* Zonas + editor */}
+            <div className="flex-1 min-w-0 flex flex-col min-h-0">
+              {/* Zone strip */}
+              <div className="shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel-2)]/30 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="mono-label">Zona a editar</p>
+                  {selectedZone ? (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-muted)]">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ background: selectedZone.color }}
+                      />
+                      {selectedZone.name}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin">
+                  {zoneOptions.map((z) => {
+                    const active = selectedZoneKey === z.key;
+                    return (
+                      <button
+                        key={z.key}
+                        type="button"
+                        onClick={() => setSelectedZoneKey(z.key)}
+                        className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-posta)] border text-xs font-medium transition ${
+                          active
+                            ? 'bg-[var(--surface-panel)] border-[var(--surface-border)] text-[var(--ink-soft)] ring-1 ring-[var(--color-accent)]/30'
+                            : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--surface-panel)]/70 hover:text-[var(--ink-soft)]'
+                        }`}
+                      >
                         {z.key === OUTSIDE_KEY ? (
                           <MapPin className="h-3 w-3" />
                         ) : (
                           <span
-                            className="h-2 w-2 rounded-full"
+                            className="h-2 w-2 rounded-full shrink-0"
                             style={{ background: z.color }}
                           />
                         )}
                         {z.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </aside>
-
-              <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-5">
-                {!list ? (
-                  <p className="text-xs text-[var(--color-text-muted)]">Seleccioná una lista.</p>
-                ) : (
-                  <div className="max-w-xl space-y-4">
-                    <div>
-                      <label className="text-[10px] font-mono uppercase text-[var(--color-text-muted)]">
-                        Nombre de la lista
-                      </label>
-                      <input
-                        className={`${inputClass} mt-1`}
-                        value={listName}
-                        disabled={list.isDefault}
-                        onChange={(e) => setListName(e.target.value)}
-                      />
-                      {list.isDefault ? (
-                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
-                          Lista general: la usan los vendedores sin asignación propia.
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <p className="text-sm font-medium text-[var(--color-text)]">
-                      {selectedZoneKey === OUTSIDE_KEY
-                        ? 'Fuera de zona'
-                        : zoneOptions.find((z) => z.key === selectedZoneKey)?.name}
-                    </p>
-
-                    <section className="rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-hidden">
-                      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50">
-                        <CircleDollarSign className="h-3.5 w-3.5 text-[var(--color-accent)]" />
-                        <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider">
-                          Cobro al vendedor
-                        </h3>
-                      </div>
-                      <div className="p-3.5 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {(
-                          [
-                            ['flex', 'Flex'],
-                            ['express', 'Express'],
-                            ['standard', 'Estándar'],
-                          ] as const
-                        ).map(([key, label]) => (
-                          <label key={key} className="flex flex-col gap-1">
-                            <span className="text-[11px] font-medium">{label}</span>
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[var(--color-text-muted)]">
-                                $
-                              </span>
-                              <input
-                                className={`${inputClass} pl-6`}
-                                inputMode="decimal"
-                                value={shipDraft[key]}
-                                onChange={(e) =>
-                                  setShipDraft((prev) => ({ ...prev, [key]: e.target.value }))
-                                }
-                              />
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </section>
-
-                    <section className="rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-hidden">
-                      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50">
-                        <Bike className="h-3.5 w-3.5 text-[var(--stamp)]" />
-                        <h3 className="text-[11px] font-mono font-bold uppercase tracking-wider">
-                          Pago al repartidor
-                        </h3>
-                      </div>
-                      <div className="p-3.5 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {(
-                          [
-                            ['flex', 'Flex'],
-                            ['express', 'Express'],
-                            ['standard', 'Estándar'],
-                          ] as const
-                        ).map(([key, label]) => (
-                          <label key={key} className="flex flex-col gap-1">
-                            <span className="text-[11px] font-medium">{label}</span>
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[var(--color-text-muted)]">
-                                $
-                              </span>
-                              <input
-                                className={`${inputClass} pl-6`}
-                                inputMode="decimal"
-                                value={driverDraft[key]}
-                                onChange={(e) =>
-                                  setDriverDraft((prev) => ({ ...prev, [key]: e.target.value }))
-                                }
-                              />
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </section>
-
-                    <div className="text-[11px] text-[var(--color-text-muted)] font-mono">
-                      Vista: cobra {formatArs(Number(shipDraft.flex) || 0)} / paga{' '}
-                      {formatArs(Number(driverDraft.flex) || 0)} (Flex)
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => void handleSave()}
-                        className="inline-flex items-center gap-1.5 rounded-[5px] bg-[var(--stamp)] text-[#F6F0E4] px-3.5 py-2 text-xs font-bold uppercase tracking-wide disabled:opacity-50"
-                      >
-                        {saving ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Save className="h-3.5 w-3.5" />
-                        )}
-                        Guardar
                       </button>
-                      {!list.isDefault ? (
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => void handleDelete()}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs text-[var(--color-danger)]"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Eliminar lista
-                        </button>
-                      ) : null}
+                    );
+                  })}
+                </div>
+              </div>
+
+              <main className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4">
+                {!list ? (
+                  <div className="posta-empty">Seleccioná una lista.</div>
+                ) : (
+                  <div className="max-w-3xl mx-auto space-y-4 pb-24">
+                    {/* List identity */}
+                    <section className="rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel)] p-3.5 sm:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <label className="mono-label block">Nombre de la lista</label>
+                          <input
+                            className="posta-input px-3 py-2.5 text-sm font-display font-semibold disabled:opacity-70"
+                            value={listName}
+                            disabled={list.isDefault}
+                            onChange={(e) => setListName(e.target.value)}
+                          />
+                          <p className="text-[11px] text-[var(--color-text-muted)]">
+                            {list.isDefault
+                              ? 'Lista general: la usan los vendedores sin asignación propia.'
+                              : `Cloná precios desde otra lista al crear. ${list.sellerCount} vendedor${list.sellerCount === 1 ? '' : 'es'} asignado${list.sellerCount === 1 ? '' : 's'}.`}
+                          </p>
+                        </div>
+                        <div className="flex sm:flex-col gap-2 sm:items-end shrink-0">
+                          {list.isDefault ? (
+                            <span className="status-badge" data-status="assigned">
+                              Lista general
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void handleDelete()}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 rounded-[var(--radius-posta)] transition disabled:opacity-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* Zone rates matrix */}
+                    <section className="rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-hidden">
+                      <div className="flex items-center gap-3 px-3.5 sm:px-4 py-3 border-b border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50">
+                        <span
+                          className="h-8 w-1 rounded-full shrink-0"
+                          style={{ background: selectedZone?.color ?? '#888' }}
+                          aria-hidden
+                        />
+                        <div className="min-w-0 flex-1">
+                          <h2 className="text-sm font-display font-bold text-[var(--ink-soft)] truncate">
+                            {selectedZone?.name ?? 'Zona'}
+                          </h2>
+                          <p className="text-[10px] font-mono text-[var(--color-text-muted)] mt-0.5">
+                            Cobro al vendedor · pago al repartidor · margen
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Desktop header */}
+                      <div className="hidden sm:grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.85fr)] gap-3 px-4 py-2 border-b border-[var(--surface-border)]/70 bg-[var(--surface-bg)]/40">
+                        <span className="mono-label">Tipo</span>
+                        <span className="mono-label inline-flex items-center gap-1">
+                          <CircleDollarSign className="h-3 w-3 text-[var(--color-accent)]" />
+                          Cobro vendedor
+                        </span>
+                        <span className="mono-label inline-flex items-center gap-1">
+                          <Bike className="h-3 w-3 text-[var(--stamp)]" />
+                          Pago repartidor
+                        </span>
+                        <span className="mono-label text-right">Margen</span>
+                      </div>
+
+                      <div className="divide-y divide-[var(--surface-border)]/60">
+                        {RATE_ROWS.map(({ key, label, hint }) => {
+                          const ship = parseDraftAmount(shipDraft[key]);
+                          const driver = parseDraftAmount(driverDraft[key]);
+                          const margin = ship - driver;
+                          return (
+                            <div
+                              key={key}
+                              className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.85fr)] gap-3 px-3.5 sm:px-4 py-3.5 items-center"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm font-display font-semibold text-[var(--ink-soft)]">
+                                  {label}
+                                </p>
+                                <p className="text-[10px] text-[var(--color-text-faint)]">{hint}</p>
+                              </div>
+
+                              <label className="flex flex-col gap-1 min-w-0">
+                                <span className="sm:hidden mono-label inline-flex items-center gap-1">
+                                  <CircleDollarSign className="h-3 w-3 text-[var(--color-accent)]" />
+                                  Cobro
+                                </span>
+                                <div className="relative">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[var(--color-text-faint)]">
+                                    $
+                                  </span>
+                                  <input
+                                    className="posta-input pl-6 pr-2.5 py-2.5 text-sm font-mono tabular-nums"
+                                    inputMode="decimal"
+                                    value={shipDraft[key]}
+                                    onChange={(e) =>
+                                      setShipDraft((prev) => ({ ...prev, [key]: e.target.value }))
+                                    }
+                                  />
+                                </div>
+                              </label>
+
+                              <label className="flex flex-col gap-1 min-w-0">
+                                <span className="sm:hidden mono-label inline-flex items-center gap-1">
+                                  <Bike className="h-3 w-3 text-[var(--stamp)]" />
+                                  Pago
+                                </span>
+                                <div className="relative">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[var(--color-text-faint)]">
+                                    $
+                                  </span>
+                                  <input
+                                    className="posta-input pl-6 pr-2.5 py-2.5 text-sm font-mono tabular-nums"
+                                    inputMode="decimal"
+                                    value={driverDraft[key]}
+                                    onChange={(e) =>
+                                      setDriverDraft((prev) => ({ ...prev, [key]: e.target.value }))
+                                    }
+                                  />
+                                </div>
+                              </label>
+
+                              <div className="flex sm:block items-center justify-between sm:text-right">
+                                <span className="sm:hidden mono-label">Margen</span>
+                                <p
+                                  className={`text-sm font-mono font-bold tabular-nums ${
+                                    margin >= 0
+                                      ? 'text-[var(--color-ok)]'
+                                      : 'text-[var(--color-danger)]'
+                                  }`}
+                                >
+                                  {formatArs(margin)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    {/* Preview strip */}
+                    <div className="rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/40 px-3.5 py-3">
+                      <p className="mono-label mb-2">Vista rápida</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                        {margins.map(({ key, ship, driver, margin }) => {
+                          const row = RATE_ROWS.find((r) => r.key === key)!;
+                          return (
+                            <div
+                              key={key}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[var(--color-text-muted)]"
+                            >
+                              <span className="text-[var(--ink-soft)] font-bold">{row.label}</span>
+                              <span>{formatArs(ship)}</span>
+                              <ArrowRight className="h-3 w-3 opacity-50" />
+                              <span>{formatArs(driver)}</span>
+                              <span
+                                className={
+                                  margin >= 0 ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+                                }
+                              >
+                                ({formatArs(margin)})
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}
               </main>
+
+              {/* Sticky save bar */}
+              {list ? (
+                <div className="shrink-0 border-t border-[var(--surface-border)] bg-[var(--surface-panel)]/95 backdrop-blur-sm px-3 sm:px-4 py-3">
+                  <div className="max-w-3xl mx-auto flex flex-wrap items-center gap-2 justify-between">
+                    <p className="text-[10px] font-mono text-[var(--color-text-muted)]">
+                      {isDirty ? (
+                        <span className="text-[var(--color-warn)]">Cambios sin guardar</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[var(--color-ok)]">
+                          <Check className="h-3 w-3" />
+                          Al día
+                        </span>
+                      )}
+                      <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>
+                      {selectedZone?.name}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={saving || !isDirty}
+                      onClick={() => void handleSave()}
+                      className="btn-primary px-4 py-2.5 disabled:opacity-40"
+                    >
+                      {saving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Save className="h-3.5 w-3.5" />
+                      )}
+                      Guardar zona
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
