@@ -42,6 +42,13 @@ import {
   parseWooCommerceDateRange,
 } from '../services/woocommerce.service.js';
 import {
+  createWooCommercePairingCode,
+  consumeWooCommercePairingCode,
+  getWooCommercePluginDownloadUrl,
+  signWooCommercePluginToken,
+  verifyWooCommercePluginToken,
+} from '../services/woocommerce-pairing.service.js';
+import {
   importMarketplaceShipments,
   importMercadoLibreByScanForAgency,
   listImportableShipments,
@@ -256,6 +263,7 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
       connected: Boolean(woo),
       autoSync: Boolean(woo),
       orderWebhookUrl: getWooCommerceOrderWebhookUrl(),
+      pluginDownloadUrl: getWooCommercePluginDownloadUrl(),
       account: woo ? integrationStatusPublic(woo) : null,
     },
   });
@@ -604,6 +612,139 @@ router.post('/woocommerce/connect', authenticate, requireRoles(UserRole.STORE_AD
     console.error('[woo-connect] error:', err);
     res.status(502).json({ error: 'No se pudo conectar WooCommerce.' });
   }
+});
+
+/** Genera un código de un solo uso para conectar el plugin WP sin pegar API keys. */
+router.post(
+  '/woocommerce/pairing-code',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const result = await createWooCommercePairingCode(req.user!.id);
+      res.status(201).json(result);
+    } catch (err) {
+      console.error('[woo-pairing] create error:', err);
+      res.status(502).json({ error: 'No se pudo generar el código de conexión.' });
+    }
+  }
+);
+
+/**
+ * Endpoint público para el plugin WordPress.
+ * Body: { code, storeUrl, consumerKey, consumerSecret }
+ */
+router.post('/woocommerce/plugin-connect', async (req: Request, res: Response) => {
+  const { code, storeUrl, consumerKey, consumerSecret } = req.body as {
+    code?: string;
+    storeUrl?: string;
+    consumerKey?: string;
+    consumerSecret?: string;
+  };
+
+  if (!code?.trim() || !storeUrl?.trim() || !consumerKey?.trim() || !consumerSecret?.trim()) {
+    res.status(400).json({
+      error: 'Faltan el código de Posta o las credenciales de la tienda.',
+    });
+    return;
+  }
+
+  let userId: string;
+  try {
+    userId = await consumeWooCommercePairingCode(code);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'WOO_PAIRING_INVALID') {
+      res.status(400).json({ error: 'Código inválido. Generá uno nuevo desde Posta.' });
+      return;
+    }
+    if (message === 'WOO_PAIRING_USED') {
+      res.status(400).json({ error: 'Ese código ya se usó. Generá uno nuevo desde Posta.' });
+      return;
+    }
+    if (message === 'WOO_PAIRING_EXPIRED') {
+      res.status(400).json({ error: 'El código expiró. Generá uno nuevo desde Posta (valen 15 minutos).' });
+      return;
+    }
+    console.error('[woo-plugin-connect] pairing error:', err);
+    res.status(502).json({ error: 'No se pudo validar el código.' });
+    return;
+  }
+
+  try {
+    const integration = await connectWooCommerce(userId, {
+      storeUrl: storeUrl.trim(),
+      consumerKey: consumerKey.trim(),
+      consumerSecret: consumerSecret.trim(),
+    });
+    res.status(201).json({
+      connected: true,
+      account: integrationStatusPublic(integration),
+      pluginToken: signWooCommercePluginToken(userId),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'WOO_HTTP_NOT_ALLOWED') {
+      res.status(400).json({ error: 'La tienda debe usar HTTPS.' });
+      return;
+    }
+    if (message === 'WOO_INVALID_URL') {
+      res.status(400).json({ error: 'URL de tienda inválida.' });
+      return;
+    }
+    if (message === 'WOO_INVALID_KEYS') {
+      res.status(400).json({
+        error: 'Las claves deben empezar con ck_ (Consumer Key) y cs_ (Consumer Secret).',
+      });
+      return;
+    }
+    if (message === 'WOO_AUTH_FAILED') {
+      res.status(401).json({
+        error: 'WooCommerce rechazó las credenciales. Verificá permisos de la API key.',
+      });
+      return;
+    }
+    if (message === 'WOO_API_ERROR') {
+      res.status(502).json({
+        error: 'No se pudo contactar la API de WooCommerce. Revisá la URL y que REST API esté habilitada.',
+      });
+      return;
+    }
+    console.error('[woo-plugin-connect] error:', err);
+    res.status(502).json({ error: 'No se pudo conectar WooCommerce.' });
+  }
+});
+
+/** Desconexión desde el plugin WP con token acotado. */
+router.delete('/woocommerce/plugin', async (req: Request, res: Response) => {
+  const header = req.get('authorization') || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) {
+    res.status(401).json({ error: 'Falta el token del plugin.' });
+    return;
+  }
+
+  let userId: string;
+  try {
+    userId = verifyWooCommercePluginToken(token);
+  } catch {
+    res.status(401).json({ error: 'Token del plugin inválido.' });
+    return;
+  }
+
+  const existing = await getIntegration(userId, 'woocommerce');
+  if (!existing) {
+    res.status(404).json({ error: 'No hay cuenta conectada.' });
+    return;
+  }
+
+  try {
+    await deleteWooCommerceRemoteWebhooks(existing);
+  } catch (err) {
+    console.warn('[woo-plugin-disconnect] no se pudieron borrar webhooks remotos', err);
+  }
+  await deleteIntegration(userId, 'woocommerce');
+  res.status(204).send();
 });
 
 router.post('/mercadolibre/notifications', async (req: Request, res: Response) => {

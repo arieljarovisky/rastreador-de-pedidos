@@ -3,7 +3,7 @@
  * Plugin Name:       Posta para WooCommerce
  * Plugin URI:        https://www.enviosposta.com.ar
  * Description:       Conectá tu tienda WooCommerce con Posta para sincronizar pedidos con envío a domicilio.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Posta
@@ -20,7 +20,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'POSTA_WC_VERSION', '1.0.0' );
+define( 'POSTA_WC_VERSION', '1.1.0' );
 define( 'POSTA_WC_PLUGIN_FILE', __FILE__ );
 define( 'POSTA_WC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'POSTA_WC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

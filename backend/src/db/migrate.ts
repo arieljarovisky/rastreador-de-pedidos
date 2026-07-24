@@ -814,4 +814,19 @@ export async function runMigrations(): Promise<void> {
   } catch (err) {
     console.warn('[migrate] No se pudieron recalcular deadlines abiertos:', err);
   }
+
+  if (!(await tableExists('woocommerce_pairing_codes'))) {
+    await pool.query(`
+      CREATE TABLE woocommerce_pairing_codes (
+        code VARCHAR(16) PRIMARY KEY,
+        user_id VARCHAR(36) NOT NULL,
+        expires_at DATETIME(3) NOT NULL,
+        used_at DATETIME(3) NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_woo_pairing_user (user_id),
+        INDEX idx_woo_pairing_expires (expires_at),
+        CONSTRAINT fk_woo_pairing_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
 }

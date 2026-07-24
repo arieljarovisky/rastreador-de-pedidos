@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link2, Unlink, Download, RefreshCw, Loader2, Archive } from 'lucide-react';
+import { Link2, Unlink, Download, RefreshCw, Loader2, Archive, Copy, Check } from 'lucide-react';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.js';
 
@@ -35,6 +35,11 @@ export interface MarketplaceIntegrationsProps {
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
   onArchiveAllFinishedOrders?: () => Promise<number>;
+  onCreateWooPairingCode?: () => Promise<{
+    code: string;
+    expiresAt: string;
+    pluginDownloadUrl: string;
+  }>;
 }
 
 const btnPrimary = 'btn-primary px-3 py-1.5 disabled:opacity-50';
@@ -136,6 +141,13 @@ function PlatformCard({
   wooConsumerSecret = '',
   onWooConsumerSecretChange,
   connecting = false,
+  wooPluginDownloadUrl,
+  wooPairingCode = null,
+  wooPairingExpiresAt = null,
+  onGenerateWooPairingCode,
+  wooPairingLoading = false,
+  onCopyWooPairingCode,
+  wooCodeCopied = false,
 }: {
   title: string;
   subtitle: string;
@@ -173,6 +185,13 @@ function PlatformCard({
   wooConsumerSecret?: string;
   onWooConsumerSecretChange?: (value: string) => void;
   connecting?: boolean;
+  wooPluginDownloadUrl?: string;
+  wooPairingCode?: string | null;
+  wooPairingExpiresAt?: string | null;
+  onGenerateWooPairingCode?: () => void;
+  wooPairingLoading?: boolean;
+  onCopyWooPairingCode?: () => void;
+  wooCodeCopied?: boolean;
 }) {
   const pending = shipments.filter(
     (s) => !s.alreadyImported && s.mlShipmentStatus !== 'delivered'
@@ -292,58 +311,138 @@ function PlatformCard({
         </div>
       )}
 
-      {!connected && platform === 'woocommerce' && onWooStoreUrlChange && (
-        <div className="flex flex-col gap-2">
-          <label className="flex flex-col gap-0.5">
-            <span className="mono-label">URL de la tienda</span>
-            <input
-              type="url"
-              placeholder="https://mitienda.com"
-              className={dateInputClass}
-              value={wooStoreUrl}
-              disabled={connecting}
-              onChange={(e) => onWooStoreUrlChange(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="mono-label">Consumer Key</span>
-            <input
-              type="text"
-              placeholder="ck_…"
-              className={dateInputClass}
-              value={wooConsumerKey}
-              disabled={connecting}
-              onChange={(e) => onWooConsumerKeyChange?.(e.target.value)}
-              autoComplete="off"
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="mono-label">Consumer Secret</span>
-            <input
-              type="password"
-              placeholder="cs_…"
-              className={dateInputClass}
-              value={wooConsumerSecret}
-              disabled={connecting}
-              onChange={(e) => onWooConsumerSecretChange?.(e.target.value)}
-              autoComplete="off"
-            />
-          </label>
-          <button
-            type="button"
-            className={btnPrimary}
-            disabled={connectDisabled}
-            onClick={onConnect}
-          >
-            <span className="inline-flex items-center gap-1">
-              {connecting ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Link2 className="w-3 h-3" />
+      {!connected && platform === 'woocommerce' && (
+        <div className="flex flex-col gap-2.5">
+          <ol className="text-[10px] text-[var(--color-text-muted)] space-y-1 list-decimal pl-4 leading-relaxed">
+            <li>Descargá e instalá el plugin en WordPress</li>
+            <li>Generá un código acá</li>
+            <li>Pegalo en WooCommerce → Posta</li>
+          </ol>
+
+          <div className="flex flex-wrap gap-1.5">
+            {wooPluginDownloadUrl && (
+              <a
+                href={wooPluginDownloadUrl}
+                className={btnPrimary}
+                download
+              >
+                <span className="inline-flex items-center gap-1">
+                  <Download className="w-3 h-3" /> Descargar plugin
+                </span>
+              </a>
+            )}
+            {onGenerateWooPairingCode && (
+              <button
+                type="button"
+                className={btnGhost}
+                disabled={wooPairingLoading}
+                onClick={onGenerateWooPairingCode}
+              >
+                <span className="inline-flex items-center gap-1">
+                  {wooPairingLoading ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Link2 className="w-3 h-3" />
+                  )}
+                  {wooPairingCode ? 'Nuevo código' : 'Generar código'}
+                </span>
+              </button>
+            )}
+          </div>
+
+          {wooPairingCode && (
+            <div className="rounded-[5px] border border-[var(--surface-border)] bg-[var(--paper)] px-3 py-2.5">
+              <p className="mono-label mb-1">Código (válido 15 min)</p>
+              <div className="flex items-center gap-2">
+                <code className="text-lg font-mono font-bold tracking-[0.18em] text-[var(--color-text)]">
+                  {wooPairingCode}
+                </code>
+                {onCopyWooPairingCode && (
+                  <button
+                    type="button"
+                    className={btnGhost}
+                    onClick={onCopyWooPairingCode}
+                    title="Copiar"
+                  >
+                    {wooCodeCopied ? (
+                      <Check className="w-3 h-3 text-[var(--color-ok)]" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                  </button>
+                )}
+              </div>
+              {wooPairingExpiresAt && (
+                <p className="text-[10px] text-[var(--color-text-faint)] mt-1">
+                  Expira{' '}
+                  {new Date(wooPairingExpiresAt).toLocaleTimeString('es-AR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
               )}
-              {connecting ? 'Conectando…' : 'Conectar'}
-            </span>
-          </button>
+            </div>
+          )}
+
+          {onWooStoreUrlChange && (
+            <details className="text-[10px] text-[var(--color-text-muted)]">
+              <summary className="cursor-pointer mono-label select-none">
+                Conexión manual (API keys)
+              </summary>
+              <div className="flex flex-col gap-2 mt-2">
+                <label className="flex flex-col gap-0.5">
+                  <span className="mono-label">URL de la tienda</span>
+                  <input
+                    type="url"
+                    placeholder="https://mitienda.com"
+                    className={dateInputClass}
+                    value={wooStoreUrl}
+                    disabled={connecting}
+                    onChange={(e) => onWooStoreUrlChange(e.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="mono-label">Consumer Key</span>
+                  <input
+                    type="text"
+                    placeholder="ck_…"
+                    className={dateInputClass}
+                    value={wooConsumerKey}
+                    disabled={connecting}
+                    onChange={(e) => onWooConsumerKeyChange?.(e.target.value)}
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="mono-label">Consumer Secret</span>
+                  <input
+                    type="password"
+                    placeholder="cs_…"
+                    className={dateInputClass}
+                    value={wooConsumerSecret}
+                    disabled={connecting}
+                    onChange={(e) => onWooConsumerSecretChange?.(e.target.value)}
+                    autoComplete="off"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className={btnPrimary}
+                  disabled={connectDisabled}
+                  onClick={onConnect}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {connecting ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Link2 className="w-3 h-3" />
+                    )}
+                    {connecting ? 'Conectando…' : 'Conectar manual'}
+                  </span>
+                </button>
+              </div>
+            </details>
+          )}
         </div>
       )}
 
@@ -554,6 +653,7 @@ export default function MarketplaceIntegrations({
   onFetchShipments,
   onImport,
   onArchiveAllFinishedOrders,
+  onCreateWooPairingCode,
 }: MarketplaceIntegrationsProps) {
   const [mlShipments, setMlShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [tnShipments, setTnShipments] = useState<MarketplaceShipmentPreview[]>([]);
@@ -585,6 +685,11 @@ export default function MarketplaceIntegrations({
   const [wooConsumerSecret, setWooConsumerSecret] = useState('');
   const [shopifyConnecting, setShopifyConnecting] = useState(false);
   const [wooConnecting, setWooConnecting] = useState(false);
+  const [wooPairingCode, setWooPairingCode] = useState<string | null>(null);
+  const [wooPairingExpiresAt, setWooPairingExpiresAt] = useState<string | null>(null);
+  const [wooPluginDownloadUrl, setWooPluginDownloadUrl] = useState<string | undefined>(undefined);
+  const [wooPairingLoading, setWooPairingLoading] = useState(false);
+  const [wooCodeCopied, setWooCodeCopied] = useState(false);
   const [mlRefInput, setMlRefInput] = useState('');
   const [mlRefImporting, setMlRefImporting] = useState(false);
   const [archivingFinished, setArchivingFinished] = useState(false);
@@ -594,6 +699,12 @@ export default function MarketplaceIntegrations({
   useEffect(() => {
     void onRefreshStatus();
   }, [onRefreshStatus]);
+
+  useEffect(() => {
+    if (status?.woocommerce?.pluginDownloadUrl) {
+      setWooPluginDownloadUrl(status.woocommerce.pluginDownloadUrl);
+    }
+  }, [status?.woocommerce?.pluginDownloadUrl]);
 
   const tnDateOptions = { dateFrom: tnDateFrom, dateTo: tnDateTo };
   const mlDateOptions = { dateFrom: mlDateFrom, dateTo: mlDateTo };
@@ -774,6 +885,36 @@ export default function MarketplaceIntegrations({
     }
   };
 
+  const generateWooPairingCode = async () => {
+    if (!onCreateWooPairingCode) return;
+    setWooPairingLoading(true);
+    setMessage(null);
+    setWooCodeCopied(false);
+    try {
+      const result = await onCreateWooPairingCode();
+      setWooPairingCode(result.code);
+      setWooPairingExpiresAt(result.expiresAt);
+      if (result.pluginDownloadUrl) setWooPluginDownloadUrl(result.pluginDownloadUrl);
+    } catch (err: unknown) {
+      setMessageTone('error');
+      setMessage(err instanceof Error ? err.message : 'No se pudo generar el código');
+    } finally {
+      setWooPairingLoading(false);
+    }
+  };
+
+  const copyWooPairingCode = async () => {
+    if (!wooPairingCode) return;
+    try {
+      await navigator.clipboard.writeText(wooPairingCode);
+      setWooCodeCopied(true);
+      window.setTimeout(() => setWooCodeCopied(false), 2000);
+    } catch {
+      setMessageTone('error');
+      setMessage('No se pudo copiar el código');
+    }
+  };
+
   const importByMlRef = async () => {
     const ref = mlRefInput.trim();
     if (!ref) return;
@@ -942,7 +1083,7 @@ export default function MarketplaceIntegrations({
         />
         <PlatformCard
           title="WooCommerce"
-          subtitle="Envíos a domicilio · API keys + sync por webhook"
+          subtitle="Envíos a domicilio · plugin + código (1 minuto)"
           icon={
             <MarketplaceSourceIcon
               source="woocommerce"
@@ -986,6 +1127,17 @@ export default function MarketplaceIntegrations({
           wooConsumerSecret={wooConsumerSecret}
           onWooConsumerSecretChange={setWooConsumerSecret}
           connecting={wooConnecting}
+          wooPluginDownloadUrl={
+            wooPluginDownloadUrl ?? status?.woocommerce?.pluginDownloadUrl ?? '/downloads/posta-woocommerce.zip'
+          }
+          wooPairingCode={wooPairingCode}
+          wooPairingExpiresAt={wooPairingExpiresAt}
+          onGenerateWooPairingCode={
+            onCreateWooPairingCode ? () => void generateWooPairingCode() : undefined
+          }
+          wooPairingLoading={wooPairingLoading}
+          onCopyWooPairingCode={() => void copyWooPairingCode()}
+          wooCodeCopied={wooCodeCopied}
         />
       </div>
 

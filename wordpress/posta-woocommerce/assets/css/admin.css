@@ -203,16 +203,24 @@
 	background: #c0381a !important;
 }
 
-.posta-wc-list {
-	margin: 0;
-	padding-left: 1.15rem;
+.posta-wc-steps {
+	margin: 0 0 18px;
+	padding-left: 1.25rem;
 	color: var(--posta-ink-2);
 	font-size: 13px;
 	line-height: 1.55;
 }
 
-.posta-wc-list li {
-	margin-bottom: 6px;
+.posta-wc-steps li {
+	margin-bottom: 8px;
+}
+
+.posta-wc-code-input {
+	font-family: ui-monospace, "Cascadia Code", Consolas, monospace !important;
+	font-size: 1.35rem !important;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	font-weight: 700;
 }
 
 @media (max-width: 600px) {

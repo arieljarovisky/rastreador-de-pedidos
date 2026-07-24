@@ -13,14 +13,12 @@ defined( 'ABSPATH' ) || exit;
 class Posta_WC_Api_Client {
 
 	/**
-	 * Base URL sin slash final.
-	 *
 	 * @var string
 	 */
 	private $base_url;
 
 	/**
-	 * JWT opcional.
+	 * Token del plugin (para desconectar).
 	 *
 	 * @var string
 	 */
@@ -28,7 +26,7 @@ class Posta_WC_Api_Client {
 
 	/**
 	 * @param string $base_url URL del backend Posta.
-	 * @param string $token    JWT (opcional).
+	 * @param string $token    Token del plugin (opcional).
 	 */
 	public function __construct( $base_url, $token = '' ) {
 		$this->base_url = untrailingslashit( $base_url );
@@ -36,60 +34,35 @@ class Posta_WC_Api_Client {
 	}
 
 	/**
-	 * Login con usuario/contraseña de Posta.
+	 * Conecta con código de emparejamiento (sin login en WP).
 	 *
-	 * @param string $username Email o usuario.
-	 * @param string $password Contraseña.
-	 * @return array|WP_Error { user, token }
+	 * @param string $code            Código Posta.
+	 * @param string $store_url       URL HTTPS tienda.
+	 * @param string $consumer_key    ck_…
+	 * @param string $consumer_secret cs_…
+	 * @return array|WP_Error
 	 */
-	public function login( $username, $password ) {
+	public function plugin_connect( $code, $store_url, $consumer_key, $consumer_secret ) {
 		return $this->request(
 			'POST',
-			'/api/auth/login',
+			'/api/integrations/woocommerce/plugin-connect',
 			array(
-				'username' => $username,
-				'password' => $password,
+				'code'           => $code,
+				'storeUrl'       => $store_url,
+				'consumerKey'    => $consumer_key,
+				'consumerSecret' => $consumer_secret,
 			),
 			false
 		);
 	}
 
 	/**
-	 * Estado de integraciones del vendedor.
-	 *
-	 * @return array|WP_Error
-	 */
-	public function get_integrations_status() {
-		return $this->request( 'GET', '/api/integrations/status' );
-	}
-
-	/**
-	 * Conecta WooCommerce en Posta.
-	 *
-	 * @param string $store_url        URL HTTPS de la tienda.
-	 * @param string $consumer_key     ck_…
-	 * @param string $consumer_secret  cs_…
-	 * @return array|WP_Error
-	 */
-	public function connect_woocommerce( $store_url, $consumer_key, $consumer_secret ) {
-		return $this->request(
-			'POST',
-			'/api/integrations/woocommerce/connect',
-			array(
-				'storeUrl'       => $store_url,
-				'consumerKey'    => $consumer_key,
-				'consumerSecret' => $consumer_secret,
-			)
-		);
-	}
-
-	/**
-	 * Desconecta WooCommerce en Posta.
+	 * Desconecta con token del plugin.
 	 *
 	 * @return true|WP_Error
 	 */
-	public function disconnect_woocommerce() {
-		$result = $this->request( 'DELETE', '/api/integrations/woocommerce' );
+	public function plugin_disconnect() {
+		$result = $this->request( 'DELETE', '/api/integrations/woocommerce/plugin', null, true );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
@@ -97,15 +70,13 @@ class Posta_WC_Api_Client {
 	}
 
 	/**
-	 * Request genérico.
-	 *
-	 * @param string     $method   HTTP method.
-	 * @param string     $path     Path relativo.
-	 * @param array|null $body     Body JSON.
-	 * @param bool       $auth     Incluir Bearer.
+	 * @param string     $method HTTP method.
+	 * @param string     $path   Path.
+	 * @param array|null $body   JSON body.
+	 * @param bool       $auth   Bearer plugin token.
 	 * @return array|WP_Error
 	 */
-	private function request( $method, $path, $body = null, $auth = true ) {
+	private function request( $method, $path, $body = null, $auth = false ) {
 		$url = $this->base_url . $path;
 
 		$headers = array(
@@ -115,7 +86,7 @@ class Posta_WC_Api_Client {
 
 		if ( $auth ) {
 			if ( '' === $this->token ) {
-				return new WP_Error( 'posta_no_token', __( 'No hay sesión de Posta. Volvé a conectar.', 'posta-woocommerce' ) );
+				return new WP_Error( 'posta_no_token', __( 'No hay sesión del plugin. Volvé a conectar.', 'posta-woocommerce' ) );
 			}
 			$headers['Authorization'] = 'Bearer ' . $this->token;
 		}

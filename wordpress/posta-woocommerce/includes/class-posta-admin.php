@@ -83,11 +83,10 @@ class Posta_WC_Admin {
 		if ( 'connect' === $action ) {
 			check_admin_referer( 'posta_wc_connect' );
 
-			$username = isset( $_POST['posta_username'] ) ? sanitize_text_field( wp_unslash( $_POST['posta_username'] ) ) : '';
-			$password = isset( $_POST['posta_password'] ) ? (string) wp_unslash( $_POST['posta_password'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-			$api_url  = isset( $_POST['posta_api_url'] ) ? esc_url_raw( wp_unslash( $_POST['posta_api_url'] ) ) : '';
+			$code    = isset( $_POST['posta_code'] ) ? sanitize_text_field( wp_unslash( $_POST['posta_code'] ) ) : '';
+			$api_url = isset( $_POST['posta_api_url'] ) ? esc_url_raw( wp_unslash( $_POST['posta_api_url'] ) ) : '';
 
-			$result = Posta_WC_Connector::connect( $username, $password, $api_url );
+			$result = Posta_WC_Connector::connect_with_code( $code, $api_url );
 
 			if ( is_wp_error( $result ) ) {
 				$this->redirect_with_notice( 'error', $result->get_error_message() );
@@ -95,7 +94,7 @@ class Posta_WC_Admin {
 
 			$this->redirect_with_notice(
 				'success',
-				__( 'Tienda conectada con Posta. Los pedidos con envío a domicilio se sincronizarán automáticamente.', 'posta-woocommerce' )
+				__( '¡Listo! Tu tienda ya está conectada con Posta.', 'posta-woocommerce' )
 			);
 		}
 
@@ -125,9 +124,9 @@ class Posta_WC_Admin {
 	private function redirect_with_notice( $type, $message ) {
 		$url = add_query_arg(
 			array(
-				'page'            => self::PAGE_SLUG,
-				'posta_notice'    => rawurlencode( $message ),
-				'posta_notice_t'  => $type,
+				'page'           => self::PAGE_SLUG,
+				'posta_notice'   => rawurlencode( $message ),
+				'posta_notice_t' => $type,
 			),
 			admin_url( 'admin.php' )
 		);
@@ -145,18 +144,6 @@ class Posta_WC_Admin {
 
 		$settings   = Posta_WC_Connector::get_settings();
 		$connection = Posta_WC_Connector::get_connection();
-		$remote     = null;
-		$remote_err = null;
-
-		if ( ! empty( $connection['connected'] ) ) {
-			$remote = Posta_WC_Connector::refresh_remote_status();
-			if ( is_wp_error( $remote ) ) {
-				$remote_err = $remote->get_error_message();
-				$remote     = null;
-			}
-			// Releer por si refresh_remote_status marcó desconectado.
-			$connection = Posta_WC_Connector::get_connection();
-		}
 
 		$this->render_flash_notice();
 		?>
@@ -166,7 +153,7 @@ class Posta_WC_Admin {
 					<span class="posta-wc-mark" aria-hidden="true">P</span>
 					<div>
 						<h1><?php esc_html_e( 'Posta', 'posta-woocommerce' ); ?></h1>
-						<p><?php esc_html_e( 'Envíos a domicilio sincronizados con tu tienda WooCommerce.', 'posta-woocommerce' ); ?></p>
+						<p><?php esc_html_e( 'Conectá tu WooCommerce en un paso.', 'posta-woocommerce' ); ?></p>
 					</div>
 				</div>
 				<a class="posta-wc-link" href="https://www.enviosposta.com.ar" target="_blank" rel="noopener noreferrer">
@@ -183,38 +170,14 @@ class Posta_WC_Admin {
 							<p>
 								<?php
 								printf(
-									/* translators: 1: Posta account, 2: store URL */
-									esc_html__( 'Cuenta %1$s · Tienda %2$s', 'posta-woocommerce' ),
-									esc_html( $connection['posta_username'] ? $connection['posta_username'] : $connection['account_label'] ),
+									/* translators: 1: account, 2: store */
+									esc_html__( '%1$s · %2$s', 'posta-woocommerce' ),
+									esc_html( $connection['account_label'] ? $connection['account_label'] : 'Posta' ),
 									esc_html( $connection['store_url'] ? $connection['store_url'] : home_url( '/' ) )
 								);
 								?>
 							</p>
-							<?php if ( ! empty( $connection['connected_at'] ) ) : ?>
-								<p class="posta-wc-meta">
-									<?php
-									$connected_ts = strtotime( $connection['connected_at'] );
-									printf(
-										/* translators: %s: datetime */
-										esc_html__( 'Desde %s', 'posta-woocommerce' ),
-										esc_html(
-											$connected_ts
-												? date_i18n(
-													get_option( 'date_format' ) . ' ' . get_option( 'time_format' ),
-													$connected_ts
-												)
-												: $connection['connected_at']
-										)
-									);
-									?>
-								</p>
-							<?php endif; ?>
-							<?php if ( is_array( $remote ) && ! empty( $remote['autoSync'] ) ) : ?>
-								<p class="posta-wc-meta"><?php esc_html_e( 'Sync automático por webhook activo.', 'posta-woocommerce' ); ?></p>
-							<?php endif; ?>
-							<?php if ( $remote_err ) : ?>
-								<p class="posta-wc-warn"><?php echo esc_html( $remote_err ); ?></p>
-							<?php endif; ?>
+							<p class="posta-wc-meta"><?php esc_html_e( 'Los pedidos con envío a domicilio se sincronizan solos.', 'posta-woocommerce' ); ?></p>
 						</div>
 					</div>
 
@@ -227,33 +190,21 @@ class Posta_WC_Admin {
 						</button>
 					</form>
 				</section>
-
-				<section class="posta-wc-card">
-					<h2><?php esc_html_e( 'Cómo funciona', 'posta-woocommerce' ); ?></h2>
-					<ul class="posta-wc-list">
-						<li><?php esc_html_e( 'Los pedidos pagos/procesando con envío a domicilio se envían a Posta.', 'posta-woocommerce' ); ?></li>
-						<li><?php esc_html_e( 'Se excluyen retiros en local / pickup.', 'posta-woocommerce' ); ?></li>
-						<li><?php esc_html_e( 'Podés importar pedidos históricos desde el panel de Posta → Ajustes → Integraciones.', 'posta-woocommerce' ); ?></li>
-					</ul>
-				</section>
 			<?php else : ?>
 				<section class="posta-wc-card">
-					<h2><?php esc_html_e( 'Conectar con Posta', 'posta-woocommerce' ); ?></h2>
-					<p class="posta-wc-lead">
-						<?php esc_html_e( 'Usá tu cuenta de vendedor en Posta. El plugin crea las claves REST y registra los webhooks por vos.', 'posta-woocommerce' ); ?>
-					</p>
+					<ol class="posta-wc-steps">
+						<li><?php esc_html_e( 'En Posta → Ajustes → Integraciones → WooCommerce, tocá “Generar código”.', 'posta-woocommerce' ); ?></li>
+						<li><?php esc_html_e( 'Pegá el código acá y conectá.', 'posta-woocommerce' ); ?></li>
+					</ol>
 
 					<form method="post" class="posta-wc-form" autocomplete="off">
 						<?php wp_nonce_field( 'posta_wc_connect' ); ?>
 						<input type="hidden" name="posta_wc_action" value="connect" />
 
 						<p>
-							<label for="posta_username"><?php esc_html_e( 'Usuario o email de Posta', 'posta-woocommerce' ); ?></label>
-							<input class="regular-text" type="text" id="posta_username" name="posta_username" required autocomplete="username" />
-						</p>
-						<p>
-							<label for="posta_password"><?php esc_html_e( 'Contraseña', 'posta-woocommerce' ); ?></label>
-							<input class="regular-text" type="password" id="posta_password" name="posta_password" required autocomplete="current-password" />
+							<label for="posta_code"><?php esc_html_e( 'Código de Posta', 'posta-woocommerce' ); ?></label>
+							<input class="regular-text posta-wc-code-input" type="text" id="posta_code" name="posta_code"
+								required placeholder="XXXX-XXXX" autocomplete="off" spellcheck="false" />
 						</p>
 
 						<details class="posta-wc-advanced">
@@ -272,15 +223,6 @@ class Posta_WC_Admin {
 							</button>
 						</p>
 					</form>
-				</section>
-
-				<section class="posta-wc-card posta-wc-card--muted">
-					<h2><?php esc_html_e( 'Requisitos', 'posta-woocommerce' ); ?></h2>
-					<ul class="posta-wc-list">
-						<li><?php esc_html_e( 'WooCommerce activo y tienda en HTTPS.', 'posta-woocommerce' ); ?></li>
-						<li><?php esc_html_e( 'Cuenta de vendedor (store_admin) en Posta, con email verificado.', 'posta-woocommerce' ); ?></li>
-						<li><?php esc_html_e( 'Permisos de administrador de WooCommerce en WordPress.', 'posta-woocommerce' ); ?></li>
-					</ul>
 				</section>
 			<?php endif; ?>
 

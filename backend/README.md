@@ -125,12 +125,15 @@ En la app Partner / Dev Dashboard:
 
 Flujo vendedor: ingresa `mi-tienda.myshopify.com` → OAuth → importación manual + sync automático de pedidos **pagados con envío a domicilio** (`shippingType: standard`).
 
-### WooCommerce (Consumer Key / Secret)
+### WooCommerce (plugin + código)
 
-No requiere secrets globales. Dos formas de conectar:
+Flujo recomendado para el vendedor:
 
-1. **Plugin WordPress** (recomendado): carpeta `wordpress/posta-woocommerce`. El vendedor instala el plugin, entra a WooCommerce → Posta con su usuario de tienda, y el plugin crea las API keys + llama a `POST /api/integrations/woocommerce/connect`.
-2. **Manual** desde el panel Posta: pegar URL HTTPS + Consumer Key (`ck_…`) + Consumer Secret (`cs_…`) desde WooCommerce → Ajustes → Avanzado → REST API (permisos **lectura/escritura** para que el backend pueda registrar webhooks).
+1. Descarga el plugin desde Posta (`/downloads/posta-woocommerce.zip`) o la carpeta `wordpress/posta-woocommerce`.
+2. En Posta genera un código (`POST /api/integrations/woocommerce/pairing-code`, JWT vendedor).
+3. En WordPress → WooCommerce → Posta pega el código. El plugin crea las API keys y llama a `POST /api/integrations/woocommerce/plugin-connect`.
+
+Alternativa manual: pegar URL + Consumer Key/Secret (`read_write`) en el panel Posta → `POST /api/integrations/woocommerce/connect`.
 
 Al conectar, el backend crea webhooks `order.created` / `order.updated` hacia `https://TU-BACKEND/api/integrations/woocommerce/webhooks/orders` (firma `X-WC-Webhook-Signature`).
 

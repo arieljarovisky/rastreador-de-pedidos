@@ -175,6 +175,11 @@ interface SettingsPageProps {
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
   onArchiveAllFinishedOrders?: () => Promise<number>;
+  onCreateWooPairingCode?: () => Promise<{
+    code: string;
+    expiresAt: string;
+    pluginDownloadUrl: string;
+  }>;
   token?: string;
   onConnectAgencyMercadoPago?: () => Promise<void>;
   onDisconnectAgencyMercadoPago?: () => Promise<void>;
@@ -219,6 +224,7 @@ export default function SettingsPage({
   onFetchMarketplaceShipments,
   onImportMarketplaceShipments,
   onArchiveAllFinishedOrders,
+  onCreateWooPairingCode,
   token,
   onConnectAgencyMercadoPago,
   onDisconnectAgencyMercadoPago,
@@ -1817,6 +1823,7 @@ export default function SettingsPage({
               onFetchShipments={onFetchMarketplaceShipments}
               onImport={onImportMarketplaceShipments}
               onArchiveAllFinishedOrders={onArchiveAllFinishedOrders}
+              onCreateWooPairingCode={onCreateWooPairingCode}
             />
           )}
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (

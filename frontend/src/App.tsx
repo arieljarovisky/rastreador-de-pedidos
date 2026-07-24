@@ -1520,6 +1520,17 @@ export default function App() {
     window.location.href = body.url;
   };
 
+  const createWooPairingCode = async () => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl('/api/integrations/woocommerce/pairing-code'), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'No se pudo generar el código');
+    return body as { code: string; expiresAt: string; pluginDownloadUrl: string };
+  };
+
   const connectRepartidorMercadoLibre = async () => {
     await connectMarketplace('mercadolibre');
   };
@@ -2312,6 +2323,9 @@ export default function App() {
                     user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)
                       ? confirmArchiveAllFinishedOrders
                       : undefined
+                  }
+                  onCreateWooPairingCode={
+                    user.role === UserRole.STORE_ADMIN ? createWooPairingCode : undefined
                   }
                   token={token ?? undefined}
                   onConnectAgencyMercadoPago={

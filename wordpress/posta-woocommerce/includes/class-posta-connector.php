@@ -1,6 +1,6 @@
 <?php
 /**
- * Orquesta login Posta + API keys + connect/disconnect.
+ * Orquesta pairing code + API keys + connect/disconnect.
  *
  * @package Posta_WooCommerce
  */
@@ -16,8 +16,6 @@ class Posta_WC_Connector {
 	const OPTION_STATE    = 'posta_wc_connection';
 
 	/**
-	 * Settings persistidos (api_url).
-	 *
 	 * @return array
 	 */
 	public static function get_settings() {
@@ -32,22 +30,17 @@ class Posta_WC_Connector {
 	}
 
 	/**
-	 * Estado de conexión local.
-	 *
 	 * @return array
 	 */
 	public static function get_connection() {
 		$defaults = array(
-			'connected'       => false,
-			'token'           => '',
-			'posta_user_id'   => '',
-			'posta_username'  => '',
-			'posta_name'      => '',
-			'account_label'   => '',
-			'store_url'       => '',
-			'api_key_id'      => 0,
-			'connected_at'    => '',
-			'last_error'      => '',
+			'connected'      => false,
+			'plugin_token'   => '',
+			'account_label'  => '',
+			'store_url'      => '',
+			'api_key_id'     => 0,
+			'connected_at'   => '',
+			'last_error'     => '',
 		);
 		$stored = get_option( self::OPTION_STATE, array() );
 		if ( ! is_array( $stored ) ) {
@@ -77,8 +70,6 @@ class Posta_WC_Connector {
 	}
 
 	/**
-	 * URL pública HTTPS de la tienda.
-	 *
 	 * @return string|WP_Error
 	 */
 	public static function resolve_store_url() {
@@ -96,19 +87,17 @@ class Posta_WC_Connector {
 	}
 
 	/**
-	 * Conecta la tienda con una cuenta Posta (rol vendedor).
+	 * Conecta con un código de emparejamiento generado en Posta.
 	 *
-	 * @param string $username Usuario/email Posta.
-	 * @param string $password Contraseña.
-	 * @param string $api_url  API opcional (override).
+	 * @param string $pairing_code Código XXXX-XXXX.
+	 * @param string $api_url      API opcional.
 	 * @return true|WP_Error
 	 */
-	public static function connect( $username, $password, $api_url = '' ) {
-		$username = sanitize_text_field( wp_unslash( $username ) );
-		$password = (string) $password;
+	public static function connect_with_code( $pairing_code, $api_url = '' ) {
+		$pairing_code = sanitize_text_field( wp_unslash( $pairing_code ) );
 
-		if ( '' === $username || '' === $password ) {
-			return new WP_Error( 'posta_credentials', __( 'Completá usuario y contraseña de Posta.', 'posta-woocommerce' ) );
+		if ( '' === $pairing_code ) {
+			return new WP_Error( 'posta_code', __( 'Pegá el código que generaste en Posta.', 'posta-woocommerce' ) );
 		}
 
 		if ( $api_url ) {
@@ -121,35 +110,14 @@ class Posta_WC_Connector {
 			return $store_url;
 		}
 
-		$client = new Posta_WC_Api_Client( $settings['api_url'] );
-		$login  = $client->login( $username, $password );
-
-		if ( is_wp_error( $login ) ) {
-			return $login;
-		}
-
-		$token = isset( $login['token'] ) ? (string) $login['token'] : '';
-		$user  = isset( $login['user'] ) && is_array( $login['user'] ) ? $login['user'] : array();
-
-		if ( '' === $token ) {
-			return new WP_Error( 'posta_login', __( 'Posta no devolvió un token de sesión.', 'posta-woocommerce' ) );
-		}
-
-		$role = isset( $user['role'] ) ? (string) $user['role'] : '';
-		if ( 'store_admin' !== $role ) {
-			return new WP_Error(
-				'posta_role',
-				__( 'Esta cuenta no es de vendedor. Ingresá con tu usuario de tienda en Posta.', 'posta-woocommerce' )
-			);
-		}
-
 		$keys = Posta_WC_Api_Keys::create( get_current_user_id() );
 		if ( is_wp_error( $keys ) ) {
 			return $keys;
 		}
 
-		$authed = new Posta_WC_Api_Client( $settings['api_url'], $token );
-		$result = $authed->connect_woocommerce(
+		$client = new Posta_WC_Api_Client( $settings['api_url'] );
+		$result = $client->plugin_connect(
+			$pairing_code,
 			$store_url,
 			$keys['consumer_key'],
 			$keys['consumer_secret']
@@ -167,21 +135,20 @@ class Posta_WC_Connector {
 		} elseif ( ! empty( $account['externalStoreId'] ) ) {
 			$label = (string) $account['externalStoreId'];
 		} else {
-			$label = wp_parse_url( $store_url, PHP_URL_HOST );
+			$label = (string) wp_parse_url( $store_url, PHP_URL_HOST );
 		}
+
+		$plugin_token = isset( $result['pluginToken'] ) ? (string) $result['pluginToken'] : '';
 
 		self::save_connection(
 			array(
-				'connected'      => true,
-				'token'          => $token,
-				'posta_user_id'  => isset( $user['id'] ) ? (string) $user['id'] : '',
-				'posta_username' => isset( $user['username'] ) ? (string) $user['username'] : $username,
-				'posta_name'     => isset( $user['name'] ) ? (string) $user['name'] : '',
-				'account_label'  => $label,
-				'store_url'      => $store_url,
-				'api_key_id'     => (int) $keys['key_id'],
-				'connected_at'   => gmdate( 'c' ),
-				'last_error'     => '',
+				'connected'     => true,
+				'plugin_token'  => $plugin_token,
+				'account_label' => $label,
+				'store_url'     => $store_url,
+				'api_key_id'    => (int) $keys['key_id'],
+				'connected_at'  => gmdate( 'c' ),
+				'last_error'    => '',
 			)
 		);
 
@@ -189,8 +156,6 @@ class Posta_WC_Connector {
 	}
 
 	/**
-	 * Desconecta en Posta y revoca la API key local.
-	 *
 	 * @return true|WP_Error
 	 */
 	public static function disconnect() {
@@ -199,11 +164,10 @@ class Posta_WC_Connector {
 		$remote_ok  = true;
 		$error      = null;
 
-		if ( ! empty( $connection['token'] ) ) {
-			$client = new Posta_WC_Api_Client( $settings['api_url'], $connection['token'] );
-			$result = $client->disconnect_woocommerce();
+		if ( ! empty( $connection['plugin_token'] ) ) {
+			$client = new Posta_WC_Api_Client( $settings['api_url'], $connection['plugin_token'] );
+			$result = $client->plugin_disconnect();
 			if ( is_wp_error( $result ) ) {
-				// Si ya no existe (404) o el token no vale (401), seguimos limpiando local.
 				$data   = $result->get_error_data();
 				$status = ( is_array( $data ) && isset( $data['status'] ) ) ? (int) $data['status'] : 0;
 				if ( ! in_array( $status, array( 401, 404 ), true ) ) {
@@ -221,16 +185,13 @@ class Posta_WC_Connector {
 
 		self::save_connection(
 			array(
-				'connected'      => false,
-				'token'          => '',
-				'posta_user_id'  => '',
-				'posta_username' => '',
-				'posta_name'     => '',
-				'account_label'  => '',
-				'store_url'      => '',
-				'api_key_id'     => 0,
-				'connected_at'   => '',
-				'last_error'     => $remote_ok ? '' : ( $error ? $error->get_error_message() : '' ),
+				'connected'     => false,
+				'plugin_token'  => '',
+				'account_label' => '',
+				'store_url'     => '',
+				'api_key_id'    => 0,
+				'connected_at'  => '',
+				'last_error'    => $remote_ok ? '' : ( $error ? $error->get_error_message() : '' ),
 			)
 		);
 
@@ -239,45 +200,12 @@ class Posta_WC_Connector {
 				'posta_disconnect_partial',
 				sprintf(
 					/* translators: %s: error */
-					__( 'Se limpió la conexión local, pero Posta respondió: %s. Revisá Integraciones en el panel de Posta.', 'posta-woocommerce' ),
+					__( 'Se limpió la conexión local, pero Posta respondió: %s. Revisá Integraciones en Posta.', 'posta-woocommerce' ),
 					$error->get_error_message()
 				)
 			);
 		}
 
 		return true;
-	}
-
-	/**
-	 * Consulta estado remoto (si hay token).
-	 *
-	 * @return array|WP_Error|null null si no hay conexión local.
-	 */
-	public static function refresh_remote_status() {
-		$connection = self::get_connection();
-		if ( empty( $connection['connected'] ) || empty( $connection['token'] ) ) {
-			return null;
-		}
-
-		$settings = self::get_settings();
-		$client   = new Posta_WC_Api_Client( $settings['api_url'], $connection['token'] );
-		$status   = $client->get_integrations_status();
-
-		if ( is_wp_error( $status ) ) {
-			return $status;
-		}
-
-		$woo = isset( $status['woocommerce'] ) && is_array( $status['woocommerce'] ) ? $status['woocommerce'] : array();
-		if ( empty( $woo['connected'] ) ) {
-			self::save_connection(
-				array(
-					'connected'  => false,
-					'token'      => '',
-					'last_error' => __( 'La integración ya no figura conectada en Posta.', 'posta-woocommerce' ),
-				)
-			);
-		}
-
-		return $woo;
 	}
 }

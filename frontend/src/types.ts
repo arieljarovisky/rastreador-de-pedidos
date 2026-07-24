@@ -166,6 +166,7 @@ export interface MarketplaceIntegrationStatus {
     connected: boolean;
     autoSync?: boolean;
     orderWebhookUrl?: string;
+    pluginDownloadUrl?: string;
     account: MarketplaceIntegrationAccount | null;
   };
 }
