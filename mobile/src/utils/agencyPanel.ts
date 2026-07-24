@@ -2,6 +2,7 @@ import { Order, OrderStatus } from '../types';
 import {
   getDeliveredTodayOrders,
   getOperationalDateKey,
+  getOrderDeliverySla,
   getTodayOrders,
   getUndeliveredTodayOrders,
 } from './deliverySummary';
@@ -22,10 +23,11 @@ export function flowKeyForOrder(order: Order): AgencyFlowKey | null {
   return null;
 }
 
-/** Minutos hasta el deadline del pedido (negativo = vencido). */
+/** Minutos hasta el SLA de entrega 21 hs (negativo = vencido). */
 export function minutesUntilDeadline(order: Order, now = Date.now()): number | null {
-  if (!order.deliveryDeadline || isClosedOrder(order)) return null;
-  return Math.floor((new Date(order.deliveryDeadline).getTime() - now) / 60_000);
+  if (isClosedOrder(order)) return null;
+  const sla = getOrderDeliverySla(order);
+  return Math.floor((sla.getTime() - now) / 60_000);
 }
 
 export function isLateOrder(order: Order, now = Date.now()): boolean {
@@ -41,12 +43,11 @@ export function isSoonOrder(order: Order, now = Date.now()): boolean {
 export function urgencyForOrder(order: Order, now = Date.now()): AgencyUrgency {
   if (order.status === OrderStatus.CANCELLED) return 'late';
   if (order.status === OrderStatus.DELIVERED) {
-    if (!order.deliveryDeadline) return 'ok';
     const deliveredAt = order.history
       .filter((h) => h.status === OrderStatus.DELIVERED)
       .map((h) => new Date(h.timestamp).getTime())
       .sort((a, b) => b - a)[0];
-    if (deliveredAt && deliveredAt > new Date(order.deliveryDeadline).getTime()) return 'soon';
+    if (deliveredAt && deliveredAt > getOrderDeliverySla(order).getTime()) return 'soon';
     return 'ok';
   }
   if (isLateOrder(order, now)) return 'late';
@@ -68,9 +69,8 @@ export function plazoLabel(order: Order, now = Date.now()): string {
         }).format(new Date(deliveredEvt.timestamp))
       : '';
     const late =
-      order.deliveryDeadline &&
       deliveredEvt &&
-      new Date(deliveredEvt.timestamp).getTime() > new Date(order.deliveryDeadline).getTime();
+      new Date(deliveredEvt.timestamp).getTime() > getOrderDeliverySla(order).getTime();
     return `Entregado ${hora}${late ? ' · fuera de plazo' : ''}`.trim();
   }
   const mins = minutesUntilDeadline(order, now);

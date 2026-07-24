@@ -67,6 +67,15 @@ export function getOperationalDateKey(date: Date = new Date()): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+/** SLA de entrega (21 hs ART) del día operativo del pedido. No usar deliveryDeadline (corte 13 hs). */
+export function getOrderDeliverySla(order: Order): Date {
+  const dateKey = order.deliveryDeadline
+    ? getOperationalDateKey(new Date(order.deliveryDeadline))
+    : getOperationalDateKey(new Date(order.createdAt));
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return arLocalToUtc(year, month, day, DELIVERY_SLA_HOUR);
+}
+
 function isTodayOrder(order: Order, dateKey: string): boolean {
   if (order.deliveryDeadline) {
     const deadlineKey = getOperationalDateKey(new Date(order.deliveryDeadline));

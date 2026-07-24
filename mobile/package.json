@@ -12,8 +12,8 @@
     "save:apk": "node scripts/save-apk-to-backend.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",
     "release:android": "npm run build:apk && npm run save:apk",
-    "update:production": "npx eas-cli update --channel production --message \"OTA production\"",
-    "update:preview": "npx eas-cli update --channel preview --message \"OTA preview\""
+    "update:production": "npx eas-cli update --channel production",
+    "update:preview": "npx eas-cli update --channel preview"
   },
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
