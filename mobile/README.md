@@ -20,6 +20,16 @@ endpoints REST, el mismo login JWT (`Bearer`) y el mismo `socket.io` que tu PWA 
   localmente y los sincroniza al recuperar conexión (incluye ruta del pedido con timestamps).
 - Botones **Llamar** al cliente y **Cómo llegar** (abre la app de mapas con navegación).
 
+## Integraciones del vendedor (marketplaces)
+
+La app de vendedor puede conectar:
+- **Mercado Libre** / **Tienda Nube** / **Shopify** vía OAuth (`lupo://oauth/callback`).
+- **WooCommerce** con URL + Consumer Key/Secret (sin OAuth).
+
+Deep link de retorno OAuth: `lupo://oauth/callback?integration=shopify&status=connected` (scheme configurable con `MOBILE_APP_SCHEME`).
+
+Shopify pide el dominio `*.myshopify.com` antes de abrir el navegador de autorización.
+
 ## Estructura
 
 ```

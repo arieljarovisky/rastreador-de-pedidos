@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useSellerOrdersContext } from '../../context/SellerOrdersContext';
 import { api } from '../../api';
-import { MarketplaceShipmentPreview } from '../../types';
+import { MarketplacePlatform, MarketplaceShipmentPreview } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import PostaIcon from '../../components/icons/PostaIcons';
@@ -22,6 +22,53 @@ import EmptyState from '../../components/ui/EmptyState';
 import { SellerStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<SellerStackParamList, 'ImportShipments'>;
+
+function toDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function defaultDateRange(): { dateFrom: string; dateTo: string } {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 30);
+  return { dateFrom: toDateKey(from), dateTo: toDateKey(to) };
+}
+
+function platformTitle(platform: MarketplacePlatform): string {
+  switch (platform) {
+    case 'mercadolibre':
+      return 'Mercado Libre Flex';
+    case 'tiendanube':
+      return 'Tienda Nube Express';
+    case 'shopify':
+      return 'Shopify · domicilio';
+    case 'woocommerce':
+      return 'WooCommerce · domicilio';
+  }
+}
+
+function shippingTypeLabel(shippingType: MarketplaceShipmentPreview['shippingType']): string {
+  switch (shippingType) {
+    case 'flex':
+      return 'Flex';
+    case 'express':
+      return 'Express';
+    case 'standard':
+      return 'Domicilio';
+  }
+}
+
+function usesDateRange(platform: MarketplacePlatform): boolean {
+  return (
+    platform === 'shopify' ||
+    platform === 'woocommerce' ||
+    platform === 'tiendanube' ||
+    platform === 'mercadolibre'
+  );
+}
 
 export default function ImportShipmentsScreen({ route, navigation }: Props) {
   const { platform } = route.params;
@@ -32,17 +79,19 @@ export default function ImportShipmentsScreen({ route, navigation }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [dateRange] = useState(defaultDateRange);
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await api.listMarketplaceShipments(token, platform);
+      const options = usesDateRange(platform) ? dateRange : undefined;
+      const data = await api.listMarketplaceShipments(token, platform, options);
       setShipments(data);
       setSelected(new Set());
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudieron cargar envíos.');
     }
-  }, [token, platform]);
+  }, [token, platform, dateRange]);
 
   useFocusEffect(
     useCallback(() => {
@@ -100,7 +149,7 @@ export default function ImportShipmentsScreen({ route, navigation }: Props) {
     }
   };
 
-  const title = platform === 'mercadolibre' ? 'Mercado Libre Flex' : 'Tienda Nube Express';
+  const title = platformTitle(platform);
 
   if (loading) {
     return (
@@ -112,7 +161,10 @@ export default function ImportShipmentsScreen({ route, navigation }: Props) {
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <Text style={styles.subtitle}>{title} · envíos disponibles para importar</Text>
+      <Text style={styles.subtitle}>
+        {title} · envíos disponibles para importar
+        {usesDateRange(platform) ? ` · últimos 30 días` : ''}
+      </Text>
 
       <FlatList
         data={shipments}
@@ -153,6 +205,7 @@ export default function ImportShipmentsScreen({ route, navigation }: Props) {
               <Text style={styles.address} numberOfLines={2}>
                 {item.address}
               </Text>
+              <Text style={styles.shippingType}>{shippingTypeLabel(item.shippingType)}</Text>
             </Pressable>
           );
         }}
@@ -205,6 +258,14 @@ const styles = StyleSheet.create({
   importedTag: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
   client: { color: colors.text, fontSize: 15, fontWeight: '700' },
   address: { color: colors.textMuted, fontSize: 13, marginTop: 2, lineHeight: 18 },
+  shippingType: {
+    color: colors.textFaint,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
   footer: {
     padding: spacing.xl,
     borderTopColor: colors.border,

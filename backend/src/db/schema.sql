@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE TABLE IF NOT EXISTS store_integrations (
   id VARCHAR(36) PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
-  platform ENUM('mercadolibre', 'tiendanube') NOT NULL,
+  platform ENUM('mercadolibre', 'tiendanube', 'shopify', 'woocommerce') NOT NULL,
   external_user_id VARCHAR(100) NULL,
   external_store_id VARCHAR(100) NULL,
   access_token TEXT NOT NULL,
@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS store_integrations (
   updated_at DATETIME(3) NOT NULL,
   UNIQUE KEY uk_user_platform (user_id, platform),
   INDEX idx_integrations_user (user_id),
+  INDEX idx_integrations_platform_store (platform, external_store_id),
   CONSTRAINT fk_integrations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -102,14 +102,14 @@ export interface GeocodeResult {
   displayName: string;
 }
 
-export type MarketplacePlatform = 'mercadolibre' | 'tiendanube';
+export type MarketplacePlatform = 'mercadolibre' | 'tiendanube' | 'shopify' | 'woocommerce';
 
 export interface MarketplaceShipmentPreview {
   externalId: string;
   mlOrderId?: string;
   mlPackId?: string;
   platform: MarketplacePlatform;
-  shippingType: 'flex' | 'express';
+  shippingType: 'flex' | 'express' | 'standard';
   clientName: string;
   clientPhone: string;
   address: string;
@@ -139,6 +139,20 @@ export interface IntegrationsStatus {
     orderWebhookUrl?: string;
     shippingRatesUrl?: string;
     shippingCarrierReady?: boolean;
+    account: IntegrationAccountStatus | null;
+  };
+  shopify: {
+    configured: boolean;
+    connected: boolean;
+    autoSync?: boolean;
+    orderWebhookUrl?: string;
+    account: IntegrationAccountStatus | null;
+  };
+  woocommerce: {
+    configured: boolean;
+    connected: boolean;
+    autoSync?: boolean;
+    orderWebhookUrl?: string;
     account: IntegrationAccountStatus | null;
   };
 }

@@ -46,10 +46,22 @@ import {
   type TiendaNubeExpressShipment,
 } from './tiendanube.service.js';
 import {
+  listShopifyHomeShipments,
+  type ShopifyDateRange,
+  type ShopifyHomeShipment,
+} from './shopify.service.js';
+import {
+  listWooCommerceHomeShipments,
+  type WooDateRange,
+  type WooHomeShipment,
+} from './woocommerce.service.js';
+import {
   getIntegration,
   listMercadoLibreIntegrationsForAgencyScan,
   listMercadoLibreSellerIntegrationsForAutoImport,
   listTiendaNubeSellerIntegrationsForAutoImport,
+  listShopifySellerIntegrationsForAutoImport,
+  listWooCommerceSellerIntegrationsForAutoImport,
   type IntegrationPlatform,
   type StoreIntegration,
 } from './integrations.service.js';
@@ -97,7 +109,7 @@ export interface MarketplaceShipmentPreview {
   mlOrderId?: string;
   mlPackId?: string;
   platform: IntegrationPlatform;
-  shippingType: 'flex' | 'express';
+  shippingType: 'flex' | 'express' | 'standard';
   clientName: string;
   clientPhone: string;
   address: string;
@@ -112,7 +124,11 @@ export interface MarketplaceShipmentPreview {
   mlOrderIds?: string[];
 }
 
-type RawShipment = MercadoLibreFlexShipment | TiendaNubeExpressShipment;
+type RawShipment =
+  | MercadoLibreFlexShipment
+  | TiendaNubeExpressShipment
+  | ShopifyHomeShipment
+  | WooHomeShipment;
 
 async function markImported(
   userId: string,
@@ -986,6 +1002,94 @@ export async function importTiendaNubeExpressShipment(
   }
 }
 
+export type StandardMarketplaceImportResult =
+  | { kind: 'imported'; order: Order }
+  | { kind: 'skipped'; reason: string; order?: Order }
+  | { kind: 'error'; message: string; fatal?: boolean };
+
+async function importStandardHomeShipment(
+  user: User,
+  shipment: ShopifyHomeShipment | WooHomeShipment,
+  options?: { notify?: boolean; label: string; notifyPrefix: string }
+): Promise<StandardMarketplaceImportResult> {
+  const source = shipment.platform;
+  try {
+    const existing = await findOrderByExternal(user.id, source, shipment.externalId);
+    if (existing) {
+      return { kind: 'skipped', reason: 'already_imported', order: existing };
+    }
+
+    const geocoded = await geocodeAddress(shipment.address);
+    if (!geocoded) {
+      return {
+        kind: 'error',
+        message: formatImportError(shipment.externalId, 'GEOCODE_UNAVAILABLE'),
+      };
+    }
+
+    const order = await createOrder(user, {
+      clientName: shipment.clientName,
+      clientPhone: shipment.clientPhone,
+      address: shipment.address,
+      lat: geocoded.lat,
+      lng: geocoded.lng,
+      notes: shipment.notes,
+      externalSource: source,
+      externalOrderId: shipment.externalId,
+      shippingType: shipment.shippingType,
+    });
+
+    const sellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, sellerId);
+
+    if (options?.notify !== false) {
+      await createNotification({
+        id: `n_${options?.notifyPrefix ?? source}_import_${Date.now()}_${user.id}`,
+        userId: user.id,
+        title: 'Envío importado',
+        body: `Se importó el pedido ${options?.label ?? source} #${shipment.externalId} como ${order.id}.`,
+        type: 'info',
+        orderId: order.id,
+      });
+    }
+
+    return { kind: 'imported', order };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'error desconocido';
+    return {
+      kind: 'error',
+      message: formatImportError(shipment.externalId, reason),
+      fatal: reason === 'SELLER_NO_AGENCY',
+    };
+  }
+}
+
+/** Importa un pedido Shopify a domicilio (webhook o auto-import). Idempotente. */
+export async function importShopifyShipment(
+  user: User,
+  shipment: ShopifyHomeShipment,
+  options?: { notify?: boolean }
+): Promise<StandardMarketplaceImportResult> {
+  return importStandardHomeShipment(user, shipment, {
+    notify: options?.notify,
+    label: 'Shopify',
+    notifyPrefix: 'shopify',
+  });
+}
+
+/** Importa un pedido WooCommerce a domicilio (webhook o auto-import). Idempotente. */
+export async function importWooCommerceShipment(
+  user: User,
+  shipment: WooHomeShipment,
+  options?: { notify?: boolean }
+): Promise<StandardMarketplaceImportResult> {
+  return importStandardHomeShipment(user, shipment, {
+    notify: options?.notify,
+    label: 'WooCommerce',
+    notifyPrefix: 'woo',
+  });
+}
+
 export async function listImportableShipments(
   userId: string,
   platform: IntegrationPlatform,
@@ -997,6 +1101,24 @@ export async function listImportableShipments(
       dateTo: options?.dateTo,
     });
     return markImported(userId, flex);
+  }
+
+  if (platform === 'shopify') {
+    const dateRange: ShopifyDateRange | undefined =
+      options?.dateFrom || options?.dateTo
+        ? { dateFrom: options.dateFrom, dateTo: options.dateTo }
+        : undefined;
+    const shipments = await listShopifyHomeShipments(userId, dateRange);
+    return markImported(userId, shipments);
+  }
+
+  if (platform === 'woocommerce') {
+    const dateRange: WooDateRange | undefined =
+      options?.dateFrom || options?.dateTo
+        ? { dateFrom: options.dateFrom, dateTo: options.dateTo }
+        : undefined;
+    const shipments = await listWooCommerceHomeShipments(userId, dateRange);
+    return markImported(userId, shipments);
   }
 
   const dateRange: TiendaNubeDateRange | undefined =
@@ -1149,7 +1271,13 @@ export async function importMarketplaceShipments(
 
   if (imported > 0) {
     const platformLabel =
-      platform === 'mercadolibre' ? 'Mercado Libre Flex' : 'Tienda Nube Express';
+      platform === 'mercadolibre'
+        ? 'Mercado Libre Flex'
+        : platform === 'tiendanube'
+          ? 'Tienda Nube Express'
+          : platform === 'shopify'
+            ? 'Shopify'
+            : 'WooCommerce';
     const title = imported === 1 ? 'Envío importado' : 'Envíos importados';
     const body =
       imported === 1
@@ -1696,6 +1824,155 @@ export async function runTiendaNubeExpressAutoImport(): Promise<{
     console.log('[tn-auto-import] corrida', {
       accounts: integrations.length,
       lookbackDays: TN_AUTO_IMPORT_LOOKBACK_DAYS,
+      imported,
+      skipped,
+      errors,
+      webhooksEnsured,
+    });
+  }
+
+  return { accounts: integrations.length, imported, skipped, errors, webhooksEnsured };
+}
+
+const SHOPIFY_AUTO_IMPORT_LOOKBACK_DAYS = Math.max(
+  1,
+  Number(process.env.SHOPIFY_AUTO_IMPORT_LOOKBACK_DAYS ?? 14) || 14
+);
+
+const WOO_AUTO_IMPORT_LOOKBACK_DAYS = Math.max(
+  1,
+  Number(process.env.WOO_AUTO_IMPORT_LOOKBACK_DAYS ?? 14) || 14
+);
+
+const ensuredShopifyWebhookIntegrationIds = new Set<string>();
+const ensuredWooWebhookIntegrationIds = new Set<string>();
+
+/** Auto-importa pedidos Shopify a domicilio (respaldo de webhooks). */
+export async function runShopifyAutoImport(): Promise<{
+  accounts: number;
+  imported: number;
+  skipped: number;
+  errors: number;
+  webhooksEnsured: number;
+}> {
+  const { ensureShopifyOrderWebhooks } = await import('./shopify.service.js');
+  const integrations = await listShopifySellerIntegrationsForAutoImport();
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+  let webhooksEnsured = 0;
+  const dateFrom = isoDateDaysAgo(SHOPIFY_AUTO_IMPORT_LOOKBACK_DAYS);
+
+  for (const integration of integrations) {
+    try {
+      if (!ensuredShopifyWebhookIntegrationIds.has(integration.id)) {
+        try {
+          await ensureShopifyOrderWebhooks(integration);
+          ensuredShopifyWebhookIntegrationIds.add(integration.id);
+          webhooksEnsured += 1;
+        } catch (err) {
+          console.warn('[shopify-auto-import] ensure webhooks falló', {
+            userId: integration.userId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      const owner = await getUserById(integration.userId);
+      if (!owner || owner.role !== UserRole.STORE_ADMIN) continue;
+
+      const shipments = await listShopifyHomeShipments(integration.userId, { dateFrom });
+      for (const shipment of shipments) {
+        const result = await importShopifyShipment(owner, shipment, { notify: false });
+        if (result.kind === 'imported') imported += 1;
+        else if (result.kind === 'skipped') skipped += 1;
+        else {
+          errors += 1;
+          if (result.fatal) break;
+        }
+        await sleep(80);
+      }
+    } catch (err) {
+      errors += 1;
+      console.warn('[shopify-auto-import] cuenta falló', {
+        userId: integration.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (imported > 0 || errors > 0) {
+    console.log('[shopify-auto-import] corrida', {
+      accounts: integrations.length,
+      lookbackDays: SHOPIFY_AUTO_IMPORT_LOOKBACK_DAYS,
+      imported,
+      skipped,
+      errors,
+      webhooksEnsured,
+    });
+  }
+
+  return { accounts: integrations.length, imported, skipped, errors, webhooksEnsured };
+}
+
+/** Auto-importa pedidos WooCommerce a domicilio (respaldo de webhooks). */
+export async function runWooCommerceAutoImport(): Promise<{
+  accounts: number;
+  imported: number;
+  skipped: number;
+  errors: number;
+  webhooksEnsured: number;
+}> {
+  const { ensureWooCommerceOrderWebhooks } = await import('./woocommerce.service.js');
+  const integrations = await listWooCommerceSellerIntegrationsForAutoImport();
+  let imported = 0;
+  let skipped = 0;
+  let errors = 0;
+  let webhooksEnsured = 0;
+  const dateFrom = isoDateDaysAgo(WOO_AUTO_IMPORT_LOOKBACK_DAYS);
+
+  for (const integration of integrations) {
+    try {
+      if (!ensuredWooWebhookIntegrationIds.has(integration.id)) {
+        try {
+          await ensureWooCommerceOrderWebhooks(integration);
+          ensuredWooWebhookIntegrationIds.add(integration.id);
+          webhooksEnsured += 1;
+        } catch (err) {
+          console.warn('[woo-auto-import] ensure webhooks falló', {
+            userId: integration.userId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      const owner = await getUserById(integration.userId);
+      if (!owner || owner.role !== UserRole.STORE_ADMIN) continue;
+
+      const shipments = await listWooCommerceHomeShipments(integration.userId, { dateFrom });
+      for (const shipment of shipments) {
+        const result = await importWooCommerceShipment(owner, shipment, { notify: false });
+        if (result.kind === 'imported') imported += 1;
+        else if (result.kind === 'skipped') skipped += 1;
+        else {
+          errors += 1;
+          if (result.fatal) break;
+        }
+        await sleep(80);
+      }
+    } catch (err) {
+      errors += 1;
+      console.warn('[woo-auto-import] cuenta falló', {
+        userId: integration.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (imported > 0 || errors > 0) {
+    console.log('[woo-auto-import] corrida', {
+      accounts: integrations.length,
+      lookbackDays: WOO_AUTO_IMPORT_LOOKBACK_DAYS,
       imported,
       skipped,
       errors,

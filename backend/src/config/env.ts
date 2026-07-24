@@ -77,6 +77,15 @@ export const env = {
       process.env.TN_REDIRECT_URI?.trim() ||
       `${resolvePublicUrl()}/api/integrations/tiendanube/callback`,
   },
+  shopify: {
+    apiKey: process.env.SHOPIFY_API_KEY?.trim() || '',
+    apiSecret: process.env.SHOPIFY_API_SECRET?.trim() || '',
+    apiVersion: process.env.SHOPIFY_API_VERSION?.trim() || '2026-07',
+    scopes: process.env.SHOPIFY_SCOPES?.trim() || 'read_orders',
+    redirectUri:
+      process.env.SHOPIFY_REDIRECT_URI?.trim() ||
+      `${resolvePublicUrl()}/api/integrations/shopify/callback`,
+  },
   mobileApp: {
     scheme: (process.env.MOBILE_APP_SCHEME?.trim() || 'lupo').replace(/:\/\//, ''),
     version: process.env.MOBILE_APP_VERSION?.trim() || '1.0.0',

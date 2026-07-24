@@ -30,6 +30,12 @@ function SourceLogo({ source }: { source?: string | null }) {
       <Image source={mercadolibreLogo} style={styles.sourceLogo} resizeMode="contain" accessibilityLabel="Mercado Libre" />
     );
   }
+  if (source === 'shopify') {
+    return <Text style={styles.sourceLabel}>Shopify</Text>;
+  }
+  if (source === 'woocommerce') {
+    return <Text style={styles.sourceLabel}>Woo</Text>;
+  }
   return null;
 }
 
@@ -129,6 +135,12 @@ const styles = StyleSheet.create({
   sourceLogo: {
     width: 14,
     height: 14,
+  },
+  sourceLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 10,
+    color: colors.textMuted,
+    letterSpacing: 0.2,
   },
   client: {
     ...typography.displaySection(16, colors.text),

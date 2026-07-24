@@ -386,9 +386,13 @@ export default function MapComponent({
     let resizeObserver: ResizeObserver | null = null;
 
     const teardownMap = () => {
-      Object.values(markersRef.current).forEach((marker) => marker.remove());
+      for (const marker of Object.values(markersRef.current) as L.Marker[]) {
+        marker.remove();
+      }
       markersRef.current = {};
-      Object.values(polylinesRef.current).forEach((line) => line.remove());
+      for (const line of Object.values(polylinesRef.current) as L.Polyline[]) {
+        line.remove();
+      }
       polylinesRef.current = {};
       zoneLayersRef.current.forEach((layer) => layer.remove());
       zoneLayersRef.current = [];

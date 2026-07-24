@@ -108,6 +108,43 @@ El frontend en `http://localhost:5173` usa proxy hacia `/api` en el backend.
 - `POST /api/notifications/read` — Marcar como leídas
 - `POST /api/simulator/tick` — Simulador GPS (demo)
 
+## Integraciones marketplace
+
+### Shopify (OAuth Partner)
+
+Variables: `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, opcional `SHOPIFY_REDIRECT_URI`, `SHOPIFY_API_VERSION` (default `2026-07`), `SHOPIFY_SCOPES` (default `read_orders`).
+
+En la app Partner / Dev Dashboard:
+- Redirect URL: `https://TU-BACKEND/api/integrations/shopify/callback`
+- Scopes: `read_orders`
+- Webhooks de pedidos (también se registran al conectar): `https://TU-BACKEND/api/integrations/shopify/webhooks/orders` (topics `orders/paid`, `orders/cancelled`, `app/uninstalled`)
+- Compliance (obligatorio si publicás en App Store), configurar en `shopify.app.toml` o Partner Dashboard:
+  - `customers/data_request` → `.../shopify/webhooks/customers-data-request`
+  - `customers/redact` → `.../shopify/webhooks/customers-redact`
+  - `shop/redact` → `.../shopify/webhooks/shop-redact`
+
+Flujo vendedor: ingresa `mi-tienda.myshopify.com` → OAuth → importación manual + sync automático de pedidos **pagados con envío a domicilio** (`shippingType: standard`).
+
+### WooCommerce (Consumer Key / Secret)
+
+No requiere secrets globales. El vendedor pega:
+- URL HTTPS de la tienda
+- Consumer Key (`ck_…`) y Consumer Secret (`cs_…`) desde WooCommerce → Ajustes → Avanzado → REST API (permisos de lectura)
+
+Al conectar, el backend crea webhooks `order.created` / `order.updated` hacia `https://TU-BACKEND/api/integrations/woocommerce/webhooks/orders` (firma `X-WC-Webhook-Signature`).
+
+Mismo filtro: pedidos pagos/procesando con dirección de domicilio (excluye pickup/retiro).
+
+### Endpoints de integraciones
+
+- `GET /api/integrations/status`
+- `GET /api/integrations/shopify/connect?shop=...`
+- `GET /api/integrations/shopify/callback`
+- `POST /api/integrations/woocommerce/connect`
+- `GET /api/integrations/:platform/shipments`
+- `POST /api/integrations/:platform/import`
+- `DELETE /api/integrations/:platform`
+
 ## Deploy en Railway
 
 ### 1. Variables del backend

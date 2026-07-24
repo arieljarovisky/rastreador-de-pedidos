@@ -430,9 +430,11 @@ export default function RepartidorDashboard({
               <div className="flex flex-col gap-2 sm:gap-3 p-0 min-h-0">
                 {/* Altura fija cómoda: el resto scrollea para ver confirmar/incidencia */}
                 <div className="relative w-full shrink-0 h-[min(48dvh,440px)] min-h-[280px] overflow-hidden rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-bg)]">
-                  <div className="absolute inset-0 w-full h-full">
+                  <div
+                    key={`courier-map-${selectedOrder.id}`}
+                    className="absolute inset-0 w-full h-full"
+                  >
                     <MapComponent
-                      key={`courier-map-${selectedOrder.id}`}
                       orders={[selectedOrder]}
                       repartidores={repForMap}
                       departurePoint={departurePoint}

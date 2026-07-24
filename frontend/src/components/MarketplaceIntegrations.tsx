@@ -7,19 +7,29 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link2, Unlink, Download, RefreshCw, ShoppingBag, Store, Loader2, Archive } from 'lucide-react';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
 
+export type MarketplacePlatform = 'mercadolibre' | 'tiendanube' | 'shopify' | 'woocommerce';
+
 export interface MarketplaceIntegrationsProps {
   status: MarketplaceIntegrationStatus | null;
   statusLoading: boolean;
   statusError?: string | null;
   onRefreshStatus: () => Promise<void>;
-  onConnect: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
-  onDisconnect: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
+  onConnect: (
+    platform: MarketplacePlatform,
+    options?: {
+      shop?: string;
+      storeUrl?: string;
+      consumerKey?: string;
+      consumerSecret?: string;
+    }
+  ) => Promise<void>;
+  onDisconnect: (platform: MarketplacePlatform) => Promise<void>;
   onFetchShipments: (
-    platform: 'mercadolibre' | 'tiendanube',
+    platform: MarketplacePlatform,
     options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<MarketplaceShipmentPreview[]>;
   onImport: (
-    platform: 'mercadolibre' | 'tiendanube',
+    platform: MarketplacePlatform,
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;
@@ -65,10 +75,27 @@ function defaultTnDateRange(): { dateFrom: string; dateTo: string } {
   return { dateFrom: toDateInputValue(from), dateTo: toDateInputValue(to) };
 }
 
+function defaultHomeDateRange(): { dateFrom: string; dateTo: string } {
+  return defaultTnDateRange();
+}
+
 function formatShipmentDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function webhookLabel(platform: MarketplacePlatform): string {
+  switch (platform) {
+    case 'mercadolibre':
+      return 'Webhook ML';
+    case 'tiendanube':
+      return 'Webhook TN';
+    case 'shopify':
+      return 'Webhook Shopify';
+    case 'woocommerce':
+      return 'Webhook Woo';
+  }
 }
 
 function PlatformCard({
@@ -99,11 +126,20 @@ function PlatformCard({
   onMlRefInputChange,
   onImportByMlRef,
   mlRefImporting = false,
+  shopDomain = '',
+  onShopDomainChange,
+  wooStoreUrl = '',
+  onWooStoreUrlChange,
+  wooConsumerKey = '',
+  onWooConsumerKeyChange,
+  wooConsumerSecret = '',
+  onWooConsumerSecretChange,
+  connecting = false,
 }: {
   title: string;
   subtitle: string;
   icon: ReactNode;
-  platform: 'mercadolibre' | 'tiendanube';
+  platform: MarketplacePlatform;
   configured: boolean;
   showMissingCredentials?: boolean;
   connected: boolean;
@@ -127,11 +163,42 @@ function PlatformCard({
   onMlRefInputChange?: (value: string) => void;
   onImportByMlRef?: () => void;
   mlRefImporting?: boolean;
+  shopDomain?: string;
+  onShopDomainChange?: (value: string) => void;
+  wooStoreUrl?: string;
+  onWooStoreUrlChange?: (value: string) => void;
+  wooConsumerKey?: string;
+  onWooConsumerKeyChange?: (value: string) => void;
+  wooConsumerSecret?: string;
+  onWooConsumerSecretChange?: (value: string) => void;
+  connecting?: boolean;
 }) {
   const pending = shipments.filter(
     (s) => !s.alreadyImported && s.mlShipmentStatus !== 'delivered'
   );
   const pendingImportCount = pending.length;
+  const showDateRange =
+    (platform === 'mercadolibre' ||
+      platform === 'tiendanube' ||
+      platform === 'shopify' ||
+      platform === 'woocommerce') &&
+    dateFrom &&
+    dateTo &&
+    onDateFromChange &&
+    onDateToChange;
+
+  const shopifyCanConnect = Boolean(shopDomain.trim());
+  const wooCanConnect = Boolean(
+    wooStoreUrl.trim() && wooConsumerKey.trim() && wooConsumerSecret.trim()
+  );
+
+  const connectDisabled =
+    connecting ||
+    (platform === 'shopify'
+      ? !shopifyCanConnect
+      : platform === 'woocommerce'
+        ? !wooCanConnect
+        : !configured);
 
   return (
     <div className="bg-[var(--paper)] border border-[var(--surface-border)] rounded-[5px] p-3 flex flex-col gap-3">
@@ -158,38 +225,126 @@ function PlatformCard({
               Falta configurar credenciales en el servidor.
             </p>
           )}
-          {platform === 'mercadolibre' && configured && webhookUrl && (
+          {configured && webhookUrl && (
             <p className="text-[10px] text-[var(--color-text-muted)] mt-1 break-all">
-              Webhook ML: <span className="text-[var(--ink-soft)] font-mono">{webhookUrl}</span>
-            </p>
-          )}
-          {platform === 'tiendanube' && configured && webhookUrl && (
-            <p className="text-[10px] text-[var(--color-text-muted)] mt-1 break-all">
-              Webhook TN: <span className="text-[var(--ink-soft)] font-mono">{webhookUrl}</span>
+              {webhookLabel(platform)}:{' '}
+              <span className="text-[var(--ink-soft)] font-mono">{webhookUrl}</span>
             </p>
           )}
         </div>
         <div className="flex flex-col gap-1 shrink-0">
-          {!connected ? (
+          {!connected && platform !== 'shopify' && platform !== 'woocommerce' ? (
             <button
               type="button"
               className={btnPrimary}
-              disabled={!configured}
+              disabled={connectDisabled}
               onClick={onConnect}
             >
               <span className="inline-flex items-center gap-1">
                 <Link2 className="w-3 h-3" /> Conectar
               </span>
             </button>
-          ) : (
+          ) : connected ? (
             <button type="button" className={btnGhost} onClick={onDisconnect}>
               <span className="inline-flex items-center gap-1">
                 <Unlink className="w-3 h-3" /> Desconectar
               </span>
             </button>
-          )}
+          ) : null}
         </div>
       </div>
+
+      {!connected && platform === 'shopify' && onShopDomainChange && (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-0.5 flex-1 min-w-[12rem]">
+            <span className="mono-label">Dominio de la tienda</span>
+            <input
+              type="text"
+              placeholder="mi-tienda.myshopify.com"
+              className={dateInputClass}
+              value={shopDomain}
+              disabled={connecting}
+              onChange={(e) => onShopDomainChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && shopifyCanConnect && !connecting) {
+                  e.preventDefault();
+                  onConnect();
+                }
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={connectDisabled}
+            onClick={onConnect}
+          >
+            <span className="inline-flex items-center gap-1">
+              {connecting ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Link2 className="w-3 h-3" />
+              )}
+              {connecting ? 'Conectando…' : 'Conectar'}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {!connected && platform === 'woocommerce' && onWooStoreUrlChange && (
+        <div className="flex flex-col gap-2">
+          <label className="flex flex-col gap-0.5">
+            <span className="mono-label">URL de la tienda</span>
+            <input
+              type="url"
+              placeholder="https://mitienda.com"
+              className={dateInputClass}
+              value={wooStoreUrl}
+              disabled={connecting}
+              onChange={(e) => onWooStoreUrlChange(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="mono-label">Consumer Key</span>
+            <input
+              type="text"
+              placeholder="ck_…"
+              className={dateInputClass}
+              value={wooConsumerKey}
+              disabled={connecting}
+              onChange={(e) => onWooConsumerKeyChange?.(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="mono-label">Consumer Secret</span>
+            <input
+              type="password"
+              placeholder="cs_…"
+              className={dateInputClass}
+              value={wooConsumerSecret}
+              disabled={connecting}
+              onChange={(e) => onWooConsumerSecretChange?.(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={connectDisabled}
+            onClick={onConnect}
+          >
+            <span className="inline-flex items-center gap-1">
+              {connecting ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Link2 className="w-3 h-3" />
+              )}
+              {connecting ? 'Conectando…' : 'Conectar'}
+            </span>
+          </button>
+        </div>
+      )}
 
       {connected && (
         <>
@@ -231,34 +386,7 @@ function PlatformCard({
             </div>
           )}
 
-          {platform === 'mercadolibre' && dateFrom && dateTo && onDateFromChange && onDateToChange && (
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
-                <span className="mono-label">Desde</span>
-                <input
-                  type="date"
-                  className={dateInputClass}
-                  value={dateFrom}
-                  max={dateTo}
-                  disabled={shipmentsLoading || importLoading}
-                  onChange={(e) => onDateFromChange(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
-                <span className="mono-label">Hasta</span>
-                <input
-                  type="date"
-                  className={dateInputClass}
-                  value={dateTo}
-                  min={dateFrom}
-                  disabled={shipmentsLoading || importLoading}
-                  onChange={(e) => onDateToChange(e.target.value)}
-                />
-              </label>
-            </div>
-          )}
-
-          {platform === 'tiendanube' && dateFrom && dateTo && onDateFromChange && onDateToChange && (
+          {showDateRange && (
             <div className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-0.5 min-w-[7.5rem] flex-1">
                 <span className="mono-label">Desde</span>
@@ -339,9 +467,7 @@ function PlatformCard({
 
           {!shipmentsLoading && shipments.length === 0 && (
             <p className="text-[10px] text-[var(--color-text-muted)]">
-              Tocá &quot;Buscar envíos&quot; para ver pedidos Flex del período
-              {platform === 'mercadolibre' ? ' seleccionado' : ''}
-              {platform === 'tiendanube' ? ' seleccionado' : ''}.
+              Tocá &quot;Buscar envíos&quot; para ver pedidos del período seleccionado.
               {platform === 'mercadolibre' &&
                 ' Una venta = un pack MLA (como en Mercado Libre), aunque tenga varios productos.'}
             </p>
@@ -349,7 +475,7 @@ function PlatformCard({
 
           {!shipmentsLoading && shipments.length > 0 && pending.length === 0 && (
             <p className="text-[10px] text-[var(--color-ok)]">
-              Todos los envíos Flex visibles ya fueron importados. Si tenés pedidos nuevos en ML, tocá
+              Todos los envíos visibles ya fueron importados. Si tenés pedidos nuevos, tocá
               &quot;Buscar envíos&quot; de nuevo.
             </p>
           )}
@@ -430,16 +556,34 @@ export default function MarketplaceIntegrations({
 }: MarketplaceIntegrationsProps) {
   const [mlShipments, setMlShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [tnShipments, setTnShipments] = useState<MarketplaceShipmentPreview[]>([]);
+  const [shopifyShipments, setShopifyShipments] = useState<MarketplaceShipmentPreview[]>([]);
+  const [wooShipments, setWooShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [mlLoading, setMlLoading] = useState(false);
   const [tnLoading, setTnLoading] = useState(false);
+  const [shopifyLoading, setShopifyLoading] = useState(false);
+  const [wooLoading, setWooLoading] = useState(false);
   const [mlImporting, setMlImporting] = useState(false);
   const [tnImporting, setTnImporting] = useState(false);
+  const [shopifyImporting, setShopifyImporting] = useState(false);
+  const [wooImporting, setWooImporting] = useState(false);
   const [mlImportingId, setMlImportingId] = useState<string | 'all' | null>(null);
   const [tnImportingId, setTnImportingId] = useState<string | 'all' | null>(null);
+  const [shopifyImportingId, setShopifyImportingId] = useState<string | 'all' | null>(null);
+  const [wooImportingId, setWooImportingId] = useState<string | 'all' | null>(null);
   const [tnDateFrom, setTnDateFrom] = useState(() => defaultTnDateRange().dateFrom);
   const [tnDateTo, setTnDateTo] = useState(() => defaultTnDateRange().dateTo);
   const [mlDateFrom, setMlDateFrom] = useState(() => defaultMlDateRange().dateFrom);
   const [mlDateTo, setMlDateTo] = useState(() => defaultMlDateRange().dateTo);
+  const [shopifyDateFrom, setShopifyDateFrom] = useState(() => defaultHomeDateRange().dateFrom);
+  const [shopifyDateTo, setShopifyDateTo] = useState(() => defaultHomeDateRange().dateTo);
+  const [wooDateFrom, setWooDateFrom] = useState(() => defaultHomeDateRange().dateFrom);
+  const [wooDateTo, setWooDateTo] = useState(() => defaultHomeDateRange().dateTo);
+  const [shopDomain, setShopDomain] = useState('');
+  const [wooStoreUrl, setWooStoreUrl] = useState('');
+  const [wooConsumerKey, setWooConsumerKey] = useState('');
+  const [wooConsumerSecret, setWooConsumerSecret] = useState('');
+  const [shopifyConnecting, setShopifyConnecting] = useState(false);
+  const [wooConnecting, setWooConnecting] = useState(false);
   const [mlRefInput, setMlRefInput] = useState('');
   const [mlRefImporting, setMlRefImporting] = useState(false);
   const [archivingFinished, setArchivingFinished] = useState(false);
@@ -452,6 +596,8 @@ export default function MarketplaceIntegrations({
 
   const tnDateOptions = { dateFrom: tnDateFrom, dateTo: tnDateTo };
   const mlDateOptions = { dateFrom: mlDateFrom, dateTo: mlDateTo };
+  const shopifyDateOptions = { dateFrom: shopifyDateFrom, dateTo: shopifyDateTo };
+  const wooDateOptions = { dateFrom: wooDateFrom, dateTo: wooDateTo };
 
   const refreshMl = useCallback(async () => {
     if (mlDateFrom > mlDateTo) {
@@ -492,31 +638,82 @@ export default function MarketplaceIntegrations({
     }
   }, [onFetchShipments, tnDateFrom, tnDateTo]);
 
-  const runImport = async (
-    platform: 'mercadolibre' | 'tiendanube',
-    externalIds?: string[]
-  ) => {
-    const setImporting = platform === 'mercadolibre' ? setMlImporting : setTnImporting;
-    const setImportingId = platform === 'mercadolibre' ? setMlImportingId : setTnImportingId;
-    const refresh = platform === 'mercadolibre' ? refreshMl : refreshTn;
-    const options = platform === 'tiendanube' ? tnDateOptions : mlDateOptions;
-
-    if (platform === 'tiendanube' && tnDateFrom > tnDateTo) {
+  const refreshShopify = useCallback(async () => {
+    if (shopifyDateFrom > shopifyDateTo) {
       setMessageTone('error');
       setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
       return;
     }
-    if (platform === 'mercadolibre' && mlDateFrom > mlDateTo) {
-      setMessageTone('error');
-      setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
-      return;
-    }
-
-    setImporting(true);
-    setImportingId(externalIds?.length === 1 ? externalIds[0]! : 'all');
+    setShopifyLoading(true);
     setMessage(null);
     try {
-      const result = await onImport(platform, externalIds, options);
+      const list = await onFetchShipments('shopify', shopifyDateOptions);
+      setShopifyShipments(list);
+    } catch (err: unknown) {
+      setMessageTone('error');
+      setMessage(err instanceof Error ? err.message : 'Error al buscar envíos de Shopify');
+    } finally {
+      setShopifyLoading(false);
+    }
+  }, [onFetchShipments, shopifyDateFrom, shopifyDateTo]);
+
+  const refreshWoo = useCallback(async () => {
+    if (wooDateFrom > wooDateTo) {
+      setMessageTone('error');
+      setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
+      return;
+    }
+    setWooLoading(true);
+    setMessage(null);
+    try {
+      const list = await onFetchShipments('woocommerce', wooDateOptions);
+      setWooShipments(list);
+    } catch (err: unknown) {
+      setMessageTone('error');
+      setMessage(err instanceof Error ? err.message : 'Error al buscar envíos de WooCommerce');
+    } finally {
+      setWooLoading(false);
+    }
+  }, [onFetchShipments, wooDateFrom, wooDateTo]);
+
+  const dateOptionsFor = (platform: MarketplacePlatform) => {
+    switch (platform) {
+      case 'mercadolibre':
+        return mlDateOptions;
+      case 'tiendanube':
+        return tnDateOptions;
+      case 'shopify':
+        return shopifyDateOptions;
+      case 'woocommerce':
+        return wooDateOptions;
+    }
+  };
+
+  const validateDateRange = (platform: MarketplacePlatform): boolean => {
+    const options = dateOptionsFor(platform);
+    if (options.dateFrom > options.dateTo) {
+      setMessageTone('error');
+      setMessage('La fecha desde no puede ser posterior a la fecha hasta.');
+      return false;
+    }
+    return true;
+  };
+
+  const runImport = async (platform: MarketplacePlatform, externalIds?: string[]) => {
+    const setters = {
+      mercadolibre: { setImporting: setMlImporting, setImportingId: setMlImportingId, refresh: refreshMl },
+      tiendanube: { setImporting: setTnImporting, setImportingId: setTnImportingId, refresh: refreshTn },
+      shopify: { setImporting: setShopifyImporting, setImportingId: setShopifyImportingId, refresh: refreshShopify },
+      woocommerce: { setImporting: setWooImporting, setImportingId: setWooImportingId, refresh: refreshWoo },
+    }[platform];
+
+    if (!validateDateRange(platform)) return;
+
+    setters.setImporting(true);
+    setters.setImportingId(externalIds?.length === 1 ? externalIds[0]! : 'all');
+    setMessage(null);
+    try {
+      const result = await onImport(platform, externalIds, dateOptionsFor(platform));
       if (result.imported > 0) {
         setMessageTone('success');
         setMessage(
@@ -531,13 +728,48 @@ export default function MarketplaceIntegrations({
         setMessageTone('error');
         setMessage('No se importó ningún envío.');
       }
-      await refresh();
+      await setters.refresh();
     } catch (err: unknown) {
       setMessageTone('error');
       setMessage(err instanceof Error ? err.message : 'No se pudo importar');
     } finally {
-      setImporting(false);
-      setImportingId(null);
+      setters.setImporting(false);
+      setters.setImportingId(null);
+    }
+  };
+
+  const connectShopify = async () => {
+    const shop = shopDomain.trim();
+    if (!shop) return;
+    setShopifyConnecting(true);
+    setMessage(null);
+    try {
+      await onConnect('shopify', { shop });
+    } catch (err: unknown) {
+      setMessageTone('error');
+      setMessage(err instanceof Error ? err.message : 'No se pudo conectar Shopify');
+    } finally {
+      setShopifyConnecting(false);
+    }
+  };
+
+  const connectWoo = async () => {
+    const storeUrl = wooStoreUrl.trim();
+    const consumerKey = wooConsumerKey.trim();
+    const consumerSecret = wooConsumerSecret.trim();
+    if (!storeUrl || !consumerKey || !consumerSecret) return;
+    setWooConnecting(true);
+    setMessage(null);
+    try {
+      await onConnect('woocommerce', { storeUrl, consumerKey, consumerSecret });
+      setWooStoreUrl('');
+      setWooConsumerKey('');
+      setWooConsumerSecret('');
+    } catch (err: unknown) {
+      setMessageTone('error');
+      setMessage(err instanceof Error ? err.message : 'No se pudo conectar WooCommerce');
+    } finally {
+      setWooConnecting(false);
     }
   };
 
@@ -580,7 +812,7 @@ export default function MarketplaceIntegrations({
             Tiendas conectadas
           </p>
           <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-            Importá envíos Flex (Mercado Libre) y Express (Tienda Nube). Ambos con sync automático vía webhook.
+            Importá envíos Flex (Mercado Libre), Express (Tienda Nube) y a domicilio (Shopify y WooCommerce). Sync automático vía webhook donde esté disponible.
           </p>
         </div>
         <button
@@ -663,6 +895,87 @@ export default function MarketplaceIntegrations({
           onImportAll={() => void runImport('tiendanube')}
           onImportOne={(id) => void runImport('tiendanube', [id])}
         />
+        <PlatformCard
+          title="Shopify"
+          subtitle="Envíos a domicilio · OAuth + sync por webhook"
+          icon={
+            <span className="text-[10px] font-bold tracking-wide text-white bg-[#95BF47] rounded-[3px] px-1 py-0.5">
+              SH
+            </span>
+          }
+          platform="shopify"
+          configured={status?.shopify?.configured ?? true}
+          showMissingCredentials={
+            !statusError && status !== null && status.shopify != null && !status.shopify.configured
+          }
+          connected={status?.shopify?.connected ?? false}
+          accountName={
+            status?.shopify?.account?.nickname ?? status?.shopify?.account?.externalStoreId ?? null
+          }
+          webhookUrl={status?.shopify?.orderWebhookUrl}
+          autoSync={status?.shopify?.autoSync ?? status?.shopify?.connected ?? false}
+          shipments={shopifyShipments}
+          shipmentsLoading={shopifyLoading}
+          importLoading={shopifyImporting}
+          importingId={shopifyImportingId}
+          dateFrom={shopifyDateFrom}
+          dateTo={shopifyDateTo}
+          onDateFromChange={setShopifyDateFrom}
+          onDateToChange={setShopifyDateTo}
+          onConnect={() => void connectShopify()}
+          onDisconnect={() => void onDisconnect('shopify')}
+          onRefreshShipments={() => void refreshShopify()}
+          onImportAll={() => void runImport('shopify')}
+          onImportOne={(id) => void runImport('shopify', [id])}
+          shopDomain={shopDomain}
+          onShopDomainChange={setShopDomain}
+          connecting={shopifyConnecting}
+        />
+        <PlatformCard
+          title="WooCommerce"
+          subtitle="Envíos a domicilio · API keys + sync por webhook"
+          icon={
+            <span className="text-[10px] font-bold tracking-wide text-white bg-[#7F54B3] rounded-[3px] px-1 py-0.5">
+              WC
+            </span>
+          }
+          platform="woocommerce"
+          configured={status?.woocommerce?.configured ?? true}
+          showMissingCredentials={
+            !statusError &&
+            status !== null &&
+            status.woocommerce != null &&
+            !status.woocommerce.configured
+          }
+          connected={status?.woocommerce?.connected ?? false}
+          accountName={
+            status?.woocommerce?.account?.nickname ??
+            status?.woocommerce?.account?.externalStoreId ??
+            null
+          }
+          webhookUrl={status?.woocommerce?.orderWebhookUrl}
+          autoSync={status?.woocommerce?.autoSync ?? status?.woocommerce?.connected ?? false}
+          shipments={wooShipments}
+          shipmentsLoading={wooLoading}
+          importLoading={wooImporting}
+          importingId={wooImportingId}
+          dateFrom={wooDateFrom}
+          dateTo={wooDateTo}
+          onDateFromChange={setWooDateFrom}
+          onDateToChange={setWooDateTo}
+          onConnect={() => void connectWoo()}
+          onDisconnect={() => void onDisconnect('woocommerce')}
+          onRefreshShipments={() => void refreshWoo()}
+          onImportAll={() => void runImport('woocommerce')}
+          onImportOne={(id) => void runImport('woocommerce', [id])}
+          wooStoreUrl={wooStoreUrl}
+          onWooStoreUrlChange={setWooStoreUrl}
+          wooConsumerKey={wooConsumerKey}
+          onWooConsumerKeyChange={setWooConsumerKey}
+          wooConsumerSecret={wooConsumerSecret}
+          onWooConsumerSecretChange={setWooConsumerSecret}
+          connecting={wooConnecting}
+        />
       </div>
 
       {onArchiveAllFinishedOrders && (
@@ -670,7 +983,17 @@ export default function MarketplaceIntegrations({
           <button
             type="button"
             className={`${btnGhost} w-full`}
-            disabled={archivingFinished || mlLoading || tnLoading || mlImporting || tnImporting}
+            disabled={
+              archivingFinished ||
+              mlLoading ||
+              tnLoading ||
+              shopifyLoading ||
+              wooLoading ||
+              mlImporting ||
+              tnImporting ||
+              shopifyImporting ||
+              wooImporting
+            }
             onClick={() => {
               setArchivingFinished(true);
               void onArchiveAllFinishedOrders()

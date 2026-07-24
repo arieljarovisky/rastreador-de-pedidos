@@ -26,6 +26,22 @@ import {
   isTiendaNubeConfigured,
 } from '../services/tiendanube.service.js';
 import {
+  exchangeShopifyCode,
+  getShopifyAuthUrl,
+  getShopifyOrderWebhookUrl,
+  getShopifyPrivacyWebhookUrls,
+  isShopifyConfigured,
+  normalizeShopifyShopDomain,
+  parseShopifyDateRange,
+  verifyShopifyOAuthHmac,
+} from '../services/shopify.service.js';
+import {
+  connectWooCommerce,
+  deleteWooCommerceRemoteWebhooks,
+  getWooCommerceOrderWebhookUrl,
+  parseWooCommerceDateRange,
+} from '../services/woocommerce.service.js';
+import {
   importMarketplaceShipments,
   importMercadoLibreByScanForAgency,
   listImportableShipments,
@@ -56,9 +72,39 @@ import {
   type TiendaNubeOrderWebhookPayload,
 } from '../services/tiendanube-webhook.service.js';
 import {
+  assertShopifyWebhookHmac,
+  processShopifyOrderWebhook,
+} from '../services/shopify-webhook.service.js';
+import {
+  processShopifyCustomersDataRequest,
+  processShopifyCustomersRedact,
+  processShopifyShopRedact,
+  type ShopifyCustomersDataRequestPayload,
+  type ShopifyCustomersRedactPayload,
+  type ShopifyShopRedactPayload,
+} from '../services/shopify-privacy.service.js';
+import {
+  assertWooCommerceWebhookSignature,
+  processWooCommerceOrderWebhook,
+  resolveWooCommerceIntegrationFromWebhook,
+} from '../services/woocommerce-webhook.service.js';
+import {
   quoteTiendaNubePostaExpressRates,
   type TnShippingRatesRequest,
 } from '../services/tiendanube-shipping-rates.service.js';
+import type { ShopifyOrder } from '../services/shopify.service.js';
+import type { WooOrder } from '../services/woocommerce.service.js';
+
+const VALID_PLATFORMS: IntegrationPlatform[] = [
+  'mercadolibre',
+  'tiendanube',
+  'shopify',
+  'woocommerce',
+];
+
+function isValidPlatform(platform: string): platform is IntegrationPlatform {
+  return VALID_PLATFORMS.includes(platform as IntegrationPlatform);
+}
 
 const router = Router();
 
@@ -175,6 +221,8 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
   const integrations = await listIntegrationsForUser(req.user!.id);
   const ml = integrations.find((i) => i.platform === 'mercadolibre');
   const tn = integrations.find((i) => i.platform === 'tiendanube');
+  const shopify = integrations.find((i) => i.platform === 'shopify');
+  const woo = integrations.find((i) => i.platform === 'woocommerce');
   res.json({
     mercadolibre: {
       configured: isMercadoLibreConfigured(),
@@ -194,6 +242,21 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
       ),
       privacyWebhooks: getTiendaNubePrivacyWebhookUrls(),
       account: tn ? integrationStatusPublic(tn) : null,
+    },
+    shopify: {
+      configured: isShopifyConfigured(),
+      connected: Boolean(shopify),
+      autoSync: Boolean(shopify),
+      orderWebhookUrl: getShopifyOrderWebhookUrl(),
+      privacyWebhooks: getShopifyPrivacyWebhookUrls(),
+      account: shopify ? integrationStatusPublic(shopify) : null,
+    },
+    woocommerce: {
+      configured: true,
+      connected: Boolean(woo),
+      autoSync: Boolean(woo),
+      orderWebhookUrl: getWooCommerceOrderWebhookUrl(),
+      account: woo ? integrationStatusPublic(woo) : null,
     },
   });
 });
@@ -384,6 +447,165 @@ router.get('/tiendanube/callback', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/shopify/connect', authenticate, requireRoles(UserRole.STORE_ADMIN), (req: Request, res: Response) => {
+  if (!isShopifyConfigured()) {
+    res.status(503).json({
+      error: 'Shopify no está configurado en el servidor (SHOPIFY_API_KEY, SHOPIFY_API_SECRET).',
+    });
+    return;
+  }
+
+  const shopRaw = typeof req.query.shop === 'string' ? req.query.shop.trim() : '';
+  if (!shopRaw) {
+    res.status(400).json({ error: 'Indicá el dominio de la tienda (ej. mi-tienda.myshopify.com).' });
+    return;
+  }
+
+  let shopDomain: string;
+  try {
+    shopDomain = normalizeShopifyShopDomain(shopRaw);
+  } catch {
+    res.status(400).json({
+      error: 'Dominio Shopify inválido. Usá el formato mi-tienda.myshopify.com.',
+    });
+    return;
+  }
+
+  const client = parseOAuthClient(req.query.client);
+  const redirectUri =
+    client === 'mobile' && typeof req.query.redirect_uri === 'string'
+      ? req.query.redirect_uri.trim()
+      : undefined;
+  const returnOrigin = resolveReturnOrigin(req);
+  const state = signOAuthState(req.user!.id, 'shopify', client, redirectUri, returnOrigin);
+  res.json({ url: getShopifyAuthUrl(shopDomain, state), shop: shopDomain });
+});
+
+router.get('/shopify/callback', async (req: Request, res: Response) => {
+  const { code, state, shop, error } = req.query;
+  let client: OAuthClient = 'web';
+  let mobileRedirectUri: string | undefined;
+  let returnOrigin: string | undefined;
+  if (typeof state === 'string') {
+    try {
+      const payload = verifyOAuthState(state);
+      client = parseOAuthClient(payload.client);
+      mobileRedirectUri = payload.redirectUri;
+      returnOrigin = payload.returnOrigin;
+    } catch {
+      // state inválido
+    }
+  }
+
+  if (error || !code || typeof code !== 'string' || !state || typeof state !== 'string' || typeof shop !== 'string') {
+    res.redirect(
+      redirectAfterOAuth(
+        'shopify',
+        'error',
+        client,
+        'Autorización cancelada',
+        mobileRedirectUri,
+        returnOrigin
+      )
+    );
+    return;
+  }
+
+  if (!verifyShopifyOAuthHmac(req.query as Record<string, unknown>)) {
+    res.redirect(
+      redirectAfterOAuth(
+        'shopify',
+        'error',
+        client,
+        'Firma OAuth inválida',
+        mobileRedirectUri,
+        returnOrigin
+      )
+    );
+    return;
+  }
+
+  try {
+    const payload = verifyOAuthState(state);
+    client = parseOAuthClient(payload.client);
+    mobileRedirectUri = payload.redirectUri;
+    returnOrigin = payload.returnOrigin;
+    await exchangeShopifyCode(payload.userId, shop, code);
+    res.redirect(
+      redirectAfterOAuth('shopify', 'connected', client, undefined, mobileRedirectUri, returnOrigin)
+    );
+  } catch (err) {
+    console.error('[shopify-oauth] callback falló', err);
+    res.redirect(
+      redirectAfterOAuth(
+        'shopify',
+        'error',
+        client,
+        'No se pudo conectar Shopify',
+        mobileRedirectUri,
+        returnOrigin
+      )
+    );
+  }
+});
+
+router.post('/woocommerce/connect', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
+  const { storeUrl, consumerKey, consumerSecret } = req.body as {
+    storeUrl?: string;
+    consumerKey?: string;
+    consumerSecret?: string;
+  };
+
+  if (!storeUrl?.trim() || !consumerKey?.trim() || !consumerSecret?.trim()) {
+    res.status(400).json({
+      error: 'Completá la URL de la tienda, Consumer Key y Consumer Secret.',
+    });
+    return;
+  }
+
+  try {
+    const integration = await connectWooCommerce(req.user!.id, {
+      storeUrl: storeUrl.trim(),
+      consumerKey: consumerKey.trim(),
+      consumerSecret: consumerSecret.trim(),
+    });
+    res.status(201).json({
+      connected: true,
+      account: integrationStatusPublic(integration),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'WOO_HTTP_NOT_ALLOWED') {
+      res.status(400).json({ error: 'La tienda debe usar HTTPS.' });
+      return;
+    }
+    if (message === 'WOO_INVALID_URL') {
+      res.status(400).json({ error: 'URL de tienda inválida.' });
+      return;
+    }
+    if (message === 'WOO_INVALID_KEYS') {
+      res.status(400).json({
+        error: 'Las claves deben empezar con ck_ (Consumer Key) y cs_ (Consumer Secret).',
+      });
+      return;
+    }
+    if (message === 'WOO_AUTH_FAILED') {
+      res.status(401).json({
+        error: 'WooCommerce rechazó las credenciales. Verificá las claves y permisos de lectura.',
+      });
+      return;
+    }
+    if (message === 'WOO_API_ERROR') {
+      res.status(502).json({
+        error: 'No se pudo contactar la API de WooCommerce. Revisá la URL y que REST API esté habilitada.',
+      });
+      return;
+    }
+    console.error('[woo-connect] error:', err);
+    res.status(502).json({ error: 'No se pudo conectar WooCommerce.' });
+  }
+});
+
 router.post('/mercadolibre/notifications', async (req: Request, res: Response) => {
   // ML exige HTTP 200 en <500ms; si falla, desactiva los tópicos.
   res.status(200).send('OK');
@@ -546,6 +768,95 @@ router.post('/tiendanube/webhooks/customers-data-request', (req: Request, res: R
   });
 });
 
+router.post('/shopify/webhooks/orders', (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const hmac =
+    (req.get('x-shopify-hmac-sha256') || req.get('X-Shopify-Hmac-Sha256') || '').trim() || undefined;
+  if (!assertShopifyWebhookHmac(rawBody, hmac)) {
+    console.warn('[shopify-webhook] HMAC inválido');
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+
+  const shopDomain =
+    (req.get('x-shopify-shop-domain') || req.get('X-Shopify-Shop-Domain') || '').trim() || undefined;
+  const topic =
+    (req.get('x-shopify-topic') || req.get('X-Shopify-Topic') || '').trim() || undefined;
+
+  res.status(200).send('OK');
+  void processShopifyOrderWebhook(req.body as ShopifyOrder, { shopDomain, topic }).catch((err) => {
+    console.error('[shopify-webhook] process error:', err);
+  });
+});
+
+router.post('/shopify/webhooks/customers-data-request', (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const hmac =
+    (req.get('x-shopify-hmac-sha256') || req.get('X-Shopify-Hmac-Sha256') || '').trim() || undefined;
+  if (!assertShopifyWebhookHmac(rawBody, hmac)) {
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+  res.status(200).send('OK');
+  void processShopifyCustomersDataRequest(req.body as ShopifyCustomersDataRequestPayload).catch((err) => {
+    console.error('[Shopify GDPR] customers-data-request:', err);
+  });
+});
+
+router.post('/shopify/webhooks/customers-redact', (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const hmac =
+    (req.get('x-shopify-hmac-sha256') || req.get('X-Shopify-Hmac-Sha256') || '').trim() || undefined;
+  if (!assertShopifyWebhookHmac(rawBody, hmac)) {
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+  res.status(200).send('OK');
+  void processShopifyCustomersRedact(req.body as ShopifyCustomersRedactPayload).catch((err) => {
+    console.error('[Shopify GDPR] customers-redact:', err);
+  });
+});
+
+router.post('/shopify/webhooks/shop-redact', (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const hmac =
+    (req.get('x-shopify-hmac-sha256') || req.get('X-Shopify-Hmac-Sha256') || '').trim() || undefined;
+  if (!assertShopifyWebhookHmac(rawBody, hmac)) {
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+  res.status(200).send('OK');
+  void processShopifyShopRedact(req.body as ShopifyShopRedactPayload).catch((err) => {
+    console.error('[Shopify GDPR] shop-redact:', err);
+  });
+});
+
+router.post('/woocommerce/webhooks/orders', async (req: Request, res: Response) => {
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+  const signature =
+    (req.get('x-wc-webhook-signature') || req.get('X-WC-Webhook-Signature') || '').trim() ||
+    undefined;
+  const sourceUrl =
+    (req.get('x-wc-webhook-source') || req.get('X-WC-Webhook-Source') || '').trim() || undefined;
+  const topic =
+    (req.get('x-wc-webhook-topic') || req.get('X-WC-Webhook-Topic') || '').trim() || undefined;
+
+  const resolved = await resolveWooCommerceIntegrationFromWebhook({ sourceUrl });
+  if (!resolved || !assertWooCommerceWebhookSignature(rawBody, signature, resolved.webhookSecret)) {
+    console.warn('[woo-webhook] firma inválida o tienda desconocida', { sourceUrl, topic });
+    res.status(401).json({ error: 'Invalid webhook signature' });
+    return;
+  }
+
+  res.status(200).send('OK');
+  void processWooCommerceOrderWebhook(req.body as WooOrder, {
+    storeHost: resolved.storeHost,
+    topic,
+  }).catch((err) => {
+    console.error('[woo-webhook] process error:', err);
+  });
+});
+
 router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   const { code, sellerId, lat, lng } = req.body as {
     code?: string;
@@ -627,7 +938,7 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
 
 router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN, ...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   const platform = req.params.platform as IntegrationPlatform;
-  if (platform !== 'mercadolibre' && platform !== 'tiendanube') {
+  if (!isValidPlatform(platform)) {
     res.status(400).json({ error: 'Plataforma inválida.' });
     return;
   }
@@ -640,13 +951,20 @@ router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN, ...
     res.status(404).json({ error: 'No hay cuenta conectada.' });
     return;
   }
+  if (platform === 'woocommerce') {
+    try {
+      await deleteWooCommerceRemoteWebhooks(existing);
+    } catch (err) {
+      console.warn('[woo-disconnect] no se pudieron borrar webhooks remotos', err);
+    }
+  }
   await deleteIntegration(req.user!.id, platform);
   res.status(204).send();
 });
 
 router.get('/:platform/shipments', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
   const platform = req.params.platform as IntegrationPlatform;
-  if (platform !== 'mercadolibre' && platform !== 'tiendanube') {
+  if (!isValidPlatform(platform)) {
     res.status(400).json({ error: 'Plataforma inválida.' });
     return;
   }
@@ -654,41 +972,71 @@ router.get('/:platform/shipments', authenticate, requireRoles(UserRole.STORE_ADM
   try {
     const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : undefined;
     const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : undefined;
-    const tnDateRange =
-      platform === 'tiendanube' ? parseTiendaNubeDateRange(dateFrom, dateTo) : undefined;
+
+    let resolvedFrom = dateFrom;
+    let resolvedTo = dateTo;
+    if (platform === 'tiendanube') {
+      const tnDateRange = parseTiendaNubeDateRange(dateFrom, dateTo);
+      resolvedFrom = tnDateRange?.dateFrom;
+      resolvedTo = tnDateRange?.dateTo;
+    } else if (platform === 'shopify') {
+      const range = parseShopifyDateRange(dateFrom, dateTo);
+      resolvedFrom = range?.dateFrom;
+      resolvedTo = range?.dateTo;
+    } else if (platform === 'woocommerce') {
+      const range = parseWooCommerceDateRange(dateFrom, dateTo);
+      resolvedFrom = range?.dateFrom;
+      resolvedTo = range?.dateTo;
+    }
 
     const shipments = await listImportableShipments(req.user!.id, platform, {
-      dateFrom: platform === 'mercadolibre' ? dateFrom : tnDateRange?.dateFrom,
-      dateTo: platform === 'mercadolibre' ? dateTo : tnDateRange?.dateTo,
+      dateFrom: resolvedFrom,
+      dateTo: resolvedTo,
     });
     res.json(shipments);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
-    if (message === 'TN_INVALID_DATE') {
+    if (
+      message === 'TN_INVALID_DATE' ||
+      message === 'ML_INVALID_DATE' ||
+      message === 'SHOPIFY_INVALID_DATE' ||
+      message === 'WOO_INVALID_DATE'
+    ) {
       res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
       return;
     }
-    if (message === 'TN_INVALID_DATE_RANGE') {
+    if (
+      message === 'TN_INVALID_DATE_RANGE' ||
+      message === 'ML_INVALID_DATE_RANGE' ||
+      message === 'SHOPIFY_INVALID_DATE_RANGE' ||
+      message === 'WOO_INVALID_DATE_RANGE'
+    ) {
       res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
       return;
     }
-    if (message === 'TN_DATE_RANGE_TOO_LONG') {
+    if (
+      message === 'TN_DATE_RANGE_TOO_LONG' ||
+      message === 'SHOPIFY_DATE_RANGE_TOO_LONG' ||
+      message === 'WOO_DATE_RANGE_TOO_LONG'
+    ) {
       res.status(400).json({ error: 'El período máximo de búsqueda es de 90 días.' });
       return;
     }
-    if (message === 'ML_INVALID_DATE') {
-      res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
-      return;
-    }
-    if (message === 'ML_INVALID_DATE_RANGE') {
-      res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
-      return;
-    }
-    if (message === 'ML_NOT_CONNECTED' || message === 'TN_NOT_CONNECTED') {
+    if (
+      message === 'ML_NOT_CONNECTED' ||
+      message === 'TN_NOT_CONNECTED' ||
+      message === 'SHOPIFY_NOT_CONNECTED' ||
+      message === 'WOO_NOT_CONNECTED'
+    ) {
       res.status(400).json({ error: 'Conectá tu cuenta antes de importar envíos.' });
       return;
     }
-    if (message === 'ML_API_ERROR' || message === 'TN_API_ERROR') {
+    if (
+      message === 'ML_API_ERROR' ||
+      message === 'TN_API_ERROR' ||
+      message === 'SHOPIFY_API_ERROR' ||
+      message === 'WOO_API_ERROR'
+    ) {
       res.status(502).json({ error: 'No se pudo consultar la plataforma. Reconectá tu cuenta.' });
       return;
     }
@@ -698,7 +1046,7 @@ router.get('/:platform/shipments', authenticate, requireRoles(UserRole.STORE_ADM
 
 router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
   const platform = req.params.platform as IntegrationPlatform;
-  if (platform !== 'mercadolibre' && platform !== 'tiendanube') {
+  if (!isValidPlatform(platform)) {
     res.status(400).json({ error: 'Plataforma inválida.' });
     return;
   }
@@ -711,37 +1059,62 @@ router.post('/:platform/import', authenticate, requireRoles(UserRole.STORE_ADMIN
   };
 
   try {
-    const tnDateRange =
-      platform === 'tiendanube' ? parseTiendaNubeDateRange(dateFrom, dateTo) : undefined;
+    let resolvedFrom = dateFrom;
+    let resolvedTo = dateTo;
+    if (platform === 'tiendanube') {
+      const tnDateRange = parseTiendaNubeDateRange(dateFrom, dateTo);
+      resolvedFrom = tnDateRange?.dateFrom;
+      resolvedTo = tnDateRange?.dateTo;
+    } else if (platform === 'shopify') {
+      const range = parseShopifyDateRange(dateFrom, dateTo);
+      resolvedFrom = range?.dateFrom;
+      resolvedTo = range?.dateTo;
+    } else if (platform === 'woocommerce') {
+      const range = parseWooCommerceDateRange(dateFrom, dateTo);
+      resolvedFrom = range?.dateFrom;
+      resolvedTo = range?.dateTo;
+    }
+
     const result = await importMarketplaceShipments(req.user!, platform, externalIds, {
-      dateFrom: platform === 'mercadolibre' ? dateFrom : tnDateRange?.dateFrom,
-      dateTo: platform === 'mercadolibre' ? dateTo : tnDateRange?.dateTo,
+      dateFrom: resolvedFrom,
+      dateTo: resolvedTo,
       mlRefs: platform === 'mercadolibre' ? mlRefs : undefined,
     });
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
-    if (message === 'TN_INVALID_DATE') {
+    if (
+      message === 'TN_INVALID_DATE' ||
+      message === 'ML_INVALID_DATE' ||
+      message === 'SHOPIFY_INVALID_DATE' ||
+      message === 'WOO_INVALID_DATE'
+    ) {
       res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
       return;
     }
-    if (message === 'TN_INVALID_DATE_RANGE') {
+    if (
+      message === 'TN_INVALID_DATE_RANGE' ||
+      message === 'ML_INVALID_DATE_RANGE' ||
+      message === 'SHOPIFY_INVALID_DATE_RANGE' ||
+      message === 'WOO_INVALID_DATE_RANGE'
+    ) {
       res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
       return;
     }
-    if (message === 'TN_DATE_RANGE_TOO_LONG') {
+    if (
+      message === 'TN_DATE_RANGE_TOO_LONG' ||
+      message === 'SHOPIFY_DATE_RANGE_TOO_LONG' ||
+      message === 'WOO_DATE_RANGE_TOO_LONG'
+    ) {
       res.status(400).json({ error: 'El período máximo de búsqueda es de 90 días.' });
       return;
     }
-    if (message === 'ML_INVALID_DATE') {
-      res.status(400).json({ error: 'Las fechas deben tener formato AAAA-MM-DD.' });
-      return;
-    }
-    if (message === 'ML_INVALID_DATE_RANGE') {
-      res.status(400).json({ error: 'La fecha desde no puede ser posterior a la fecha hasta.' });
-      return;
-    }
-    if (message === 'ML_NOT_CONNECTED' || message === 'TN_NOT_CONNECTED') {
+    if (
+      message === 'ML_NOT_CONNECTED' ||
+      message === 'TN_NOT_CONNECTED' ||
+      message === 'SHOPIFY_NOT_CONNECTED' ||
+      message === 'WOO_NOT_CONNECTED'
+    ) {
       res.status(400).json({ error: 'Conectá tu cuenta antes de importar envíos.' });
       return;
     }

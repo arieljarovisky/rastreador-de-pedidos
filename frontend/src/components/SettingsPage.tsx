@@ -28,7 +28,7 @@ import {
   Loader2,
   Clock,
 } from 'lucide-react';
-import MarketplaceIntegrations from './MarketplaceIntegrations.tsx';
+import MarketplaceIntegrations, { type MarketplacePlatform } from './MarketplaceIntegrations.tsx';
 import AgencyPaymentsPanel from './AgencyPaymentsPanel.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, assignmentZones, isDeletableAssignmentZone, isLegacyZoneId, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -155,14 +155,22 @@ interface SettingsPageProps {
   integrationStatusLoading?: boolean;
   integrationStatusError?: string | null;
   onRefreshIntegrationStatus?: () => Promise<void>;
-  onConnectMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
-  onDisconnectMarketplace?: (platform: 'mercadolibre' | 'tiendanube') => Promise<void>;
+  onConnectMarketplace?: (
+    platform: MarketplacePlatform,
+    options?: {
+      shop?: string;
+      storeUrl?: string;
+      consumerKey?: string;
+      consumerSecret?: string;
+    }
+  ) => Promise<void>;
+  onDisconnectMarketplace?: (platform: MarketplacePlatform) => Promise<void>;
   onFetchMarketplaceShipments?: (
-    platform: 'mercadolibre' | 'tiendanube',
+    platform: MarketplacePlatform,
     options?: { dateFrom?: string; dateTo?: string }
   ) => Promise<MarketplaceShipmentPreview[]>;
   onImportMarketplaceShipments?: (
-    platform: 'mercadolibre' | 'tiendanube',
+    platform: MarketplacePlatform,
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => Promise<{ imported: number; skipped: number; errors?: string[] }>;

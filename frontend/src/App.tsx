@@ -19,6 +19,7 @@ import DriverSettlementPage from './components/DriverSettlementPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
+import type { MarketplacePlatform } from './components/MarketplaceIntegrations.tsx';
 import { LogOut, Bell, Settings, LayoutDashboard, Package, Wallet, Tags } from 'lucide-react';
 import BootSplash from './components/ui/BootSplash.tsx';
 import PostaLogo from './components/ui/PostaLogo.tsx';
@@ -163,7 +164,11 @@ export default function App() {
           ? 'Mercado Libre'
           : integration === 'mercadopago'
             ? 'Mercado Pago'
-            : 'Tienda Nube';
+            : integration === 'shopify'
+              ? 'Shopify'
+              : integration === 'woocommerce'
+                ? 'WooCommerce'
+                : 'Tienda Nube';
       if (status === 'connected') {
         void showAlert({
           title: 'Cuenta conectada',
@@ -1471,14 +1476,45 @@ export default function App() {
     }
   }, [token]);
 
-  const connectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
+  const connectMarketplace = async (
+    platform: MarketplacePlatform,
+    options?: {
+      shop?: string;
+      storeUrl?: string;
+      consumerKey?: string;
+      consumerSecret?: string;
+    }
+  ) => {
     if (!token) throw new Error('Sin sesión');
-    const res = await fetch(
-      apiUrl(`/api/integrations/${platform}/connect?${oauthReturnOriginQuery()}`),
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
+
+    if (platform === 'woocommerce') {
+      const res = await fetch(apiUrl('/api/integrations/woocommerce/connect'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          storeUrl: options?.storeUrl,
+          consumerKey: options?.consumerKey,
+          consumerSecret: options?.consumerSecret,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'No se pudo conectar WooCommerce');
+      await fetchIntegrationStatus();
+      return;
+    }
+
+    const params = new URLSearchParams(oauthReturnOriginQuery());
+    if (platform === 'shopify') {
+      const shop = options?.shop?.trim();
+      if (!shop) throw new Error('Indicá el dominio de la tienda Shopify');
+      params.set('shop', shop);
+    }
+    const res = await fetch(apiUrl(`/api/integrations/${platform}/connect?${params}`), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'No se pudo iniciar la conexión');
     window.location.href = body.url;
@@ -1501,7 +1537,7 @@ export default function App() {
     await fetchRepartidorMlStatus();
   };
 
-  const disconnectMarketplace = async (platform: 'mercadolibre' | 'tiendanube') => {
+  const disconnectMarketplace = async (platform: MarketplacePlatform) => {
     if (!token) return;
     const res = await fetch(apiUrl(`/api/integrations/${platform}`), {
       method: 'DELETE',
@@ -1515,7 +1551,7 @@ export default function App() {
   };
 
   const fetchMarketplaceShipments = async (
-    platform: 'mercadolibre' | 'tiendanube',
+    platform: MarketplacePlatform,
     options?: { dateFrom?: string; dateTo?: string }
   ): Promise<MarketplaceShipmentPreview[]> => {
     if (!token) throw new Error('Sin sesión');
@@ -1535,7 +1571,7 @@ export default function App() {
   };
 
   const importMarketplaceShipments = async (
-    platform: 'mercadolibre' | 'tiendanube',
+    platform: MarketplacePlatform,
     externalIds?: string[],
     options?: { dateFrom?: string; dateTo?: string; mlRefs?: string[] }
   ) => {

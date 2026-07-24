@@ -18,9 +18,15 @@ import { api } from '../../api';
 import { IntegrationsStatus, MarketplacePlatform, PickupPoint } from '../../types';
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
+import PostaInput from '../../components/ui/PostaInput';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { SellerSettingsStackParamList, SellerStackParamList } from '../../navigation/types';
-import { connectMarketplace, oauthErrorMessage } from '../../oauth/connectMarketplace';
+import {
+  PLATFORM_LABELS,
+  connectMarketplace,
+  connectShopify,
+  oauthErrorMessage,
+} from '../../oauth/connectMarketplace';
 
 type Props = CompositeScreenProps<
   NativeStackScreenProps<SellerSettingsStackParamList, 'SellerSettings'>,
@@ -35,6 +41,10 @@ export default function SellerSettingsScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyPlatform, setBusyPlatform] = useState<MarketplacePlatform | null>(null);
+  const [shopifyShop, setShopifyShop] = useState('');
+  const [wooStoreUrl, setWooStoreUrl] = useState('');
+  const [wooConsumerKey, setWooConsumerKey] = useState('');
+  const [wooConsumerSecret, setWooConsumerSecret] = useState('');
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -63,14 +73,17 @@ export default function SellerSettingsScreen({ navigation }: Props) {
     setRefreshing(false);
   };
 
-  const connect = async (platform: MarketplacePlatform) => {
+  const connect = async (platform: MarketplacePlatform, shop?: string) => {
     if (!token) return;
     setBusyPlatform(platform);
     try {
-      const { result, message } = await connectMarketplace(token, platform);
+      const { result, message } =
+        platform === 'shopify'
+          ? await connectShopify(token, shop ?? shopifyShop)
+          : await connectMarketplace(token, platform);
       if (result === 'connected') {
         await load();
-        Alert.alert('Listo', `${platformLabel(platform)} conectado correctamente.`);
+        Alert.alert('Listo', `${PLATFORM_LABELS[platform]} conectado correctamente.`);
       } else if (result === 'error') {
         Alert.alert('Error', oauthErrorMessage(platform, message));
       }
@@ -81,9 +94,34 @@ export default function SellerSettingsScreen({ navigation }: Props) {
     }
   };
 
+  const connectWoo = async () => {
+    if (!token) return;
+    if (!wooStoreUrl.trim() || !wooConsumerKey.trim() || !wooConsumerSecret.trim()) {
+      Alert.alert('Datos incompletos', 'Completá la URL de la tienda, Consumer Key y Consumer Secret.');
+      return;
+    }
+    setBusyPlatform('woocommerce');
+    try {
+      await api.connectWooCommerce(token, {
+        storeUrl: wooStoreUrl.trim(),
+        consumerKey: wooConsumerKey.trim(),
+        consumerSecret: wooConsumerSecret.trim(),
+      });
+      setWooStoreUrl('');
+      setWooConsumerKey('');
+      setWooConsumerSecret('');
+      await load();
+      Alert.alert('Listo', 'WooCommerce conectado correctamente.');
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo conectar WooCommerce.');
+    } finally {
+      setBusyPlatform(null);
+    }
+  };
+
   const disconnect = (platform: MarketplacePlatform) => {
     if (!token) return;
-    Alert.alert('Desconectar', `¿Desconectar ${platformLabel(platform)}?`, [
+    Alert.alert('Desconectar', `¿Desconectar ${PLATFORM_LABELS[platform]}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Desconectar',
@@ -120,6 +158,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />
       }
+      keyboardShouldPersistTaps="handled"
     >
       <Section title="Cuenta">
         <Text style={styles.rowText}>{user?.name}</Text>
@@ -149,6 +188,66 @@ export default function SellerSettingsScreen({ navigation }: Props) {
           onConnect={() => connect('tiendanube')}
           onDisconnect={() => disconnect('tiendanube')}
           onImport={() => navigation.navigate('ImportShipments', { platform: 'tiendanube' })}
+        />
+        <IntegrationRow
+          label="Shopify"
+          configured={status?.shopify?.configured ?? false}
+          connected={status?.shopify?.connected ?? false}
+          account={status?.shopify?.account ?? null}
+          busy={busyPlatform === 'shopify'}
+          onConnect={() => connect('shopify', shopifyShop)}
+          onDisconnect={() => disconnect('shopify')}
+          onImport={() => navigation.navigate('ImportShipments', { platform: 'shopify' })}
+          connectExtra={
+            <PostaInput
+              value={shopifyShop}
+              onChangeText={setShopifyShop}
+              placeholder="mi-tienda.myshopify.com"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.field}
+            />
+          }
+        />
+        <IntegrationRow
+          label="WooCommerce"
+          configured={status?.woocommerce?.configured ?? true}
+          connected={status?.woocommerce?.connected ?? false}
+          account={status?.woocommerce?.account ?? null}
+          busy={busyPlatform === 'woocommerce'}
+          onConnect={connectWoo}
+          onDisconnect={() => disconnect('woocommerce')}
+          onImport={() => navigation.navigate('ImportShipments', { platform: 'woocommerce' })}
+          connectExtra={
+            <View style={styles.wooFields}>
+              <PostaInput
+                value={wooStoreUrl}
+                onChangeText={setWooStoreUrl}
+                placeholder="https://mitienda.com"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                style={styles.field}
+              />
+              <PostaInput
+                value={wooConsumerKey}
+                onChangeText={setWooConsumerKey}
+                placeholder="ck_…"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.field}
+              />
+              <PostaInput
+                value={wooConsumerSecret}
+                onChangeText={setWooConsumerSecret}
+                placeholder="cs_…"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                style={styles.field}
+              />
+            </View>
+          }
         />
       </Section>
 
@@ -202,6 +301,7 @@ function IntegrationRow({
   onConnect,
   onDisconnect,
   onImport,
+  connectExtra,
 }: {
   label: string;
   configured: boolean;
@@ -211,6 +311,7 @@ function IntegrationRow({
   onConnect: () => void;
   onDisconnect: () => void;
   onImport: () => void;
+  connectExtra?: React.ReactNode;
 }) {
   return (
     <View style={styles.integrationCard}>
@@ -223,8 +324,8 @@ function IntegrationRow({
       {!configured && (
         <Text style={styles.warn}>No configurado en el servidor de Posta.</Text>
       )}
-      {connected && account?.nickname ? (
-        <Text style={styles.rowSub}>Cuenta: {account.nickname}</Text>
+      {connected && (account?.nickname || account?.storeName) ? (
+        <Text style={styles.rowSub}>Cuenta: {account.nickname || account.storeName}</Text>
       ) : null}
       <View style={styles.integrationActions}>
         {connected ? (
@@ -237,21 +338,20 @@ function IntegrationRow({
             </Pressable>
           </>
         ) : (
-          <Button
-            label="Conectar"
-            onPress={onConnect}
-            loading={busy}
-            disabled={!configured}
-            style={{ flex: 1 }}
-          />
+          <View style={styles.connectBlock}>
+            {connectExtra}
+            <Button
+              label="Conectar"
+              onPress={onConnect}
+              loading={busy}
+              disabled={!configured}
+              style={{ flex: 1 }}
+            />
+          </View>
         )}
       </View>
     </View>
   );
-}
-
-function platformLabel(platform: MarketplacePlatform): string {
-  return platform === 'mercadolibre' ? 'Mercado Libre' : 'Tienda Nube';
 }
 
 const styles = StyleSheet.create({
@@ -300,6 +400,9 @@ const styles = StyleSheet.create({
   badgeOff: { color: colors.textMuted, backgroundColor: colors.surfaceAlt },
   warn: { color: colors.amber, fontSize: 12, marginBottom: spacing.sm },
   integrationActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
+  connectBlock: { flex: 1, gap: spacing.sm },
+  wooFields: { gap: spacing.sm },
+  field: { height: 44, fontSize: 14 },
   linkBtn: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm },
   linkBtnText: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   linkBtnDanger: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },

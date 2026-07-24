@@ -3,7 +3,7 @@ import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { AGENCY_ML_USERNAME_PREFIX } from './agency-ml.service.js';
 
-export type IntegrationPlatform = 'mercadolibre' | 'tiendanube';
+export type IntegrationPlatform = 'mercadolibre' | 'tiendanube' | 'shopify' | 'woocommerce';
 
 export interface StoreIntegration {
   id: string;
@@ -166,6 +166,74 @@ export async function deleteTiendaNubeIntegrationByStoreId(storeId: string | num
   );
 }
 
+/** Cuentas Shopify de vendedores para auto-import de domicilio. */
+export async function listShopifySellerIntegrationsForAutoImport(): Promise<StoreIntegration[]> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT si.* FROM store_integrations si
+     INNER JOIN users u ON u.id = si.user_id
+     WHERE si.platform = 'shopify'
+       AND u.role = 'store_admin'
+       AND si.access_token IS NOT NULL
+       AND TRIM(si.access_token) <> ''
+     ORDER BY si.updated_at DESC`
+  );
+  return rows.map(rowToIntegration);
+}
+
+export async function findShopifyIntegrationByShopDomain(
+  shopDomain: string
+): Promise<StoreIntegration | null> {
+  const normalized = shopDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT * FROM store_integrations
+     WHERE platform = 'shopify' AND external_store_id = ? LIMIT 1`,
+    [normalized]
+  );
+  return rows[0] ? rowToIntegration(rows[0]) : null;
+}
+
+export async function deleteShopifyIntegrationByShopDomain(shopDomain: string): Promise<void> {
+  const normalized = shopDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  await pool.query(
+    `DELETE FROM store_integrations WHERE platform = 'shopify' AND external_store_id = ?`,
+    [normalized]
+  );
+}
+
+/** Cuentas WooCommerce de vendedores para auto-import de domicilio. */
+export async function listWooCommerceSellerIntegrationsForAutoImport(): Promise<StoreIntegration[]> {
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT si.* FROM store_integrations si
+     INNER JOIN users u ON u.id = si.user_id
+     WHERE si.platform = 'woocommerce'
+       AND u.role = 'store_admin'
+       AND si.access_token IS NOT NULL
+       AND TRIM(si.access_token) <> ''
+     ORDER BY si.updated_at DESC`
+  );
+  return rows.map(rowToIntegration);
+}
+
+export async function findWooCommerceIntegrationByStoreHost(
+  storeHost: string
+): Promise<StoreIntegration | null> {
+  const normalized = storeHost.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const [rows] = await pool.query<IntegrationRow[]>(
+    `SELECT * FROM store_integrations
+     WHERE platform = 'woocommerce' AND external_store_id = ? LIMIT 1`,
+    [normalized]
+  );
+  return rows[0] ? rowToIntegration(rows[0]) : null;
+}
+
+export async function deleteWooCommerceIntegrationByStoreHost(storeHost: string): Promise<void> {
+  const normalized = storeHost.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  await pool.query(
+    `DELETE FROM store_integrations WHERE platform = 'woocommerce' AND external_store_id = ?`,
+    [normalized]
+  );
+}
+
 export async function upsertIntegration(data: {
   userId: string;
   platform: IntegrationPlatform;
@@ -244,7 +312,11 @@ export function integrationStatusPublic(integration: StoreIntegration): {
       ? integration.metadata.nickname
       : typeof integration.metadata?.storeName === 'string'
         ? integration.metadata.storeName
-        : null;
+        : typeof integration.metadata?.shop === 'string'
+          ? integration.metadata.shop
+          : typeof integration.metadata?.storeUrl === 'string'
+            ? integration.metadata.storeUrl
+            : null;
 
   return {
     platform: integration.platform,

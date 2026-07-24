@@ -341,13 +341,25 @@ export const api = {
     token: string,
     platform: MarketplacePlatform,
     client: 'mobile' | 'web' = 'web',
-    redirectUri?: string
+    redirectUri?: string,
+    options?: { shop?: string }
   ): Promise<{ url: string }> {
     const params = new URLSearchParams();
     if (client === 'mobile') params.set('client', 'mobile');
     if (redirectUri) params.set('redirect_uri', redirectUri);
+    if (options?.shop) params.set('shop', options.shop);
     const qs = params.toString() ? `?${params}` : '';
     return request<{ url: string }>(`/api/integrations/${platform}/connect${qs}`, { token });
+  },
+
+  connectWooCommerce(
+    token: string,
+    data: { storeUrl: string; consumerKey: string; consumerSecret: string }
+  ): Promise<{ connected: boolean; account: IntegrationsStatus['woocommerce']['account'] }> {
+    return request<{ connected: boolean; account: IntegrationsStatus['woocommerce']['account'] }>(
+      '/api/integrations/woocommerce/connect',
+      { method: 'POST', token, body: data }
+    );
   },
 
   disconnectIntegration(token: string, platform: MarketplacePlatform): Promise<void> {
@@ -356,22 +368,33 @@ export const api = {
 
   listMarketplaceShipments(
     token: string,
-    platform: MarketplacePlatform
+    platform: MarketplacePlatform,
+    options?: { dateFrom?: string; dateTo?: string }
   ): Promise<MarketplaceShipmentPreview[]> {
-    return request<MarketplaceShipmentPreview[]>(`/api/integrations/${platform}/shipments`, {
-      token,
-    });
+    const params = new URLSearchParams();
+    if (options?.dateFrom) params.set('dateFrom', options.dateFrom);
+    if (options?.dateTo) params.set('dateTo', options.dateTo);
+    const qs = params.toString() ? `?${params}` : '';
+    return request<MarketplaceShipmentPreview[]>(
+      `/api/integrations/${platform}/shipments${qs}`,
+      { token }
+    );
   },
 
   importMarketplaceShipments(
     token: string,
     platform: MarketplacePlatform,
-    externalIds: string[]
+    externalIds: string[],
+    options?: { dateFrom?: string; dateTo?: string }
   ): Promise<MarketplaceImportResult> {
     return request<MarketplaceImportResult>(`/api/integrations/${platform}/import`, {
       method: 'POST',
       token,
-      body: { externalIds },
+      body: {
+        externalIds,
+        dateFrom: options?.dateFrom,
+        dateTo: options?.dateTo,
+      },
     });
   },
 

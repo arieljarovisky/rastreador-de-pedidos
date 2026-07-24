@@ -130,7 +130,7 @@ export interface Order {
 }
 
 export interface MarketplaceIntegrationAccount {
-  platform: 'mercadolibre' | 'tiendanube';
+  platform: 'mercadolibre' | 'tiendanube' | 'shopify' | 'woocommerce';
   connected: boolean;
   externalUserId: string | null;
   externalStoreId: string | null;
@@ -154,13 +154,27 @@ export interface MarketplaceIntegrationStatus {
     shippingCarrierReady?: boolean;
     account: MarketplaceIntegrationAccount | null;
   };
+  shopify?: {
+    configured: boolean;
+    connected: boolean;
+    autoSync?: boolean;
+    orderWebhookUrl?: string;
+    account: MarketplaceIntegrationAccount | null;
+  };
+  woocommerce?: {
+    configured: boolean;
+    connected: boolean;
+    autoSync?: boolean;
+    orderWebhookUrl?: string;
+    account: MarketplaceIntegrationAccount | null;
+  };
 }
 
 export interface MarketplaceShipmentPreview {
   externalId: string;
   mlOrderId?: string;
-  platform: 'mercadolibre' | 'tiendanube';
-  shippingType: 'flex' | 'express';
+  platform: 'mercadolibre' | 'tiendanube' | 'shopify' | 'woocommerce';
+  shippingType: 'flex' | 'express' | 'standard';
   clientName: string;
   clientPhone: string;
   address: string;

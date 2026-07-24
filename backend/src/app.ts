@@ -16,6 +16,9 @@ import geocodeRoutes from './routes/geocode.routes.js';
 import integrationsRoutes from './routes/integrations.routes.js';
 import { isMercadoLibreConfigured } from './services/mercadolibre.service.js';
 import { isTiendaNubeConfigured } from './services/tiendanube.service.js';
+import { isShopifyConfigured } from './services/shopify.service.js';
+import { getWooCommerceOrderWebhookUrl } from './services/woocommerce.service.js';
+import { getShopifyOrderWebhookUrl } from './services/shopify.service.js';
 import deliveryZonesRoutes from './routes/delivery-zones.routes.js';
 import appRoutes from './routes/app.routes.js';
 import billingRoutes from './routes/billing.routes.js';
@@ -66,7 +69,11 @@ app.use(
   express.json({
     verify(req, _res, buf) {
       const url = (req as Request).originalUrl ?? req.url ?? '';
-      if (url.includes('/api/integrations/tiendanube/webhooks')) {
+      if (
+        url.includes('/api/integrations/tiendanube/webhooks') ||
+        url.includes('/api/integrations/shopify/webhooks') ||
+        url.includes('/api/integrations/woocommerce/webhooks')
+      ) {
         (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
       }
     },
@@ -90,6 +97,17 @@ app.get('/api/health', (_req, res) => {
         hasAppId: Boolean(env.tiendanube.appId),
         hasAppSecret: Boolean(env.tiendanube.appSecret),
         redirectUri: env.tiendanube.redirectUri,
+      },
+      shopify: {
+        configured: isShopifyConfigured(),
+        hasApiKey: Boolean(env.shopify.apiKey),
+        hasApiSecret: Boolean(env.shopify.apiSecret),
+        redirectUri: env.shopify.redirectUri,
+        orderWebhookUrl: getShopifyOrderWebhookUrl(),
+      },
+      woocommerce: {
+        configured: true,
+        orderWebhookUrl: getWooCommerceOrderWebhookUrl(),
       },
       mercadopago: {
         oauthConfigured: isMercadoPagoOAuthConfigured(),

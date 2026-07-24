@@ -93,6 +93,8 @@ export function plazoLabel(order: Order, now = Date.now()): string {
 export function channelLabel(order: Order): string {
   if (order.externalSource === 'tiendanube') return 'Tiendanube';
   if (order.externalSource === 'mercadolibre') return 'Mercado Libre';
+  if (order.externalSource === 'shopify') return 'Shopify';
+  if (order.externalSource === 'woocommerce') return 'WooCommerce';
   return order.sellerName ?? 'Directo';
 }
 
