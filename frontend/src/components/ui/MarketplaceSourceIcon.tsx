@@ -70,7 +70,7 @@ export default function MarketplaceSourceIcon({
         title="WooCommerce"
         className={
           className ??
-          `${SIZE[size]} object-contain bg-white rounded-[3px] p-[1px] shrink-0`
+          `${SIZE[size]} object-contain rounded-[3px] shrink-0`
         }
       />
     );

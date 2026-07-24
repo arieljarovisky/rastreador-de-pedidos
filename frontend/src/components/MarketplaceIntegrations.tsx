@@ -947,7 +947,7 @@ export default function MarketplaceIntegrations({
             <MarketplaceSourceIcon
               source="woocommerce"
               size="md"
-              className="h-5 w-5 object-contain bg-white rounded-[3px] p-[2px] shrink-0"
+              className="h-5 w-5 object-contain rounded-[3px] shrink-0"
             />
           }
           platform="woocommerce"
