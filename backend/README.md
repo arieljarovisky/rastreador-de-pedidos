@@ -127,9 +127,10 @@ Flujo vendedor: ingresa `mi-tienda.myshopify.com` → OAuth → importación man
 
 ### WooCommerce (Consumer Key / Secret)
 
-No requiere secrets globales. El vendedor pega:
-- URL HTTPS de la tienda
-- Consumer Key (`ck_…`) y Consumer Secret (`cs_…`) desde WooCommerce → Ajustes → Avanzado → REST API (permisos de lectura)
+No requiere secrets globales. Dos formas de conectar:
+
+1. **Plugin WordPress** (recomendado): carpeta `wordpress/posta-woocommerce`. El vendedor instala el plugin, entra a WooCommerce → Posta con su usuario de tienda, y el plugin crea las API keys + llama a `POST /api/integrations/woocommerce/connect`.
+2. **Manual** desde el panel Posta: pegar URL HTTPS + Consumer Key (`ck_…`) + Consumer Secret (`cs_…`) desde WooCommerce → Ajustes → Avanzado → REST API (permisos **lectura/escritura** para que el backend pueda registrar webhooks).
 
 Al conectar, el backend crea webhooks `order.created` / `order.updated` hacia `https://TU-BACKEND/api/integrations/woocommerce/webhooks/orders` (firma `X-WC-Webhook-Signature`).
 

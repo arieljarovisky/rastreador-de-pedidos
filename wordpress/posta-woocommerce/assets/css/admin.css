@@ -1,0 +1,223 @@
+/* Posta WooCommerce — admin */
+
+.posta-wc-wrap {
+	--posta-ink: #1c1916;
+	--posta-ink-2: #5c5348;
+	--posta-paper: #f3eee6;
+	--posta-panel: #fffdf9;
+	--posta-line: #d9d0c3;
+	--posta-stamp: #d8401e;
+	--posta-ok: #2f6b4f;
+	max-width: 720px;
+	margin-top: 12px;
+	font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+	color: var(--posta-ink);
+}
+
+.posta-wc-hero {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 22px 24px;
+	margin-bottom: 16px;
+	border: 1px solid var(--posta-line);
+	border-radius: 10px;
+	background:
+		radial-gradient(120% 80% at 100% 0%, rgba(216, 64, 30, 0.12), transparent 55%),
+		linear-gradient(180deg, #fffdf9 0%, var(--posta-paper) 100%);
+}
+
+.posta-wc-brand {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+}
+
+.posta-wc-mark {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 8px;
+	background: var(--posta-stamp);
+	color: #fff;
+	font-weight: 800;
+	font-size: 22px;
+	letter-spacing: -0.04em;
+}
+
+.posta-wc-hero h1 {
+	margin: 0;
+	padding: 0;
+	font-size: 1.65rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	color: var(--posta-ink);
+	line-height: 1.15;
+}
+
+.posta-wc-hero p {
+	margin: 4px 0 0;
+	color: var(--posta-ink-2);
+	font-size: 13px;
+}
+
+.posta-wc-link {
+	flex-shrink: 0;
+	color: var(--posta-stamp);
+	text-decoration: none;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.posta-wc-link:hover {
+	text-decoration: underline;
+}
+
+.posta-wc-card {
+	background: var(--posta-panel);
+	border: 1px solid var(--posta-line);
+	border-radius: 10px;
+	padding: 20px 22px;
+	margin-bottom: 14px;
+}
+
+.posta-wc-card--muted {
+	background: color-mix(in srgb, var(--posta-paper) 70%, white);
+}
+
+.posta-wc-card--ok {
+	border-color: color-mix(in srgb, var(--posta-ok) 35%, var(--posta-line));
+	background: color-mix(in srgb, var(--posta-ok) 6%, var(--posta-panel));
+}
+
+.posta-wc-card h2 {
+	margin: 0 0 10px;
+	font-size: 1.05rem;
+	font-weight: 700;
+}
+
+.posta-wc-lead {
+	margin: 0 0 16px;
+	color: var(--posta-ink-2);
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+.posta-wc-status {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+}
+
+.posta-wc-dot {
+	width: 10px;
+	height: 10px;
+	margin-top: 6px;
+	border-radius: 50%;
+	background: var(--posta-ok);
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--posta-ok) 22%, transparent);
+	flex-shrink: 0;
+}
+
+.posta-wc-status strong {
+	display: block;
+	font-size: 15px;
+}
+
+.posta-wc-status p {
+	margin: 4px 0 0;
+	color: var(--posta-ink-2);
+	font-size: 13px;
+}
+
+.posta-wc-meta {
+	font-size: 12px !important;
+	opacity: 0.9;
+}
+
+.posta-wc-warn {
+	color: #9a3412 !important;
+}
+
+.posta-wc-actions {
+	margin-top: 16px;
+}
+
+.posta-wc-btn-danger {
+	color: #9a3412 !important;
+	border-color: #f0c2b0 !important;
+}
+
+.posta-wc-form label {
+	display: block;
+	margin-bottom: 4px;
+	font-weight: 600;
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--posta-ink-2);
+}
+
+.posta-wc-form p {
+	margin: 0 0 14px;
+}
+
+.posta-wc-form input.regular-text {
+	width: 100%;
+	max-width: 420px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	border-color: var(--posta-line);
+}
+
+.posta-wc-advanced {
+	margin: 4px 0 16px;
+	padding: 10px 12px;
+	border: 1px dashed var(--posta-line);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--posta-paper) 55%, white);
+}
+
+.posta-wc-advanced summary {
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--posta-ink-2);
+}
+
+.posta-wc-advanced p {
+	margin-top: 12px;
+}
+
+.posta-wc-submit .button-hero {
+	background: var(--posta-stamp) !important;
+	border-color: #b83318 !important;
+	text-shadow: none !important;
+	box-shadow: none !important;
+}
+
+.posta-wc-submit .button-hero:hover {
+	background: #c0381a !important;
+}
+
+.posta-wc-list {
+	margin: 0;
+	padding-left: 1.15rem;
+	color: var(--posta-ink-2);
+	font-size: 13px;
+	line-height: 1.55;
+}
+
+.posta-wc-list li {
+	margin-bottom: 6px;
+}
+
+@media (max-width: 600px) {
+	.posta-wc-hero {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+}
