@@ -1,9 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  FlatList,
+  Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +16,7 @@ import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
 import { AgencyPalette, fonts, spacing } from '../../theme';
 import { useTheme } from '../../context/ThemeContext';
 import AgencyTopBar from '../../components/agency/AgencyTopBar';
+import PostaIcon from '../../components/icons/PostaIcons';
 import PostaMap from '../../components/PostaMap';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
@@ -60,12 +63,14 @@ function RiderRow({
 
 export default function AgencyMapScreen() {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { palette: t } = useTheme();
   const styles = useMemo(() => createStyles(t), [t]);
   const navigation = useNavigation<NativeStackNavigationProp<AgencyStackParamList>>();
   const { user, token } = useAuth();
   const { orders, repartidores, refreshing, refresh } = useAgencyOrdersContext();
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [listExpanded, setListExpanded] = useState(true);
 
   const loadNotifs = useCallback(async () => {
     if (!token) return;
@@ -106,6 +111,10 @@ export default function AgencyMapScreen() {
     [repartidores, cargaByRider]
   );
 
+  /** Lista colapsable: mapa usa el resto de la pantalla y no pelea con el refresh. */
+  const listMaxHeight = Math.min(320, Math.round(windowHeight * 0.38));
+  const bottomPad = TAB_BAR_CLEARANCE + insets.bottom;
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <AgencyTopBar
@@ -114,135 +123,202 @@ export default function AgencyMapScreen() {
         onNotifications={() => navigation.navigate('AgencyNotifications')}
       />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: TAB_BAR_CLEARANCE + insets.bottom + spacing.lg },
-        ]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.sello} />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.mapWrap}>
-          <PostaMap
-            markers={fleetMarkers}
-            style={styles.map}
-            emptyLabel="Los repartidores aparecen cuando reportan GPS."
-          />
-        </View>
+      <View style={styles.mapArea}>
+        <PostaMap
+          markers={fleetMarkers}
+          style={styles.map}
+          emptyLabel="Los repartidores aparecen cuando reportan GPS."
+        />
+        <Pressable
+          style={styles.refreshFab}
+          onPress={() => void refresh()}
+          accessibilityLabel="Actualizar mapa"
+        >
+          <PostaIcon name="live" size={16} color={t.sello} strokeWidth={1.8} />
+        </Pressable>
+      </View>
 
-        <Text style={styles.eyebrow}>Repartidores en calle</Text>
-        {enCalle.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Nadie en calle</Text>
-            <Text style={styles.emptyBody}>
-              Cuando haya repartidores con pedidos o GPS vas a verlos acá.
+      <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
+        <Pressable
+          style={styles.sheetHeader}
+          onPress={() => setListExpanded((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={listExpanded ? 'Achicar lista' : 'Agrandar lista'}
+        >
+          <View style={styles.grab} />
+          <View style={styles.sheetTitleRow}>
+            <Text style={styles.eyebrow}>
+              Repartidores en calle · {enCalle.length}
             </Text>
+            <PostaIcon
+              name={listExpanded ? 'chevronDown' : 'chevronUp'}
+              size={16}
+              color={t.ink3}
+            />
           </View>
-        ) : (
-          enCalle.map((r) => (
-            <RiderRow key={r.id} rider={r} carga={cargaByRider.get(r.id) ?? 0} />
-          ))
-        )}
-      </ScrollView>
+        </Pressable>
+
+        {listExpanded ? (
+          <FlatList
+            data={enCalle}
+            keyExtractor={(r) => r.id}
+            style={{ maxHeight: listMaxHeight }}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={refresh}
+                tintColor={t.sello}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Text style={styles.emptyTitle}>Nadie en calle</Text>
+                <Text style={styles.emptyBody}>
+                  Cuando haya repartidores con pedidos o GPS vas a verlos acá.
+                </Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <RiderRow rider={item} carga={cargaByRider.get(item.id) ?? 0} />
+            )}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
 
 function createStyles(t: AgencyPalette) {
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: t.paper },
-  scroll: { paddingHorizontal: 16, paddingTop: 18 },
-  mapWrap: {
-    backgroundColor: '#E8EBEE',
-    borderWidth: 1,
-    borderColor: t.line,
-    borderRadius: 14,
-    height: 260,
-    marginBottom: 14,
-    overflow: 'hidden',
-  },
-  map: { flex: 1, height: 260 },
-  eyebrow: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 10.5,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: t.ink3,
-    marginBottom: 10,
-  },
-  rider: {
-    width: '100%',
-    backgroundColor: t.card,
-    borderWidth: 1,
-    borderColor: t.line,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    marginBottom: 8,
-  },
-  av: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: t.flat,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    fontWeight: '600',
-    color: t.ink2,
-  },
-  riderText: { flex: 1 },
-  riderName: {
-    fontFamily: fonts.bodyMedium,
-    fontWeight: '500',
-    fontSize: 14,
-    color: t.ink,
-  },
-  riderMeta: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: t.ink2,
-    marginTop: 1,
-  },
-  tag: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  tagOk: { backgroundColor: t.verdeBg },
-  tagFlat: { backgroundColor: t.flat },
-  tagText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11.5,
-    fontWeight: '500',
-  },
-  tagOkText: { color: t.verde },
-  tagFlatText: { color: t.ink2 },
-  empty: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-  },
-  emptyTitle: {
-    fontFamily: fonts.displaySemi,
-    fontWeight: '600',
-    fontSize: 16,
-    color: t.ink,
-    marginBottom: 5,
-  },
-  emptyBody: {
-    fontFamily: fonts.body,
-    fontSize: 13.5,
-    color: t.ink2,
-    textAlign: 'center',
-  },
-});
+    container: { flex: 1, backgroundColor: t.paper },
+    mapArea: {
+      flex: 1,
+      position: 'relative',
+      backgroundColor: t.flat,
+      borderBottomWidth: 1,
+      borderBottomColor: t.line,
+    },
+    map: { flex: 1 },
+    refreshFab: {
+      position: 'absolute',
+      top: 12,
+      right: 12,
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: t.card,
+      borderWidth: 1,
+      borderColor: t.line,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sheet: {
+      backgroundColor: t.card,
+      borderTopWidth: 1,
+      borderTopColor: t.line,
+    },
+    sheetHeader: {
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 10,
+    },
+    grab: {
+      alignSelf: 'center',
+      width: 38,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: t.line2,
+      marginBottom: 10,
+    },
+    sheetTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    eyebrow: {
+      fontFamily: fonts.monoRegular,
+      fontSize: 10.5,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      color: t.ink3,
+    },
+    listContent: {
+      paddingHorizontal: 16,
+      paddingBottom: spacing.sm,
+    },
+    rider: {
+      width: '100%',
+      backgroundColor: t.paper,
+      borderWidth: 1,
+      borderColor: t.line,
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 11,
+      marginBottom: 8,
+    },
+    av: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: t.flat,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avText: {
+      fontFamily: fonts.bodySemiBold,
+      fontSize: 12,
+      fontWeight: '600',
+      color: t.ink2,
+    },
+    riderText: { flex: 1 },
+    riderName: {
+      fontFamily: fonts.bodyMedium,
+      fontWeight: '500',
+      fontSize: 14,
+      color: t.ink,
+    },
+    riderMeta: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: t.ink2,
+      marginTop: 1,
+    },
+    tag: {
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    tagOk: { backgroundColor: t.verdeBg },
+    tagFlat: { backgroundColor: t.flat },
+    tagText: {
+      fontFamily: fonts.bodyMedium,
+      fontSize: 11.5,
+      fontWeight: '500',
+    },
+    tagOkText: { color: t.verde },
+    tagFlatText: { color: t.ink2 },
+    empty: {
+      alignItems: 'center',
+      paddingVertical: 28,
+      paddingHorizontal: 24,
+    },
+    emptyTitle: {
+      fontFamily: fonts.displaySemi,
+      fontWeight: '600',
+      fontSize: 16,
+      color: t.ink,
+      marginBottom: 5,
+    },
+    emptyBody: {
+      fontFamily: fonts.body,
+      fontSize: 13.5,
+      color: t.ink2,
+      textAlign: 'center',
+    },
+  });
 }

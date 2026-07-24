@@ -355,7 +355,9 @@ export default function PostaMap({
         style={styles.webview}
         originWhitelist={['*']}
         scrollEnabled={false}
+        nestedScrollEnabled={false}
         bounces={false}
+        overScrollMode="never"
         javaScriptEnabled
         domStorageEnabled
         mixedContentMode="always"

@@ -5,12 +5,14 @@
   },
   "build": {
     "production": {
+      "channel": "production",
       "android": {
         "buildType": "app-bundle"
       }
     },
     "release-apk": {
       "extends": "production",
+      "channel": "production",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -18,10 +20,15 @@
     },
     "preview": {
       "extends": "production",
+      "channel": "preview",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       }
     }
+  },
+  "update": {
+    "production": {},
+    "preview": {}
   }
 }
