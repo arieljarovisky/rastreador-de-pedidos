@@ -19,6 +19,7 @@ import { IntegrationsStatus, MarketplacePlatform, PickupPoint } from '../../type
 import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import PostaInput from '../../components/ui/PostaInput';
+import MarketplaceSourceLogo from '../../components/MarketplaceSourceLogo';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { SellerSettingsStackParamList, SellerStackParamList } from '../../navigation/types';
 import {
@@ -171,6 +172,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
       <Section title="Marketplaces">
         <IntegrationRow
           label="Mercado Libre"
+          platform="mercadolibre"
           configured={status?.mercadolibre.configured ?? false}
           connected={status?.mercadolibre.connected ?? false}
           account={status?.mercadolibre.account ?? null}
@@ -181,6 +183,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
         />
         <IntegrationRow
           label="Tienda Nube"
+          platform="tiendanube"
           configured={status?.tiendanube.configured ?? false}
           connected={status?.tiendanube.connected ?? false}
           account={status?.tiendanube.account ?? null}
@@ -191,6 +194,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
         />
         <IntegrationRow
           label="Shopify"
+          platform="shopify"
           configured={status?.shopify?.configured ?? false}
           connected={status?.shopify?.connected ?? false}
           account={status?.shopify?.account ?? null}
@@ -211,6 +215,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
         />
         <IntegrationRow
           label="WooCommerce"
+          platform="woocommerce"
           configured={status?.woocommerce?.configured ?? true}
           connected={status?.woocommerce?.connected ?? false}
           account={status?.woocommerce?.account ?? null}
@@ -294,6 +299,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function IntegrationRow({
   label,
+  platform,
   configured,
   connected,
   account,
@@ -304,6 +310,7 @@ function IntegrationRow({
   connectExtra,
 }: {
   label: string;
+  platform: MarketplacePlatform;
   configured: boolean;
   connected: boolean;
   account: IntegrationsStatus['mercadolibre']['account'];
@@ -316,7 +323,10 @@ function IntegrationRow({
   return (
     <View style={styles.integrationCard}>
       <View style={styles.integrationHeader}>
-        <Text style={styles.integrationLabel}>{label}</Text>
+        <View style={styles.integrationTitle}>
+          <MarketplaceSourceLogo source={platform} size={18} />
+          <Text style={styles.integrationLabel}>{label}</Text>
+        </View>
         <Text style={[styles.badge, connected ? styles.badgeOk : styles.badgeOff]}>
           {connected ? 'Conectado' : 'Sin conectar'}
         </Text>
@@ -386,6 +396,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.sm,
+  },
+  integrationTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+    paddingRight: spacing.sm,
   },
   integrationLabel: { color: colors.text, fontSize: 15, fontWeight: '700' },
   badge: {

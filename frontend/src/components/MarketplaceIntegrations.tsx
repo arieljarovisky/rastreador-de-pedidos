@@ -4,8 +4,9 @@
  */
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link2, Unlink, Download, RefreshCw, ShoppingBag, Store, Loader2, Archive } from 'lucide-react';
+import { Link2, Unlink, Download, RefreshCw, Loader2, Archive } from 'lucide-react';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
+import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.js';
 
 export type MarketplacePlatform = 'mercadolibre' | 'tiendanube' | 'shopify' | 'woocommerce';
 
@@ -839,7 +840,7 @@ export default function MarketplaceIntegrations({
         <PlatformCard
           title="Mercado Libre"
           subtitle="Envíos Flex (self_service)"
-          icon={<ShoppingBag className="w-4 h-4 text-yellow-400" />}
+          icon={<MarketplaceSourceIcon source="mercadolibre" size="md" className="h-5 w-5 object-contain shrink-0" />}
           platform="mercadolibre"
           configured={status?.mercadolibre.configured ?? false}
           showMissingCredentials={
@@ -869,7 +870,13 @@ export default function MarketplaceIntegrations({
         <PlatformCard
           title="Tienda Nube"
           subtitle="Posta Express en checkout (AMBA) · sync + import por período"
-          icon={<Store className="w-4 h-4 text-violet-400" />}
+          icon={
+            <MarketplaceSourceIcon
+              source="tiendanube"
+              size="md"
+              className="h-5 w-5 object-contain bg-white rounded-[3px] p-[2px] shrink-0"
+            />
+          }
           platform="tiendanube"
           configured={status?.tiendanube.configured ?? false}
           showMissingCredentials={
@@ -899,9 +906,11 @@ export default function MarketplaceIntegrations({
           title="Shopify"
           subtitle="Envíos a domicilio · OAuth + sync por webhook"
           icon={
-            <span className="text-[10px] font-bold tracking-wide text-white bg-[#95BF47] rounded-[3px] px-1 py-0.5">
-              SH
-            </span>
+            <MarketplaceSourceIcon
+              source="shopify"
+              size="md"
+              className="h-5 w-5 object-contain bg-white rounded-[3px] p-[2px] shrink-0"
+            />
           }
           platform="shopify"
           configured={status?.shopify?.configured ?? true}
@@ -935,9 +944,11 @@ export default function MarketplaceIntegrations({
           title="WooCommerce"
           subtitle="Envíos a domicilio · API keys + sync por webhook"
           icon={
-            <span className="text-[10px] font-bold tracking-wide text-white bg-[#7F54B3] rounded-[3px] px-1 py-0.5">
-              WC
-            </span>
+            <MarketplaceSourceIcon
+              source="woocommerce"
+              size="md"
+              className="h-5 w-5 object-contain bg-white rounded-[3px] p-[2px] shrink-0"
+            />
           }
           platform="woocommerce"
           configured={status?.woocommerce?.configured ?? true}

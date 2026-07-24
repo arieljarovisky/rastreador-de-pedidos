@@ -1,42 +1,18 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Order } from '../types';
 import { colors, fonts, radius, spacing, statusStyle, typography } from '../theme';
 import PostaIcon from './icons/PostaIcons';
 import StatusBadge from './StatusBadge';
 import IconLabelRow from './ui/IconLabelRow';
 import MonoLabel from './ui/MonoLabel';
-
-const tiendanubeLogo = require('../../assets/tiendanube-logo.png');
-const mercadolibreLogo = require('../../assets/mercadolibre-logo.png');
+import MarketplaceSourceLogo from './MarketplaceSourceLogo';
 
 interface Props {
   order: Order;
   onPress: () => void;
   showRepartidor?: boolean;
   showSeller?: boolean;
-}
-
-function SourceLogo({ source }: { source?: string | null }) {
-  if (source === 'tiendanube') {
-    return (
-      <View style={styles.tnLogoWrap}>
-        <Image source={tiendanubeLogo} style={styles.sourceLogo} resizeMode="contain" accessibilityLabel="Tienda Nube" />
-      </View>
-    );
-  }
-  if (source === 'mercadolibre') {
-    return (
-      <Image source={mercadolibreLogo} style={styles.sourceLogo} resizeMode="contain" accessibilityLabel="Mercado Libre" />
-    );
-  }
-  if (source === 'shopify') {
-    return <Text style={styles.sourceLabel}>Shopify</Text>;
-  }
-  if (source === 'woocommerce') {
-    return <Text style={styles.sourceLabel}>Woo</Text>;
-  }
-  return null;
 }
 
 export default function OrderCard({ order, onPress, showRepartidor, showSeller }: Props) {
@@ -53,7 +29,7 @@ export default function OrderCard({ order, onPress, showRepartidor, showSeller }
         <View style={styles.headerRow}>
           <View style={styles.idRow}>
             <MonoLabel color={colors.textFaint}>#{order.id.slice(-6)}</MonoLabel>
-            <SourceLogo source={order.externalSource} />
+            <MarketplaceSourceLogo source={order.externalSource} />
           </View>
           <StatusBadge status={order.status} />
         </View>
@@ -126,21 +102,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-  },
-  tnLogoWrap: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 3,
-    padding: 1,
-  },
-  sourceLogo: {
-    width: 14,
-    height: 14,
-  },
-  sourceLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 10,
-    color: colors.textMuted,
-    letterSpacing: 0.2,
   },
   client: {
     ...typography.displaySection(16, colors.text),
