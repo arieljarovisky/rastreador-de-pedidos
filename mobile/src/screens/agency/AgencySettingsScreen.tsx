@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -33,7 +32,7 @@ type Props = NativeStackScreenProps<AgencySettingsStackParamList, 'AgencySetting
 
 export default function AgencySettingsScreen({ navigation: _navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { palette: t, mode, setMode } = useTheme();
+  const { palette: t } = useTheme();
   const styles = useMemo(() => createStyles(t), [t]);
   const { user, token, logout } = useAuth();
   const { orders, repartidores, sellers, deliveryZones, refresh } = useAgencyOrdersContext();
@@ -108,28 +107,6 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
           <Text style={styles.eyebrow}>Equipo · {repartidores.length} repartidores</Text>
           <Text style={styles.agencyName}>{user?.agencyName ?? 'Tu agencia'}</Text>
           <Text style={styles.userName}>{user?.name}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Apariencia</Text>
-          <View style={styles.themeRow}>
-            <Pressable
-              onPress={() => setMode('light')}
-              style={[styles.themeBtn, mode === 'light' && styles.themeBtnOn]}
-            >
-              <Text style={[styles.themeBtnText, mode === 'light' && styles.themeBtnTextOn]}>
-                Claro
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setMode('dark')}
-              style={[styles.themeBtn, mode === 'dark' && styles.themeBtnOn]}
-            >
-              <Text style={[styles.themeBtnText, mode === 'dark' && styles.themeBtnTextOn]}>
-                Oscuro
-              </Text>
-            </Pressable>
-          </View>
         </View>
 
         <View style={styles.statsRow}>
@@ -317,29 +294,6 @@ function createStyles(t: AgencyPalette) {
     marginTop: 4,
   },
   section: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  themeRow: { flexDirection: 'row', gap: 8 },
-  themeBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: t.line2,
-    backgroundColor: t.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  themeBtnOn: {
-    backgroundColor: t.ink,
-    borderColor: t.ink,
-  },
-  themeBtnText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: t.ink2,
-  },
-  themeBtnTextOn: {
-    color: t.chipOnText,
-  },
   sectionTitle: {
     fontFamily: fonts.monoRegular,
     fontSize: 11,
