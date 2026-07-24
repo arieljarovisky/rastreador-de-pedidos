@@ -1,9 +1,9 @@
 # Build APK local en Windows (sin cola de Expo EAS).
 # Requiere: Android Studio + SDK. Usa JDK embebido de Android Studio.
 #
-# ATENCIÓN: el release local firma con debug.keystore (ver android/app/build.gradle).
-# Si los usuarios ya tienen Posta instalada desde un APK de EAS, Android mostrará
-# "conflicto de paquete" al actualizar. Para producción usá:
+# ATENCION: el release local firma con debug.keystore (ver android/app/build.gradle).
+# Si los usuarios ya tienen Posta instalada desde un APK de EAS, Android mostrara
+# "conflicto de paquete" al actualizar. Para produccion usa:
 #   npm run build:apk && npm run save:apk
 #
 # Uso desde PowerShell:
@@ -17,6 +17,7 @@ $shortRoot = "C:\posta\mobile"
 $javaHome = "C:\Program Files\Android\Android Studio\jbr"
 $androidHome = Join-Path $env:LOCALAPPDATA "Android\Sdk"
 $apkOut = Join-Path $shortRoot "android\app\build\outputs\apk\release\app-release.apk"
+$androidDir = Join-Path $shortRoot "android"
 
 if (-not (Test-Path $javaHome)) {
   throw "No se encontro Android Studio JBR en: $javaHome"
@@ -50,10 +51,34 @@ try {
   Pop-Location
 }
 
-Push-Location (Join-Path $shortRoot "android")
+# Refuerza memoria JVM (prebuild puede dejar valores bajos)
+$gradleProps = Join-Path $androidDir "gradle.properties"
+if (Test-Path $gradleProps) {
+  $lines = Get-Content $gradleProps
+  $out = @()
+  $hasJvm = $false
+  foreach ($line in $lines) {
+    if ($line -match '^\s*org\.gradle\.jvmargs=') {
+      $out += 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'
+      $hasJvm = $true
+    } else {
+      $out += $line
+    }
+  }
+  if (-not $hasJvm) {
+    $out += 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'
+  }
+  Set-Content -Path $gradleProps -Value $out
+}
+
+Push-Location $androidDir
 try {
-  Write-Host ">> Compilando APK release (5-10 min la primera vez)..."
-  .\gradlew assembleRelease --no-daemon
+  Write-Host ">> Deteniendo daemons Gradle previos..."
+  .\gradlew --stop 2>$null
+
+  Write-Host ">> Compilando APK release (sin lint vital, evita Metaspace)..."
+  # -x lint*: el analisis Lint de release suele reventar por Metaspace en Windows
+  .\gradlew assembleRelease --no-daemon -x lint -x lintVitalAnalyzeRelease -x lintVitalReportRelease -x lintVitalRelease
 } finally {
   Pop-Location
 }
