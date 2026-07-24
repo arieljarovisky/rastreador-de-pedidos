@@ -581,6 +581,11 @@ export default function App() {
     }
   };
 
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+    setAuthErrorCode(null);
+  }, []);
+
   const handleLogin = async (username: string, password: string, replaceSession = false) => {
     setLoading(true);
     if (!replaceSession) {
@@ -1797,6 +1802,7 @@ export default function App() {
         errorCode={authErrorCode}
         pendingEmail={pendingEmail}
         googleClientId={googleClientId}
+        onClearError={clearAuthError}
         initialResetToken={resetToken}
       />
     );
@@ -1841,23 +1847,29 @@ export default function App() {
         </div>
       </header>
 
-      {/* CABECERA — escritorio */}
-      <header className="safe-top hidden xl:flex min-h-[5.25rem] items-center justify-between gap-4 px-8 py-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40">
-        <div className="flex items-center gap-5 min-w-0 flex-1">
+      {/* CABECERA — escritorio (compacta en xl, completa en 2xl) */}
+      <header className="safe-top hidden xl:flex min-h-[4.5rem] 2xl:min-h-[5.25rem] items-center justify-between gap-2 2xl:gap-4 px-4 2xl:px-8 py-3 2xl:py-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40 overflow-hidden">
+        <div className="flex items-center gap-2 2xl:gap-5 shrink-0">
           <PostaLogo
-            size={44}
+            size={40}
             showWordmark
             variant={theme === 'paper' ? 'paper' : 'dark'}
             className="shrink-0"
           />
-          <span className="text-sm text-[var(--color-text-muted)] font-sans">v2.4.0</span>
-          <div className="flex items-center gap-2 pl-3 border-l border-[var(--surface-border)]">
-            <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} />
-            <ThemeToggle theme={theme} onToggle={toggleTheme} />
+          <span className="hidden 2xl:inline text-sm text-[var(--color-text-muted)] font-sans">v2.4.0</span>
+          <div className="flex items-center gap-1.5 2xl:gap-2 pl-2 2xl:pl-3 border-l border-[var(--surface-border)]">
+            <div className="hidden 2xl:flex items-center gap-2">
+              <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} />
+              <ThemeToggle theme={theme} onToggle={toggleTheme} />
+            </div>
+            <div className="flex 2xl:hidden items-center gap-1.5">
+              <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} compact />
+              <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
+            </div>
           </div>
         </div>
-        <div className="flex gap-8 items-center shrink-0">
-          <div className="flex flex-col items-end">
+        <div className="flex gap-2 2xl:gap-8 items-center min-w-0 justify-end">
+          <div className="hidden 2xl:flex flex-col items-end">
             <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Pedidos Activos</span>
             <span className="text-xl font-mono text-[var(--color-ok)] font-semibold leading-none mt-0.5">
               {orders.filter(o => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED).length}
@@ -1865,7 +1877,7 @@ export default function App() {
           </div>
           
           {isAgencyAdmin(user.role) && (
-            <div className="flex flex-col items-end">
+            <div className="hidden 2xl:flex flex-col items-end">
               <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Repartidores</span>
               <span className="text-xl font-mono text-[var(--color-accent)] font-semibold leading-none mt-0.5">
                 {String(repartidores.length).padStart(2, '0')}
@@ -1873,73 +1885,78 @@ export default function App() {
             </div>
           )}
 
-          <div className="h-8 w-[1px] bg-[var(--surface-border)] mx-1"></div>
+          <div className="hidden 2xl:block h-8 w-[1px] bg-[var(--surface-border)] mx-1" />
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 2xl:gap-3 min-w-0">
+            <div className="flex items-center gap-0.5 2xl:gap-1 shrink-0">
               {showSettings && (
                 <>
                   <button
                     type="button"
                     onClick={() => setMobileTab('panel')}
                     title="Panel de control de entregas"
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                    className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                       mobileTab === 'panel'
                         ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
                         : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
-                    <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
+                    <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden 2xl:inline">Dashboard</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setMobileTab('dashboard')}
                     title="Envíos y mapa en vivo"
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                    className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                       mobileTab === 'dashboard'
                         ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
                         : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
-                    <Package className="w-3.5 h-3.5" /> Envíos
+                    <Package className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden 2xl:inline">Envíos</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setMobileTab('account')}
                     title="Cuenta de envíos y gastos"
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                    className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                       mobileTab === 'account'
                         ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
                         : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
-                    <Wallet className="w-3.5 h-3.5" /> Cuenta
+                    <Wallet className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden 2xl:inline">Cuenta</span>
                   </button>
                   {showPrices && (
                     <button
                       type="button"
                       onClick={() => setMobileTab('prices')}
                       title="Listas de precios por zona"
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                      className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                         mobileTab === 'prices'
                           ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
                           : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                       }`}
                     >
-                      <Tags className="w-3.5 h-3.5" /> Precios
+                      <Tags className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden 2xl:inline">Precios</span>
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={() => setMobileTab('settings')}
                     title="Configuración"
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                    className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                       mobileTab === 'settings'
                         ? 'bg-[var(--surface-panel-2)] border-[var(--color-text-muted)] text-[var(--color-text)]'
                         : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                     }`}
                   >
-                    <Settings className="w-3.5 h-3.5" /> Config
+                    <Settings className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden 2xl:inline">Config</span>
                   </button>
                 </>
               )}
@@ -1947,13 +1964,14 @@ export default function App() {
                 type="button"
                 onClick={toggleNotifsSidebar}
                 title={notifsSidebarOpen ? 'Ocultar panel de alertas' : 'Mostrar panel de alertas'}
-                className={`relative flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                className={`relative flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                   notifsSidebarOpen
                     ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
                     : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
                 }`}
               >
-                <Bell className="w-3.5 h-3.5" /> Alertas
+                <Bell className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden 2xl:inline">Alertas</span>
                 {!notifsSidebarOpen && unreadNotifsCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 bg-[var(--color-cta)] text-[#F6F0E4] font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center border border-[var(--surface-bg)]">
                     {unreadNotifsCount}
@@ -1962,12 +1980,12 @@ export default function App() {
               </button>
             </div>
 
-            <div className="text-right">
-              <p className="text-sm font-medium text-[var(--color-text)]">{user.name}</p>
+            <div className="hidden 2xl:block text-right shrink-0">
+              <p className="text-sm font-medium text-[var(--color-text)] truncate max-w-[9rem]">{user.name}</p>
               <p className="text-[9px] text-[var(--color-text-muted)] uppercase font-mono">{user.role}</p>
             </div>
 
-            <div className="w-10 h-10 rounded-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] flex items-center justify-center text-sm font-bold text-[var(--color-text-muted)] uppercase shrink-0">
+            <div className="w-9 h-9 2xl:w-10 2xl:h-10 rounded-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] flex items-center justify-center text-sm font-bold text-[var(--color-text-muted)] uppercase shrink-0">
               {user.name.slice(0, 2)}
             </div>
 
@@ -1975,9 +1993,10 @@ export default function App() {
               onClick={handleLogout}
               id="btn-logout"
               title="Cerrar sesión"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] bg-[var(--surface-panel-2)] hover:bg-[var(--color-danger)]/10 border border-[var(--surface-border)] hover:border-[var(--color-danger)]/40 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] font-bold text-[11px] transition"
+              className="flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] bg-[var(--surface-panel-2)] hover:bg-[var(--color-danger)]/10 border border-[var(--surface-border)] hover:border-[var(--color-danger)]/40 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] font-bold text-[11px] transition shrink-0"
             >
-              <LogOut className="w-3.5 h-3.5" /> Salir
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden 2xl:inline">Salir</span>
             </button>
           </div>
         </div>

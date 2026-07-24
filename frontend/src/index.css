@@ -1044,12 +1044,38 @@
   border: 1px solid var(--auth-line);
   background: var(--auth-panel-2);
   position: relative;
+  isolation: isolate;
+}
+
+.auth-split__tab-slider {
+  position: absolute;
+  z-index: 0;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0.25rem;
+  width: calc(50% - 0.375rem);
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--auth-accent) 18%, var(--auth-panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--auth-accent) 35%, transparent);
+  pointer-events: none;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.auth-split__tab-slider--right {
+  transform: translateX(calc(100% + 0.25rem));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-split__tab-slider {
+    transition: none;
+  }
 }
 
 .auth-split__tab {
   position: relative;
   z-index: 1;
-  padding: 0.625rem 0.75rem;
+  padding: 0.625rem 0.5rem;
   border-radius: 0.375rem;
   border: none;
   background: transparent;
@@ -1061,11 +1087,16 @@
   color: var(--auth-faint);
   cursor: pointer;
   transition: color 0.25s ease;
+  min-width: 0;
 }
 
 .auth-split__tab-label {
   position: relative;
   z-index: 1;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .auth-split__tab-pill {

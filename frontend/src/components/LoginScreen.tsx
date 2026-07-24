@@ -84,6 +84,8 @@ interface LoginScreenProps {
   errorCode?: string | null;
   pendingEmail?: string | null;
   googleClientId?: string | null;
+  /** Limpia el error de autenticación del padre (p. ej. al cambiar de pestaña). */
+  onClearError?: () => void;
   /** Token de recuperación desde el link del correo (`?resetToken=`). */
   initialResetToken?: string | null;
 }
@@ -156,6 +158,7 @@ export default function LoginScreen({
   errorCode = null,
   pendingEmail = null,
   googleClientId = null,
+  onClearError,
   initialResetToken = null,
 }: LoginScreenProps) {
   const [mode, setMode] = useState<AuthMode>(initialResetToken ? 'reset-password' : 'login');
@@ -174,6 +177,7 @@ export default function LoginScreen({
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [registerHint, setRegisterHint] = useState<string | null>(null);
   const [resetToken, setResetToken] = useState(initialResetToken ?? '');
   const [verificationEmail, setVerificationEmail] = useState(pendingEmail ?? '');
   const [showReplaceOption, setShowReplaceOption] = useState(false);
@@ -226,13 +230,28 @@ export default function LoginScreen({
     setRegisterStep(1);
     setLocalError(null);
     setSuccessMessage(null);
+    setRegisterHint(null);
     if (!initialResetToken) setResetToken('');
   };
 
   const switchMode = (next: AuthMode) => {
     setMode(next);
     resetForm();
+    onClearError?.();
   };
+
+  // Si Google no encuentra cuenta, mandamos a registrar agencia con aviso claro (no el error rojo en ambas pestañas).
+  useEffect(() => {
+    if (errorCode !== 'GOOGLE_ACCOUNT_NOT_FOUND') return;
+    setMode('register-agency');
+    setRegisterStep(1);
+    setLocalError(null);
+    setSuccessMessage(null);
+    setRegisterHint(
+      'No hay una cuenta con ese Google. Completá el registro de tu agencia para crear una.'
+    );
+    onClearError?.();
+  }, [errorCode, onClearError]);
 
   const goBackToStep1 = () => {
     setRegisterStep(1);
@@ -271,6 +290,7 @@ export default function LoginScreen({
     e.preventDefault();
     setLocalError(null);
     setSuccessMessage(null);
+    setRegisterHint(null);
 
     if (mode === 'pending-verification') {
       const target = (verificationEmail || email).trim().toLowerCase();
@@ -407,6 +427,7 @@ export default function LoginScreen({
   const handleGoogleCredential = (idToken: string) => {
     setLocalError(null);
     setSuccessMessage(null);
+    setRegisterHint(null);
 
     if (mode === 'login') {
       void onGoogleLogin(idToken, showReplaceOption || errorCode === 'SESSION_ALREADY_ACTIVE');
@@ -551,6 +572,12 @@ export default function LoginScreen({
           transition={{ layout: layoutTransition }}
         >
           <div className="auth-split__tabs" role="tablist" aria-label="Tipo de acceso">
+            <span
+              className={`auth-split__tab-slider ${
+                mode === 'register-agency' ? 'auth-split__tab-slider--right' : ''
+              }`}
+              aria-hidden="true"
+            />
             <button
               type="button"
               role="tab"
@@ -558,13 +585,6 @@ export default function LoginScreen({
               onClick={() => switchMode('login')}
               className={`auth-split__tab ${mode === 'login' || isAuthAlt ? 'auth-split__tab--active' : ''}`}
             >
-              {mode === 'login' || isAuthAlt ? (
-                <motion.span
-                  layoutId="auth-tab-pill"
-                  className="auth-split__tab-pill"
-                  transition={{ type: 'spring', stiffness: 320, damping: 38 }}
-                />
-              ) : null}
               <span className="auth-split__tab-label">Ingresar</span>
             </button>
             <button
@@ -574,13 +594,6 @@ export default function LoginScreen({
               onClick={() => switchMode('register-agency')}
               className={`auth-split__tab ${mode === 'register-agency' ? 'auth-split__tab--active' : ''}`}
             >
-              {mode === 'register-agency' ? (
-                <motion.span
-                  layoutId="auth-tab-pill"
-                  className="auth-split__tab-pill"
-                  transition={{ type: 'spring', stiffness: 320, damping: 38 }}
-                />
-              ) : null}
               <span className="auth-split__tab-label">Agencia</span>
             </button>
           </div>
@@ -664,6 +677,12 @@ export default function LoginScreen({
             <p className="auth-split__hint auth-split__hint--register">
               Las cuentas de <strong>vendedores</strong> y <strong>repartidores</strong> las crea el
               administrador de la agencia después del registro.
+            </p>
+          )}
+
+          {registerHint && (
+            <p className="auth-split__hint auth-split__hint--register" role="status">
+              {registerHint}
             </p>
           )}
 
