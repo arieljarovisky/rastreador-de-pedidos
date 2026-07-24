@@ -17,6 +17,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import AppUpdateChecker from './src/components/AppUpdateChecker';
 import SplashScreen from './src/components/ui/SplashScreen';
@@ -43,11 +44,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      <AuthProvider>
-        <AppUpdateChecker>
-          <RootNavigator />
-        </AppUpdateChecker>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppUpdateChecker>
+            <RootNavigator />
+          </AppUpdateChecker>
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

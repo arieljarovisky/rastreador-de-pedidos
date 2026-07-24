@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PostaIcon, { PostaIconName } from '../icons/PostaIcons';
 import { colors, fonts, roleAccents, shadows, spacing } from '../../theme';
 import { TAB_BAR_HEIGHT } from '../../constants/layout';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface PostaTabItemConfig {
   icon: PostaIconName;
@@ -18,6 +19,8 @@ interface Props extends BottomTabBarProps {
   tabs: Record<string, PostaTabItemConfig>;
   /** Color de acento del rol (FAB activo, tab seleccionado) */
   accentColor?: string;
+  /** dark = roles oscuros; agency = panel de agencia (respeta modo claro/oscuro) */
+  variant?: 'dark' | 'agency';
 }
 
 export default function PostaBottomTabBar({
@@ -29,12 +32,19 @@ export default function PostaBottomTabBar({
   centerLabel = 'Escanear',
   tabs,
   accentColor = roleAccents.repartidor,
+  variant = 'dark',
 }: Props) {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, spacing.sm);
+  const { palette } = useTheme();
+  const agencyMode = variant === 'agency';
+  const barBg = agencyMode ? palette.card : colors.surface;
+  const barBorder = agencyMode ? palette.line : colors.border;
+  const inactive = agencyMode ? palette.ink3 : colors.textFaint;
+  const fabBorder = agencyMode ? palette.card : colors.surface;
 
   return (
-    <View style={[styles.wrapper, { paddingBottom: bottomPad }]}>
+    <View style={[styles.wrapper, { paddingBottom: bottomPad, backgroundColor: barBg, borderTopColor: barBorder }]}>
       <View style={styles.bar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -71,14 +81,14 @@ export default function PostaBottomTabBar({
                 <View
                   style={[
                     styles.centerBtn,
-                    { backgroundColor: accentColor },
+                    { backgroundColor: accentColor, borderColor: fabBorder },
                     isFocused && styles.centerBtnActive,
                     shadows.fab,
                   ]}
                 >
                   <PostaIcon name={centerIcon} size={26} color="#F6F0E4" strokeWidth={2} />
                 </View>
-                <Text style={[styles.centerLabel, isFocused && { color: accentColor }]}>
+                <Text style={[styles.centerLabel, { color: inactive }, isFocused && { color: accentColor }]}>
                   {centerLabel}
                 </Text>
               </Pressable>
@@ -87,7 +97,7 @@ export default function PostaBottomTabBar({
 
           if (!config) return null;
 
-          const tint = isFocused ? accentColor : colors.textFaint;
+          const tint = isFocused ? accentColor : inactive;
 
           return (
             <Pressable
@@ -99,16 +109,16 @@ export default function PostaBottomTabBar({
               onLongPress={onLongPress}
               style={({ pressed }) => [
                 styles.tab,
-                isFocused && { backgroundColor: `${accentColor}12` },
+                isFocused && !agencyMode && { backgroundColor: `${accentColor}12` },
                 pressed && styles.pressed,
               ]}
             >
-              <View style={[styles.iconWrap, isFocused && { backgroundColor: `${accentColor}18` }]}>
+              <View style={[styles.iconWrap, isFocused && !agencyMode && { backgroundColor: `${accentColor}18` }]}>
                 <PostaIcon
                   name={config.icon}
-                  size={22}
+                  size={21}
                   color={tint}
-                  strokeWidth={isFocused ? 2 : 1.75}
+                  strokeWidth={isFocused ? 2 : 1.7}
                 />
               </View>
               <Text style={[styles.label, { color: tint }, isFocused && styles.labelActive]}>
@@ -126,8 +136,6 @@ const CENTER_SIZE = 56;
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: colors.surface,
-    borderTopColor: colors.border,
     borderTopWidth: 1,
     ...shadows.sm,
   },
@@ -142,9 +150,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
     paddingBottom: 8,
-    paddingTop: 6,
+    paddingTop: 4,
     minHeight: TAB_BAR_HEIGHT,
     borderRadius: 10,
     marginHorizontal: 2,
@@ -170,7 +178,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: colors.surface,
   },
   centerBtnActive: {
     transform: [{ scale: 1.04 }],
@@ -181,18 +188,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
-    color: colors.textFaint,
     marginTop: 4,
   },
   label: {
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.35,
-    textTransform: 'uppercase',
+    fontFamily: fonts.body,
+    fontSize: 11,
   },
   labelActive: {
-    fontWeight: '700',
+    fontFamily: fonts.bodyMedium,
+    fontWeight: '500',
   },
   pressed: { opacity: 0.82 },
 });

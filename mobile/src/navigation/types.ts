@@ -49,7 +49,14 @@ export type SellerStackParamList = {
 
 export type AgencyHomeStackParamList = {
   AgencyDashboard: undefined;
-  AgencyOrders: undefined;
+};
+
+export type AgencyOrdersStackParamList = {
+  AgencyOrders: { filter?: string } | undefined;
+};
+
+export type AgencyMapStackParamList = {
+  AgencyMap: undefined;
 };
 
 export type AgencySettingsStackParamList = {
@@ -58,6 +65,8 @@ export type AgencySettingsStackParamList = {
 
 export type AgencyTabParamList = {
   Home: NavigatorScreenParams<AgencyHomeStackParamList>;
+  Orders: NavigatorScreenParams<AgencyOrdersStackParamList>;
+  Map: NavigatorScreenParams<AgencyMapStackParamList>;
   Settings: NavigatorScreenParams<AgencySettingsStackParamList>;
 };
 

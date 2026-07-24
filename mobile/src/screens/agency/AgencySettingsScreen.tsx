@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,8 +17,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
 import { api } from '../../api';
 import { AgencyMercadoPagoStatus, AgencySubscriptionStatus, OrderStatus } from '../../types';
-import { colors, radius, spacing } from '../../theme';
+import { AgencyPalette, fonts, spacing } from '../../theme';
+import { useTheme } from '../../context/ThemeContext';
 import Button from '../../components/Button';
+import AgencyTopBar from '../../components/agency/AgencyTopBar';
 import IconLabelRow from '../../components/ui/IconLabelRow';
 import { zoneLabel } from '../../config/deliveryZones';
 import { AgencySettingsStackParamList } from '../../navigation/types';
@@ -30,6 +33,8 @@ type Props = NativeStackScreenProps<AgencySettingsStackParamList, 'AgencySetting
 
 export default function AgencySettingsScreen({ navigation: _navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { palette: t, mode, setMode } = useTheme();
+  const styles = useMemo(() => createStyles(t), [t]);
   const { user, token, logout } = useAuth();
   const { orders, repartidores, sellers, deliveryZones, refresh } = useAgencyOrdersContext();
   const [subscription, setSubscription] = useState<AgencySubscriptionStatus | null>(null);
@@ -88,132 +93,159 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
   const enRoute = orders.filter((o) => o.status === OrderStatus.DELIVERING).length;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{
-        paddingTop: insets.top + spacing.lg,
-        paddingBottom: TAB_BAR_CLEARANCE + spacing.xl,
-      }}
-      refreshControl={
-        <RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={colors.accent} />
-      }
-    >
-      <View style={styles.hero}>
-        <Text style={styles.agencyName}>{user?.agencyName ?? 'Tu agencia'}</Text>
-        <Text style={styles.userName}>{user?.name}</Text>
-      </View>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <AgencyTopBar agencyName={user?.agencyName ?? user?.name ?? 'Agencia'} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{
+          paddingBottom: TAB_BAR_CLEARANCE + spacing.xl,
+        }}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={t.sello} />
+        }
+      >
+        <View style={styles.hero}>
+          <Text style={styles.eyebrow}>Equipo · {repartidores.length} repartidores</Text>
+          <Text style={styles.agencyName}>{user?.agencyName ?? 'Tu agencia'}</Text>
+          <Text style={styles.userName}>{user?.name}</Text>
+        </View>
 
-      <View style={styles.statsRow}>
-        <Stat label="Pendientes" value={String(pending)} />
-        <Stat label="En ruta" value={String(enRoute)} />
-        <Stat label="Repartidores" value={String(repartidores.length)} />
-        <Stat label="Vendedores" value={String(sellers.length)} />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Suscripción Posta</Text>
-        <View style={styles.integrationCard}>
-          {subscription ? (
-            <>
-              <Text style={styles.integrationHint}>
-                Repartidores activos: {subscription.repartidorCount}
-                {subscription.recommendedPlan
-                  ? ` · Plan: ${subscription.recommendedPlan.name} (${formatArs(subscription.recommendedPlan.priceArs)}/mes)`
-                  : ''}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Apariencia</Text>
+          <View style={styles.themeRow}>
+            <Pressable
+              onPress={() => setMode('light')}
+              style={[styles.themeBtn, mode === 'light' && styles.themeBtnOn]}
+            >
+              <Text style={[styles.themeBtnText, mode === 'light' && styles.themeBtnTextOn]}>
+                Claro
               </Text>
-              {subscription.daysRemaining != null && (
-                <Text style={styles.rowMeta}>
-                  {subscription.isActive
-                    ? `Vence en ${subscription.daysRemaining} día(s)`
-                    : 'Suscripción vencida'}
+            </Pressable>
+            <Pressable
+              onPress={() => setMode('dark')}
+              style={[styles.themeBtn, mode === 'dark' && styles.themeBtnOn]}
+            >
+              <Text style={[styles.themeBtnText, mode === 'dark' && styles.themeBtnTextOn]}>
+                Oscuro
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <Stat label="Pendientes" value={String(pending)} />
+          <Stat label="En ruta" value={String(enRoute)} />
+          <Stat label="Repartidores" value={String(repartidores.length)} />
+          <Stat label="Vendedores" value={String(sellers.length)} />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Suscripción Posta</Text>
+          <View style={styles.integrationCard}>
+            {subscription ? (
+              <>
+                <Text style={styles.integrationHint}>
+                  Repartidores activos: {subscription.repartidorCount}
+                  {subscription.recommendedPlan
+                    ? ` · Plan: ${subscription.recommendedPlan.name} (${formatArs(subscription.recommendedPlan.priceArs)}/mes)`
+                    : ''}
                 </Text>
-              )}
-              {(!subscription.isActive || subscription.status === 'active') &&
-                subscription.postaMercadoPagoConfigured !== false && (
-                  <Button
-                    label={subscription.isActive ? 'Renovar suscripción' : 'Pagar suscripción'}
-                    onPress={paySubscription}
-                    loading={payBusy}
-                    style={{ marginTop: spacing.md }}
-                  />
+                {subscription.daysRemaining != null && (
+                  <Text style={styles.rowMeta}>
+                    {subscription.isActive
+                      ? `Vence en ${subscription.daysRemaining} día(s)`
+                      : 'Suscripción vencida'}
+                  </Text>
                 )}
-            </>
+                {(!subscription.isActive || subscription.status === 'active') &&
+                  subscription.postaMercadoPagoConfigured !== false && (
+                    <Button
+                      label={subscription.isActive ? 'Renovar suscripción' : 'Pagar suscripción'}
+                      onPress={paySubscription}
+                      loading={payBusy}
+                      style={{ marginTop: spacing.md }}
+                    />
+                  )}
+              </>
+            ) : (
+              <Text style={styles.muted}>Cargando…</Text>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mercado Pago (cobros a vendedores)</Text>
+          <View style={styles.integrationCard}>
+            <Text style={styles.integrationHint}>
+              {mpStatus?.connected
+                ? `Conectado${mpStatus.account?.nickname ? `: ${mpStatus.account.nickname}` : ''}`
+                : 'Conectá tu cuenta para que los vendedores paguen envíos desde la app.'}
+            </Text>
+            <Button
+              label={mpStatus?.connected ? 'Reconectar Mercado Pago' : 'Conectar Mercado Pago'}
+              onPress={connectMp}
+              loading={mpBusy}
+              disabled={!mpStatus?.configured}
+              style={{ marginTop: spacing.md }}
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mercado Libre Flex</Text>
+          <View style={styles.integrationCard}>
+            <Text style={styles.integrationHint}>
+              Cada repartidor debe conectar su cuenta de Mercado Libre Flex desde Perfil en la app.
+              Los escaneos se hacen en la app oficial de Mercado Envíos Flex.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Flota</Text>
+          {repartidores.length === 0 ? (
+            <Text style={styles.muted}>Sin repartidores. Creálos desde la web de Posta.</Text>
           ) : (
-            <Text style={styles.muted}>Cargando…</Text>
+            repartidores.map((rep) => (
+              <View key={rep.id} style={styles.row}>
+                <IconLabelRow icon="motorcycle" label={rep.name} color={t.ink} />
+                <Text style={styles.rowMeta}>
+                  {rep.deliveryZone ? zoneLabel(deliveryZones, rep.deliveryZone) : 'Sin zona'}
+                  {rep.currentLocation ? ' · GPS activo' : ''}
+                </Text>
+              </View>
+            ))
           )}
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Mercado Pago (cobros a vendedores)</Text>
-        <View style={styles.integrationCard}>
-          <Text style={styles.integrationHint}>
-            {mpStatus?.connected
-              ? `Conectado${mpStatus.account?.nickname ? `: ${mpStatus.account.nickname}` : ''}`
-              : 'Conectá tu cuenta para que los vendedores paguen envíos desde la app.'}
-          </Text>
-          <Button
-            label={mpStatus?.connected ? 'Reconectar Mercado Pago' : 'Conectar Mercado Pago'}
-            onPress={connectMp}
-            loading={mpBusy}
-            disabled={!mpStatus?.configured}
-            style={{ marginTop: spacing.md }}
-          />
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Vendedores</Text>
+          {sellers.length === 0 ? (
+            <Text style={styles.muted}>Sin vendedores registrados.</Text>
+          ) : (
+            sellers.map((seller) => (
+              <View key={seller.id} style={styles.row}>
+                <IconLabelRow icon="store" label={seller.name} color={t.ink} />
+                <Text style={styles.rowMeta}>@{seller.username}</Text>
+              </View>
+            ))
+          )}
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Mercado Libre Flex</Text>
-        <View style={styles.integrationCard}>
-          <Text style={styles.integrationHint}>
-            Cada repartidor debe conectar su cuenta de Mercado Libre Flex desde Perfil en la app.
-            Los escaneos se hacen en la app oficial de Mercado Envíos Flex.
-          </Text>
-        </View>
-      </View>
+        <Text style={styles.hint}>
+          Para crear vendedores, repartidores, zonas de entrega o configurar el punto de salida, usá la web de
+          Posta desde una computadora.
+        </Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Flota</Text>
-        {repartidores.length === 0 ? (
-          <Text style={styles.muted}>Sin repartidores. Creálos desde la web de Posta.</Text>
-        ) : (
-          repartidores.map((rep) => (
-            <View key={rep.id} style={styles.row}>
-              <IconLabelRow icon="motorcycle" label={rep.name} color={colors.text} />
-              <Text style={styles.rowMeta}>
-                {rep.deliveryZone ? zoneLabel(deliveryZones, rep.deliveryZone) : 'Sin zona'}
-                {rep.currentLocation ? ' · GPS activo' : ''}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Vendedores</Text>
-        {sellers.length === 0 ? (
-          <Text style={styles.muted}>Sin vendedores registrados.</Text>
-        ) : (
-          sellers.map((seller) => (
-            <View key={seller.id} style={styles.row}>
-              <IconLabelRow icon="store" label={seller.name} color={colors.text} />
-              <Text style={styles.rowMeta}>@{seller.username}</Text>
-            </View>
-          ))
-        )}
-      </View>
-
-      <Text style={styles.hint}>
-        Para crear vendedores, repartidores, zonas de entrega o configurar el punto de salida, usá la web de Posta
-        desde una computadora.
-      </Text>
-
-      <Button label="Cerrar sesión" variant="danger" onPress={logout} style={{ marginTop: spacing.xl }} />
-    </ScrollView>
+        <Button label="Cerrar sesión" variant="danger" onPress={logout} style={{ marginTop: spacing.xl, marginHorizontal: spacing.xl }} />
+      </ScrollView>
+    </View>
   );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
+  const { palette: t } = useTheme();
+  const styles = useMemo(() => createStyles(t), [t]);
   return (
     <View style={styles.stat}>
       <Text style={styles.statValue}>{value}</Text>
@@ -230,11 +262,31 @@ function formatArs(amount: number): string {
   }).format(amount);
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  hero: { padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border },
-  agencyName: { fontSize: 22, fontWeight: '700', color: colors.text },
-  userName: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+function createStyles(t: AgencyPalette) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.paper },
+  container: { flex: 1, backgroundColor: t.paper },
+  hero: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 8 },
+  eyebrow: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 10.5,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: t.ink3,
+    marginBottom: 8,
+  },
+  agencyName: {
+    fontFamily: fonts.displaySemi,
+    fontSize: 22,
+    fontWeight: '600',
+    color: t.ink,
+  },
+  userName: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.ink2,
+    marginTop: 4,
+  },
   statsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -244,54 +296,85 @@ const styles = StyleSheet.create({
   stat: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    backgroundColor: t.card,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.line,
     padding: spacing.md,
     alignItems: 'center',
   },
-  statValue: { fontSize: 24, fontWeight: '700', color: colors.text },
+  statValue: {
+    fontFamily: fonts.displaySemi,
+    fontSize: 24,
+    fontWeight: '600',
+    color: t.ink,
+  },
   statLabel: {
-    fontFamily: 'SpaceMono_400Regular',
+    fontFamily: fonts.monoRegular,
     fontSize: 10,
-    color: colors.textFaint,
+    color: t.ink3,
     textTransform: 'uppercase',
     marginTop: 4,
   },
   section: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
+  themeRow: { flexDirection: 'row', gap: 8 },
+  themeBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: t.line2,
+    backgroundColor: t.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeBtnOn: {
+    backgroundColor: t.ink,
+    borderColor: t.ink,
+  },
+  themeBtnText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: t.ink2,
+  },
+  themeBtnTextOn: {
+    color: t.chipOnText,
+  },
   sectionTitle: {
-    fontFamily: 'SpaceMono_400Regular',
+    fontFamily: fonts.monoRegular,
     fontSize: 11,
-    color: colors.textFaint,
+    color: t.ink3,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: spacing.md,
   },
   integrationCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: t.card,
+    borderColor: t.line,
     borderWidth: 1,
-    borderRadius: radius.lg,
+    borderRadius: 14,
     padding: spacing.lg,
   },
   integrationHint: {
-    color: colors.textMuted,
+    color: t.ink2,
     fontSize: 13,
     lineHeight: 18,
+    fontFamily: fonts.body,
   },
   row: {
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: t.line,
   },
-  rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  muted: { color: colors.textFaint, fontSize: 14 },
+  rowMeta: { fontSize: 12, color: t.ink2, marginTop: 2, fontFamily: fonts.body },
+  muted: { color: t.ink3, fontSize: 14, fontFamily: fonts.body },
   hint: {
     marginHorizontal: spacing.xl,
     marginTop: spacing.xl,
     fontSize: 13,
-    color: colors.textMuted,
+    color: t.ink2,
     lineHeight: 19,
+    fontFamily: fonts.body,
   },
 });
+}

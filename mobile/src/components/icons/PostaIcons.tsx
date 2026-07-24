@@ -26,7 +26,14 @@ export type PostaIconName =
   | 'chevronUp'
   | 'chevronDown'
   | 'tag'
-  | 'circle';
+  | 'circle'
+  | 'panel'
+  | 'map'
+  | 'building'
+  | 'alert'
+  | 'search'
+  | 'sun'
+  | 'moon';
 
 interface Props {
   name: PostaIconName;
@@ -240,6 +247,76 @@ export default function PostaIcon({
       return (
         <Svg {...common}>
           <Circle cx={12} cy={12} r={8} stroke={color} strokeWidth={strokeWidth} />
+        </Svg>
+      );
+    case 'panel':
+      return (
+        <Svg {...common}>
+          <Rect x={3} y={3} width={7} height={9} rx={1.5} stroke={color} strokeWidth={strokeWidth} />
+          <Rect x={14} y={3} width={7} height={5} rx={1.5} stroke={color} strokeWidth={strokeWidth} />
+          <Rect x={14} y={12} width={7} height={9} rx={1.5} stroke={color} strokeWidth={strokeWidth} />
+          <Rect x={3} y={16} width={7} height={5} rx={1.5} stroke={color} strokeWidth={strokeWidth} />
+        </Svg>
+      );
+    case 'map':
+      return (
+        <Svg {...common}>
+          <Path
+            d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinejoin="round"
+          />
+          <Path d="M9 4v14M15 6v14" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'building':
+      return (
+        <Svg {...common}>
+          <Path d="M3 21h18M4 21V8l8-5 8 5v13" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+          <Path d="M10 21v-6h4v6" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'alert':
+      return (
+        <Svg {...common}>
+          <Path
+            d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinejoin="round"
+          />
+          <Path d="M12 9v5M12 18h.01" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'search':
+      return (
+        <Svg {...common}>
+          <Circle cx={11} cy={11} r={7} stroke={color} strokeWidth={strokeWidth} />
+          <Path d="M20 20l-3.5-3.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </Svg>
+      );
+    case 'sun':
+      return (
+        <Svg {...common}>
+          <Circle cx={12} cy={12} r={4} stroke={color} strokeWidth={strokeWidth} />
+          <Path
+            d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+    case 'moon':
+      return (
+        <Svg {...common}>
+          <Path
+            d="M21 14.5A8.5 8.5 0 1110.5 3a7 7 0 0010.5 11.5z"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinejoin="round"
+          />
         </Svg>
       );
     default:

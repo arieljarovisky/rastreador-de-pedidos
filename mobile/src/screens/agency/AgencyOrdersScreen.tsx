@@ -1,70 +1,94 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
 import { Order, OrderStatus } from '../../types';
-import { colors, fonts, radius, roleAccents, spacing } from '../../theme';
-import OrderCard from '../../components/OrderCard';
+import { AgencyPalette, fonts, spacing } from '../../theme';
+import { useTheme } from '../../context/ThemeContext';
+import AgencyTopBar from '../../components/agency/AgencyTopBar';
+import AgencyOrderStub from '../../components/agency/AgencyOrderStub';
 import PostaIcon from '../../components/icons/PostaIcons';
-import DashboardHeader from '../../components/ui/DashboardHeader';
-import EmptyState from '../../components/ui/EmptyState';
-import ListTabBar from '../../components/ui/ListTabBar';
-import ListTabButton from '../../components/ui/ListTabButton';
-import PostaMap from '../../components/PostaMap';
-import { buildSellerFleetMarkers } from '../../utils/fleetMap';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
-import { AgencyHomeStackParamList, AgencyStackParamList } from '../../navigation/types';
 import { api } from '../../api';
+import {
+  channelLabel,
+  isClosedOrder,
+  isLateOrder,
+  shortOrderCode,
+} from '../../utils/agencyPanel';
+import {
+  getOperationalDateKey,
+  getTodayOrders,
+} from '../../utils/deliverySummary';
+import { AgencyOrdersStackParamList, AgencyStackParamList } from '../../navigation/types';
 
 type Props = CompositeScreenProps<
-  NativeStackScreenProps<AgencyHomeStackParamList, 'AgencyOrders'>,
+  NativeStackScreenProps<AgencyOrdersStackParamList, 'AgencyOrders'>,
   NativeStackScreenProps<AgencyStackParamList>
 >;
-type Tab = 'active' | 'pending' | 'done';
 
-function filterOrders(orders: Order[], tab: Tab): Order[] {
-  if (tab === 'pending') {
-    return orders.filter(
-      (o) =>
-        !o.archived &&
-        (o.status === OrderStatus.PENDING || o.status === OrderStatus.ASSIGNED)
-    );
+type Period = 'hoy' | 'ayer' | '7d' | 'todos';
+type FilterKey =
+  | 'todos'
+  | 'vencidos'
+  | 'sinasignar'
+  | 'almacen'
+  | 'despacho'
+  | 'ruta'
+  | 'entregado'
+  | 'devuelto';
+
+function shiftDateKey(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+function orderDateKey(order: Order): string {
+  if (order.deliveryDeadline) {
+    return getOperationalDateKey(new Date(order.deliveryDeadline));
   }
-  if (tab === 'done') {
-    return orders.filter(
-      (o) =>
-        !o.archived &&
-        (o.status === OrderStatus.DELIVERED || o.status === OrderStatus.CANCELLED)
-    );
-  }
-  return orders.filter(
-    (o) =>
-      !o.archived &&
-      o.status !== OrderStatus.DELIVERED &&
-      o.status !== OrderStatus.CANCELLED
-  );
+  return getOperationalDateKey(new Date(order.createdAt));
+}
+
+function matchesFilter(order: Order, filter: FilterKey): boolean {
+  if (filter === 'todos') return true;
+  if (filter === 'vencidos') return isLateOrder(order);
+  if (filter === 'sinasignar') return !isClosedOrder(order) && !order.repartidorId;
+  if (filter === 'almacen') return order.status === OrderStatus.PENDING;
+  if (filter === 'despacho') return order.status === OrderStatus.ASSIGNED;
+  if (filter === 'ruta') return order.status === OrderStatus.DELIVERING;
+  if (filter === 'entregado') return order.status === OrderStatus.DELIVERED;
+  if (filter === 'devuelto') return order.status === OrderStatus.CANCELLED;
+  return true;
 }
 
 export default function AgencyOrdersScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { user, logout, token } = useAuth();
-  const { orders, repartidores, loading, refreshing, connected, refresh } =
-    useAgencyOrdersContext();
-  const [tab, setTab] = useState<Tab>('active');
-  const [mapExpanded, setMapExpanded] = useState(true);
+  const { palette: t } = useTheme();
+  const styles = useMemo(() => createStyles(t), [t]);
+  const route = useRoute<RouteProp<AgencyOrdersStackParamList, 'AgencyOrders'>>();
+  const { user, token } = useAuth();
+  const { orders, refreshing, refresh } = useAgencyOrdersContext();
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [period, setPeriod] = useState<Period>('hoy');
+  const [filter, setFilter] = useState<FilterKey>(
+    (route.params?.filter as FilterKey) || 'todos'
+  );
+  const [query, setQuery] = useState('');
 
   const loadNotifs = useCallback(async () => {
     if (!token) return;
@@ -79,207 +103,282 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       void loadNotifs();
-    }, [loadNotifs])
+      const incoming = route.params?.filter as FilterKey | undefined;
+      if (incoming) {
+        setFilter(incoming);
+        setPeriod('hoy');
+      }
+    }, [loadNotifs, route.params?.filter])
   );
 
-  const fleetMarkers = useMemo(
-    () => buildSellerFleetMarkers(orders, repartidores),
-    [orders, repartidores]
-  );
+  const todayKey = getOperationalDateKey();
 
-  const data = useMemo(() => filterOrders(orders, tab), [orders, tab]);
-  const activeCount = useMemo(() => filterOrders(orders, 'active').length, [orders]);
-  const pendingCount = useMemo(() => filterOrders(orders, 'pending').length, [orders]);
-  const doneCount = useMemo(() => filterOrders(orders, 'done').length, [orders]);
-  const enRouteCount = useMemo(
-    () => orders.filter((o) => o.status === OrderStatus.DELIVERING).length,
-    [orders]
-  );
+  const inPeriod = useMemo(() => {
+    const open = orders.filter((o) => !o.archived);
+    if (period === 'hoy') return getTodayOrders(open, todayKey);
+    if (period === 'ayer') return getTodayOrders(open, shiftDateKey(todayKey, -1));
+    if (period === '7d') {
+      const from = shiftDateKey(todayKey, -6);
+      return open.filter((o) => {
+        const k = orderDateKey(o);
+        return k >= from && k <= todayKey;
+      });
+    }
+    return open;
+  }, [orders, period, todayKey]);
 
-  const renderItem = ({ item }: { item: Order }) => (
-    <OrderCard
-      order={item}
-      showRepartidor
-      showSeller
-      onPress={() => navigation.navigate('AgencyOrderDetail', { orderId: item.id })}
-    />
-  );
+  const chipDefs = useMemo(() => {
+    const late = inPeriod.filter((o) => isLateOrder(o)).length;
+    const sin = inPeriod.filter((o) => !isClosedOrder(o) && !o.repartidorId).length;
+    const defs: { key: FilterKey; label: string; count: number }[] = [
+      { key: 'todos', label: 'Todos', count: inPeriod.length },
+    ];
+    if (late) defs.push({ key: 'vencidos', label: 'Vencidos', count: late });
+    if (sin) defs.push({ key: 'sinasignar', label: 'Sin asignar', count: sin });
+    const byStatus: [FilterKey, string, OrderStatus][] = [
+      ['almacen', 'Almacén', OrderStatus.PENDING],
+      ['despacho', 'Despacho', OrderStatus.ASSIGNED],
+      ['ruta', 'En ruta', OrderStatus.DELIVERING],
+      ['entregado', 'Entregadas', OrderStatus.DELIVERED],
+      ['devuelto', 'Devueltas', OrderStatus.CANCELLED],
+    ];
+    for (const [key, label, status] of byStatus) {
+      const count = inPeriod.filter((o) => o.status === status).length;
+      if (count) defs.push({ key, label, count });
+    }
+    return defs;
+  }, [inPeriod]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return inPeriod
+      .filter((o) => matchesFilter(o, filter))
+      .filter((o) => {
+        if (!q) return true;
+        const hay = `${o.clientName} ${shortOrderCode(o)} ${o.address} ${channelLabel(o)}`.toLowerCase();
+        return hay.includes(q);
+      })
+      .sort((a, b) => {
+        const aLate = isLateOrder(a) ? 0 : 1;
+        const bLate = isLateOrder(b) ? 0 : 1;
+        if (aLate !== bLate) return aLate - bLate;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+  }, [inPeriod, filter, query]);
+
+  const deliveredCount = inPeriod.filter((o) => o.status === OrderStatus.DELIVERED).length;
+  const cancelledCount = inPeriod.filter((o) => o.status === OrderStatus.CANCELLED).length;
+  const lateCount = inPeriod.filter((o) => isLateOrder(o)).length;
+  const sinCount = inPeriod.filter((o) => !isClosedOrder(o) && !o.repartidorId).length;
+
+  const summaryDetail =
+    deliveredCount || cancelledCount
+      ? `${deliveredCount} entregadas · ${cancelledCount} devueltas`
+      : `${lateCount} vencidos · ${sinCount} sin asignar`;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <DashboardHeader
-        eyebrow="Posta Agencia"
-        title={user?.agencyName ?? user?.name ?? 'Agencia'}
-        subtitle={`${repartidores.length} repartidores · ${enRouteCount} en ruta`}
-        connected={connected}
-        accentColor={roleAccents.agency}
-        onNotifications={() => navigation.navigate('AgencyNotifications')}
+      <AgencyTopBar
+        agencyName={user?.agencyName ?? user?.name ?? 'Agencia'}
         notificationCount={unreadNotifs}
-        onLogout={logout}
+        onNotifications={() => navigation.navigate('AgencyNotifications')}
       />
 
-      <Pressable style={styles.backPanel} onPress={() => navigation.navigate('AgencyDashboard')}>
-        <Text style={styles.backPanelText}>← Volver al panel</Text>
-      </Pressable>
-
-      {tab !== 'done' && (
-        <View style={[styles.mapSection, !mapExpanded && styles.mapSectionCollapsed]}>
-          <Pressable style={styles.mapHeader} onPress={() => setMapExpanded((v) => !v)}>
-            <View style={styles.mapTitleRow}>
-              <PostaIcon name="live" size={14} color={colors.green} />
-              <Text style={styles.mapTitle}>Mapa de flota</Text>
+      <FlatList
+        data={visible}
+        keyExtractor={(o) => o.id}
+        renderItem={({ item }) => (
+          <AgencyOrderStub
+            order={item}
+            onPress={() => navigation.navigate('AgencyOrderDetail', { orderId: item.id })}
+          />
+        )}
+        contentContainerStyle={[
+          styles.list,
+          visible.length === 0 && styles.listEmpty,
+          { paddingBottom: TAB_BAR_CLEARANCE + insets.bottom + spacing.lg },
+        ]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.sello} />
+        }
+        ListHeaderComponent={
+          <View>
+            <Text style={styles.eyebrow}>Período</Text>
+            <View style={styles.dates}>
+              {(
+                [
+                  ['hoy', 'Hoy'],
+                  ['ayer', 'Ayer'],
+                  ['7d', '7 días'],
+                  ['todos', 'Todos'],
+                ] as const
+              ).map(([key, label]) => (
+                <Pressable
+                  key={key}
+                  onPress={() => {
+                    setPeriod(key);
+                    setFilter('todos');
+                  }}
+                  style={[styles.dateBtn, period === key && styles.dateBtnOn]}
+                >
+                  <Text style={[styles.dateBtnText, period === key && styles.dateBtnTextOn]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
-            <View style={styles.mapToggleRow}>
-              <Text style={styles.mapToggle}>{mapExpanded ? 'Ocultar' : 'Mostrar'}</Text>
-              <PostaIcon
-                name={mapExpanded ? 'chevronUp' : 'chevronDown'}
-                size={14}
-                color={colors.accent}
+
+            <View style={styles.search}>
+              <PostaIcon name="search" size={16} color={t.ink3} strokeWidth={1.8} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Cliente, código o zona"
+                placeholderTextColor={t.ink3}
+                value={query}
+                onChangeText={setQuery}
+                autoCorrect={false}
+                autoCapitalize="none"
               />
             </View>
-          </Pressable>
-          {mapExpanded && (
-            <PostaMap
-              markers={fleetMarkers}
-              style={styles.fleetMap}
-              emptyLabel="Los repartidores aparecen cuando reportan GPS. Los puntos de color son envíos activos."
-            />
-          )}
-        </View>
-      )}
 
-      <ListTabBar>
-        <ListTabButton
-          active={tab === 'active'}
-          icon="motorcycle"
-          label="Activos"
-          count={activeCount}
-          color={roleAccents.agency}
-          onPress={() => setTab('active')}
-        />
-        <ListTabButton
-          active={tab === 'pending'}
-          icon="package"
-          label="Despacho"
-          count={pendingCount}
-          color={colors.amber}
-          onPress={() => setTab('pending')}
-        />
-        <ListTabButton
-          active={tab === 'done'}
-          icon="checkCircle"
-          label="Cerrados"
-          count={doneCount}
-          color={colors.green}
-          onPress={() => setTab('done')}
-        />
-      </ListTabBar>
+            <View style={styles.chips}>
+              {chipDefs.map((chip) => (
+                <Pressable
+                  key={chip.key}
+                  onPress={() => setFilter(chip.key)}
+                  style={[styles.chip, filter === chip.key && styles.chipOn]}
+                >
+                  <Text style={[styles.chipText, filter === chip.key && styles.chipTextOn]}>
+                    {chip.label} · {chip.count}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.accent} />
-        </View>
-      ) : (
-        <FlatList
-          data={data}
-          keyExtractor={(o) => o.id}
-          renderItem={renderItem}
-          contentContainerStyle={[
-            styles.list,
-            data.length === 0 && styles.listEmpty,
-            { paddingBottom: TAB_BAR_CLEARANCE + spacing.lg },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={refresh}
-              tintColor={colors.accent}
-            />
-          }
-          ListEmptyComponent={
-            tab === 'active' ? (
-              <EmptyState
-                icon="motorcycle"
-                title="Sin envíos activos"
-                message="Cuando haya pedidos en curso los vas a ver acá con seguimiento en vivo."
-              />
-            ) : tab === 'pending' ? (
-              <EmptyState
-                icon="package"
-                title="Sin pendientes de despacho"
-                message="Los pedidos por asignar o listos para salir aparecen en esta pestaña."
-              />
-            ) : (
-              <EmptyState
-                icon="checkCircle"
-                title="Sin envíos cerrados"
-                message="Entregas y cancelaciones finalizadas se listan acá."
-              />
-            )
-          }
-        />
-      )}
+            <Text style={styles.summary}>
+              <Text style={styles.summaryBold}>{visible.length} pedidos</Text>
+              {` · ${summaryDetail}`}
+            </Text>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No hay pedidos acá</Text>
+            <Text style={styles.emptyBody}>
+              Probá con otro filtro o buscá por nombre de cliente.
+            </Text>
+          </View>
+        }
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  pressed: { opacity: 0.88 },
-  mapSection: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    backgroundColor: colors.surface,
-  },
-  backPanel: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  backPanelText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    color: colors.accent,
-  },
-  mapSectionCollapsed: { marginBottom: spacing.sm },
-  mapHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomColor: colors.border,
-    borderBottomWidth: 1,
-  },
-  mapTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  mapTitle: {
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: colors.textMuted,
-  },
-  mapToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  mapToggle: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    color: colors.accent,
-  },
-  fleetMap: { height: 200 },
-  tabs: {
-    flexDirection: 'row',
-    borderBottomColor: colors.border,
-    borderBottomWidth: 1,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+function createStyles(t: AgencyPalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.paper },
+  list: { paddingHorizontal: 16, paddingTop: 18 },
   listEmpty: { flexGrow: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  eyebrow: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 10.5,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: t.ink3,
+    marginBottom: 10,
+  },
+  dates: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  dateBtn: {
+    flex: 1,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: t.line2,
+    backgroundColor: t.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateBtnOn: {
+    backgroundColor: t.ink,
+    borderColor: t.ink,
+  },
+  dateBtnText: {
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    color: t.ink2,
+  },
+  dateBtnTextOn: { color: t.chipOnText },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    backgroundColor: t.card,
+    borderWidth: 1,
+    borderColor: t.line,
+    borderRadius: t.r,
+    paddingHorizontal: 12,
+    height: 42,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: t.ink,
+    padding: 0,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginBottom: 14,
+  },
+  chip: {
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: t.line2,
+    backgroundColor: t.card,
+  },
+  chipOn: {
+    backgroundColor: t.ink,
+    borderColor: t.ink,
+  },
+  chipText: {
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    color: t.ink2,
+  },
+  chipTextOn: { color: t.chipOnText },
+  summary: {
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    color: t.ink2,
+    marginBottom: 11,
+  },
+  summaryBold: {
+    fontFamily: fonts.bodySemiBold,
+    fontWeight: '600',
+    color: t.ink,
+  },
+  empty: {
+    alignItems: 'center',
+    paddingVertical: 52,
+    paddingHorizontal: 24,
+  },
+  emptyTitle: {
+    fontFamily: fonts.displaySemi,
+    fontWeight: '600',
+    fontSize: 16,
+    color: t.ink,
+    marginBottom: 5,
+  },
+  emptyBody: {
+    fontFamily: fonts.body,
+    fontSize: 13.5,
+    color: t.ink2,
+    textAlign: 'center',
+  },
 });
+}

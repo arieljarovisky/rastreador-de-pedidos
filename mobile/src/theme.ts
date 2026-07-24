@@ -66,6 +66,94 @@ export const paper = {
   shadow: '#1C1814',
 };
 
+/**
+ * Tema del panel de agencia — alineado con prototipo-panel-agencia.html
+ */
+export type AgencyPalette = {
+  ink: string;
+  ink2: string;
+  ink3: string;
+  paper: string;
+  card: string;
+  line: string;
+  line2: string;
+  sello: string;
+  selloBg: string;
+  verde: string;
+  verdeBg: string;
+  ambar: string;
+  ambarBg: string;
+  rojo: string;
+  rojoBg: string;
+  flat: string;
+  barTrack: string;
+  alertCalmBody: string;
+  alertBody: string;
+  markText: string;
+  chipOnText: string;
+  r: number;
+};
+
+export type ThemeMode = 'light' | 'dark';
+
+export const agencyLight: AgencyPalette = {
+  ink: '#12161C',
+  ink2: '#525C66',
+  ink3: '#8A939C',
+  paper: '#F6F7F8',
+  card: '#FFFFFF',
+  line: '#E2E5E8',
+  line2: '#CFD4D9',
+  sello: '#1E3A6B',
+  selloBg: '#EAEFF7',
+  verde: '#1B7A4B',
+  verdeBg: '#E7F2EC',
+  ambar: '#C0760A',
+  ambarBg: '#FBF0DD',
+  rojo: '#BF3229',
+  rojoBg: '#FAEAE8',
+  flat: '#EFF1F3',
+  barTrack: '#EDEFF1',
+  alertCalmBody: '#175E3B',
+  alertBody: '#8E3229',
+  markText: '#FFFFFF',
+  chipOnText: '#FFFFFF',
+  r: 10,
+};
+
+/** Oscuro operativo — misma jerarquía que el prototipo, contraste invertido */
+export const agencyDark: AgencyPalette = {
+  ink: '#E8ECF0',
+  ink2: '#A8B0B8',
+  ink3: '#6B7480',
+  paper: '#12161C',
+  card: '#1A1F27',
+  line: '#2A313A',
+  line2: '#3A434E',
+  sello: '#6B93D6',
+  selloBg: 'rgba(107, 147, 214, 0.14)',
+  verde: '#3FAE63',
+  verdeBg: 'rgba(63, 174, 99, 0.14)',
+  ambar: '#E69A2E',
+  ambarBg: 'rgba(230, 154, 46, 0.14)',
+  rojo: '#E5564F',
+  rojoBg: 'rgba(229, 86, 79, 0.14)',
+  flat: '#242A33',
+  barTrack: '#2A313A',
+  alertCalmBody: '#8FCFAB',
+  alertBody: '#F0A8A3',
+  markText: '#FFFFFF',
+  chipOnText: '#12161C',
+  r: 10,
+};
+
+/** @deprecated Preferí useTheme().palette — alias del modo claro */
+export const agency = agencyLight;
+
+export function agencyPaletteFor(mode: ThemeMode): AgencyPalette {
+  return mode === 'dark' ? agencyDark : agencyLight;
+}
+
 export const radius = {
   posta: 5,
   sm: 4,
