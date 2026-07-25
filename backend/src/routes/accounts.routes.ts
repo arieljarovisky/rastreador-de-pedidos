@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { authenticate, requireRoles, requireAgencyAdmin } from '../middleware/auth.js';
 import { UserRole } from '../types/index.js';
 import {
@@ -35,8 +36,28 @@ import {
 } from '../services/agencies.service.js';
 import { recalculateOpenOrdersDeliveryDeadlines } from '../services/orders.service.js';
 import { DELIVERY_DEADLINE_HOUR, getOperationalDateKey } from '../utils/delivery-deadline.js';
+import {
+  getSellerBrandingSummary,
+  getSellerLogo,
+  saveSellerLogo,
+  deleteSellerLogo,
+  updateSellerLabelFont,
+  MAX_LOGO_BYTES,
+} from '../services/seller-branding.service.js';
 
 const router = Router();
+
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_LOGO_BYTES },
+  fileFilter(_req, file, cb) {
+    if (file.mimetype !== 'image/png' && file.mimetype !== 'image/jpeg') {
+      cb(new Error('INVALID_LOGO_MIME'));
+      return;
+    }
+    cb(null, true);
+  },
+});
 
 /** Evita recalcular en cada poll. Versión fuerza reintento tras redeploy. */
 const DEADLINE_RECALC_VERSION = 'v8';
@@ -497,6 +518,91 @@ router.put(
     }
   }
 );
+
+/** Vendedor: config actual de branding de etiqueta (sin el blob). */
+router.get('/seller/branding', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
+  res.json(await getSellerBrandingSummary(req.user!.id));
+});
+
+/** Vendedor: descarga el logo crudo (para preview con <img> vía blob + Authorization header). */
+router.get(
+  '/seller/branding/logo',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    const logo = await getSellerLogo(req.user!.id);
+    if (!logo) {
+      res.status(404).json({ error: 'No hay logo cargado.' });
+      return;
+    }
+    res.setHeader('Content-Type', logo.mime);
+    res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+    res.send(logo.data);
+  }
+);
+
+/** Vendedor: sube/reemplaza su logo. */
+router.put(
+  '/seller/branding/logo',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  (req: Request, res: Response, next: NextFunction) => {
+    logoUpload.single('logo')(req, res, (err: unknown) => {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        res.status(400).json({ error: 'El logo no puede pesar más de 2 MB.' });
+        return;
+      }
+      if (err instanceof Error && err.message === 'INVALID_LOGO_MIME') {
+        res.status(400).json({ error: 'Formato no soportado. Subí una imagen PNG o JPG.' });
+        return;
+      }
+      if (err) {
+        next(err);
+        return;
+      }
+      next();
+    });
+  },
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      res.status(400).json({ error: 'Adjuntá una imagen para el logo.' });
+      return;
+    }
+    await saveSellerLogo(req.user!.id, req.file.buffer, req.file.mimetype);
+    res.json(await getSellerBrandingSummary(req.user!.id));
+  }
+);
+
+/** Vendedor: quita su logo (vuelve al encabezado de texto "Posta"). */
+router.delete(
+  '/seller/branding/logo',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    await deleteSellerLogo(req.user!.id);
+    res.json({ hasLogo: false });
+  }
+);
+
+/** Vendedor: cambia la tipografía de su etiqueta. */
+router.put(
+  '/seller/branding/font',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const labelFont = await updateSellerLabelFont(req.user!.id, req.body?.font);
+      res.json({ labelFont });
+    } catch (err) {
+      if (err instanceof Error && err.message === 'INVALID_FONT') {
+        res.status(400).json({ error: 'Tipografía no soportada.' });
+        return;
+      }
+      throw err;
+    }
+  }
+);
+
 router.get('/pickup-points', authenticate, async (req: Request, res: Response) => {
   const user = req.user!;
 

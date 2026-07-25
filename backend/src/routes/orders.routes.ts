@@ -22,6 +22,7 @@ import { getDeliverySummaryForUser } from '../services/delivery-dashboard.servic
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../services/mercadolibre.service.js';
 import { generatePostaShippingLabelPdf, POSTA_ORDER_QR_PREFIX } from '../services/shipping-label.service.js';
+import { getShippingLabelBranding } from '../services/seller-branding.service.js';
 import {
   syncOpenMercadoLibreOrdersInList,
   syncMercadoLibreOrderLiveStatus,
@@ -271,7 +272,8 @@ router.get('/:id/shipping-label', authenticate, async (req: Request, res: Respon
     return;
   }
 
-  const pdf = await generatePostaShippingLabelPdf(order);
+  const branding = await getShippingLabelBranding(sellerId);
+  const pdf = await generatePostaShippingLabelPdf(order, branding);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="etiqueta-${order.id}.pdf"`);
   res.send(pdf);

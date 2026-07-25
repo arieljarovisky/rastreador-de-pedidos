@@ -829,4 +829,20 @@ export async function runMigrations(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }
+
+  // Logo y tipografía de etiqueta por vendedor (branding de la etiqueta de envío propia de Posta).
+  if (!(await columnExists('users', 'logo_image'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN logo_image MEDIUMBLOB NULL AFTER delivery_deadline_hour');
+  }
+  if (!(await columnExists('users', 'logo_mime'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN logo_mime VARCHAR(32) NULL AFTER logo_image');
+  }
+  if (!(await columnExists('users', 'logo_updated_at'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN logo_updated_at DATETIME(3) NULL AFTER logo_mime');
+  }
+  if (!(await columnExists('users', 'label_font'))) {
+    await pool.query(
+      "ALTER TABLE users ADD COLUMN label_font VARCHAR(20) NOT NULL DEFAULT 'helvetica' AFTER logo_updated_at"
+    );
+  }
 }

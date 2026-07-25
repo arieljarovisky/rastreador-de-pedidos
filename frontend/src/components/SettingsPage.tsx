@@ -27,6 +27,7 @@ import {
   Save,
   Loader2,
   Clock,
+  Image as ImageIcon,
 } from 'lucide-react';
 import MarketplaceIntegrations, { type MarketplacePlatform } from './MarketplaceIntegrations.tsx';
 import AgencyPaymentsPanel from './AgencyPaymentsPanel.tsx';
@@ -119,6 +120,13 @@ interface SettingsPageProps {
   /** Corte propio del vendedor logueado; null = hereda agencia. */
   ownSellerDeadlineHour?: number | null;
   onUpdateDeliveryDeadlineHour?: (hour: number | null) => Promise<void>;
+  /** Branding de la etiqueta de envío del vendedor logueado. */
+  hasSellerLogo?: boolean;
+  sellerLogoPreviewUrl?: string | null;
+  sellerLabelFont?: string;
+  onUploadSellerLogo?: (file: File) => Promise<void>;
+  onDeleteSellerLogo?: () => Promise<void>;
+  onUpdateSellerLabelFont?: (font: string) => Promise<void>;
   onCreateSeller?: (data: {
     username: string;
     password: string;
@@ -203,6 +211,12 @@ export default function SettingsPage({
   agencyMaxDeadlineHour,
   ownSellerDeadlineHour = null,
   onUpdateDeliveryDeadlineHour,
+  hasSellerLogo = false,
+  sellerLogoPreviewUrl = null,
+  sellerLabelFont = 'helvetica',
+  onUploadSellerLogo,
+  onDeleteSellerLogo,
+  onUpdateSellerLabelFont,
   onCreateSeller,
   onFetchSellerDetail,
   onUpdateSeller,
@@ -247,6 +261,24 @@ export default function SettingsPage({
   );
   const [deadlineLoading, setDeadlineLoading] = useState(false);
   const [deadlineMessage, setDeadlineMessage] = useState<string | null>(null);
+
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoLocalPreview, setLogoLocalPreview] = useState<string | null>(null);
+  const [logoLoading, setLogoLoading] = useState(false);
+  const [logoMessage, setLogoMessage] = useState<string | null>(null);
+  const [fontDraft, setFontDraft] = useState(sellerLabelFont);
+  const [fontLoading, setFontLoading] = useState(false);
+  const [fontMessage, setFontMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFontDraft(sellerLabelFont);
+  }, [sellerLabelFont]);
+
+  useEffect(() => {
+    return () => {
+      if (logoLocalPreview) URL.revokeObjectURL(logoLocalPreview);
+    };
+  }, [logoLocalPreview]);
 
   const [showSellerForm, setShowSellerForm] = useState(false);
   const [sellerName, setSellerName] = useState('');
@@ -570,6 +602,144 @@ export default function SettingsPage({
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {isSeller && (onUploadSellerLogo || onUpdateSellerLabelFont) && (
+        <section className={`${sectionClass} !p-2.5 mt-3`}>
+          <div className="flex items-start gap-2.5">
+            <div className="w-7 h-7 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
+              <ImageIcon className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+            </div>
+            <div className="flex-1 min-w-0 space-y-3">
+              <div>
+                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">
+                  Logo y tipografía de tu etiqueta
+                </p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                  Personalizá el encabezado de tu etiqueta de envío (PNG o JPG, máx. 2 MB).
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="w-24 h-14 rounded-[5px] border border-[var(--surface-border)] bg-[var(--paper)] flex items-center justify-center overflow-hidden shrink-0">
+                  {logoLocalPreview ?? sellerLogoPreviewUrl ? (
+                    <img
+                      src={logoLocalPreview ?? sellerLogoPreviewUrl ?? ''}
+                      alt="Logo de la etiqueta"
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-[9px] text-[var(--color-text-faint)] font-mono">Posta</span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setLogoFile(f);
+                      setLogoMessage(null);
+                      setLogoLocalPreview((prev) => {
+                        if (prev) URL.revokeObjectURL(prev);
+                        return f ? URL.createObjectURL(f) : null;
+                      });
+                    }}
+                    className="text-[10px]"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={!logoFile || logoLoading}
+                      className={btnGhost}
+                      onClick={async () => {
+                        if (!logoFile || !onUploadSellerLogo) return;
+                        setLogoLoading(true);
+                        setLogoMessage(null);
+                        try {
+                          await onUploadSellerLogo(logoFile);
+                          setLogoMessage('Logo actualizado.');
+                          setLogoFile(null);
+                        } catch (err: unknown) {
+                          setLogoMessage(err instanceof Error ? err.message : 'Error al subir el logo.');
+                        } finally {
+                          setLogoLoading(false);
+                        }
+                      }}
+                    >
+                      {logoLoading ? 'Guardando...' : 'Guardar logo'}
+                    </button>
+                    {hasSellerLogo && (
+                      <button
+                        type="button"
+                        disabled={logoLoading}
+                        className={btnGhost}
+                        onClick={async () => {
+                          if (!onDeleteSellerLogo) return;
+                          setLogoLoading(true);
+                          setLogoMessage(null);
+                          try {
+                            await onDeleteSellerLogo();
+                            setLogoMessage('Logo eliminado. Se usará el encabezado "Posta".');
+                            setLogoFile(null);
+                            setLogoLocalPreview((prev) => {
+                              if (prev) URL.revokeObjectURL(prev);
+                              return null;
+                            });
+                          } catch (err: unknown) {
+                            setLogoMessage(err instanceof Error ? err.message : 'Error al quitar el logo.');
+                          } finally {
+                            setLogoLoading(false);
+                          }
+                        }}
+                      >
+                        Quitar logo
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {logoMessage && (
+                <p className={msgClass(logoMessage.includes('actualizado') || logoMessage.includes('eliminado'))}>
+                  {logoMessage}
+                </p>
+              )}
+
+              <form
+                className="flex flex-wrap items-end gap-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!onUpdateSellerLabelFont) return;
+                  setFontLoading(true);
+                  setFontMessage(null);
+                  try {
+                    await onUpdateSellerLabelFont(fontDraft);
+                    setFontMessage('Tipografía actualizada.');
+                  } catch (err: unknown) {
+                    setFontMessage(err instanceof Error ? err.message : 'Error al guardar.');
+                  } finally {
+                    setFontLoading(false);
+                  }
+                }}
+              >
+                <label className="flex flex-col gap-1 min-w-[10rem]">
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                    Tipografía
+                  </span>
+                  <select value={fontDraft} onChange={(e) => setFontDraft(e.target.value)} className={inputClass}>
+                    <option value="helvetica">Moderna (Helvetica)</option>
+                    <option value="times">Clásica (Times)</option>
+                    <option value="courier">Técnica (Courier)</option>
+                  </select>
+                </label>
+                <button type="submit" disabled={fontLoading} className={btnGhost}>
+                  {fontLoading ? 'Guardando...' : 'Guardar tipografía'}
+                </button>
+              </form>
+              {fontMessage && <p className={msgClass(fontMessage.includes('actualizada'))}>{fontMessage}</p>}
             </div>
           </div>
         </section>

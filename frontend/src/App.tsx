@@ -86,6 +86,12 @@ export default function App() {
   const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(13);
   const [agencyMaxDeadlineHour, setAgencyMaxDeadlineHour] = useState(13);
   const [ownSellerDeadlineHour, setOwnSellerDeadlineHour] = useState<number | null>(null);
+  const [sellerBranding, setSellerBranding] = useState<{
+    hasLogo: boolean;
+    labelFont: string;
+    logoUpdatedAt: string | null;
+  } | null>(null);
+  const [sellerLogoPreviewUrl, setSellerLogoPreviewUrl] = useState<string | null>(null);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [barrios, setBarrios] = useState<Barrio[]>([]);
@@ -346,6 +352,14 @@ export default function App() {
             })
           : Promise.resolve();
 
+      const brandingPromise =
+        currentUser?.role === UserRole.STORE_ADMIN
+          ? fetch(apiUrl('/api/accounts/seller/branding'), { headers }).then(async (res) => {
+              if (!res.ok) return;
+              setSellerBranding(await res.json());
+            })
+          : Promise.resolve();
+
       const zonesPromise = currentUser?.agencyId
         ? Promise.all([
             fetch(apiUrl('/api/delivery-zones'), { headers }),
@@ -364,6 +378,7 @@ export default function App() {
         sellersPromise,
         repMlPromise,
         integrationsPromise,
+        brandingPromise,
         zonesPromise,
       ]);
 
@@ -515,6 +530,33 @@ export default function App() {
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [token, user?.role, fetchData]);
+
+  // Vendedor: trae el logo de su etiqueta como blob (el <img> no puede mandar el header Authorization).
+  useEffect(() => {
+    if (!token || user?.role !== UserRole.STORE_ADMIN || !sellerBranding?.hasLogo) {
+      setSellerLogoPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    void fetch(apiUrl('/api/accounts/seller/branding/logo'), {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(async (res) => {
+      if (!res.ok || cancelled) return;
+      const blob = await res.blob();
+      objectUrl = URL.createObjectURL(blob);
+      setSellerLogoPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return objectUrl;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user?.role, sellerBranding?.hasLogo, sellerBranding?.logoUpdatedAt]);
 
   // Refresco frecuente de la flota (posición de repartidores)
   useEffect(() => {
@@ -1220,6 +1262,55 @@ export default function App() {
       setOwnSellerDeadlineHour(typeof data.sellerHour === 'number' ? data.sellerHour : null);
     }
     await fetchData();
+  };
+
+  const handleUploadSellerLogo = async (file: File) => {
+    if (!token) return;
+    const formData = new FormData();
+    formData.append('logo', file);
+    const res = await fetch(apiUrl('/api/accounts/seller/branding/logo'), {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo subir el logo.');
+    }
+    setSellerBranding(await res.json());
+  };
+
+  const handleDeleteSellerLogo = async () => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/seller/branding/logo'), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('No se pudo quitar el logo.');
+    setSellerBranding((prev) => ({
+      hasLogo: false,
+      labelFont: prev?.labelFont ?? 'helvetica',
+      logoUpdatedAt: null,
+    }));
+  };
+
+  const handleUpdateSellerLabelFont = async (font: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/seller/branding/font'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ font }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo guardar la tipografía.');
+    }
+    const data = await res.json();
+    setSellerBranding((prev) => ({
+      hasLogo: prev?.hasLogo ?? false,
+      labelFont: data.labelFont,
+      logoUpdatedAt: prev?.logoUpdatedAt ?? null,
+    }));
   };
 
   const handleCreatePickupPoint = async (data: {
@@ -2298,6 +2389,18 @@ export default function App() {
                     isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
                       ? handleUpdateDeliveryDeadlineHour
                       : undefined
+                  }
+                  hasSellerLogo={sellerBranding?.hasLogo ?? false}
+                  sellerLogoPreviewUrl={sellerLogoPreviewUrl}
+                  sellerLabelFont={sellerBranding?.labelFont ?? 'helvetica'}
+                  onUploadSellerLogo={
+                    user.role === UserRole.STORE_ADMIN ? handleUploadSellerLogo : undefined
+                  }
+                  onDeleteSellerLogo={
+                    user.role === UserRole.STORE_ADMIN ? handleDeleteSellerLogo : undefined
+                  }
+                  onUpdateSellerLabelFont={
+                    user.role === UserRole.STORE_ADMIN ? handleUpdateSellerLabelFont : undefined
                   }
                   onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
                   onFetchSellerDetail={isAgencyAdmin(user.role) ? handleFetchSellerDetail : undefined}
