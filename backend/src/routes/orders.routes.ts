@@ -12,6 +12,7 @@ import {
   canViewOrder,
   getSellerIdForOrder,
   assignOrderToSeller,
+  assignOrderToScanningRepartidor,
   deleteOrder,
   archiveAllFinishedOrders,
   setOrderArchived,
@@ -20,6 +21,7 @@ import {
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../services/mercadolibre.service.js';
+import { generatePostaShippingLabelPdf, POSTA_ORDER_QR_PREFIX } from '../services/shipping-label.service.js';
 import {
   syncOpenMercadoLibreOrdersInList,
   syncMercadoLibreOrderLiveStatus,
@@ -27,6 +29,7 @@ import {
 } from '../services/marketplace-import.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
 import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
+import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 import { pool } from '../config/database.js';
 import { RowDataPacket } from 'mysql2';
 
@@ -177,31 +180,14 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
   res.json(order);
 });
 
-router.get('/:id/mercadolibre-label', authenticate, async (req: Request, res: Response) => {
-  const order = await getOrderById(req.params.id);
-  if (!order) {
-    res.status(404).json({ error: 'Pedido no encontrado.' });
-    return;
-  }
-
-  const sellerId = await getSellerIdForOrder(order.id);
-  if (!canViewOrder(req.user!, order, sellerId ?? undefined)) {
-    res.status(403).json({ error: 'No tienes permiso para ver este pedido.' });
-    return;
-  }
-
-  if (order.externalSource !== 'mercadolibre' || !order.externalOrderId) {
-    res.status(400).json({ error: 'Este pedido no proviene de Mercado Libre.' });
-    return;
-  }
-
-  if (!sellerId) {
-    res.status(400).json({ error: 'El pedido no tiene un vendedor asociado con integración de Mercado Libre.' });
-    return;
-  }
-
+/** Descarga el PDF oficial de ML y responde; comparte el manejo de errores entre ambas rutas de etiqueta. */
+async function sendMercadoLibreLabel(
+  res: Response,
+  order: Order,
+  sellerId: string
+): Promise<void> {
   try {
-    const pdf = await getMercadoLibreShippingLabelPdf(sellerId, order.externalOrderId, {
+    const pdf = await getMercadoLibreShippingLabelPdf(sellerId, order.externalOrderId!, {
       alternateRef: extractMlOrderIdFromNotes(order.notes),
     });
     res.setHeader('Content-Type', 'application/pdf');
@@ -234,7 +220,137 @@ router.get('/:id/mercadolibre-label', authenticate, async (req: Request, res: Re
     const status = code === 'ML_NOT_CONNECTED' ? 400 : code === 'ML_ALREADY_DELIVERED' ? 409 : 502;
     res.status(status).json({ error: mercadoLibreLabelErrorMessage(code) });
   }
+}
+
+router.get('/:id/mercadolibre-label', authenticate, async (req: Request, res: Response) => {
+  const order = await getOrderById(req.params.id);
+  if (!order) {
+    res.status(404).json({ error: 'Pedido no encontrado.' });
+    return;
+  }
+
+  const sellerId = await getSellerIdForOrder(order.id);
+  if (!canViewOrder(req.user!, order, sellerId ?? undefined)) {
+    res.status(403).json({ error: 'No tienes permiso para ver este pedido.' });
+    return;
+  }
+
+  if (order.externalSource !== 'mercadolibre' || !order.externalOrderId) {
+    res.status(400).json({ error: 'Este pedido no proviene de Mercado Libre.' });
+    return;
+  }
+
+  if (!sellerId) {
+    res.status(400).json({ error: 'El pedido no tiene un vendedor asociado con integración de Mercado Libre.' });
+    return;
+  }
+
+  await sendMercadoLibreLabel(res, order, sellerId);
 });
+
+/** Ruta agnóstica de canal: etiqueta oficial de ML si corresponde, o etiqueta propia de Posta (con QR) para el resto. */
+router.get('/:id/shipping-label', authenticate, async (req: Request, res: Response) => {
+  const order = await getOrderById(req.params.id);
+  if (!order) {
+    res.status(404).json({ error: 'Pedido no encontrado.' });
+    return;
+  }
+
+  const sellerId = await getSellerIdForOrder(order.id);
+  if (!canViewOrder(req.user!, order, sellerId ?? undefined)) {
+    res.status(403).json({ error: 'No tienes permiso para ver este pedido.' });
+    return;
+  }
+
+  if (order.externalSource === 'mercadolibre' && order.externalOrderId) {
+    if (!sellerId) {
+      res.status(400).json({ error: 'El pedido no tiene un vendedor asociado con integración de Mercado Libre.' });
+      return;
+    }
+    await sendMercadoLibreLabel(res, order, sellerId);
+    return;
+  }
+
+  const pdf = await generatePostaShippingLabelPdf(order);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="etiqueta-${order.id}.pdf"`);
+  res.send(pdf);
+});
+
+/** Escaneo de la etiqueta propia de Posta: reclama el pedido para el repartidor que escanea. */
+router.post(
+  '/scan',
+  authenticate,
+  requireRoles(...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR),
+  async (req: Request, res: Response) => {
+    const { code } = req.body as { code?: string };
+    const trimmed = typeof code === 'string' ? code.trim() : '';
+    if (!trimmed) {
+      res.status(400).json({ error: 'Escaneá o ingresá el código de la etiqueta.' });
+      return;
+    }
+    if (!trimmed.startsWith(POSTA_ORDER_QR_PREFIX)) {
+      res.status(400).json({ error: 'El código escaneado no corresponde a una etiqueta de Posta.' });
+      return;
+    }
+    const orderId = trimmed.slice(POSTA_ORDER_QR_PREFIX.length).trim();
+    if (!orderId) {
+      res.status(400).json({ error: 'El código escaneado no es válido.' });
+      return;
+    }
+
+    try {
+      const order = await getOrderById(orderId);
+      if (!order) {
+        res.status(404).json({ error: 'Pedido no encontrado.' });
+        return;
+      }
+      const sellerId = await getSellerIdForOrder(order.id);
+      if (!canViewOrder(req.user!, order, sellerId ?? undefined)) {
+        res.status(403).json({ error: 'No tenés permiso para ver este pedido.' });
+        return;
+      }
+
+      const previousRepartidorId = order.repartidorId;
+      const updated = await assignOrderToScanningRepartidor(
+        req.user!,
+        order.id,
+        'Asignado por escaneo de etiqueta'
+      );
+
+      const newlyAssigned =
+        req.user!.role === UserRole.REPARTIDOR &&
+        updated.repartidorId === req.user!.id &&
+        updated.repartidorId !== previousRepartidorId;
+
+      if (newlyAssigned) {
+        emitOrderUpdated(updated, sellerId);
+        await createNotification({
+          id: `n_scan_assign_${Date.now()}_${updated.id}`,
+          userId: req.user!.id,
+          title: 'Pedido asignado',
+          body: `Se te asignó el envío ${updated.id} (${updated.clientName}) por escaneo de etiqueta.`,
+          type: 'order_assigned',
+          orderId: updated.id,
+        });
+      }
+
+      res.json({ order: updated, alreadyAssigned: !newlyAssigned });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'NOT_FOUND') {
+        res.status(404).json({ error: 'Pedido no encontrado.' });
+        return;
+      }
+      if (message === 'NOT_AVAILABLE') {
+        res.status(400).json({ error: 'Este pedido no pertenece a tu agencia.' });
+        return;
+      }
+      console.error('[orders/scan] error:', err);
+      res.status(502).json({ error: 'No se pudo procesar el escaneo. Intentá de nuevo.' });
+    }
+  }
+);
 
 router.post(
   '/:id/schedule-today',

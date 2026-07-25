@@ -20,6 +20,8 @@ import { RepartidorStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'ScanLabel'>;
 
+const POSTA_ORDER_QR_PREFIX = 'POSTA-ORDER:';
+
 async function currentLocation(): Promise<{ lat: number; lng: number } | undefined> {
   try {
     const last = await Location.getLastKnownPositionAsync();
@@ -51,14 +53,24 @@ export default function ScanLabelScreen({ navigation }: Props) {
       setProcessing(true);
       try {
         const location = await currentLocation();
-        const result = await api.scanImportMercadoLibre(token, code, location);
-        setScannedCount((n) => n + 1);
-        const flexNote = result.mlFlexRegistered ? '' : `\n${result.mlFlexMessage}`;
-        setLastResult(
-          result.alreadyImported
-            ? `Reescaneado: ${result.order.clientName} (${result.order.id})${flexNote}`
-            : `Agregado: ${result.order.clientName} (${result.order.id})${flexNote}`
-        );
+        if (code.startsWith(POSTA_ORDER_QR_PREFIX)) {
+          const result = await api.scanOrderLabel(token, code, location);
+          setScannedCount((n) => n + 1);
+          setLastResult(
+            result.alreadyAssigned
+              ? `Ya asignado: ${result.order.clientName} (${result.order.id})`
+              : `Asignado: ${result.order.clientName} (${result.order.id})`
+          );
+        } else {
+          const result = await api.scanImportMercadoLibre(token, code, location);
+          setScannedCount((n) => n + 1);
+          const flexNote = result.mlFlexRegistered ? '' : `\n${result.mlFlexMessage}`;
+          setLastResult(
+            result.alreadyImported
+              ? `Reescaneado: ${result.order.clientName} (${result.order.id})${flexNote}`
+              : `Agregado: ${result.order.clientName} (${result.order.id})${flexNote}`
+          );
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No se pudo procesar el escaneo.';
         setLastResult(null);
@@ -95,7 +107,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
           Permiso de cámara
         </Text>
         <Text style={styles.permissionText}>
-          Posta necesita la cámara para escanear las etiquetas de Mercado Libre Flex.
+          Posta necesita la cámara para escanear las etiquetas de tus envíos.
         </Text>
         <Button
           label={permission.canAskAgain ? 'Permitir cámara' : 'Abrir ajustes'}
@@ -120,7 +132,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         <Pressable style={styles.closeBtn} onPress={() => navigation.goBack()} hitSlop={12}>
           <PostaIcon name="chevronDown" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.topTitle}>Escanear etiqueta Flex</Text>
+        <Text style={styles.topTitle}>Escanear etiqueta</Text>
         <View style={styles.closeBtn} />
       </View>
 
@@ -144,7 +156,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
           </View>
         ) : (
           <Text style={styles.statusText}>
-            El paquete se registra a tu mensajería en ML y se suma a tus envíos.
+            Escaneá la etiqueta del pedido para asignártelo.
           </Text>
         )}
         {scannedCount > 0 ? (

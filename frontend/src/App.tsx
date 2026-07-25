@@ -1381,11 +1381,11 @@ export default function App() {
     }
   };
 
-  const handleOpenMercadoLibreLabel = useCallback(
+  const handleOpenShippingLabel = useCallback(
     async (orderId: string) => {
       if (!token) return;
       try {
-        const res = await fetch(apiUrl(`/api/orders/${orderId}/mercadolibre-label`), {
+        const res = await fetch(apiUrl(`/api/orders/${orderId}/shipping-label`), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
@@ -1394,7 +1394,7 @@ export default function App() {
           if (payload.code === 'ML_ALREADY_DELIVERED' && payload.order) {
             mergeOrder(payload.order);
           }
-          throw new Error(payload.error ?? 'No se pudo obtener la etiqueta de Mercado Libre.');
+          throw new Error(payload.error ?? 'No se pudo obtener la etiqueta de envío.');
         }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -2217,7 +2217,7 @@ export default function App() {
                     onArchiveOrder={handleArchiveOrder}
                     onScheduleOrderToday={handleScheduleOrderToday}
                     userRole={user.role}
-                    onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
+                    onOpenShippingLabel={handleOpenShippingLabel}
                   />
                 </div>
               </>
@@ -2379,7 +2379,7 @@ export default function App() {
                 onAddOrderIncident={handleAddOrderIncident}
                 onReportLocation={handleReportLocation}
                 onReportUserLocation={handleReportUserLocation}
-                onOpenMercadoLibreLabel={handleOpenMercadoLibreLabel}
+                onOpenShippingLabel={handleOpenShippingLabel}
                 repartidorMlStatus={repartidorMlStatus}
                 repartidorMlLoading={repartidorMlLoading}
                 onRefreshRepartidorMlStatus={fetchRepartidorMlStatus}

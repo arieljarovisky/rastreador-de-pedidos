@@ -47,7 +47,7 @@ interface AdminDashboardProps {
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
-  onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
+  onOpenShippingLabel?: (orderId: string) => Promise<void>;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -155,7 +155,7 @@ export default function AdminDashboard({
   onArchiveOrder,
   onScheduleOrderToday,
   userRole = UserRole.STORE_ADMIN,
-  onOpenMercadoLibreLabel,
+  onOpenShippingLabel,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
@@ -2082,27 +2082,28 @@ export default function AdminDashboard({
                       <span className="font-semibold text-[var(--color-text-muted)]">Teléfono:</span> {selectedOrder.clientPhone}
                     </p>
                   )}
-                  {selectedOrder.externalSource === 'mercadolibre' && selectedOrder.externalOrderId ? (
-                    <button
-                      type="button"
-                      onClick={() => void onOpenMercadoLibreLabel?.(selectedOrder.id)}
-                      className="flex items-start gap-1.5 text-[var(--color-text-muted)] bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 hover:border-[var(--color-accent)]/50 p-2 rounded mt-1 text-[10px] font-sans text-left w-full transition-colors cursor-pointer"
-                      title="Ver etiqueta de envío de Mercado Libre"
-                    >
-                      <FileText className="w-3 h-3 text-[var(--color-accent)] shrink-0 mt-0.5" />
-                      <span>
-                        {selectedOrder.notes || `Mercado Libre · Orden #${selectedOrder.externalOrderId}`}
-                        <span className="block text-[var(--color-accent)] mt-0.5 font-semibold">
-                          Ver etiqueta de envío →
+                  {(() => {
+                    const isMl = selectedOrder.externalSource === 'mercadolibre' && !!selectedOrder.externalOrderId;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => void onOpenShippingLabel?.(selectedOrder.id)}
+                        className="flex items-start gap-1.5 text-[var(--color-text-muted)] bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 hover:border-[var(--color-accent)]/50 p-2 rounded mt-1 text-[10px] font-sans text-left w-full transition-colors cursor-pointer"
+                        title={isMl ? 'Ver etiqueta de envío de Mercado Libre' : 'Ver etiqueta de envío'}
+                      >
+                        <FileText className="w-3 h-3 text-[var(--color-accent)] shrink-0 mt-0.5" />
+                        <span>
+                          {selectedOrder.notes ||
+                            (isMl
+                              ? `Mercado Libre · Orden #${selectedOrder.externalOrderId}`
+                              : `Etiqueta · ${selectedOrder.id}`)}
+                          <span className="block text-[var(--color-accent)] mt-0.5 font-semibold">
+                            Ver etiqueta de envío →
+                          </span>
                         </span>
-                      </span>
-                    </button>
-                  ) : selectedOrder.notes ? (
-                    <p className="flex items-start gap-1.5 text-[var(--color-text-muted)] bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 p-2 rounded mt-1 text-[10px] font-sans">
-                      <FileText className="w-3 h-3 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
-                      <span>{selectedOrder.notes}</span>
-                    </p>
-                  ) : null}
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 {/* Info Repartidor / Asignador */}

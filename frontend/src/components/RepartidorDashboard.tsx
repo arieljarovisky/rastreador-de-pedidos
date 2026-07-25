@@ -37,7 +37,7 @@ interface RepartidorDashboardProps {
   onAddOrderIncident?: (orderId: string, comment: string) => Promise<void>;
   onReportLocation: (orderId: string, lat: number, lng: number) => Promise<void>;
   onReportUserLocation: (lat: number, lng: number) => Promise<void>;
-  onOpenMercadoLibreLabel?: (orderId: string) => Promise<void>;
+  onOpenShippingLabel?: (orderId: string) => Promise<void>;
   repartidorMlStatus?: RepartidorMercadoLibreStatus | null;
   repartidorMlLoading?: boolean;
   onRefreshRepartidorMlStatus?: () => Promise<void>;
@@ -57,7 +57,7 @@ export default function RepartidorDashboard({
   onAddOrderIncident,
   onReportLocation,
   onReportUserLocation,
-  onOpenMercadoLibreLabel,
+  onOpenShippingLabel,
   repartidorMlStatus = null,
   repartidorMlLoading = false,
   onRefreshRepartidorMlStatus,
@@ -480,27 +480,28 @@ export default function RepartidorDashboard({
                   </a>
                 </div>
 
-                {selectedOrder.externalSource === 'mercadolibre' && selectedOrder.externalOrderId ? (
-                  <button
-                    type="button"
-                    onClick={() => void onOpenMercadoLibreLabel?.(selectedOrder.id)}
-                    className="mt-2 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/60 hover:border-[var(--color-accent)]/50 rounded p-2 text-[10px] text-[var(--color-text-muted)] flex items-start gap-1.5 text-left w-full transition-colors cursor-pointer"
-                    title="Ver etiqueta de envío de Mercado Libre"
-                  >
-                    <FileText className="w-3 h-3 text-[var(--color-accent)] shrink-0 mt-0.5" />
-                    <span>
-                      {selectedOrder.notes || `Mercado Libre · Orden #${selectedOrder.externalOrderId}`}
-                      <span className="block text-[var(--color-accent)] mt-0.5 font-semibold">
-                        Ver etiqueta de envío →
+                {(() => {
+                  const isMl = selectedOrder.externalSource === 'mercadolibre' && !!selectedOrder.externalOrderId;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => void onOpenShippingLabel?.(selectedOrder.id)}
+                      className="mt-2 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/60 hover:border-[var(--color-accent)]/50 rounded p-2 text-[10px] text-[var(--color-text-muted)] flex items-start gap-1.5 text-left w-full transition-colors cursor-pointer"
+                      title={isMl ? 'Ver etiqueta de envío de Mercado Libre' : 'Ver etiqueta de envío'}
+                    >
+                      <FileText className="w-3 h-3 text-[var(--color-accent)] shrink-0 mt-0.5" />
+                      <span>
+                        {selectedOrder.notes ||
+                          (isMl
+                            ? `Mercado Libre · Orden #${selectedOrder.externalOrderId}`
+                            : `Etiqueta · ${selectedOrder.id}`)}
+                        <span className="block text-[var(--color-accent)] mt-0.5 font-semibold">
+                          Ver etiqueta de envío →
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                ) : selectedOrder.notes ? (
-                  <div className="mt-2 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/60 rounded p-2 text-[10px] text-[var(--color-text-muted)] flex items-start gap-1.5">
-                    <FileText className="w-3 h-3 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
-                    <span>{selectedOrder.notes}</span>
-                  </div>
-                ) : null}
+                    </button>
+                  );
+                })()}
 
                 <div className="mt-3 flex flex-col gap-2">
                   <div className="flex gap-2">

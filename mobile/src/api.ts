@@ -35,6 +35,11 @@ export interface MlScanImportResult {
   mlFlexMessage: string;
 }
 
+export interface OrderScanResult {
+  order: Order;
+  alreadyAssigned: boolean;
+}
+
 export interface AppVersionInfo {
   version: string;
   minVersion: string;
@@ -170,6 +175,20 @@ export const api = {
       token,
       body: { code, lat: location?.lat, lng: location?.lng },
       timeoutMs: 60_000,
+    });
+  },
+
+  /** Repartidor/agencia: escanea la etiqueta Posta de un pedido ya existente (no-ML) y lo reclama. */
+  scanOrderLabel(
+    token: string,
+    code: string,
+    location?: { lat: number; lng: number }
+  ): Promise<OrderScanResult> {
+    return request<OrderScanResult>('/api/orders/scan', {
+      method: 'POST',
+      token,
+      body: { code, lat: location?.lat, lng: location?.lng },
+      timeoutMs: 30_000,
     });
   },
 
