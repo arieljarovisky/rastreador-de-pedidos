@@ -20,11 +20,13 @@ import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import type { MarketplacePlatform } from './components/MarketplaceIntegrations.tsx';
-import { LogOut, Bell, Settings, LayoutDashboard, Package, Wallet, Tags } from 'lucide-react';
+import { LogOut, Bell, Settings, LayoutDashboard, Package, Wallet, Tags, Crown } from 'lucide-react';
 import BootSplash from './components/ui/BootSplash.tsx';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
 import PriceListsPage from './components/PriceListsPage.tsx';
+import PlatformOwnerPanel from './components/PlatformOwnerPanel.tsx';
+import SubscriptionExpiredOverlay from './components/SubscriptionExpiredOverlay.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl, oauthReturnOriginQuery } from './api.ts';
@@ -33,7 +35,7 @@ import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
 
-type AppTab = 'panel' | 'dashboard' | 'account' | 'prices' | 'notifications' | 'settings';
+type AppTab = 'panel' | 'dashboard' | 'account' | 'prices' | 'notifications' | 'settings' | 'platform';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
 
@@ -45,7 +47,8 @@ function readSavedTab(): AppTab {
     saved === 'account' ||
     saved === 'prices' ||
     saved === 'notifications' ||
-    saved === 'settings'
+    saved === 'settings' ||
+    saved === 'platform'
   ) {
     return saved;
   }
@@ -104,6 +107,8 @@ export default function App() {
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
   const [repartidorMlStatus, setRepartidorMlStatus] = useState<RepartidorMercadoLibreStatus | null>(null);
   const [repartidorMlLoading, setRepartidorMlLoading] = useState(false);
+  const [isPlatformOwner, setIsPlatformOwner] = useState(false);
+  const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0);
 
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
@@ -149,6 +154,7 @@ export default function App() {
     if (tab === 'settings') setMobileTabState('settings');
     const subscriptionResult = params.get('subscription');
     if (subscriptionResult === 'success') {
+      setSubscriptionRefreshKey((k) => k + 1);
       void showAlert({
         title: 'Pago recibido',
         message: 'Tu suscripción se activará en unos instantes cuando confirmemos el pago.',
@@ -156,11 +162,15 @@ export default function App() {
       });
       window.history.replaceState({}, '', window.location.pathname);
     } else if (subscriptionResult === 'failure') {
+      setSubscriptionRefreshKey((k) => k + 1);
       void showAlert({
         title: 'Pago no completado',
         message: 'El pago de suscripción no se completó. Podés intentarlo de nuevo desde Ajustes.',
         variant: 'error',
       });
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (subscriptionResult === 'pending') {
+      setSubscriptionRefreshKey((k) => k + 1);
       window.history.replaceState({}, '', window.location.pathname);
     }
     if (integration && status) {
@@ -627,6 +637,32 @@ export default function App() {
       setPickupPoints(data.user.pickupPoints);
     }
   };
+
+  useEffect(() => {
+    if (!token) {
+      setIsPlatformOwner(false);
+      return;
+    }
+    let cancelled = false;
+    void fetch(apiUrl('/api/platform/session'), {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          setIsPlatformOwner(false);
+          return;
+        }
+        const data = (await res.json()) as { isPlatformOwner?: boolean };
+        setIsPlatformOwner(Boolean(data.isPlatformOwner));
+      })
+      .catch(() => {
+        if (!cancelled) setIsPlatformOwner(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const clearAuthError = useCallback(() => {
     setAuthError(null);
@@ -1433,6 +1469,7 @@ export default function App() {
     setLoading(false);
     setRepartidorMlStatus(null);
     setIntegrationStatus(null);
+    setIsPlatformOwner(false);
     window.location.replace('/app');
   };
 
@@ -1916,10 +1953,13 @@ export default function App() {
     if (mobileTab === 'prices' && !showPrices) {
       setMobileTab('panel');
     }
+    if (mobileTab === 'platform' && !isPlatformOwner) {
+      setMobileTab('panel');
+    }
     if (user.role === UserRole.REPARTIDOR && mobileTab === 'panel') {
       setMobileTab('dashboard');
     }
-  }, [user, mobileTab, showSettings, showAccount, showPrices, setMobileTab]);
+  }, [user, mobileTab, showSettings, showAccount, showPrices, isPlatformOwner, setMobileTab]);
 
   if (loading && !user) {
     return <BootSplash message="Sincronizando sistema" />;
@@ -2096,6 +2136,21 @@ export default function App() {
                     <Settings className="w-3.5 h-3.5 shrink-0" />
                     <span className="hidden 2xl:inline">Config</span>
                   </button>
+                  {isPlatformOwner && (
+                    <button
+                      type="button"
+                      onClick={() => setMobileTab('platform')}
+                      title="Panel del dueño de Posta"
+                      className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                        mobileTab === 'platform'
+                          ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
+                          : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                      }`}
+                    >
+                      <Crown className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden 2xl:inline">Plataforma</span>
+                    </button>
+                  )}
                 </>
               )}
               <button
@@ -2217,6 +2272,19 @@ export default function App() {
             <span>Config</span>
           </button>
         )}
+        {isPlatformOwner && (
+          <button
+            onClick={() => setMobileTab('platform')}
+            className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+              mobileTab === 'platform'
+                ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            <Crown className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
+            <span>Plataforma</span>
+          </button>
+        )}
         <button
           onClick={() => setMobileTab('notifications')}
           className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1.5 px-2 py-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all ${
@@ -2238,14 +2306,14 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
         className={`flex-1 min-h-0 relative ${
-          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'dashboard'
+          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'dashboard' || mobileTab === 'platform'
             ? 'overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch] px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
             : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
       >
         <div
           className={`app-shell ${
-            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'dashboard'
+            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'dashboard' || mobileTab === 'platform'
               ? ''
               : 'h-full'
           }`}
@@ -2253,12 +2321,12 @@ export default function App() {
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col ${
-              mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices'
+              mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'platform'
                 ? 'w-full'
                 : mobileTab === 'dashboard'
                   ? 'xl:flex-row w-full'
                   : 'xl:flex-row h-full overflow-hidden'
-            } ${mobileTab !== 'settings' && mobileTab !== 'account' && mobileTab !== 'prices' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
+            } ${mobileTab !== 'settings' && mobileTab !== 'account' && mobileTab !== 'prices' && mobileTab !== 'platform' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
               <>
@@ -2363,6 +2431,12 @@ export default function App() {
             {mobileTab === 'prices' && token && isAgencyAdmin(user.role) && (
               <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
                 <PriceListsPage token={token} />
+              </div>
+            )}
+
+            {mobileTab === 'platform' && token && isPlatformOwner && (
+              <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
+                <PlatformOwnerPanel token={token} />
               </div>
             )}
 
@@ -2535,6 +2609,15 @@ export default function App() {
           {lastSyncAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </footer>
+
+      {token && isAgencyAdmin(user.role) && !isPlatformOwner && (
+        <SubscriptionExpiredOverlay
+          token={token}
+          theme={theme}
+          onLogout={handleLogout}
+          refreshKey={subscriptionRefreshKey}
+        />
+      )}
     </div>
   );
 }

@@ -16,11 +16,12 @@ import { isValidEmail } from '../utils/email.js';
 import { AGENCY_ML_USERNAME_PREFIX } from './agency-ml.service.js';
 import { DELIVERY_DEADLINE_HOUR } from '../utils/delivery-deadline.js';
 
-const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, google_id, email_verified_at,
+const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, google_id, email_verified_at, disabled_at,
   current_lat, current_lng, location_updated_at,
   departure_address, departure_lat, departure_lng, delivery_zone, delivery_deadline_hour`;
 
 let sellerDeadlineHourColumnReady: Promise<void> | null = null;
+let userDisabledAtColumnReady: Promise<void> | null = null;
 
 /** Garantiza users.delivery_deadline_hour (por si el migrate no corrió aún). */
 export async function ensureSellerDeliveryDeadlineHourColumn(): Promise<void> {
@@ -44,6 +45,27 @@ export async function ensureSellerDeliveryDeadlineHourColumn(): Promise<void> {
   await sellerDeadlineHourColumnReady;
 }
 
+export async function ensureUserDisabledAtColumn(): Promise<void> {
+  if (!userDisabledAtColumnReady) {
+    userDisabledAtColumnReady = (async () => {
+      const [cols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'disabled_at'`
+      );
+      if (cols.length === 0) {
+        await pool.query(
+          'ALTER TABLE users ADD COLUMN disabled_at DATETIME(3) NULL AFTER email_verified_at'
+        );
+        console.log('[users] Columna disabled_at creada');
+      }
+    })().catch((err) => {
+      userDisabledAtColumnReady = null;
+      throw err;
+    });
+  }
+  await userDisabledAtColumnReady;
+}
+
 function departureFromRow(row: DbUserRow): LocationPoint | undefined {
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
     return {
@@ -62,6 +84,7 @@ function rowToUser(row: DbUserRow): User {
     name: row.name,
     role: row.role,
     agencyId: row.agency_id ?? null,
+    disabledAt: row.disabled_at ? new Date(row.disabled_at).toISOString() : null,
   };
   if (row.current_lat != null && row.current_lng != null && row.location_updated_at) {
     user.currentLocation = {
@@ -149,6 +172,7 @@ async function enrichUser(user: User): Promise<User> {
 
 export async function findUserByUsername(username: string): Promise<(DbUserRow & RowDataPacket) | null> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE LOWER(username) = LOWER(?)`,
     [username]
@@ -158,6 +182,7 @@ export async function findUserByUsername(username: string): Promise<(DbUserRow &
 
 export async function findUserByGoogleId(googleId: string): Promise<(DbUserRow & RowDataPacket) | null> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE google_id = ? LIMIT 1`,
     [googleId]
@@ -171,6 +196,7 @@ export function isEmailVerified(row: Pick<DbUserRow, 'email_verified_at'>): bool
 
 export async function getUserById(id: string): Promise<User | null> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE id = ?`,
     [id]
@@ -182,6 +208,7 @@ export async function getUserById(id: string): Promise<User | null> {
 
 export async function getRepartidores(agencyId?: string | null): Promise<User[]> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureUserDisabledAtColumn();
   if (!agencyId) {
     return [];
   }
@@ -457,6 +484,7 @@ export async function updateRepartidorZone(
 
 export async function listSellers(agencyId: string): Promise<User[]> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users
      WHERE role = ? AND agency_id = ? AND username NOT LIKE ?

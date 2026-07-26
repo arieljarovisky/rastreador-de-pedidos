@@ -262,3 +262,83 @@ export async function processSubscriptionPaymentWebhook(
     ]
   );
 }
+
+export async function adminUpdateAgencySubscription(
+  agencyId: string,
+  data: {
+    status?: 'trial' | 'active' | 'past_due' | 'cancelled';
+    planId?: string | null;
+    trialEndsAt?: string | null;
+    currentPeriodEnd?: string | null;
+    extendTrialDays?: number;
+  }
+): Promise<AgencySubscriptionStatus> {
+  await ensureAgencySubscription(agencyId);
+  const sub = await getSubscriptionRow(agencyId);
+  if (!sub) throw new Error('SUB_NOT_FOUND');
+
+  const plans = await listSubscriptionPlans();
+  let planId = sub.plan_id;
+  if (data.planId !== undefined) {
+    if (data.planId === null) {
+      planId = null;
+    } else {
+      const plan = plans.find((p) => p.id === data.planId);
+      if (!plan) throw new Error('PLAN_NOT_FOUND');
+      planId = plan.id;
+    }
+  }
+
+  let status = data.status ?? sub.status;
+  let trialEndsAt = sub.trial_ends_at ? new Date(sub.trial_ends_at) : null;
+  let periodStart = sub.current_period_start ? new Date(sub.current_period_start) : null;
+  let periodEnd = sub.current_period_end ? new Date(sub.current_period_end) : null;
+
+  if (typeof data.extendTrialDays === 'number' && Number.isFinite(data.extendTrialDays)) {
+    const days = Math.trunc(data.extendTrialDays);
+    if (days < 1 || days > 3650) throw new Error('INVALID_TRIAL_DAYS');
+    const base =
+      trialEndsAt && trialEndsAt.getTime() > Date.now() ? trialEndsAt : new Date();
+    base.setDate(base.getDate() + days);
+    trialEndsAt = base;
+    status = 'trial';
+  }
+
+  if (data.trialEndsAt !== undefined) {
+    if (data.trialEndsAt === null) {
+      trialEndsAt = null;
+    } else {
+      const parsed = new Date(data.trialEndsAt);
+      if (Number.isNaN(parsed.getTime())) throw new Error('INVALID_TRIAL_ENDS_AT');
+      trialEndsAt = parsed;
+    }
+  }
+
+  if (data.currentPeriodEnd !== undefined) {
+    if (data.currentPeriodEnd === null) {
+      periodEnd = null;
+    } else {
+      const parsed = new Date(data.currentPeriodEnd);
+      if (Number.isNaN(parsed.getTime())) throw new Error('INVALID_PERIOD_END');
+      periodEnd = parsed;
+      if (!periodStart) periodStart = new Date();
+    }
+  }
+
+  if (status === 'active' && !periodEnd) {
+    periodStart = periodStart ?? new Date();
+    periodEnd = new Date(periodStart);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+  }
+
+  const now = new Date();
+  await pool.query(
+    `UPDATE agency_subscriptions
+     SET plan_id = ?, status = ?, trial_ends_at = ?,
+         current_period_start = ?, current_period_end = ?, updated_at = ?
+     WHERE agency_id = ?`,
+    [planId, status, trialEndsAt, periodStart, periodEnd, now, agencyId]
+  );
+
+  return getAgencySubscriptionStatus(agencyId);
+}

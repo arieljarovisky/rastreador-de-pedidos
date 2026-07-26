@@ -27,6 +27,7 @@ import priceListsRoutes from './routes/price-lists.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import mercadopagoRoutes from './routes/mercadopago.routes.js';
 import subscriptionsRoutes from './routes/subscriptions.routes.js';
+import platformRoutes from './routes/platform.routes.js';
 import {
   isMercadoPagoOAuthConfigured,
   isPostaMercadoPagoConfigured,
@@ -136,6 +137,7 @@ app.use('/api/driver-settlement', authenticate, requireAgencySubscription, drive
 app.use('/api/price-lists', authenticate, requireAgencySubscription, priceListsRoutes);
 app.use('/api/mercadopago', mercadopagoRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
+app.use('/api/platform', platformRoutes);
 app.use('/api/public', publicRoutes);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

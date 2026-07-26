@@ -122,4 +122,11 @@ export const env = {
   googleAuth: {
     clientId: process.env.GOOGLE_CLIENT_ID?.trim() || '',
   },
+  /**
+   * Emails del dueño de Posta (lista separada por comas).
+   * Independiente del rol SUPER_ADMIN (dueño de agencia).
+   */
+  platformOwnerEmails: parseOrigins(process.env.PLATFORM_OWNER_EMAILS).map((email) =>
+    email.trim().toLowerCase()
+  ),
 };

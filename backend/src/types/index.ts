@@ -49,6 +49,8 @@ export interface User {
   deliveryZone?: string | null;
   /** Corte de ventas del vendedor (0–23). null = hereda el de la agencia. */
   deliveryDeadlineHour?: number | null;
+  /** Baja lógica: si está seteado, la cuenta no puede autenticarse. */
+  disabledAt?: string | null;
 }
 
 export interface OrderHistoryEvent {
@@ -130,6 +132,7 @@ export interface DbUserRow {
   password_hash: string | null;
   google_id: string | null;
   email_verified_at: Date | null;
+  disabled_at?: Date | null;
   current_lat: number | null;
   current_lng: number | null;
   location_updated_at: Date | null;

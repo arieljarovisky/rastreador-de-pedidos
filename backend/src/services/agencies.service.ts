@@ -6,6 +6,7 @@ import { ensureAgencySubscription } from './subscriptions.service.js';
 import { DELIVERY_DEADLINE_HOUR, normalizeDeadlineHour } from '../utils/delivery-deadline.js';
 
 let deadlineHourColumnReady: Promise<void> | null = null;
+let agencyStatusColumnReady: Promise<void> | null = null;
 
 /** Garantiza la columna delivery_deadline_hour (por si el migrate no corrió aún). */
 export async function ensureAgencyDeliveryDeadlineHourColumn(): Promise<void> {
@@ -31,6 +32,27 @@ export async function ensureAgencyDeliveryDeadlineHourColumn(): Promise<void> {
   await deadlineHourColumnReady;
 }
 
+export async function ensureAgencyStatusColumn(): Promise<void> {
+  if (!agencyStatusColumnReady) {
+    agencyStatusColumnReady = (async () => {
+      const [rows] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agencies' AND COLUMN_NAME = 'status'`
+      );
+      if (rows.length === 0) {
+        await pool.query(
+          "ALTER TABLE agencies ADD COLUMN status ENUM('active','suspended') NOT NULL DEFAULT 'active' AFTER city"
+        );
+        console.log('[agencies] Columna status creada (default active)');
+      }
+    })().catch((err) => {
+      agencyStatusColumnReady = null;
+      throw err;
+    });
+  }
+  await agencyStatusColumnReady;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -38,8 +60,10 @@ export interface Agency {
   contactPhone?: string | null;
   cuit?: string | null;
   city?: string | null;
+  status: 'active' | 'suspended';
   deliveryDeadlineHour: number;
   departurePoint?: LocationPoint;
+  createdAt?: string | null;
 }
 
 interface AgencyRow extends RowDataPacket {
@@ -49,10 +73,12 @@ interface AgencyRow extends RowDataPacket {
   contact_phone: string | null;
   cuit: string | null;
   city: string | null;
+  status?: 'active' | 'suspended' | null;
   delivery_deadline_hour: number | null;
   departure_address: string | null;
   departure_lat: number | null;
   departure_lng: number | null;
+  created_at?: Date | null;
 }
 
 function rowToAgency(row: AgencyRow): Agency {
@@ -63,7 +89,9 @@ function rowToAgency(row: AgencyRow): Agency {
     contactPhone: row.contact_phone,
     cuit: row.cuit,
     city: row.city,
+    status: row.status === 'suspended' ? 'suspended' : 'active',
     deliveryDeadlineHour: normalizeDeadlineHour(row.delivery_deadline_hour),
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
   };
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
     agency.departurePoint = {
@@ -111,9 +139,10 @@ export async function createAgency(data: {
 
 export async function getAgencyById(id: string): Promise<Agency | null> {
   await ensureAgencyDeliveryDeadlineHourColumn();
+  await ensureAgencyStatusColumn();
   const [rows] = await pool.query<AgencyRow[]>(
-    `SELECT id, name, contact_email, contact_phone, cuit, city, delivery_deadline_hour,
-            departure_address, departure_lat, departure_lng
+    `SELECT id, name, contact_email, contact_phone, cuit, city, status, delivery_deadline_hour,
+            departure_address, departure_lat, departure_lng, created_at
      FROM agencies WHERE id = ?`,
     [id]
   );
@@ -179,6 +208,66 @@ export async function updateAgencyDeparture(
   );
 
   const updated = await getAgencyDeparture(agencyId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
+}
+
+export async function updateAgencyProfile(
+  agencyId: string,
+  data: {
+    name?: string;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    cuit?: string | null;
+    city?: string | null;
+    deliveryDeadlineHour?: number;
+  }
+): Promise<Agency> {
+  const agency = await getAgencyById(agencyId);
+  if (!agency) throw new Error('NOT_FOUND');
+
+  const name = data.name !== undefined ? data.name.trim() : agency.name;
+  if (!name) throw new Error('NAME_REQUIRED');
+
+  let deadlineHour = agency.deliveryDeadlineHour;
+  if (data.deliveryDeadlineHour !== undefined) {
+    deadlineHour = await updateAgencyDeliveryDeadlineHour(agencyId, data.deliveryDeadlineHour);
+  }
+
+  await pool.query(
+    `UPDATE agencies
+     SET name = ?, contact_email = ?, contact_phone = ?, cuit = ?, city = ?
+     WHERE id = ?`,
+    [
+      name,
+      data.contactEmail !== undefined
+        ? data.contactEmail?.trim().toLowerCase() || null
+        : agency.contactEmail ?? null,
+      data.contactPhone !== undefined ? data.contactPhone || null : agency.contactPhone ?? null,
+      data.cuit !== undefined ? data.cuit || null : agency.cuit ?? null,
+      data.city !== undefined ? data.city?.trim() || null : agency.city ?? null,
+      agencyId,
+    ]
+  );
+
+  const updated = await getAgencyById(agencyId);
+  if (!updated) throw new Error('NOT_FOUND');
+  // Asegurar que el deadline quedó aplicado si solo se actualizó el resto
+  if (data.deliveryDeadlineHour === undefined) {
+    return updated;
+  }
+  return { ...updated, deliveryDeadlineHour: deadlineHour };
+}
+
+export async function setAgencyStatus(
+  agencyId: string,
+  status: 'active' | 'suspended'
+): Promise<Agency> {
+  await ensureAgencyStatusColumn();
+  const agency = await getAgencyById(agencyId);
+  if (!agency) throw new Error('NOT_FOUND');
+  await pool.query('UPDATE agencies SET status = ? WHERE id = ?', [status, agencyId]);
+  const updated = await getAgencyById(agencyId);
   if (!updated) throw new Error('NOT_FOUND');
   return updated;
 }

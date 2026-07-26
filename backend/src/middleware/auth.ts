@@ -57,6 +57,14 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     return;
   }
 
+  if (user.disabledAt) {
+    res.status(403).json({
+      error: 'Tu cuenta está deshabilitada. Contactá al soporte de Posta.',
+      code: 'ACCOUNT_DISABLED',
+    });
+    return;
+  }
+
   if (user.role === UserRole.REPARTIDOR) {
     const valid = await validateRepartidorSession(user.id, payload.sessionId);
     if (!valid) {

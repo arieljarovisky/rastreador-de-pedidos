@@ -845,4 +845,37 @@ export async function runMigrations(): Promise<void> {
       "ALTER TABLE users ADD COLUMN label_font VARCHAR(20) NOT NULL DEFAULT 'helvetica' AFTER logo_updated_at"
     );
   }
+
+  // Estado operativo de agencia (panel dueño de Posta). Suspendida = baja lógica.
+  if (!(await columnExists('agencies', 'status'))) {
+    await pool.query(
+      "ALTER TABLE agencies ADD COLUMN status ENUM('active','suspended') NOT NULL DEFAULT 'active' AFTER city"
+    );
+    await pool.query('CREATE INDEX idx_agencies_status ON agencies (status)');
+  }
+
+  // Baja lógica de usuarios (panel dueño / administración).
+  if (!(await columnExists('users', 'disabled_at'))) {
+    await pool.query('ALTER TABLE users ADD COLUMN disabled_at DATETIME(3) NULL AFTER email_verified_at');
+    await pool.query('CREATE INDEX idx_users_disabled ON users (disabled_at)');
+  }
+
+  if (!(await tableExists('platform_audit_log'))) {
+    await pool.query(`
+      CREATE TABLE platform_audit_log (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        actor_user_id VARCHAR(36) NOT NULL,
+        actor_email VARCHAR(255) NOT NULL,
+        agency_id VARCHAR(36) NULL,
+        entity_type VARCHAR(64) NOT NULL,
+        entity_id VARCHAR(64) NULL,
+        action VARCHAR(64) NOT NULL,
+        summary VARCHAR(500) NOT NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_platform_audit_agency (agency_id),
+        INDEX idx_platform_audit_created (created_at),
+        INDEX idx_platform_audit_actor (actor_user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
 }

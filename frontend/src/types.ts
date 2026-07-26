@@ -59,6 +59,7 @@ export interface User {
   deliveryZone?: string | null;
   /** Corte de ventas del vendedor (0–23). null/undefined = hereda el de la agencia. */
   deliveryDeadlineHour?: number | null;
+  disabledAt?: string | null;
 }
 
 export interface AgencyMercadoLibreCourierStatus {
@@ -351,4 +352,74 @@ export interface DriverSettlementSummary {
     balance: number;
     deliveredShipments: number;
   }>;
+}
+
+export interface PlatformMetrics {
+  agenciesTotal: number;
+  agenciesActive: number;
+  agenciesSuspended: number;
+  trialsActive: number;
+  trialsExpired: number;
+  subscriptionsActive: number;
+  usersTotal: number;
+  ordersByStatus: Record<string, number>;
+}
+
+export interface PlatformAgencyListItem {
+  id: string;
+  name: string;
+  city: string | null;
+  status: 'active' | 'suspended';
+  contactEmail: string | null;
+  createdAt: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  sellers: number;
+  repartidores: number;
+  openOrders: number;
+  subscriptionStatus: AgencySubscriptionStatus['status'] | null;
+  subscriptionActive: boolean;
+  daysRemaining: number | null;
+}
+
+export interface PlatformAgencyDetail {
+  agency: {
+    id: string;
+    name: string;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    cuit?: string | null;
+    city?: string | null;
+    status: 'active' | 'suspended';
+    deliveryDeadlineHour: number;
+    createdAt?: string | null;
+  };
+  subscription: AgencySubscriptionStatus;
+  owners: User[];
+  sellers: User[];
+  repartidores: User[];
+  logisticsAdmins: User[];
+  counts: {
+    sellers: number;
+    repartidores: number;
+    logisticsAdmins: number;
+    owners: number;
+    ordersTotal: number;
+    ordersOpen: number;
+    zones: number;
+    priceLists: number;
+  };
+  ordersByStatus: Record<string, number>;
+}
+
+export interface PlatformAuditEntry {
+  id: number;
+  actorUserId: string;
+  actorEmail: string;
+  agencyId: string | null;
+  entityType: string;
+  entityId: string | null;
+  action: string;
+  summary: string;
+  createdAt: string;
 }
