@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { RowDataPacket } from 'mysql2';
+import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import {
   Agency,
@@ -428,6 +428,101 @@ export async function updatePlatformAgency(
     summary: `Actualización de ficha ${updated.name}`,
   });
   return updated;
+}
+
+/**
+ * Elimina una agencia y TODO lo asociado (usuarios, pedidos, zonas, precios,
+ * suscripción, facturación, integraciones). Irreversible.
+ *
+ * `users` y `orders` no tienen ON DELETE CASCADE hacia `agencies`, así que se
+ * borran a mano dentro de una transacción; el resto cae por cascada de FK.
+ */
+export async function deletePlatformAgency(
+  actor: User,
+  agencyId: string
+): Promise<{ name: string; deletedOrders: number; deletedUsers: number }> {
+  const agency = await getAgencyById(agencyId);
+  if (!agency) throw new Error('NOT_FOUND');
+
+  // El dueño de Posta nunca pertenece a una agencia, pero por las dudas.
+  if (actor.agencyId === agencyId) throw new Error('CANNOT_DELETE_OWN_AGENCY');
+
+  const conn = await pool.getConnection();
+  let deletedOrders = 0;
+  let deletedUsers = 0;
+  try {
+    await conn.beginTransaction();
+
+    const [userRows] = await conn.query<Array<{ id: string } & RowDataPacket>>(
+      'SELECT id FROM users WHERE agency_id = ?',
+      [agencyId]
+    );
+    const userIds = userRows.map((r) => r.id);
+
+    // Pedidos: order_history / order_location_history caen por cascada;
+    // notifications.order_id queda en NULL por el FK.
+    const [ordersResult] = await conn.query<ResultSetHeader>(
+      'DELETE FROM orders WHERE agency_id = ?',
+      [agencyId]
+    );
+    deletedOrders = ordersResult.affectedRows;
+
+    if (userIds.length > 0) {
+      const placeholders = userIds.map(() => '?').join(',');
+      // Pedidos de otros tenants asignados a estos usuarios no deberían existir,
+      // pero los FKs de orders.seller_id/repartidor_id no tienen cascada:
+      await conn.query(
+        `UPDATE orders SET repartidor_id = NULL WHERE repartidor_id IN (${placeholders})`,
+        userIds
+      );
+      await conn.query(
+        `UPDATE orders SET seller_id = NULL WHERE seller_id IN (${placeholders})`,
+        userIds
+      );
+      // notifications / notification_dismissals no tienen FK por user_id.
+      await conn.query(
+        `DELETE FROM notifications WHERE user_id IN (${placeholders})`,
+        userIds
+      );
+      try {
+        await conn.query(
+          `DELETE FROM notification_dismissals WHERE user_id IN (${placeholders})`,
+          userIds
+        );
+      } catch {
+        /* tabla puede no existir en instalaciones viejas */
+      }
+      const [usersResult] = await conn.query<ResultSetHeader>(
+        `DELETE FROM users WHERE id IN (${placeholders})`,
+        userIds
+      );
+      deletedUsers = usersResult.affectedRows;
+    }
+
+    // Cascadas de agencies: delivery_zones, price_lists (+zone_rates),
+    // agency_subscriptions, agency_mercadopago_accounts, billing/driver ledgers,
+    // billing/subscription payment intents.
+    await conn.query('DELETE FROM agencies WHERE id = ?', [agencyId]);
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+
+  await recordPlatformAudit({
+    actorUserId: actor.id,
+    actorEmail: actor.username,
+    agencyId,
+    entityType: 'agency',
+    entityId: agencyId,
+    action: 'delete',
+    summary: `Agencia ${agency.name} eliminada definitivamente (${deletedUsers} usuarios, ${deletedOrders} pedidos)`,
+  });
+
+  return { name: agency.name, deletedOrders, deletedUsers };
 }
 
 export async function setPlatformAgencyStatus(

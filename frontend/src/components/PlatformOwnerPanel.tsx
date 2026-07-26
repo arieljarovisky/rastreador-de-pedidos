@@ -333,6 +333,27 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
       await loadList();
     });
 
+  const deleteAgency = () =>
+    run(async () => {
+      if (!detail || !selectedId) return;
+      const name = detail.agency.name;
+      const typed = window.prompt(
+        `Vas a eliminar la agencia "${name}" y TODOS sus datos (usuarios, pedidos, zonas, precios, suscripción). Esta acción NO se puede deshacer.\n\nPara confirmar, escribí el nombre exacto de la agencia:`
+      );
+      if (typed === null) return;
+      if (typed.trim() !== name) {
+        setError('El nombre no coincide. No se eliminó la agencia.');
+        return;
+      }
+      await platformFetch(token, `/api/platform/agencies/${selectedId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmName: typed.trim() }),
+      });
+      setSelectedId(null);
+      setDetail(null);
+      await loadList();
+    });
+
   const saveSubscription = (extra?: { extendTrialDays?: number }) =>
     run(async () => {
       if (!selectedId) return;
@@ -673,6 +694,14 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                       className="text-[9px] font-mono font-bold uppercase px-2 py-1 rounded border border-[var(--surface-border)]"
                     >
                       {detail.agency.status === 'active' ? 'Suspender' : 'Reactivar'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void deleteAgency()}
+                      className="text-[9px] font-mono font-bold uppercase px-2 py-1 rounded border border-red-500/40 text-red-500"
+                    >
+                      Eliminar
                     </button>
                   </div>
                 </div>

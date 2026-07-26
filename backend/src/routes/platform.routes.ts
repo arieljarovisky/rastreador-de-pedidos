@@ -9,6 +9,7 @@ import {
   createPlatformPriceList,
   createPlatformUser,
   createPlatformZone,
+  deletePlatformAgency,
   deletePlatformPriceList,
   deletePlatformZone,
   getPlatformAgencyDetail,
@@ -63,6 +64,10 @@ function handleServiceError(res: Response, err: unknown, fallback: string): void
     INVALID_TRIAL_ENDS_AT: { status: 400, error: 'Fecha de fin de prueba inválida.' },
     INVALID_PERIOD_END: { status: 400, error: 'Fecha de período inválida.' },
     CANNOT_DISABLE_SELF: { status: 400, error: 'No podés deshabilitarte a vos mismo.' },
+    CANNOT_DELETE_OWN_AGENCY: {
+      status: 400,
+      error: 'No podés eliminar tu propia agencia.',
+    },
     CANNOT_DISABLE_PLATFORM_OWNER: {
       status: 400,
       error: 'No se puede deshabilitar un dueño de Posta.',
@@ -217,6 +222,25 @@ router.put('/agencies/:agencyId', async (req: Request, res: Response) => {
     res.json(updated);
   } catch (err) {
     handleServiceError(res, err, 'No se pudo actualizar la agencia.');
+  }
+});
+
+router.delete('/agencies/:agencyId', async (req: Request, res: Response) => {
+  try {
+    // Confirmación fuerte: el body debe traer el nombre exacto de la agencia.
+    const confirmName = typeof req.body?.confirmName === 'string' ? req.body.confirmName.trim() : '';
+    const detail = await getPlatformAgencyDetail(req.params.agencyId);
+    if (!confirmName || confirmName !== detail.agency.name) {
+      res.status(400).json({
+        error: 'Para eliminar, escribí el nombre exacto de la agencia.',
+        code: 'CONFIRM_NAME_MISMATCH',
+      });
+      return;
+    }
+    const result = await deletePlatformAgency(req.user!, req.params.agencyId);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    handleServiceError(res, err, 'No se pudo eliminar la agencia.');
   }
 });
 
