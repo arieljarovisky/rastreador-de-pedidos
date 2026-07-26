@@ -33,6 +33,27 @@ interface PlatformOwnerPanelProps {
 
 type DetailTab = 'resumen' | 'suscripcion' | 'usuarios' | 'pedidos' | 'zonas' | 'precios' | 'auditoria';
 
+interface ConfirmModalState {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onConfirm: () => void | Promise<void>;
+}
+
+interface PromptModalState {
+  title: string;
+  message?: string;
+  label: string;
+  type?: 'text' | 'password';
+  placeholder?: string;
+  initialValue?: string;
+  confirmLabel: string;
+  danger?: boolean;
+  validate?: (value: string) => string | null;
+  onSubmit: (value: string) => void | Promise<void>;
+}
+
 async function platformFetch<T>(
   token: string,
   path: string,
@@ -100,6 +121,11 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [busy, setBusy] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+
+  const [confirmState, setConfirmState] = useState<ConfirmModalState | null>(null);
+  const [promptState, setPromptState] = useState<PromptModalState | null>(null);
+  const [promptValue, setPromptValue] = useState('');
+  const [promptError, setPromptError] = useState<string | null>(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersTotal, setOrdersTotal] = useState(0);
@@ -315,16 +341,10 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
       await loadList();
     });
 
-  const toggleAgencyStatus = () =>
+  const doToggleAgencyStatus = () =>
     run(async () => {
       if (!detail || !selectedId) return;
       const next = detail.agency.status === 'active' ? 'suspended' : 'active';
-      if (
-        next === 'suspended' &&
-        !window.confirm(`¿Suspender la agencia "${detail.agency.name}"?`)
-      ) {
-        return;
-      }
       await platformFetch(token, `/api/platform/agencies/${selectedId}/status`, {
         method: 'POST',
         body: JSON.stringify({ status: next }),
@@ -333,26 +353,44 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
       await loadList();
     });
 
-  const deleteAgency = () =>
-    run(async () => {
-      if (!detail || !selectedId) return;
-      const name = detail.agency.name;
-      const typed = window.prompt(
-        `Vas a eliminar la agencia "${name}" y TODOS sus datos (usuarios, pedidos, zonas, precios, suscripción). Esta acción NO se puede deshacer.\n\nPara confirmar, escribí el nombre exacto de la agencia:`
-      );
-      if (typed === null) return;
-      if (typed.trim() !== name) {
-        setError('El nombre no coincide. No se eliminó la agencia.');
-        return;
-      }
-      await platformFetch(token, `/api/platform/agencies/${selectedId}`, {
-        method: 'DELETE',
-        body: JSON.stringify({ confirmName: typed.trim() }),
-      });
-      setSelectedId(null);
-      setDetail(null);
-      await loadList();
+  const toggleAgencyStatus = () => {
+    if (!detail || !selectedId) return;
+    if (detail.agency.status !== 'active') {
+      void doToggleAgencyStatus();
+      return;
+    }
+    setConfirmState({
+      title: 'Suspender agencia',
+      message: `¿Suspender la agencia "${detail.agency.name}"? No podrá operar hasta que la reactives.`,
+      confirmLabel: 'Suspender',
+      danger: true,
+      onConfirm: () => doToggleAgencyStatus(),
     });
+  };
+
+  const deleteAgency = () => {
+    if (!detail || !selectedId) return;
+    const name = detail.agency.name;
+    openPrompt({
+      title: 'Eliminar agencia',
+      message: `Vas a eliminar la agencia "${name}" y TODOS sus datos (usuarios, pedidos, zonas, precios, suscripción). Esta acción NO se puede deshacer. Para confirmar, escribí el nombre exacto de la agencia.`,
+      label: 'Nombre de la agencia',
+      placeholder: name,
+      confirmLabel: 'Eliminar definitivamente',
+      danger: true,
+      validate: (v) => (v.trim() === name ? null : 'El nombre no coincide.'),
+      onSubmit: (v) =>
+        run(async () => {
+          await platformFetch(token, `/api/platform/agencies/${selectedId}`, {
+            method: 'DELETE',
+            body: JSON.stringify({ confirmName: v.trim() }),
+          });
+          setSelectedId(null);
+          setDetail(null);
+          await loadList();
+        }),
+    });
+  };
 
   const saveSubscription = (extra?: { extendTrialDays?: number }) =>
     run(async () => {
@@ -385,26 +423,32 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
       await loadDetail(selectedId);
     });
 
-  const resetPassword = (userId: string) =>
-    run(async () => {
-      if (!selectedId) return;
-      const password = window.prompt('Nueva contraseña (mín. 6 caracteres):');
-      if (!password) return;
-      await platformFetch(
-        token,
-        `/api/platform/agencies/${selectedId}/users/${userId}/password`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ password }),
-        }
-      );
+  const resetPassword = (user: User) =>
+    openPrompt({
+      title: `Nueva contraseña · ${user.name}`,
+      label: 'Contraseña',
+      type: 'password',
+      placeholder: 'Mín. 6 caracteres',
+      confirmLabel: 'Guardar',
+      validate: (v) => (v.length >= 6 ? null : 'La contraseña debe tener al menos 6 caracteres.'),
+      onSubmit: (password) =>
+        run(async () => {
+          if (!selectedId) return;
+          await platformFetch(
+            token,
+            `/api/platform/agencies/${selectedId}/users/${user.id}/password`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ password }),
+            }
+          );
+        }),
     });
 
-  const toggleUserDisabled = (user: User) =>
+  const doToggleUserDisabled = (user: User) =>
     run(async () => {
       if (!selectedId) return;
       const disabled = !user.disabledAt;
-      if (disabled && !window.confirm(`¿Deshabilitar a ${user.name}?`)) return;
       await platformFetch(
         token,
         `/api/platform/agencies/${selectedId}/users/${user.id}/disabled`,
@@ -416,9 +460,22 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
       await loadDetail(selectedId);
     });
 
-  const setOrderStatus = (orderId: string, status: OrderStatus) =>
+  const toggleUserDisabled = (user: User) => {
+    if (user.disabledAt) {
+      void doToggleUserDisabled(user);
+      return;
+    }
+    setConfirmState({
+      title: 'Deshabilitar usuario',
+      message: `¿Deshabilitar a ${user.name}? No podrá iniciar sesión hasta que lo habilites de nuevo.`,
+      confirmLabel: 'Deshabilitar',
+      danger: true,
+      onConfirm: () => doToggleUserDisabled(user),
+    });
+  };
+
+  const doSetOrderStatus = (orderId: string, status: OrderStatus) =>
     run(async () => {
-      if (status === OrderStatus.CANCELLED && !window.confirm('¿Cancelar este pedido?')) return;
       await platformFetch(token, `/api/platform/orders/${orderId}/status`, {
         method: 'PUT',
         body: JSON.stringify({ status }),
@@ -434,31 +491,84 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
       }
     });
 
+  const setOrderStatus = (orderId: string, status: OrderStatus) => {
+    if (status !== OrderStatus.CANCELLED) {
+      void doSetOrderStatus(orderId, status);
+      return;
+    }
+    setConfirmState({
+      title: 'Cancelar pedido',
+      message: '¿Cancelar este pedido? Se cambiará su estado a cancelado.',
+      confirmLabel: 'Cancelar pedido',
+      danger: true,
+      onConfirm: () => doSetOrderStatus(orderId, status),
+    });
+  };
+
   const createPriceList = () =>
-    run(async () => {
-      if (!selectedId) return;
-      const name = window.prompt('Nombre de la lista de precios:');
-      if (!name?.trim()) return;
-      await platformFetch(token, `/api/platform/agencies/${selectedId}/price-lists`, {
-        method: 'POST',
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      const lists = await platformFetch<typeof priceLists>(
-        token,
-        `/api/platform/agencies/${selectedId}/price-lists`
-      );
-      setPriceLists(lists);
+    openPrompt({
+      title: 'Nueva lista de precios',
+      label: 'Nombre de la lista',
+      placeholder: 'Ej: Mayoristas',
+      confirmLabel: 'Crear',
+      validate: (v) => (v.trim() ? null : 'Ingresá un nombre.'),
+      onSubmit: (name) =>
+        run(async () => {
+          if (!selectedId) return;
+          await platformFetch(token, `/api/platform/agencies/${selectedId}/price-lists`, {
+            method: 'POST',
+            body: JSON.stringify({ name: name.trim() }),
+          });
+          const lists = await platformFetch<typeof priceLists>(
+            token,
+            `/api/platform/agencies/${selectedId}/price-lists`
+          );
+          setPriceLists(lists);
+        }),
     });
 
   const deletePriceList = (listId: string) =>
-    run(async () => {
-      if (!selectedId) return;
-      if (!window.confirm('¿Eliminar esta lista de precios?')) return;
-      await platformFetch(token, `/api/platform/agencies/${selectedId}/price-lists/${listId}`, {
-        method: 'DELETE',
-      });
-      setPriceLists((prev) => prev.filter((p) => p.id !== listId));
+    setConfirmState({
+      title: 'Eliminar lista de precios',
+      message: '¿Eliminar esta lista de precios? Los vendedores asignados quedarán sin lista.',
+      confirmLabel: 'Eliminar',
+      danger: true,
+      onConfirm: () =>
+        run(async () => {
+          if (!selectedId) return;
+          await platformFetch(
+            token,
+            `/api/platform/agencies/${selectedId}/price-lists/${listId}`,
+            { method: 'DELETE' }
+          );
+          setPriceLists((prev) => prev.filter((p) => p.id !== listId));
+        }),
     });
+
+  const openPrompt = (state: PromptModalState) => {
+    setPromptValue(state.initialValue ?? '');
+    setPromptError(null);
+    setPromptState(state);
+  };
+
+  const closePrompt = () => {
+    setPromptState(null);
+    setPromptValue('');
+    setPromptError(null);
+  };
+
+  const submitPrompt = async () => {
+    if (!promptState) return;
+    const validationError = promptState.validate?.(promptValue) ?? null;
+    if (validationError) {
+      setPromptError(validationError);
+      return;
+    }
+    const { onSubmit } = promptState;
+    const value = promptValue;
+    closePrompt();
+    await onSubmit(value);
+  };
 
   const detailTabs: Array<{ id: DetailTab; label: string }> = [
     { id: 'resumen', label: 'Resumen' },
@@ -952,7 +1062,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                             <button
                               type="button"
                               disabled={busy}
-                              onClick={() => void resetPassword(u.id)}
+                              onClick={() => resetPassword(u)}
                               className="text-[9px] font-mono px-1.5 py-1 rounded border border-[var(--surface-border)]"
                             >
                               Pass
@@ -1141,6 +1251,103 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                 className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-black"
               >
                 Crear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmState && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded border border-[var(--surface-border)] bg-[var(--surface-panel)] p-4 space-y-3">
+            <h3 className="text-sm font-display font-bold text-[var(--ink-soft)]">
+              {confirmState.title}
+            </h3>
+            <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+              {confirmState.message}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmState(null)}
+                className="text-[10px] font-mono px-3 py-1.5 rounded border border-[var(--surface-border)]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const { onConfirm } = confirmState;
+                  setConfirmState(null);
+                  void onConfirm();
+                }}
+                className={`text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded ${
+                  confirmState.danger
+                    ? 'bg-red-500 text-white'
+                    : 'bg-[var(--color-accent)] text-black'
+                }`}
+              >
+                {confirmState.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {promptState && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded border border-[var(--surface-border)] bg-[var(--surface-panel)] p-4 space-y-3">
+            <h3 className="text-sm font-display font-bold text-[var(--ink-soft)]">
+              {promptState.title}
+            </h3>
+            {promptState.message && (
+              <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                {promptState.message}
+              </p>
+            )}
+            <label className="block text-[10px] font-mono space-y-0.5">
+              <span className="text-[var(--color-text-muted)]">{promptState.label}</span>
+              <input
+                autoFocus
+                type={promptState.type ?? 'text'}
+                value={promptValue}
+                placeholder={promptState.placeholder}
+                onChange={(e) => {
+                  setPromptValue(e.target.value);
+                  setPromptError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void submitPrompt();
+                  }
+                }}
+                className="w-full px-2 py-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)]"
+              />
+            </label>
+            {promptError && (
+              <p className="text-[10px] font-mono text-red-500">{promptError}</p>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={closePrompt}
+                className="text-[10px] font-mono px-3 py-1.5 rounded border border-[var(--surface-border)]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void submitPrompt()}
+                className={`text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded ${
+                  promptState.danger
+                    ? 'bg-red-500 text-white'
+                    : 'bg-[var(--color-accent)] text-black'
+                }`}
+              >
+                {promptState.confirmLabel}
               </button>
             </div>
           </div>
