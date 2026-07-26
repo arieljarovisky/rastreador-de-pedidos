@@ -8,6 +8,8 @@ export enum UserRole {
   STORE_ADMIN = 'store_admin',
   LOGISTICS_ADMIN = 'logistics_admin',
   REPARTIDOR = 'repartidor',
+  /** Dueño de la app Posta (sin agencia). */
+  PLATFORM_OWNER = 'platform_owner',
 }
 
 /** Dueño de la agencia (registro) o admin de logística */

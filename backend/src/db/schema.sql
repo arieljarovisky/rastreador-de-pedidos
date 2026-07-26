@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   google_id VARCHAR(64) NULL UNIQUE,
   email_verified_at DATETIME(3) NULL,
   name VARCHAR(255) NOT NULL,
-  role ENUM('super_admin', 'store_admin', 'logistics_admin', 'repartidor') NOT NULL,
+  role ENUM('super_admin', 'store_admin', 'logistics_admin', 'repartidor', 'platform_owner') NOT NULL,
   agency_id VARCHAR(36) NULL,
   current_lat DECIMAL(10, 7) NULL,
   current_lng DECIMAL(10, 7) NULL,

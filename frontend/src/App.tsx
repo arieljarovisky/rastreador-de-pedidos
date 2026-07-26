@@ -514,6 +514,7 @@ export default function App() {
   // Sincronización inicial + respaldo si WebSocket cae
   useEffect(() => {
     if (!token) return;
+    if (user?.role === UserRole.PLATFORM_OWNER) return;
 
     void fetchData({ forceFlexSync: user?.role === UserRole.REPARTIDOR });
 
@@ -1937,13 +1938,19 @@ export default function App() {
   };
 
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
+  const isPlatformOnlyUser = user?.role === UserRole.PLATFORM_OWNER;
   const showSettings =
-    user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false);
+    !isPlatformOnlyUser &&
+    (user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false));
   const showAccount = showSettings;
-  const showPrices = user ? isAgencyAdmin(user.role) : false;
+  const showPrices = !isPlatformOnlyUser && (user ? isAgencyAdmin(user.role) : false);
 
   useEffect(() => {
     if (!user) return;
+    if (user.role === UserRole.PLATFORM_OWNER) {
+      if (mobileTab !== 'platform') setMobileTab('platform');
+      return;
+    }
     if (mobileTab === 'settings' && !showSettings) {
       setMobileTab('panel');
     }
@@ -1983,6 +1990,46 @@ export default function App() {
         onClearError={clearAuthError}
         initialResetToken={resetToken}
       />
+    );
+  }
+
+  // Dueño de Posta: solo panel administrador (sin agencia operativa).
+  if (user.role === UserRole.PLATFORM_OWNER && token) {
+    return (
+      <div className="app-viewport min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden">
+        <header className="safe-top shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/90 relative z-40">
+          <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 min-h-[3rem]">
+            <PostaLogo
+              size={28}
+              showWordmark
+              variant={theme === 'paper' ? 'paper' : 'dark'}
+              className="min-w-0 shrink"
+            />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] flex items-center gap-1">
+              <Crown className="w-3.5 h-3.5" />
+              Dueño
+            </span>
+            <div className="flex-1 min-w-0" />
+            <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} compact />
+            <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              className="p-1.5 rounded-[var(--radius-posta)] hover:bg-[var(--color-danger)]/10 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
+        <main className="flex-1 min-h-0 overflow-hidden p-2 sm:p-3 md:p-4">
+          <div className="app-shell h-full">
+            <div className="h-full min-h-[calc(100dvh-5rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
+              <PlatformOwnerPanel token={token} />
+            </div>
+          </div>
+        </main>
+      </div>
     );
   }
 

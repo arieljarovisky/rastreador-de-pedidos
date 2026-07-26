@@ -407,6 +407,9 @@ export async function createUser(data: {
   ) {
     throw new Error('INVALID_EMAIL');
   }
+  if (data.role === UserRole.PLATFORM_OWNER && !isValidEmail(normalizedUsername)) {
+    throw new Error('INVALID_EMAIL');
+  }
   if (normalizedUsername.length < 3) {
     throw new Error('USERNAME_SHORT');
   }
@@ -432,10 +435,11 @@ export async function createUser(data: {
     throw new Error('INVALID_ZONE');
   }
 
-  if (data.role === UserRole.STORE_ADMIN && !data.agencyId) {
+  if (data.role === UserRole.PLATFORM_OWNER) {
+    if (data.agencyId) throw new Error('PLATFORM_OWNER_NO_AGENCY');
+  } else if (data.role === UserRole.STORE_ADMIN && !data.agencyId) {
     throw new Error('AGENCY_REQUIRED');
-  }
-  if (
+  } else if (
     (data.role === UserRole.SUPER_ADMIN ||
       data.role === UserRole.LOGISTICS_ADMIN ||
       data.role === UserRole.REPARTIDOR) &&

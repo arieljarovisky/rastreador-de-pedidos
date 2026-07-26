@@ -8,6 +8,7 @@ export enum UserRole {
   STORE_ADMIN = 'store_admin',
   LOGISTICS_ADMIN = 'logistics_admin',
   REPARTIDOR = 'repartidor',
+  PLATFORM_OWNER = 'platform_owner',
 }
 
 export enum OrderStatus {

@@ -33,7 +33,6 @@ import {
 } from '../services/google-auth.service.js';
 import { env } from '../config/env.js';
 import { isPlatformOwnerEmail } from '../middleware/platform.js';
-import { adminUpdateAgencySubscription } from '../services/subscriptions.service.js';
 
 const router = Router();
 
@@ -432,28 +431,14 @@ router.post('/google', async (req: Request, res: Response) => {
   }
 
   if (!row) {
-    // Dueño de Posta (allowlist): primer ingreso con Google crea la cuenta sin registro de agencia.
+    // Dueño de Posta (allowlist): cuenta global sin agencia.
     if (isPlatformOwnerEmail(identity.email)) {
       try {
-        const agency = await createAgency({
-          name: 'Posta Plataforma',
-          contactEmail: identity.email,
-          city: 'Plataforma',
-        });
-        await ensureAgencySubscription(agency.id);
-        // Mantener la agencia operativa para el dueño (no bloqueada por trial).
-        await adminUpdateAgencySubscription(agency.id, {
-          status: 'active',
-          extendTrialDays: undefined,
-          currentPeriodEnd: new Date(
-            Date.now() + 1000 * 60 * 60 * 24 * 365 * 10
-          ).toISOString(),
-        });
         const created = await createUser({
           username: identity.email,
           name: (identity.name || 'Dueño Posta').trim() || 'Dueño Posta',
-          role: UserRole.SUPER_ADMIN,
-          agencyId: agency.id,
+          role: UserRole.PLATFORM_OWNER,
+          agencyId: null,
           googleId: identity.googleId,
           emailVerified: true,
         });
@@ -461,6 +446,11 @@ router.post('/google', async (req: Request, res: Response) => {
       } catch (err) {
         console.error('[auth] platform owner bootstrap failed:', err);
         if (handleRegisterError(res, err)) return;
+        const message = err instanceof Error ? err.message : '';
+        if (message === 'PLATFORM_OWNER_NO_AGENCY') {
+          res.status(500).json({ error: 'Error interno al crear el dueño de Posta.' });
+          return;
+        }
         res.status(500).json({
           error: 'No se pudo crear la cuenta del dueño de Posta. Revisá los logs del servidor.',
         });

@@ -878,4 +878,14 @@ export async function runMigrations(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }
+
+  // Rol dueño de Posta (sin agencia).
+  try {
+    await pool.query(
+      `ALTER TABLE users
+       MODIFY COLUMN role ENUM('super_admin','store_admin','logistics_admin','repartidor','platform_owner') NOT NULL`
+    );
+  } catch (err) {
+    console.warn('[migrate] No se pudo ampliar ENUM users.role (puede estar al día):', err);
+  }
 }
