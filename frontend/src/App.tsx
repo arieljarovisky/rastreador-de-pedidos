@@ -108,6 +108,7 @@ export default function App() {
   const [repartidorMlStatus, setRepartidorMlStatus] = useState<RepartidorMercadoLibreStatus | null>(null);
   const [repartidorMlLoading, setRepartidorMlLoading] = useState(false);
   const [isPlatformOwner, setIsPlatformOwner] = useState(false);
+  const [platformSessionChecked, setPlatformSessionChecked] = useState(false);
   const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0);
 
   const setMobileTab = useCallback((tab: AppTab) => {
@@ -514,7 +515,7 @@ export default function App() {
   // Sincronización inicial + respaldo si WebSocket cae
   useEffect(() => {
     if (!token) return;
-    if (user?.role === UserRole.PLATFORM_OWNER) return;
+    if (user?.role === UserRole.PLATFORM_OWNER || isPlatformOwner) return;
 
     void fetchData({ forceFlexSync: user?.role === UserRole.REPARTIDOR });
 
@@ -528,7 +529,7 @@ export default function App() {
     }, intervalMs);
 
     return () => clearInterval(interval);
-  }, [token, wsConnected, fetchData, user?.role]);
+  }, [token, wsConnected, fetchData, user?.role, isPlatformOwner]);
 
   // Repartidor: al volver a la pestaña (p. ej. desde Mercado Envíos Flex), sincronizar al instante
   useEffect(() => {
@@ -642,8 +643,10 @@ export default function App() {
   useEffect(() => {
     if (!token) {
       setIsPlatformOwner(false);
+      setPlatformSessionChecked(true);
       return;
     }
+    setPlatformSessionChecked(false);
     let cancelled = false;
     void fetch(apiUrl('/api/platform/session'), {
       headers: { Authorization: `Bearer ${token}` },
@@ -654,11 +657,28 @@ export default function App() {
           setIsPlatformOwner(false);
           return;
         }
-        const data = (await res.json()) as { isPlatformOwner?: boolean };
+        const data = (await res.json()) as {
+          isPlatformOwner?: boolean;
+          user?: User;
+          converted?: boolean;
+          token?: string;
+        };
         setIsPlatformOwner(Boolean(data.isPlatformOwner));
+        // Si el backend convirtió SUPER_ADMIN → platform_owner, refrescar sesión local.
+        if (data.user && (data.converted || data.user.role === UserRole.PLATFORM_OWNER)) {
+          if (data.token) {
+            localStorage.setItem('lupo_token', data.token);
+            setToken(data.token);
+          }
+          localStorage.setItem('lupo_user', JSON.stringify(data.user));
+          setUser(data.user);
+        }
       })
       .catch(() => {
         if (!cancelled) setIsPlatformOwner(false);
+      })
+      .finally(() => {
+        if (!cancelled) setPlatformSessionChecked(true);
       });
     return () => {
       cancelled = true;
@@ -1938,7 +1958,8 @@ export default function App() {
   };
 
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
-  const isPlatformOnlyUser = user?.role === UserRole.PLATFORM_OWNER;
+  const isPlatformOnlyUser =
+    user?.role === UserRole.PLATFORM_OWNER || isPlatformOwner;
   const showSettings =
     !isPlatformOnlyUser &&
     (user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false));
@@ -1947,7 +1968,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    if (user.role === UserRole.PLATFORM_OWNER) {
+    if (isPlatformOnlyUser) {
       if (mobileTab !== 'platform') setMobileTab('platform');
       return;
     }
@@ -1966,10 +1987,19 @@ export default function App() {
     if (user.role === UserRole.REPARTIDOR && mobileTab === 'panel') {
       setMobileTab('dashboard');
     }
-  }, [user, mobileTab, showSettings, showAccount, showPrices, isPlatformOwner, setMobileTab]);
+  }, [user, mobileTab, showSettings, showAccount, showPrices, isPlatformOwner, isPlatformOnlyUser, setMobileTab]);
 
   if (loading && !user) {
     return <BootSplash message="Sincronizando sistema" />;
+  }
+
+  if (
+    user &&
+    token &&
+    !platformSessionChecked &&
+    (isAgencyAdmin(user.role) || user.role === UserRole.PLATFORM_OWNER)
+  ) {
+    return <BootSplash message="Cargando panel" />;
   }
 
   if (!user) {
@@ -1993,8 +2023,8 @@ export default function App() {
     );
   }
 
-  // Dueño de Posta: solo panel administrador (sin agencia operativa).
-  if (user.role === UserRole.PLATFORM_OWNER && token) {
+  // Dueño de Posta: solo panel administrador (sin menú de agencia).
+  if (isPlatformOnlyUser && token) {
     return (
       <div className="app-viewport min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden">
         <header className="safe-top shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/90 relative z-40">
@@ -2010,6 +2040,9 @@ export default function App() {
               Dueño
             </span>
             <div className="flex-1 min-w-0" />
+            <span className="hidden sm:inline text-[10px] font-mono text-[var(--color-text-muted)] truncate max-w-[14rem]">
+              {user.name}
+            </span>
             <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} compact />
             <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
             <button

@@ -94,12 +94,36 @@ function handleServiceError(res: Response, err: unknown, fallback: string): void
   res.status(500).json({ error: fallback });
 }
 
-router.get('/session', (req: Request, res: Response) => {
-  res.json({
-    isPlatformOwner: true,
-    email: req.user?.username ?? null,
-    name: req.user?.name ?? null,
-  });
+router.get('/session', async (req: Request, res: Response) => {
+  try {
+    const { ensurePlatformOwnerAccount } = await import(
+      '../services/platform-owner.service.js'
+    );
+    const { signToken } = await import('../middleware/auth.js');
+    const result = await ensurePlatformOwnerAccount(req.user!.id);
+    const user = result.user ?? req.user!;
+    if (result.converted && result.user) {
+      req.user = result.user;
+    }
+    // Si cambió el rol, emitir JWT nuevo (authenticate exige role == JWT).
+    const token =
+      result.converted && result.user
+        ? signToken(result.user.id, result.user.role)
+        : undefined;
+    res.json({
+      isPlatformOwner: true,
+      email: user.username ?? null,
+      name: user.name ?? null,
+      role: user.role,
+      agencyId: user.agencyId ?? null,
+      user,
+      converted: result.converted,
+      token,
+    });
+  } catch (err) {
+    console.error('[platform] GET /session error:', err);
+    res.status(500).json({ error: 'No se pudo validar la sesión de plataforma.' });
+  }
 });
 
 router.get('/metrics', async (_req: Request, res: Response) => {

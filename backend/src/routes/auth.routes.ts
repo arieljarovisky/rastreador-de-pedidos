@@ -182,11 +182,15 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
-  const user = await getUserById(row.id);
-  if (!user) {
+  const userBefore = await getUserById(row.id);
+  if (!userBefore) {
     res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
     return;
   }
+
+  const { ensurePlatformOwnerAccount } = await import('../services/platform-owner.service.js');
+  const ensured = await ensurePlatformOwnerAccount(userBefore.id);
+  const user = ensured.user ?? userBefore;
 
   if (user.role === UserRole.REPARTIDOR) {
     const forceReplace = wantsReplaceSession(replaceSession);
@@ -484,11 +488,15 @@ router.post('/google', async (req: Request, res: Response) => {
     await linkGoogleId(row.id, identity.googleId);
   }
 
-  const user = await getUserById(row.id);
-  if (!user) {
+  const userBefore = await getUserById(row.id);
+  if (!userBefore) {
     res.status(401).json({ error: 'No se pudo iniciar sesión con Google.' });
     return;
   }
+
+  const { ensurePlatformOwnerAccount } = await import('../services/platform-owner.service.js');
+  const ensured = await ensurePlatformOwnerAccount(userBefore.id);
+  const user = ensured.user ?? userBefore;
 
   if (user.disabledAt) {
     res.status(403).json({
