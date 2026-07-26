@@ -248,7 +248,7 @@ export default function LoginScreen({
     setLocalError(null);
     setSuccessMessage(null);
     setRegisterHint(
-      'No hay una cuenta con ese Google. Completá el registro de tu agencia para crear una.'
+      'No hay una cuenta con ese Google. Si sos el dueño de Posta, configurá PLATFORM_OWNER_EMAILS con ese mail, reiniciá el backend y volvé a Ingresar con Google. Si sos una agencia nueva, completá el registro.'
     );
     onClearError?.();
   }, [errorCode, onClearError]);

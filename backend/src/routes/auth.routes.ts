@@ -32,6 +32,8 @@ import {
   verifyGoogleIdToken,
 } from '../services/google-auth.service.js';
 import { env } from '../config/env.js';
+import { isPlatformOwnerEmail } from '../middleware/platform.js';
+import { adminUpdateAgencySubscription } from '../services/subscriptions.service.js';
 
 const router = Router();
 
@@ -430,14 +432,55 @@ router.post('/google', async (req: Request, res: Response) => {
   }
 
   if (!row) {
+    // Dueño de Posta (allowlist): primer ingreso con Google crea la cuenta sin registro de agencia.
+    if (isPlatformOwnerEmail(identity.email)) {
+      try {
+        const agency = await createAgency({
+          name: 'Posta Plataforma',
+          contactEmail: identity.email,
+          city: 'Plataforma',
+        });
+        await ensureAgencySubscription(agency.id);
+        // Mantener la agencia operativa para el dueño (no bloqueada por trial).
+        await adminUpdateAgencySubscription(agency.id, {
+          status: 'active',
+          extendTrialDays: undefined,
+          currentPeriodEnd: new Date(
+            Date.now() + 1000 * 60 * 60 * 24 * 365 * 10
+          ).toISOString(),
+        });
+        const created = await createUser({
+          username: identity.email,
+          name: (identity.name || 'Dueño Posta').trim() || 'Dueño Posta',
+          role: UserRole.SUPER_ADMIN,
+          agencyId: agency.id,
+          googleId: identity.googleId,
+          emailVerified: true,
+        });
+        row = await findUserByUsername(created.username);
+      } catch (err) {
+        console.error('[auth] platform owner bootstrap failed:', err);
+        if (handleRegisterError(res, err)) return;
+        res.status(500).json({
+          error: 'No se pudo crear la cuenta del dueño de Posta. Revisá los logs del servidor.',
+        });
+        return;
+      }
+    }
+  }
+
+  if (!row) {
     res.status(404).json({
-      error: 'No hay una cuenta con este Google. Registrá tu agencia primero.',
+      error:
+        env.platformOwnerEmails.length > 0
+          ? 'No hay una cuenta con este Google. Si sos el dueño de Posta, usá exactamente el email de PLATFORM_OWNER_EMAILS desde Ingresar.'
+          : 'No hay una cuenta con este Google. Registrá tu agencia primero.',
       code: 'GOOGLE_ACCOUNT_NOT_FOUND',
     });
     return;
   }
 
-  // Refetch after possible link
+  // Refetch after possible link / bootstrap
   row = (await findUserByGoogleId(identity.googleId)) ?? (await findUserByUsername(identity.email));
   if (!row) {
     res.status(404).json({
