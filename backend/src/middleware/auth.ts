@@ -32,6 +32,13 @@ export async function validateRepartidorSession(
 }
 
 export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Algunas rutas autentican en el montaje y nuevamente dentro del router.
+  // Reutilizar el usuario validado evita consultar la base de datos dos veces.
+  if (req.user) {
+    next();
+    return;
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({ error: 'No autorizado.' });

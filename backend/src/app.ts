@@ -31,6 +31,7 @@ import {
   isMercadoPagoOAuthConfigured,
   isPostaMercadoPagoConfigured,
 } from './services/mercadopago.service.js';
+import { authenticate } from './middleware/auth.js';
 import { requireAgencySubscription } from './middleware/subscription.js';
 
 const app = express();
@@ -119,20 +120,20 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/app', appRoutes);
-app.use('/api/delivery-zones', requireAgencySubscription, deliveryZonesRoutes);
+app.use('/api/delivery-zones', authenticate, requireAgencySubscription, deliveryZonesRoutes);
 
 app.use('/api/auth', authRoutes);
-app.use('/api/accounts', requireAgencySubscription, accountsRoutes);
-app.use('/api/orders', requireAgencySubscription, ordersRoutes);
-app.use('/api/users', requireAgencySubscription, usersRoutes);
-app.use('/api/repartidores', requireAgencySubscription, repartidoresRoutes);
+app.use('/api/accounts', authenticate, requireAgencySubscription, accountsRoutes);
+app.use('/api/orders', authenticate, requireAgencySubscription, ordersRoutes);
+app.use('/api/users', authenticate, requireAgencySubscription, usersRoutes);
+app.use('/api/repartidores', authenticate, requireAgencySubscription, repartidoresRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/simulator', simulatorRoutes);
 app.use('/api/geocode', geocodeRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/billing', billingRoutes);
-app.use('/api/driver-settlement', requireAgencySubscription, driverSettlementRoutes);
-app.use('/api/price-lists', requireAgencySubscription, priceListsRoutes);
+app.use('/api/driver-settlement', authenticate, requireAgencySubscription, driverSettlementRoutes);
+app.use('/api/price-lists', authenticate, requireAgencySubscription, priceListsRoutes);
 app.use('/api/mercadopago', mercadopagoRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/public', publicRoutes);

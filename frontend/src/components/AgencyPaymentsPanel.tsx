@@ -16,10 +16,11 @@ function formatArs(amount: number): string {
   }).format(amount);
 }
 
-function statusLabel(status: AgencySubscriptionStatus['status']): string {
-  if (status === 'trial') return 'Período de prueba';
-  if (status === 'active') return 'Activa';
-  if (status === 'past_due') return 'Vencida';
+function statusLabel(subscription: AgencySubscriptionStatus): string {
+  if (!subscription.isActive && subscription.status === 'trial') return 'Prueba vencida';
+  if (subscription.status === 'trial') return 'Período de prueba';
+  if (subscription.status === 'active') return 'Activa';
+  if (subscription.status === 'past_due') return 'Vencida';
   return 'Cancelada';
 }
 
@@ -151,7 +152,7 @@ export default function AgencyPaymentsPanel({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
             <div className="rounded-[5px] border border-[var(--surface-border)] p-2">
               <p className="text-[var(--color-text-muted)]">Estado</p>
-              <p className="font-bold text-[var(--ink-soft)]">{statusLabel(subscription.status)}</p>
+              <p className="font-bold text-[var(--ink-soft)]">{statusLabel(subscription)}</p>
             </div>
             <div className="rounded-[5px] border border-[var(--surface-border)] p-2">
               <p className="text-[var(--color-text-muted)]">Repartidores</p>
@@ -170,9 +171,15 @@ export default function AgencyPaymentsPanel({
           </div>
         )}
 
-        {subscription?.status === 'trial' && subscription.daysRemaining != null && (
+        {subscription?.status === 'trial' && subscription.isActive && subscription.daysRemaining != null && (
           <p className="text-[10px] font-mono text-[var(--color-text-muted)]">
             Te quedan {subscription.daysRemaining} día{subscription.daysRemaining === 1 ? '' : 's'} de prueba gratis.
+          </p>
+        )}
+
+        {subscription?.status === 'trial' && !subscription.isActive && (
+          <p className="text-[10px] font-mono font-bold text-[var(--color-danger)]">
+            Tu período de prueba venció. Pagá la suscripción para seguir operando.
           </p>
         )}
 

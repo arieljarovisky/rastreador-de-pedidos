@@ -28,8 +28,10 @@ export default function DeliveryControlPanel({
     [orders, deadlineHour]
   );
 
+  // Los cancelados no cuentan para el progreso.
+  const progressBase = summary.delivered + summary.undelivered;
   const progressPct =
-    summary.total > 0 ? Math.round((summary.delivered / summary.total) * 100) : 0;
+    progressBase > 0 ? Math.round((summary.delivered / progressBase) * 100) : 0;
 
   const urgency =
     summary.overdue > 0

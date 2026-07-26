@@ -178,8 +178,11 @@ export default function OperationsDashboard({
     return [...map.values()].sort((a, b) => b.undelivered - a.undelivered);
   }, [orders, userRole, selectedDateKey]);
 
+  // Los pedidos cancelados no cuentan para el progreso: si todo lo entregable
+  // se entregó, la barra llega al 100% aunque queden cancelados en el día.
+  const progressBase = summary.delivered + summary.undelivered;
   const progressPct =
-    summary.total > 0 ? Math.round((summary.delivered / summary.total) * 100) : 0;
+    progressBase > 0 ? Math.round((summary.delivered / progressBase) * 100) : 0;
 
   const urgency =
     summary.overdue > 0
