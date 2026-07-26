@@ -173,6 +173,14 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
+  if (row.disabled_at) {
+    res.status(403).json({
+      error: 'Tu cuenta está deshabilitada. Contactá al soporte de Posta.',
+      code: 'ACCOUNT_DISABLED',
+    });
+    return;
+  }
+
   const user = await getUserById(row.id);
   if (!user) {
     res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
@@ -446,6 +454,14 @@ router.post('/google', async (req: Request, res: Response) => {
   const user = await getUserById(row.id);
   if (!user) {
     res.status(401).json({ error: 'No se pudo iniciar sesión con Google.' });
+    return;
+  }
+
+  if (user.disabledAt) {
+    res.status(403).json({
+      error: 'Tu cuenta está deshabilitada. Contactá al soporte de Posta.',
+      code: 'ACCOUNT_DISABLED',
+    });
     return;
   }
 

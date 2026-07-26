@@ -22,6 +22,7 @@ const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, google
 
 let sellerDeadlineHourColumnReady: Promise<void> | null = null;
 let userDisabledAtColumnReady: Promise<void> | null = null;
+let googleAuthColumnsReady: Promise<void> | null = null;
 
 /** Garantiza users.delivery_deadline_hour (por si el migrate no corrió aún). */
 export async function ensureSellerDeliveryDeadlineHourColumn(): Promise<void> {
@@ -64,6 +65,48 @@ export async function ensureUserDisabledAtColumn(): Promise<void> {
     });
   }
   await userDisabledAtColumnReady;
+}
+
+/** Columnas necesarias para login Google / verificación de email. */
+export async function ensureGoogleAuthColumns(): Promise<void> {
+  if (!googleAuthColumnsReady) {
+    googleAuthColumnsReady = (async () => {
+      const [googleCols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'google_id'`
+      );
+      if (googleCols.length === 0) {
+        await pool.query(
+          'ALTER TABLE users ADD COLUMN google_id VARCHAR(64) NULL AFTER password_hash'
+        );
+        try {
+          await pool.query('CREATE UNIQUE INDEX uk_users_google_id ON users (google_id)');
+        } catch {
+          /* índice puede existir */
+        }
+        console.log('[users] Columna google_id creada');
+      }
+
+      const [verifiedCols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'email_verified_at'`
+      );
+      if (verifiedCols.length === 0) {
+        await pool.query(
+          'ALTER TABLE users ADD COLUMN email_verified_at DATETIME(3) NULL AFTER google_id'
+        );
+        await pool.query(
+          `UPDATE users SET email_verified_at = COALESCE(created_at, NOW(3))
+           WHERE email_verified_at IS NULL`
+        );
+        console.log('[users] Columna email_verified_at creada');
+      }
+    })().catch((err) => {
+      googleAuthColumnsReady = null;
+      throw err;
+    });
+  }
+  await googleAuthColumnsReady;
 }
 
 function departureFromRow(row: DbUserRow): LocationPoint | undefined {
@@ -172,6 +215,7 @@ async function enrichUser(user: User): Promise<User> {
 
 export async function findUserByUsername(username: string): Promise<(DbUserRow & RowDataPacket) | null> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureGoogleAuthColumns();
   await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE LOWER(username) = LOWER(?)`,
@@ -182,6 +226,7 @@ export async function findUserByUsername(username: string): Promise<(DbUserRow &
 
 export async function findUserByGoogleId(googleId: string): Promise<(DbUserRow & RowDataPacket) | null> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureGoogleAuthColumns();
   await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE google_id = ? LIMIT 1`,
@@ -196,6 +241,7 @@ export function isEmailVerified(row: Pick<DbUserRow, 'email_verified_at'>): bool
 
 export async function getUserById(id: string): Promise<User | null> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureGoogleAuthColumns();
   await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
     `SELECT ${USER_COLUMNS} FROM users WHERE id = ?`,
