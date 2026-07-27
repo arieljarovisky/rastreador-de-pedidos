@@ -309,10 +309,16 @@ export async function createOrder(
     historyLat?: number;
     historyLng?: number;
     deliveryDeadline?: Date;
+    /** Fecha de venta del marketplace (finde → lunes). Si falta, se usa el momento de alta en Posta. */
+    soldAt?: Date;
   }
 ): Promise<Order> {
   const newId = await generateNextOrderId();
   const now = new Date();
+  const soldAt =
+    data.soldAt && !Number.isNaN(data.soldAt.getTime()) ? data.soldAt : null;
+  // Para imports: el día operativo sigue la venta (sáb/dom → lunes), no la hora de importación.
+  const createdAt = soldAt ?? now;
 
   let sellerId: string | null = null;
   let agencyId: string | null = null;
@@ -347,8 +353,9 @@ export async function createOrder(
 
   const deadlineHour = await resolveSalesCutoffHour({ sellerId, agencyId });
   // Sin deliveryDeadline explícito (p. ej. lead_time ML): post-corte del vendedor → día hábil siguiente.
+  // Vie post-corte / sáb / dom → lunes (días hábiles).
   const deliveryDeadline =
-    data.deliveryDeadline ?? computeDeliveryDeadline(now, deadlineHour);
+    data.deliveryDeadline ?? computeDeliveryDeadline(createdAt, deadlineHour);
 
   if (data.externalSource && data.externalOrderId) {
     if (sellerId) {
@@ -382,7 +389,7 @@ export async function createOrder(
       data.lng,
       OrderStatus.PENDING,
       data.notes ?? '',
-      now,
+      createdAt,
       now,
       deliveryDeadline,
     ]

@@ -88,6 +88,13 @@ const FLEX_SYNC_FORCE_COOLDOWN_MS = 15_000;
 const FLEX_SYNC_LOOKBACK_DAYS = 10;
 const FLEX_SYNC_SHIPMENT_LIMIT = 50;
 
+/** Fecha de venta del marketplace para el corte operativo (finde → lunes). */
+function parseSoldAt(iso?: string | null): Date | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
 function formatImportError(externalId: string, reason: string): string {
   if (reason === 'GEOCODE_UNAVAILABLE') {
     return `#${externalId}: el mapa está saturado. Esperá unos segundos e importá de nuevo.`;
@@ -849,6 +856,7 @@ async function importMercadoLibreFlexShipment(
       externalOrderId: shipment.externalId,
       shippingType: 'flex',
       deliveryDeadline: mlDeadline ?? undefined,
+      soldAt: parseSoldAt(shipment.createdAt),
       historyComment: agencyMode
         ? `Importado desde ML (cuenta de la agencia) · envío #${shipment.externalId}`
         : undefined,
@@ -975,6 +983,7 @@ export async function importTiendaNubeExpressShipment(
       externalSource: 'tiendanube',
       externalOrderId: shipment.externalId,
       shippingType: shipment.shippingType,
+      soldAt: parseSoldAt(shipment.createdAt),
     });
 
     const sellerId = await getSellerIdForOrder(order.id);
@@ -1037,6 +1046,7 @@ async function importStandardHomeShipment(
       externalSource: source,
       externalOrderId: shipment.externalId,
       shippingType: shipment.shippingType,
+      soldAt: parseSoldAt(shipment.createdAt),
     });
 
     const sellerId = await getSellerIdForOrder(order.id);
@@ -1247,6 +1257,7 @@ export async function importMarketplaceShipments(
         externalSource: shipment.platform,
         externalOrderId: shipment.externalId,
         shippingType: shipment.shippingType,
+        soldAt: parseSoldAt(shipment.createdAt),
       });
 
       const sellerId = await getSellerIdForOrder(order.id);
@@ -1602,6 +1613,7 @@ export async function importMercadoLibreByScanForAgency(
       externalOrderId: flex.externalId,
       shippingType: flex.shippingType,
       deliveryDeadline: mlDeadline ?? undefined,
+      soldAt: parseSoldAt(flex.createdAt),
       historyComment: isAgencyAccount
         ? `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (cuenta de la agencia)`
         : `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,
