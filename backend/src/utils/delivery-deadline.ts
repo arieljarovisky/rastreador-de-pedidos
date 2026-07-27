@@ -34,11 +34,11 @@ function getArDateParts(date: Date): ArDateParts {
   };
 }
 
-/** Normaliza hora de corte a entero 0–23. */
+/** Normaliza hora de corte a entero 0–23. 00:00 no es un corte válido (desplazaría todo al día siguiente). */
 export function normalizeDeadlineHour(hour?: number | null): number {
   if (hour == null || !Number.isFinite(hour)) return DELIVERY_DEADLINE_HOUR;
   const n = Math.trunc(Number(hour));
-  if (n < 0 || n > 23) return DELIVERY_DEADLINE_HOUR;
+  if (n <= 0 || n > 23) return DELIVERY_DEADLINE_HOUR;
   return n;
 }
 

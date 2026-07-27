@@ -56,7 +56,7 @@ function arLocalToUtc(year: number, month: number, day: number, hour: number, mi
 function normalizeDeadlineHour(hour?: number | null): number {
   if (hour == null || !Number.isFinite(hour)) return DELIVERY_DEADLINE_HOUR;
   const n = Math.trunc(Number(hour));
-  if (n < 0 || n > 23) return DELIVERY_DEADLINE_HOUR;
+  if (n <= 0 || n > 23) return DELIVERY_DEADLINE_HOUR;
   return n;
 }
 

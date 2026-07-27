@@ -576,13 +576,13 @@ export default function SettingsPage({
                           </option>
                         )}
                         {Array.from(
-                          { length: (isSeller ? agencyCap : 23) + 1 },
-                          (_, hour) => (
-                            <option key={hour} value={hour}>
-                              {String(hour).padStart(2, '0')}:00
-                            </option>
-                          )
-                        )}
+                          { length: isSeller ? agencyCap : 23 },
+                          (_, i) => i + 1
+                        ).map((hour) => (
+                          <option key={hour} value={hour}>
+                            {String(hour).padStart(2, '0')}:00
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <button type="submit" disabled={deadlineLoading} className={btnGhost}>
@@ -1049,7 +1049,7 @@ export default function SettingsPage({
                               <option value="">
                                 Igual a la agencia ({String(deliveryDeadlineHour).padStart(2, '0')}:00)
                               </option>
-                              {Array.from({ length: deliveryDeadlineHour + 1 }, (_, h) => (
+                              {Array.from({ length: deliveryDeadlineHour }, (_, i) => i + 1).map((h) => (
                                 <option key={h} value={h}>
                                   {String(h).padStart(2, '0')}:00
                                 </option>
@@ -1317,7 +1317,7 @@ export default function SettingsPage({
                     <option value="">
                       Igual a la agencia ({String(deliveryDeadlineHour).padStart(2, '0')}:00)
                     </option>
-                    {Array.from({ length: deliveryDeadlineHour + 1 }, (_, h) => (
+                    {Array.from({ length: deliveryDeadlineHour }, (_, i) => i + 1).map((h) => (
                       <option key={h} value={h}>
                         {String(h).padStart(2, '0')}:00
                       </option>
