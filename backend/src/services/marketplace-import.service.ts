@@ -965,6 +965,12 @@ export async function importTiendaNubeExpressShipment(
       if (soldAt) {
         const fixed = await syncMarketplaceOrderOperationalDay(existing.id, soldAt);
         if (fixed) {
+          console.log('[tn-import] día operativo corregido', {
+            orderId: fixed.id,
+            externalId: shipment.externalId,
+            soldAt: soldAt.toISOString(),
+            deliveryDeadline: fixed.deliveryDeadline,
+          });
           const sellerId = await getSellerIdForOrder(fixed.id);
           emitOrderUpdated(fixed, sellerId);
           return { kind: 'skipped', reason: 'operational_day_fixed', order: fixed };
@@ -1824,9 +1830,21 @@ export async function runTiendaNubeExpressAutoImport(): Promise<{
           notify: false,
         });
         if (result.kind === 'imported') imported += 1;
-        else if (result.kind === 'skipped') skipped += 1;
-        else {
+        else if (result.kind === 'skipped') {
+          skipped += 1;
+          if (result.reason === 'operational_day_fixed') {
+            console.log('[tn-auto-import] día operativo corregido', {
+              orderId: result.order?.id,
+              externalId: shipment.externalId,
+            });
+          }
+        } else {
           errors += 1;
+          console.warn('[tn-auto-import] envío con error', {
+            userId: integration.userId,
+            externalId: shipment.externalId,
+            message: result.message,
+          });
           if (result.fatal) break;
         }
         await sleep(80);

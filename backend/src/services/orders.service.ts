@@ -15,6 +15,7 @@ import { isAgencyAdmin } from '../utils/roles.js';
 import {
   computeDeliveryDeadline,
   DELIVERY_DEADLINE_HOUR,
+  getArHourMinute,
   getOperationalDateKey,
   getTodayDeadline,
 } from '../utils/delivery-deadline.js';
@@ -793,11 +794,21 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
 
     let nextDeadline: Date | null = null;
 
+    const createdHour = getArHourMinute(created).hour;
+
     if (isRescheduled && currentKey != null && currentKey < todayKey) {
       // Ausente / reprogramado trabado en el pasado → hoy (ML: entregar hoy).
       nextDeadline = getTodayDeadline(hour);
     } else if (!current || (currentKey != null && currentKey < expectedKey)) {
       // Sin deadline o día demasiado temprano (venta nocturna con corte viejo).
+      nextDeadline = expected;
+    } else if (
+      !isRescheduled &&
+      currentKey != null &&
+      expectedKey < currentKey &&
+      createdHour < hour
+    ) {
+      // Venta pre-corte con deadline adelantado (p. ej. bug histórico corte 00:00 → PED-2358).
       nextDeadline = expected;
     } else if (currentKey === expectedKey && current!.getTime() !== expected.getTime()) {
       nextDeadline = expected;
@@ -811,8 +822,10 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     }
 
     // No pisar si el pedido ya está en un día posterior al esperado (reprogramado a futuro).
+    // Sí permitir corrección cuando nextDeadline viene del caso pre-corte de arriba.
     if (
       nextDeadline &&
+      isRescheduled &&
       currentKey != null &&
       currentKey > getOperationalDateKey(nextDeadline)
     ) {
