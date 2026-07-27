@@ -875,6 +875,38 @@ export async function updateOrderDeliveryDeadlineIfNeeded(
   return getOrderById(orderId);
 }
 
+/** Corrige día operativo de un import si la fecha de venta del marketplace difiere del deadline guardado. */
+export async function syncMarketplaceOrderOperationalDay(
+  orderId: string,
+  soldAt: Date
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+    return null;
+  }
+  if (Number.isNaN(soldAt.getTime())) return null;
+
+  const deadlineHour = await resolveSalesCutoffHour({
+    sellerId: order.sellerId,
+    agencyId: order.agencyId,
+  });
+  const expectedDeadline = computeDeliveryDeadline(soldAt, deadlineHour);
+  const expectedKey = getOperationalDateKey(expectedDeadline);
+  const currentKey = order.deliveryDeadline
+    ? getOperationalDateKey(new Date(order.deliveryDeadline))
+    : getOperationalDateKey(new Date(order.createdAt));
+
+  if (expectedKey === currentKey) return null;
+
+  const now = new Date();
+  await pool.query(
+    'UPDATE orders SET created_at = ?, delivery_deadline = ?, updated_at = ? WHERE id = ?',
+    [soldAt, expectedDeadline, now, orderId]
+  );
+  return getOrderById(orderId);
+}
+
 /**
  * Fuerza el día operativo del pedido a hoy (p. ej. Flex “enviar hoy” quedado en mañana).
  */

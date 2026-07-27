@@ -11,6 +11,7 @@ import {
   updateOrderStatus,
   applyMercadoLibreSyncState,
   updateOrderDeliveryDeadlineIfNeeded,
+  syncMarketplaceOrderOperationalDay,
   updateOrderMlShipmentMeta,
   updateOrderContactFromMercadoLibre,
   rescheduleOrderToNextOperationalDay,
@@ -71,7 +72,7 @@ import { sleep } from '../utils/sleep.js';
 import { createNotification } from './notifications.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
 import { env } from '../config/env.js';
-import { getOperationalDateKey } from '../utils/delivery-deadline.js';
+import { getOperationalDateKey, parseMarketplaceSoldAt } from '../utils/delivery-deadline.js';
 import {
   getAgencyOperatorForImport,
   isAgencyMlBridgeUser,
@@ -90,9 +91,7 @@ const FLEX_SYNC_SHIPMENT_LIMIT = 50;
 
 /** Fecha de venta del marketplace para el corte operativo (finde → lunes). */
 function parseSoldAt(iso?: string | null): Date | undefined {
-  if (!iso) return undefined;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? undefined : d;
+  return parseMarketplaceSoldAt(iso);
 }
 
 function formatImportError(externalId: string, reason: string): string {
@@ -962,6 +961,15 @@ export async function importTiendaNubeExpressShipment(
   try {
     const existing = await findOrderByExternal(user.id, 'tiendanube', shipment.externalId);
     if (existing) {
+      const soldAt = parseSoldAt(shipment.createdAt);
+      if (soldAt) {
+        const fixed = await syncMarketplaceOrderOperationalDay(existing.id, soldAt);
+        if (fixed) {
+          const sellerId = await getSellerIdForOrder(fixed.id);
+          emitOrderUpdated(fixed, sellerId);
+          return { kind: 'skipped', reason: 'operational_day_fixed', order: fixed };
+        }
+      }
       return { kind: 'skipped', reason: 'already_imported', order: existing };
     }
 

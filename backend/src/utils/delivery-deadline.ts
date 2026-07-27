@@ -85,7 +85,8 @@ export function computeDeliveryDeadline(
   const cutHour = normalizeDeadlineHour(deadlineHour);
   const { year, month, day, hour } = getArDateParts(createdAt);
   let dateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  if (hour >= cutHour) {
+  // cutHour 0 = “00:00” en UI: no desplazar (hour >= 0 sería siempre true).
+  if (cutHour > 0 && hour >= cutHour) {
     dateKey = shiftOperationalDateKey(dateKey, 1);
   }
   return deliveryDeadlineForBusinessDate(dateKey, cutHour);
@@ -187,4 +188,22 @@ export function getArHourMinute(date: Date = new Date()): { hour: number; minute
 
 export function formatDeadlineHourLabel(deadlineHour: number = DELIVERY_DEADLINE_HOUR): string {
   return `${String(normalizeDeadlineHour(deadlineHour)).padStart(2, '0')}:00`;
+}
+
+const MARKETPLACE_ISO_TZ_RE = /(?:[zZ]|[+-]\d{2}:?\d{2})$/;
+
+/** Normaliza ISO de marketplaces (TN +0000, sin offset) a instante UTC. */
+export function parseMarketplaceSoldAt(iso?: string | null): Date | undefined {
+  const raw = iso?.trim();
+  if (!raw) return undefined;
+
+  let normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+  normalized = normalized.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+
+  const toParse = MARKETPLACE_ISO_TZ_RE.test(normalized)
+    ? normalized
+    : `${normalized}-03:00`;
+
+  const d = new Date(toParse);
+  return Number.isNaN(d.getTime()) ? undefined : d;
 }
