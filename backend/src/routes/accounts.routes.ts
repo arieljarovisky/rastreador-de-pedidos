@@ -60,7 +60,7 @@ const logoUpload = multer({
 });
 
 /** Evita recalcular en cada poll. Versión fuerza reintento tras redeploy. */
-const DEADLINE_RECALC_VERSION = 'v9';
+const DEADLINE_RECALC_VERSION = 'v10';
 const deadlineRecalcByAgencyDay = new Map<string, string>();
 
 function handleCreateUserError(res: Response, err: unknown): boolean {

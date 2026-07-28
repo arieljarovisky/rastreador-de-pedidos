@@ -306,7 +306,7 @@ export default function App() {
                 );
               }
 
-              const recalcSessionKey = 'posta_deadline_recalc_v6';
+              const recalcSessionKey = 'posta_deadline_recalc_v10';
               if (!sessionStorage.getItem(recalcSessionKey)) {
                 sessionStorage.setItem(recalcSessionKey, '1');
                 const forceRes = await fetch(

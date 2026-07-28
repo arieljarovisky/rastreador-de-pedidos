@@ -17,6 +17,7 @@ import {
   DELIVERY_DEADLINE_HOUR,
   getArHourMinute,
   getOperationalDateKey,
+  getOperationalDayBounds,
   getTodayDeadline,
 } from '../utils/delivery-deadline.js';
 import { getAgencyDeliveryDeadlineHour, listAgenciesDeadlineHours } from './agencies.service.js';
@@ -705,22 +706,33 @@ export async function forceRescheduledOrdersStuckInPastToToday(
  * Recalcula delivery_deadline de pedidos abiertos según createdAt + corte del vendedor (tope agencia).
  * - Corrige ventas nocturnas quedadas en el día anterior (corte viejo 21:00).
  * - Mueve a hoy los ausentes/reprogramables trabados en el pasado.
- * - No retrocede pedidos que ya están en un día futuro respecto del esperado.
+ * - Corrige ventas pre-corte con deadline adelantado (bug histórico corte 00:00).
+ * - No avanza pedidos ya en HOY hacia mañana (respeta "Programado para hoy").
+ * - No retrocede pedidos reprogramados que ya están en un día futuro.
  */
 export async function recalculateOpenOrdersDeliveryDeadlines(
   agencyId?: string
 ): Promise<number> {
   const forced = await forceRescheduledOrdersStuckInPastToToday(agencyId);
 
-  const params: (string | OrderStatus)[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
+  const now = new Date();
+  const todayKey = getOperationalDateKey(now);
+  const { start: todayStart } = getOperationalDayBounds(todayKey);
+
   let agencyFilter = '';
+  // Orden de `?` en el SQL: scheduled_today_comment, NOT IN (2), agencyFilter (0–2)
+  const queryParams: (string | OrderStatus | Date)[] = [
+    todayStart,
+    OrderStatus.DELIVERED,
+    OrderStatus.CANCELLED,
+  ];
   if (agencyId) {
     // Incluye pedidos sin agency_id pero del seller de esta agencia (datos viejos).
     agencyFilter = ` AND (
       o.agency_id = ?
       OR (o.agency_id IS NULL AND o.seller_id IN (SELECT id FROM users WHERE agency_id = ?))
     )`;
-    params.push(agencyId, agencyId);
+    queryParams.push(agencyId, agencyId);
   }
 
   const hasSubstatus = await (async () => {
@@ -741,6 +753,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       ml_shipment_substatus: string | null;
       absent_comment: number;
       reschedule_comment: number;
+      scheduled_today_comment: number;
     } & RowDataPacket>
   >(
     `SELECT o.id, o.agency_id, o.seller_id, o.created_at, o.delivery_deadline,
@@ -754,18 +767,22 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
               WHERE h.order_id = o.id AND (
                 h.comment LIKE '%reprogramado%' OR h.comment LIKE '%Reprogramado%'
               )
-            ) AS reschedule_comment
+            ) AS reschedule_comment,
+            (
+              SELECT COUNT(*) FROM order_history h
+              WHERE h.order_id = o.id
+                AND h.comment LIKE 'Programado para hoy%'
+                AND h.created_at >= ?
+            ) AS scheduled_today_comment
      FROM orders o
      WHERE o.archived = 0
        AND o.status NOT IN (?, ?)
        ${agencyFilter}`,
-    params
+    queryParams
   );
 
   const hourCache = new Map<string, number>();
   let updated = 0;
-  const now = new Date();
-  const todayKey = getOperationalDateKey(now);
 
   for (const row of rows) {
     const cacheKey = `${row.seller_id ?? ''}:${row.agency_id ?? agencyId ?? ''}`;
@@ -781,7 +798,6 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     const created = new Date(row.created_at);
     const expected = computeDeliveryDeadline(created, hour);
     const expectedKey = getOperationalDateKey(expected);
-    const createdKey = getOperationalDateKey(created);
     const current = row.delivery_deadline ? new Date(row.delivery_deadline) : null;
     const currentKey = current ? getOperationalDateKey(current) : null;
     const isRescheduled =
@@ -791,17 +807,22 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
         )) ||
       Number(row.absent_comment) > 0 ||
       Number(row.reschedule_comment) > 0;
+    const isPinnedToday = Number(row.scheduled_today_comment) > 0;
+    const createdHour = getArHourMinute(created).hour;
 
     let nextDeadline: Date | null = null;
-
-    const createdHour = getArHourMinute(created).hour;
 
     if (isRescheduled && currentKey != null && currentKey < todayKey) {
       // Ausente / reprogramado trabado en el pasado → hoy (ML: entregar hoy).
       nextDeadline = getTodayDeadline(hour);
-    } else if (!current || (currentKey != null && currentKey < expectedKey)) {
-      // Sin deadline o día demasiado temprano (venta nocturna con corte viejo).
+    } else if (isPinnedToday && (currentKey === todayKey || (currentKey != null && currentKey > todayKey))) {
+      // Override manual "Programado para hoy": fijar en hoy (también si el recalc lo había empujado a mañana).
+      nextDeadline = getTodayDeadline(hour);
+    } else if (!current) {
       nextDeadline = expected;
+    } else if (currentKey != null && currentKey < todayKey) {
+      // Trabado en un día pasado (venta nocturna / corte viejo) → esperado (o hoy si el esperado ya pasó).
+      nextDeadline = expectedKey >= todayKey ? expected : getTodayDeadline(hour);
     } else if (
       !isRescheduled &&
       currentKey != null &&
@@ -811,15 +832,10 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       // Venta pre-corte con deadline adelantado (p. ej. bug histórico corte 00:00 → PED-2358).
       nextDeadline = expected;
     } else if (currentKey === expectedKey && current!.getTime() !== expected.getTime()) {
-      nextDeadline = expected;
-    } else if (
-      currentKey != null &&
-      currentKey === createdKey &&
-      expectedKey > createdKey
-    ) {
-      // Mismo día de creación pero el corte actual indica día siguiente.
+      // Mismo día operativo: alinear hora del corte.
       nextDeadline = expected;
     }
+    // No empujar HOY → mañana por el corte (rompe "Programado para hoy" y la operación del día).
 
     // No pisar si el pedido ya está en un día posterior al esperado (reprogramado a futuro).
     // Sí permitir corrección cuando nextDeadline viene del caso pre-corte de arriba.
@@ -828,6 +844,15 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       isRescheduled &&
       currentKey != null &&
       currentKey > getOperationalDateKey(nextDeadline)
+    ) {
+      continue;
+    }
+
+    // Cinturón: nunca avanzar un pedido que ya está en el día operativo de hoy.
+    if (
+      nextDeadline &&
+      currentKey === todayKey &&
+      getOperationalDateKey(nextDeadline) > todayKey
     ) {
       continue;
     }
