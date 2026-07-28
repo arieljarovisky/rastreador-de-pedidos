@@ -121,30 +121,30 @@ export const agencyLight: AgencyPalette = {
   r: 10,
 };
 
-/** Oscuro operativo — misma jerarquía que el prototipo, contraste invertido */
+/** Oscuro operativo — alineado a tokens Posta (`colors`) */
 export const agencyDark: AgencyPalette = {
-  ink: '#E8ECF0',
-  ink2: '#A8B0B8',
-  ink3: '#6B7480',
-  paper: '#12161C',
-  card: '#1A1F27',
-  line: '#2A313A',
-  line2: '#3A434E',
-  sello: '#6B93D6',
-  selloBg: 'rgba(107, 147, 214, 0.14)',
+  ink: '#EDE6D8',
+  ink2: '#B8AB98',
+  ink3: '#7A6F60',
+  paper: '#141210',
+  card: '#1C1814',
+  line: '#2E2820',
+  line2: '#3A342C',
+  sello: '#5C87EB',
+  selloBg: 'rgba(92, 135, 235, 0.12)',
   verde: '#3FAE63',
-  verdeBg: 'rgba(63, 174, 99, 0.14)',
+  verdeBg: 'rgba(63, 174, 99, 0.12)',
   ambar: '#E69A2E',
-  ambarBg: 'rgba(230, 154, 46, 0.14)',
+  ambarBg: 'rgba(230, 154, 46, 0.12)',
   rojo: '#E5564F',
-  rojoBg: 'rgba(229, 86, 79, 0.14)',
-  flat: '#242A33',
-  barTrack: '#2A313A',
+  rojoBg: 'rgba(229, 86, 79, 0.12)',
+  flat: '#1F1B17',
+  barTrack: '#2E2820',
   alertCalmBody: '#8FCFAB',
   alertBody: '#F0A8A3',
-  markText: '#FFFFFF',
-  chipOnText: '#12161C',
-  r: 10,
+  markText: '#EDE6D8',
+  chipOnText: '#EDE6D8',
+  r: 8,
 };
 
 /** @deprecated Preferí useTheme().palette — alias del modo claro */

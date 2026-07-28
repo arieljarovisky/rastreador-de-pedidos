@@ -15,8 +15,7 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useAgencyOrdersContext } from '../../context/AgencyOrdersContext';
 import { Order, OrderStatus } from '../../types';
-import { AgencyPalette, fonts, spacing } from '../../theme';
-import { useTheme } from '../../context/ThemeContext';
+import { colors, fonts, radius, roleAccents, spacing } from '../../theme';
 import AgencyTopBar from '../../components/agency/AgencyTopBar';
 import AgencyOrderStub from '../../components/agency/AgencyOrderStub';
 import PostaIcon from '../../components/icons/PostaIcons';
@@ -50,6 +49,8 @@ type FilterKey =
   | 'entregado'
   | 'devuelto';
 
+const accent = roleAccents.agency;
+
 function shiftDateKey(key: string, days: number): string {
   const [y, m, d] = key.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
@@ -78,8 +79,6 @@ function matchesFilter(order: Order, filter: FilterKey): boolean {
 
 export default function AgencyOrdersScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { palette: t } = useTheme();
-  const styles = useMemo(() => createStyles(t), [t]);
   const route = useRoute<RouteProp<AgencyOrdersStackParamList, 'AgencyOrders'>>();
   const { user, token } = useAuth();
   const { orders, refreshing, refresh } = useAgencyOrdersContext();
@@ -155,7 +154,7 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
       .filter((o) => matchesFilter(o, filter))
       .filter((o) => {
         if (!q) return true;
-        const hay = `${o.clientName} ${shortOrderCode(o)} ${o.address} ${channelLabel(o)}`.toLowerCase();
+        const hay = `${o.clientName} ${shortOrderCode(o)} ${o.address} ${channelLabel(o)} ${o.sellerName ?? ''}`.toLowerCase();
         return hay.includes(q);
       })
       .sort((a, b) => {
@@ -199,7 +198,7 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
           { paddingBottom: TAB_BAR_CLEARANCE + insets.bottom + spacing.lg },
         ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.sello} />
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={accent} />
         }
         ListHeaderComponent={
           <View>
@@ -212,28 +211,32 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
                   ['7d', '7 días'],
                   ['todos', 'Todos'],
                 ] as const
-              ).map(([key, label]) => (
-                <Pressable
-                  key={key}
-                  onPress={() => {
-                    setPeriod(key);
-                    setFilter('todos');
-                  }}
-                  style={[styles.dateBtn, period === key && styles.dateBtnOn]}
-                >
-                  <Text style={[styles.dateBtnText, period === key && styles.dateBtnTextOn]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
+              ).map(([key, label]) => {
+                const on = period === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => {
+                      setPeriod(key);
+                      setFilter('todos');
+                    }}
+                    style={[
+                      styles.dateBtn,
+                      on && { backgroundColor: `${accent}18`, borderColor: `${accent}55` },
+                    ]}
+                  >
+                    <Text style={[styles.dateBtnText, on && { color: accent }]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <View style={styles.search}>
-              <PostaIcon name="search" size={16} color={t.ink3} strokeWidth={1.8} />
+              <PostaIcon name="search" size={16} color={colors.textFaint} strokeWidth={1.8} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Cliente, código o zona"
-                placeholderTextColor={t.ink3}
+                placeholder="Cliente, código, zona o vendedor"
+                placeholderTextColor={colors.textFaint}
                 value={query}
                 onChangeText={setQuery}
                 autoCorrect={false}
@@ -242,17 +245,23 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.chips}>
-              {chipDefs.map((chip) => (
-                <Pressable
-                  key={chip.key}
-                  onPress={() => setFilter(chip.key)}
-                  style={[styles.chip, filter === chip.key && styles.chipOn]}
-                >
-                  <Text style={[styles.chipText, filter === chip.key && styles.chipTextOn]}>
-                    {chip.label} · {chip.count}
-                  </Text>
-                </Pressable>
-              ))}
+              {chipDefs.map((chip) => {
+                const on = filter === chip.key;
+                return (
+                  <Pressable
+                    key={chip.key}
+                    onPress={() => setFilter(chip.key)}
+                    style={[
+                      styles.chip,
+                      on && { backgroundColor: `${accent}18`, borderColor: `${accent}55` },
+                    ]}
+                  >
+                    <Text style={[styles.chipText, on && { color: accent }]}>
+                      {chip.label} · {chip.count}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <Text style={styles.summary}>
@@ -274,93 +283,82 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
   );
 }
 
-function createStyles(t: AgencyPalette) {
-  return StyleSheet.create({
-  container: { flex: 1, backgroundColor: t.paper },
-  list: { paddingHorizontal: 16, paddingTop: 18 },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  list: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   listEmpty: { flexGrow: 1 },
   eyebrow: {
     fontFamily: fonts.monoRegular,
-    fontSize: 10.5,
+    fontSize: 10,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: t.ink3,
-    marginBottom: 10,
+    color: colors.textFaint,
+    marginBottom: spacing.sm,
   },
-  dates: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  dates: { flexDirection: 'row', gap: 6, marginBottom: spacing.md },
   dateBtn: {
     flex: 1,
-    height: 34,
-    borderRadius: 8,
+    height: 36,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: t.line2,
-    backgroundColor: t.card,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dateBtnOn: {
-    backgroundColor: t.ink,
-    borderColor: t.ink,
-  },
   dateBtnText: {
-    fontFamily: fonts.body,
+    fontFamily: fonts.bodyMedium,
     fontSize: 12.5,
-    color: t.ink2,
+    color: colors.textMuted,
   },
-  dateBtnTextOn: { color: t.chipOnText },
   search: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
-    backgroundColor: t.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: t.line,
-    borderRadius: t.r,
-    paddingHorizontal: 12,
-    height: 42,
-    marginBottom: 12,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    height: 44,
+    marginBottom: spacing.md,
   },
   searchInput: {
     flex: 1,
     fontFamily: fonts.body,
     fontSize: 14,
-    color: t.ink,
+    color: colors.text,
     padding: 0,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 7,
-    marginBottom: 14,
+    marginBottom: spacing.md,
   },
   chip: {
     paddingVertical: 7,
-    paddingHorizontal: 13,
-    borderRadius: 999,
+    paddingHorizontal: 12,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: t.line2,
-    backgroundColor: t.card,
-  },
-  chipOn: {
-    backgroundColor: t.ink,
-    borderColor: t.ink,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   chipText: {
-    fontFamily: fonts.body,
+    fontFamily: fonts.bodyMedium,
     fontSize: 12.5,
-    color: t.ink2,
+    color: colors.textMuted,
   },
-  chipTextOn: { color: t.chipOnText },
   summary: {
     fontFamily: fonts.body,
     fontSize: 12.5,
-    color: t.ink2,
-    marginBottom: 11,
+    color: colors.textMuted,
+    marginBottom: spacing.md,
   },
   summaryBold: {
     fontFamily: fonts.bodySemiBold,
     fontWeight: '600',
-    color: t.ink,
+    color: colors.text,
   },
   empty: {
     alignItems: 'center',
@@ -371,14 +369,13 @@ function createStyles(t: AgencyPalette) {
     fontFamily: fonts.displaySemi,
     fontWeight: '600',
     fontSize: 16,
-    color: t.ink,
+    color: colors.text,
     marginBottom: 5,
   },
   emptyBody: {
     fontFamily: fonts.body,
     fontSize: 13.5,
-    color: t.ink2,
+    color: colors.textMuted,
     textAlign: 'center',
   },
 });
-}
