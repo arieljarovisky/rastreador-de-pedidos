@@ -3,6 +3,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { pool } from '../config/database.js';
 import { User, UserRole } from '../types/index.js';
 import { getOperationalDateKey } from '../utils/delivery-deadline.js';
+import { isAgencyAdmin } from '../utils/roles.js';
 
 export type DriverScanEntryStatus = 'pending' | 'delivered' | 'cancelled';
 
@@ -10,6 +11,7 @@ export interface DriverScanEntry {
   id: string;
   agencyId: string;
   repartidorId: string;
+  repartidorName?: string;
   scanCode: string;
   routeDate: string;
   status: DriverScanEntryStatus;
@@ -23,6 +25,7 @@ interface DbDriverScanRow extends RowDataPacket {
   id: string;
   agency_id: string;
   repartidor_id: string;
+  repartidor_name?: string | null;
   scan_code: string;
   route_date: string | Date;
   status: DriverScanEntryStatus;
@@ -54,6 +57,7 @@ function mapRow(row: DbDriverScanRow, alreadyRegistered = false): DriverScanEntr
     id: row.id,
     agencyId: row.agency_id,
     repartidorId: row.repartidor_id,
+    repartidorName: row.repartidor_name ?? undefined,
     scanCode: row.scan_code,
     routeDate: formatRouteDate(row.route_date),
     status: row.status,
@@ -195,6 +199,40 @@ export async function listDriverScanEntries(
     [user.id, routeDate]
   );
   return rows.map((row) => mapRow(row));
+}
+
+export async function listAgencyDriverScanEntries(
+  user: User,
+  options?: { date?: string; repartidorId?: string }
+): Promise<{ date: string; entries: DriverScanEntry[] }> {
+  if (!isAgencyAdmin(user.role) || !user.agencyId) {
+    throw new Error('FORBIDDEN');
+  }
+  await ensureDriverScanEntriesTable();
+
+  const routeDate =
+    options?.date && isValidDateKey(options.date) ? options.date : getOperationalDateKey();
+
+  const params: unknown[] = [user.agencyId, routeDate];
+  let repartidorFilter = '';
+  if (options?.repartidorId?.trim()) {
+    repartidorFilter = ' AND e.repartidor_id = ?';
+    params.push(options.repartidorId.trim());
+  }
+
+  const [rows] = await pool.query<DbDriverScanRow[]>(
+    `SELECT e.*, u.name AS repartidor_name
+     FROM driver_scan_entries e
+     LEFT JOIN users u ON u.id = e.repartidor_id
+     WHERE e.agency_id = ? AND e.route_date = ?${repartidorFilter}
+     ORDER BY e.scanned_at DESC`,
+    params
+  );
+
+  return {
+    date: routeDate,
+    entries: rows.map((row) => mapRow(row)),
+  };
 }
 
 export async function updateDriverScanEntryStatus(

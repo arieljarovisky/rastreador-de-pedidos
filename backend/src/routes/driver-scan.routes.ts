@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { requireRoles } from '../middleware/auth.js';
 import { UserRole } from '../types/index.js';
+import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 import {
   createDriverScanEntry,
   listDriverScanEntries,
+  listAgencyDriverScanEntries,
   updateDriverScanEntryStatus,
   type DriverScanEntryStatus,
 } from '../services/driver-scan.service.js';
@@ -18,6 +20,32 @@ function parseOptionalCoord(value: unknown): number | undefined {
   }
   return undefined;
 }
+
+/** Agencia: bitácoras personales de todos los repartidores (o uno filtrado). */
+router.get(
+  '/agency',
+  requireRoles(...AGENCY_ADMIN_ROLES),
+  async (req: Request, res: Response) => {
+    try {
+      const date =
+        typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
+          ? req.query.date
+          : getOperationalDateKey();
+      const repartidorId =
+        typeof req.query.repartidorId === 'string' ? req.query.repartidorId : undefined;
+      const result = await listAgencyDriverScanEntries(req.user!, { date, repartidorId });
+      res.json(result);
+    } catch (err: unknown) {
+      const code = err instanceof Error ? err.message : 'ERROR';
+      if (code === 'FORBIDDEN') {
+        res.status(403).json({ error: 'Solo la agencia puede ver el registro de los repartidores.' });
+        return;
+      }
+      console.error('[driver-scan] GET /agency error:', err);
+      res.status(500).json({ error: 'No se pudo cargar el registro de la agencia.' });
+    }
+  }
+);
 
 router.get('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   try {

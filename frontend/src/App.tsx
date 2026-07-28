@@ -16,6 +16,7 @@ import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import ShippingAccountPage from './components/ShippingAccountPage.tsx';
 import DriverSettlementPage from './components/DriverSettlementPage.tsx';
+import AgencyDriverScanPage from './components/AgencyDriverScanPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
@@ -101,7 +102,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
-  const [accountSection, setAccountSection] = useState<'sellers' | 'drivers'>('sellers');
+  const [accountSection, setAccountSection] = useState<'sellers' | 'drivers' | 'scans'>('sellers');
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
@@ -2488,6 +2489,17 @@ export default function App() {
                     >
                       Repartidores
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setAccountSection('scans')}
+                      className={`flex-1 px-3 py-1.5 rounded-[5px] border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+                        accountSection === 'scans'
+                          ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                          : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+                      }`}
+                    >
+                      Registro
+                    </button>
                   </div>
                 )}
                 <div className="flex-1 min-h-0">
@@ -2495,6 +2507,11 @@ export default function App() {
                     <DriverSettlementPage
                       token={token}
                       user={user}
+                      repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
+                    />
+                  ) : isAgencyAdmin(user.role) && accountSection === 'scans' ? (
+                    <AgencyDriverScanPage
+                      token={token}
                       repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
                     />
                   ) : (
