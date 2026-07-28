@@ -21,7 +21,7 @@ import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import type { MarketplacePlatform } from './components/MarketplaceIntegrations.tsx';
-import { LogOut, Bell, Settings, LayoutDashboard, Package, Wallet, Tags, Crown } from 'lucide-react';
+import { LogOut, Bell, Settings, LayoutDashboard, Package, Wallet, Tags, Crown, ClipboardList } from 'lucide-react';
 import BootSplash from './components/ui/BootSplash.tsx';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
@@ -36,7 +36,7 @@ import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
 
-type AppTab = 'panel' | 'dashboard' | 'account' | 'prices' | 'notifications' | 'settings' | 'platform';
+type AppTab = 'panel' | 'dashboard' | 'account' | 'registro' | 'prices' | 'notifications' | 'settings' | 'platform';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
 
@@ -46,6 +46,7 @@ function readSavedTab(): AppTab {
     saved === 'panel' ||
     saved === 'dashboard' ||
     saved === 'account' ||
+    saved === 'registro' ||
     saved === 'prices' ||
     saved === 'notifications' ||
     saved === 'settings' ||
@@ -102,7 +103,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
-  const [accountSection, setAccountSection] = useState<'sellers' | 'drivers' | 'scans'>('sellers');
+  const [accountSection, setAccountSection] = useState<'sellers' | 'drivers'>('sellers');
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
@@ -1966,6 +1967,7 @@ export default function App() {
     (user?.role === UserRole.STORE_ADMIN || (user ? isAgencyAdmin(user.role) : false));
   const showAccount = showSettings;
   const showPrices = !isPlatformOnlyUser && (user ? isAgencyAdmin(user.role) : false);
+  const showRegistro = showPrices;
 
   useEffect(() => {
     if (!user) return;
@@ -1979,6 +1981,9 @@ export default function App() {
     if (mobileTab === 'account' && !showAccount) {
       setMobileTab('panel');
     }
+    if (mobileTab === 'registro' && !showRegistro) {
+      setMobileTab('panel');
+    }
     if (mobileTab === 'prices' && !showPrices) {
       setMobileTab('panel');
     }
@@ -1988,7 +1993,7 @@ export default function App() {
     if (user.role === UserRole.REPARTIDOR && mobileTab === 'panel') {
       setMobileTab('dashboard');
     }
-  }, [user, mobileTab, showSettings, showAccount, showPrices, isPlatformOwner, isPlatformOnlyUser, setMobileTab]);
+  }, [user, mobileTab, showSettings, showAccount, showRegistro, showPrices, isPlatformOwner, isPlatformOnlyUser, setMobileTab]);
 
   if (loading && !user) {
     return <BootSplash message="Sincronizando sistema" />;
@@ -2189,6 +2194,21 @@ export default function App() {
                     <Wallet className="w-3.5 h-3.5 shrink-0" />
                     <span className="hidden 2xl:inline">Cuenta</span>
                   </button>
+                  {showRegistro && (
+                    <button
+                      type="button"
+                      onClick={() => setMobileTab('registro')}
+                      title="Registro personal de paquetes de los repartidores"
+                      className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
+                        mobileTab === 'registro'
+                          ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
+                          : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                      }`}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden 2xl:inline">Registro</span>
+                    </button>
+                  )}
                   {showPrices && (
                     <button
                       type="button"
@@ -2313,6 +2333,19 @@ export default function App() {
               <Wallet className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
               <span>Cuenta</span>
             </button>
+            {showRegistro && (
+              <button
+                onClick={() => setMobileTab('registro')}
+                className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
+                  mobileTab === 'registro'
+                    ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
+                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                }`}
+              >
+                <ClipboardList className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
+                <span>Registro</span>
+              </button>
+            )}
             {showPrices && (
               <button
                 onClick={() => setMobileTab('prices')}
@@ -2394,7 +2427,7 @@ export default function App() {
       >
         <div
           className={`app-shell ${
-            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'dashboard' || mobileTab === 'platform'
+            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'registro' || mobileTab === 'prices' || mobileTab === 'dashboard' || mobileTab === 'platform'
               ? ''
               : 'h-full'
           }`}
@@ -2402,12 +2435,12 @@ export default function App() {
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col ${
-              mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'platform'
+              mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'registro' || mobileTab === 'prices' || mobileTab === 'platform'
                 ? 'w-full'
                 : mobileTab === 'dashboard'
                   ? 'xl:flex-row w-full'
                   : 'xl:flex-row h-full overflow-hidden'
-            } ${mobileTab !== 'settings' && mobileTab !== 'account' && mobileTab !== 'prices' && mobileTab !== 'platform' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
+            } ${mobileTab !== 'settings' && mobileTab !== 'account' && mobileTab !== 'registro' && mobileTab !== 'prices' && mobileTab !== 'platform' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
               <>
@@ -2489,17 +2522,6 @@ export default function App() {
                     >
                       Repartidores
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setAccountSection('scans')}
-                      className={`flex-1 px-3 py-1.5 rounded-[5px] border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
-                        accountSection === 'scans'
-                          ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                          : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                      }`}
-                    >
-                      Registro
-                    </button>
                   </div>
                 )}
                 <div className="flex-1 min-h-0">
@@ -2507,11 +2529,6 @@ export default function App() {
                     <DriverSettlementPage
                       token={token}
                       user={user}
-                      repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
-                    />
-                  ) : isAgencyAdmin(user.role) && accountSection === 'scans' ? (
-                    <AgencyDriverScanPage
-                      token={token}
                       repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
                     />
                   ) : (
@@ -2522,6 +2539,15 @@ export default function App() {
                     />
                   )}
                 </div>
+              </div>
+            )}
+
+            {mobileTab === 'registro' && token && isAgencyAdmin(user.role) && (
+              <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
+                <AgencyDriverScanPage
+                  token={token}
+                  repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
+                />
               </div>
             )}
 
