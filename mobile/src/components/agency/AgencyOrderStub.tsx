@@ -65,11 +65,22 @@ export default function AgencyOrderStub({ order, onPress }: Props) {
           {zone}
         </Text>
 
-        <View style={styles.sellerRow}>
-          <PostaIcon name="store" size={12} color={t.ink3} strokeWidth={1.6} />
-          <Text style={styles.seller} numberOfLines={1}>
-            {order.sellerName ? order.sellerName : 'Sin vendedor'}
-          </Text>
+        <View style={styles.sellerBox}>
+          <Text style={styles.sellerLabel}>Vendedor</Text>
+          <View style={styles.sellerRow}>
+            <PostaIcon
+              name="store"
+              size={13}
+              color={order.sellerName ? t.ink : t.ambar}
+              strokeWidth={1.6}
+            />
+            <Text
+              style={[styles.seller, !order.sellerName && { color: t.ambar }]}
+              numberOfLines={1}
+            >
+              {order.sellerName ? order.sellerName : 'Sin vendedor asignado'}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.foot}>
@@ -137,17 +148,33 @@ function createStyles(t: AgencyPalette) {
       fontFamily: fonts.body,
       color: t.ink2,
     },
+    sellerBox: {
+      marginTop: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: t.line,
+      backgroundColor: t.flat,
+    },
+    sellerLabel: {
+      fontFamily: fonts.monoRegular,
+      fontSize: 9.5,
+      letterSpacing: 0.8,
+      color: t.ink3,
+      textTransform: 'uppercase',
+      marginBottom: 4,
+    },
     sellerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 5,
-      marginTop: 6,
+      gap: 6,
     },
     seller: {
       flex: 1,
       fontFamily: fonts.bodyMedium,
-      fontSize: 12.5,
-      color: t.ink2,
+      fontSize: 13,
+      color: t.ink,
     },
     foot: {
       flexDirection: 'row',
