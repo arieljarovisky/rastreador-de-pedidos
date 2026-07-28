@@ -15,7 +15,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
-import { Order, OrderStatus } from '../types';
+import { api } from '../api';
+import { DriverScanEntry, Order, OrderStatus } from '../types';
 import { colors, roleAccents, spacing, typography } from '../theme';
 import OrderCard from '../components/OrderCard';
 import RepartidorMlConnectBar from '../components/RepartidorMlConnectBar';
@@ -33,7 +34,7 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RepartidorHomeStackParamList, 'Orders'>,
   NativeStackScreenProps<RepartidorStackParamList>
 >;
-type Tab = 'assigned' | 'available';
+type Tab = 'assigned' | 'available' | 'personal';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -42,10 +43,35 @@ function initials(name: string): string {
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
+function formatScanTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('es-AR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
+
+function formatRouteDateLabel(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  if (!y || !m || !d) return dateKey;
+  try {
+    return new Date(y, m - 1, d).toLocaleDateString('es-AR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  } catch {
+    return dateKey;
+  }
+}
+
 export default function OrdersScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const accent = roleAccents.repartidor;
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const {
     orders,
     loading,
@@ -58,11 +84,38 @@ export default function OrdersScreen({ navigation }: Props) {
   } = useOrdersContext();
   const [tab, setTab] = useState<Tab>('assigned');
   const [startingRoute, setStartingRoute] = useState(false);
+  const [personalEntries, setPersonalEntries] = useState<DriverScanEntry[]>([]);
+  const [personalDate, setPersonalDate] = useState<string>('');
+  const [personalLoading, setPersonalLoading] = useState(false);
+  const [personalRefreshing, setPersonalRefreshing] = useState(false);
+  const [personalError, setPersonalError] = useState<string | null>(null);
+  const [updatingEntryId, setUpdatingEntryId] = useState<string | null>(null);
+
+  const loadPersonal = useCallback(
+    async (opts?: { soft?: boolean }) => {
+      if (!token) return;
+      if (opts?.soft) setPersonalRefreshing(true);
+      else setPersonalLoading(true);
+      setPersonalError(null);
+      try {
+        const result = await api.getDriverScanEntries(token);
+        setPersonalEntries(result.entries);
+        setPersonalDate(result.date);
+      } catch (err) {
+        setPersonalError(err instanceof Error ? err.message : 'No se pudo cargar el registro.');
+      } finally {
+        setPersonalLoading(false);
+        setPersonalRefreshing(false);
+      }
+    },
+    [token]
+  );
 
   useFocusEffect(
     useCallback(() => {
       void refresh();
-    }, [refresh])
+      void loadPersonal({ soft: true });
+    }, [refresh, loadPersonal])
   );
 
   const myAssigned = useMemo(
@@ -84,6 +137,11 @@ export default function OrdersScreen({ navigation }: Props) {
   const available = useMemo(
     () => orders.filter((o) => o.status === OrderStatus.PENDING),
     [orders]
+  );
+
+  const personalPending = useMemo(
+    () => personalEntries.filter((e) => e.status === 'pending').length,
+    [personalEntries]
   );
 
   const data = tab === 'assigned' ? myAssigned : available;
@@ -126,12 +184,108 @@ export default function OrdersScreen({ navigation }: Props) {
     );
   };
 
+  const handlePersonalStatus = (
+    entry: DriverScanEntry,
+    status: 'delivered' | 'cancelled' | 'pending'
+  ) => {
+    if (!token) return;
+    void (async () => {
+      setUpdatingEntryId(entry.id);
+      try {
+        const updated = await api.updateDriverScanEntryStatus(token, entry.id, status);
+        setPersonalEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      } catch (err) {
+        Alert.alert(
+          'Registro',
+          err instanceof Error ? err.message : 'No se pudo actualizar el paquete.'
+        );
+      } finally {
+        setUpdatingEntryId(null);
+      }
+    })();
+  };
+
   const renderItem = ({ item }: { item: Order }) => (
     <OrderCard
       order={item}
       onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
     />
   );
+
+  const renderPersonalItem = ({ item }: { item: DriverScanEntry }) => {
+    const isPending = item.status === 'pending';
+    const busy = updatingEntryId === item.id;
+    const statusLabel =
+      item.status === 'delivered'
+        ? 'Entregado'
+        : item.status === 'cancelled'
+          ? 'Cancelado'
+          : 'Pendiente';
+    const statusColor =
+      item.status === 'delivered'
+        ? colors.green ?? '#4caf50'
+        : item.status === 'cancelled'
+          ? colors.red
+          : accent;
+
+    return (
+      <View style={styles.personalCard}>
+        <View style={styles.personalCardTop}>
+          <View style={styles.personalCardText}>
+            <Text style={styles.personalCode} numberOfLines={2}>
+              {item.scanCode}
+            </Text>
+            <Text style={styles.personalMeta}>
+              Escaneado {formatScanTime(item.scannedAt)}
+              {item.deliveredAt ? ` · Entregado ${formatScanTime(item.deliveredAt)}` : ''}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.personalBadge,
+              { borderColor: `${statusColor}55`, backgroundColor: `${statusColor}18` },
+            ]}
+          >
+            <Text style={[styles.personalBadgeText, { color: statusColor }]}>{statusLabel}</Text>
+          </View>
+        </View>
+        {busy ? (
+          <ActivityIndicator color={accent} style={{ marginTop: spacing.sm }} />
+        ) : (
+          <View style={styles.personalActions}>
+            {isPending ? (
+              <>
+                <Pressable
+                  style={[
+                    styles.personalActionBtn,
+                    { backgroundColor: `${colors.green ?? '#4caf50'}22` },
+                  ]}
+                  onPress={() => handlePersonalStatus(item, 'delivered')}
+                >
+                  <Text style={[styles.personalActionText, { color: colors.green ?? '#4caf50' }]}>
+                    Entregado
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.personalActionBtn, { backgroundColor: `${colors.red}18` }]}
+                  onPress={() => handlePersonalStatus(item, 'cancelled')}
+                >
+                  <Text style={[styles.personalActionText, { color: colors.red }]}>Cancelar</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={[styles.personalActionBtn, { backgroundColor: `${accent}18` }]}
+                onPress={() => handlePersonalStatus(item, 'pending')}
+              >
+                <Text style={[styles.personalActionText, { color: accent }]}>Reabrir</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -178,6 +332,14 @@ export default function OrdersScreen({ navigation }: Props) {
           color={colors.purple}
           onPress={() => setTab('available')}
         />
+        <ListTabButton
+          active={tab === 'personal'}
+          icon="tag"
+          label="Registro"
+          count={personalPending}
+          color={colors.blue ?? accent}
+          onPress={() => setTab('personal')}
+        />
       </ListTabBar>
 
       {tab === 'assigned' && readyToDeliver.length > 0 && !deliveringOrder ? (
@@ -189,7 +351,17 @@ export default function OrdersScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      {error && !loading ? (
+      {tab === 'personal' && personalDate ? (
+        <View style={styles.sessionBanner}>
+          <Text style={styles.sessionBannerText}>
+            {formatRouteDateLabel(personalDate)} · {personalEntries.length} paquete
+            {personalEntries.length === 1 ? '' : 's'} · {personalPending} pendiente
+            {personalPending === 1 ? '' : 's'}
+          </Text>
+        </View>
+      ) : null}
+
+      {tab !== 'personal' && error && !loading ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable onPress={() => void refresh()} hitSlop={8}>
@@ -198,7 +370,54 @@ export default function OrdersScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      {loading ? (
+      {tab === 'personal' && personalError && !personalLoading ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{personalError}</Text>
+          <Pressable onPress={() => void loadPersonal()} hitSlop={8}>
+            <Text style={styles.retryLink}>Reintentar</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {tab === 'personal' ? (
+        personalLoading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={accent} />
+          </View>
+        ) : (
+          <FlatList
+            data={personalEntries}
+            keyExtractor={(e) => e.id}
+            renderItem={renderPersonalItem}
+            contentContainerStyle={[
+              styles.list,
+              personalEntries.length === 0 && styles.listEmpty,
+              { paddingBottom: TAB_BAR_CLEARANCE + spacing.lg },
+            ]}
+            refreshControl={
+              <RefreshControl
+                refreshing={personalRefreshing}
+                onRefresh={() => void loadPersonal({ soft: true })}
+                tintColor={accent}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <EmptyState
+                icon="tag"
+                title="Sin paquetes en tu registro"
+                message="Escaneá etiquetas que no estén vinculadas a tu cuenta. Quedan en tu bitácora del día."
+                action={{
+                  label: 'Escanear etiqueta',
+                  icon: 'scan',
+                  color: accent,
+                  onPress: () => navigation.navigate('ScanLabel'),
+                }}
+              />
+            }
+          />
+        )
+      ) : loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={accent} />
         </View>
@@ -361,4 +580,53 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   routeBtn: { width: '100%' },
+  personalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  personalCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  personalCardText: { flex: 1, minWidth: 0, gap: 4 },
+  personalCode: {
+    ...typography.body(14, colors.text),
+    fontFamily: 'SpaceMono_700Bold',
+    fontWeight: '700',
+  },
+  personalMeta: {
+    ...typography.body(12, colors.textFaint),
+  },
+  personalBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  personalBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  personalActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  personalActionBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  personalActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });

@@ -228,3 +228,23 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
   INDEX idx_email_verification_expires (expires_at),
   CONSTRAINT fk_email_verification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Registro personal del repartidor: paquetes escaneados sin vínculo a cuenta ML/Posta.
+CREATE TABLE IF NOT EXISTS driver_scan_entries (
+  id VARCHAR(36) PRIMARY KEY,
+  agency_id VARCHAR(36) NOT NULL,
+  repartidor_id VARCHAR(36) NOT NULL,
+  scan_code VARCHAR(255) NOT NULL,
+  route_date DATE NOT NULL,
+  status ENUM('pending', 'delivered', 'cancelled') NOT NULL DEFAULT 'pending',
+  note VARCHAR(500) NULL,
+  scanned_at DATETIME(3) NOT NULL,
+  delivered_at DATETIME(3) NULL,
+  lat DECIMAL(10, 7) NULL,
+  lng DECIMAL(10, 7) NULL,
+  UNIQUE KEY uk_driver_scan_day_code (repartidor_id, route_date, scan_code),
+  INDEX idx_driver_scan_repartidor_date (repartidor_id, route_date),
+  INDEX idx_driver_scan_agency_date (agency_id, route_date),
+  CONSTRAINT fk_driver_scan_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_driver_scan_repartidor FOREIGN KEY (repartidor_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

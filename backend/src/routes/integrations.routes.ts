@@ -1021,23 +1021,28 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'ML_SCAN_INVALID') {
-      res.status(400).json({ error: 'El código escaneado no es válido. Usá la etiqueta de Mercado Libre Flex.' });
+      res.status(400).json({
+        error: 'El código escaneado no es válido. Usá la etiqueta de Mercado Libre Flex.',
+        code: 'ML_SCAN_INVALID',
+      });
       return;
     }
     if (message === 'ML_NOT_CONNECTED' || message === 'ML_NO_SELLERS_CONNECTED') {
       res.status(400).json({
         error: 'No hay ninguna cuenta de Mercado Libre conectada. Conectá tu cuenta ML en tu perfil.',
+        code: message,
       });
       return;
     }
     if (message === 'ML_SELLER_NOT_CONNECTED') {
-      res.status(400).json({ error: 'Ese vendedor no tiene Mercado Libre conectado.' });
+      res.status(400).json({ error: 'Ese vendedor no tiene Mercado Libre conectado.', code: message });
       return;
     }
     if (message === 'ML_COURIER_AUTH') {
       res.status(400).json({
         error:
           'Mercado Libre rechazó tu cuenta como mensajería Flex. Verificá que esté registrada como mensajería en ML y reconectala en tu perfil.',
+        code: 'ML_COURIER_AUTH',
       });
       return;
     }
@@ -1053,6 +1058,7 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
       res.status(404).json({
         error:
           'No se encontró un envío Flex con ese código en las cuentas ML conectadas. Verificá la etiqueta o conectá la cuenta correspondiente.',
+        code: 'ML_SCAN_NOT_FOUND',
       });
       return;
     }

@@ -257,6 +257,27 @@ export interface AgencyMercadoPagoStatus {
   account: { nickname: string | null; connectedAt: string } | null;
 }
 
+/** Entrada de bitácora personal del repartidor (paquetes sin vínculo ML). */
+export type DriverScanEntryStatus = 'pending' | 'delivered' | 'cancelled';
+
+export interface DriverScanEntry {
+  id: string;
+  agencyId: string;
+  repartidorId: string;
+  scanCode: string;
+  routeDate: string;
+  status: DriverScanEntryStatus;
+  note: string | null;
+  scannedAt: string;
+  deliveredAt: string | null;
+  alreadyRegistered: boolean;
+}
+
+export interface DriverScanDayResult {
+  date: string;
+  entries: DriverScanEntry[];
+}
+
 export function isAgencyAdmin(role: UserRole): boolean {
   return role === UserRole.SUPER_ADMIN || role === UserRole.LOGISTICS_ADMIN;
 }

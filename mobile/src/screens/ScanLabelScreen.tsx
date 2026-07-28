@@ -12,7 +12,7 @@ import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { colors, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
@@ -21,6 +21,15 @@ import { RepartidorStackParamList } from '../navigation/types';
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'ScanLabel'>;
 
 const POSTA_ORDER_QR_PREFIX = 'POSTA-ORDER:';
+
+/** Errores ML donde el paquete puede guardarse en el registro personal. */
+const PERSONAL_LOG_FALLBACK_CODES = new Set([
+  'ML_SCAN_NOT_FOUND',
+  'ML_SCAN_INVALID',
+  'ML_NOT_CONNECTED',
+  'ML_NO_SELLERS_CONNECTED',
+  'ML_SCAN_REGISTERED_NO_DATA',
+]);
 
 async function currentLocation(): Promise<{ lat: number; lng: number } | undefined> {
   try {
@@ -32,6 +41,20 @@ async function currentLocation(): Promise<{ lat: number; lng: number } | undefin
   return undefined;
 }
 
+function shouldFallbackToPersonalLog(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  if (err.code && PERSONAL_LOG_FALLBACK_CODES.has(err.code)) return true;
+  // Compatibilidad si el backend aún no manda `code`.
+  if (err.status === 404) return true;
+  return false;
+}
+
+function shortCode(code: string): string {
+  const trimmed = code.trim();
+  if (trimmed.length <= 28) return trimmed;
+  return `${trimmed.slice(0, 12)}…${trimmed.slice(-8)}`;
+}
+
 export default function ScanLabelScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
@@ -39,8 +62,27 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [processing, setProcessing] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [scannedCount, setScannedCount] = useState(0);
+  /** Si está activo, saltea ML y guarda directo en la bitácora personal. */
+  const [personalOnly, setPersonalOnly] = useState(false);
   const lastCodeRef = useRef<string | null>(null);
   const busyRef = useRef(false);
+
+  const savePersonal = useCallback(
+    async (code: string, location?: { lat: number; lng: number }) => {
+      if (!token) throw new Error('Sesión inválida');
+      const entry = await api.createDriverScanEntry(token, code, {
+        lat: location?.lat,
+        lng: location?.lng,
+      });
+      setScannedCount((n) => n + 1);
+      setLastResult(
+        entry.alreadyRegistered
+          ? `Ya en tu registro: ${shortCode(entry.scanCode)}`
+          : `Registro personal: ${shortCode(entry.scanCode)}`
+      );
+    },
+    [token]
+  );
 
   const handleScan = useCallback(
     async (scan: BarcodeScanningResult) => {
@@ -61,15 +103,25 @@ export default function ScanLabelScreen({ navigation }: Props) {
               ? `Ya asignado: ${result.order.clientName} (${result.order.id})`
               : `Asignado: ${result.order.clientName} (${result.order.id})`
           );
+        } else if (personalOnly) {
+          await savePersonal(code, location);
         } else {
-          const result = await api.scanImportMercadoLibre(token, code, location);
-          setScannedCount((n) => n + 1);
-          const flexNote = result.mlFlexRegistered ? '' : `\n${result.mlFlexMessage}`;
-          setLastResult(
-            result.alreadyImported
-              ? `Reescaneado: ${result.order.clientName} (${result.order.id})${flexNote}`
-              : `Agregado: ${result.order.clientName} (${result.order.id})${flexNote}`
-          );
+          try {
+            const result = await api.scanImportMercadoLibre(token, code, location);
+            setScannedCount((n) => n + 1);
+            const flexNote = result.mlFlexRegistered ? '' : `\n${result.mlFlexMessage}`;
+            setLastResult(
+              result.alreadyImported
+                ? `Reescaneado: ${result.order.clientName} (${result.order.id})${flexNote}`
+                : `Agregado: ${result.order.clientName} (${result.order.id})${flexNote}`
+            );
+          } catch (mlErr) {
+            if (shouldFallbackToPersonalLog(mlErr)) {
+              await savePersonal(code, location);
+            } else {
+              throw mlErr;
+            }
+          }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No se pudo procesar el escaneo.';
@@ -88,7 +140,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         busyRef.current = false;
       }
     },
-    [token]
+    [token, personalOnly, savePersonal]
   );
 
   if (!permission) {
@@ -138,10 +190,23 @@ export default function ScanLabelScreen({ navigation }: Props) {
 
       <View style={styles.frame} pointerEvents="none">
         <View style={styles.frameBox} />
-        <Text style={styles.frameHint}>Apuntá al QR de la etiqueta</Text>
+        <Text style={styles.frameHint}>
+          {personalOnly ? 'Registro personal — cualquier etiqueta' : 'Apuntá al QR de la etiqueta'}
+        </Text>
       </View>
 
       <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + spacing.lg }]}>
+        <Pressable
+          style={[styles.modeChip, personalOnly && styles.modeChipActive]}
+          onPress={() => setPersonalOnly((v) => !v)}
+          hitSlop={6}
+        >
+          <PostaIcon name="tag" size={14} color={personalOnly ? colors.accent : colors.textFaint} />
+          <Text style={[styles.modeChipText, personalOnly && styles.modeChipTextActive]}>
+            Solo registro personal
+          </Text>
+        </Pressable>
+
         {processing ? (
           <View style={styles.statusRow}>
             <ActivityIndicator color={colors.accent} />
@@ -156,7 +221,9 @@ export default function ScanLabelScreen({ navigation }: Props) {
           </View>
         ) : (
           <Text style={styles.statusText}>
-            Escaneá la etiqueta del pedido para asignártelo.
+            {personalOnly
+              ? 'Escaneá paquetes ajenos para llevar tu seguimiento del día.'
+              : 'Escaneá la etiqueta. Si no está vinculada a ML, se guarda en tu registro personal.'}
           </Text>
         )}
         {scannedCount > 0 ? (
@@ -238,6 +305,30 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
     backgroundColor: 'rgba(20, 18, 16, 0.85)',
+  },
+  modeChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  modeChipActive: {
+    borderColor: `${colors.accent}88`,
+    backgroundColor: `${colors.accent}22`,
+  },
+  modeChipText: {
+    color: colors.textFaint,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modeChipTextActive: {
+    color: colors.accent,
   },
   statusRow: {
     flexDirection: 'row',

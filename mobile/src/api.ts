@@ -16,6 +16,9 @@ import {
   BillingPaymentOptions,
   AgencySubscriptionStatus,
   AgencyMercadoPagoStatus,
+  DriverScanEntry,
+  DriverScanDayResult,
+  DriverScanEntryStatus,
 } from './types';
 import type { DeliveryZone } from './config/deliveryZones';
 import type { Barrio } from './config/deliveryZones';
@@ -189,6 +192,45 @@ export const api = {
       token,
       body: { code, lat: location?.lat, lng: location?.lng },
       timeoutMs: 30_000,
+    });
+  },
+
+  /** Repartidor: registra un código en la bitácora personal del día. */
+  createDriverScanEntry(
+    token: string,
+    code: string,
+    options?: { note?: string; lat?: number; lng?: number; routeDate?: string }
+  ): Promise<DriverScanEntry> {
+    return request<DriverScanEntry>('/api/driver-scan', {
+      method: 'POST',
+      token,
+      body: {
+        code,
+        note: options?.note,
+        lat: options?.lat,
+        lng: options?.lng,
+        routeDate: options?.routeDate,
+      },
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** Repartidor: listado de su registro personal por día operativo. */
+  getDriverScanEntries(token: string, date?: string): Promise<DriverScanDayResult> {
+    const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+    return request<DriverScanDayResult>(`/api/driver-scan${qs}`, { token });
+  },
+
+  /** Repartidor: marca un paquete del registro personal como entregado/cancelado/pendiente. */
+  updateDriverScanEntryStatus(
+    token: string,
+    entryId: string,
+    status: DriverScanEntryStatus
+  ): Promise<DriverScanEntry> {
+    return request<DriverScanEntry>(`/api/driver-scan/${entryId}/status`, {
+      method: 'PUT',
+      token,
+      body: { status },
     });
   },
 
