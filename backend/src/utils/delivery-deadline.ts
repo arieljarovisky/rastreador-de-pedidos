@@ -22,14 +22,17 @@ function getArDateParts(date: Date): ArDateParts {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(date);
 
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  // Algunos engines devuelven hour=24 cerca de medianoche con hour12:false.
+  const hour = get('hour') % 24;
   return {
     year: get('year'),
     month: get('month'),
     day: get('day'),
-    hour: get('hour'),
+    hour,
     minute: get('minute'),
   };
 }
@@ -58,10 +61,11 @@ function arLocalToUtc(year: number, month: number, day: number, hour: number, mi
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(guess);
 
   const get = (type: string) => Number(formatted.find((p) => p.type === type)?.value ?? 0);
-  const actualHour = get('hour');
+  const actualHour = get('hour') % 24;
   const actualMinute = get('minute');
   const diffMinutes = (hour - actualHour) * 60 + (minute - actualMinute);
   return new Date(guess.getTime() + diffMinutes * 60_000);

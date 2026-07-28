@@ -913,7 +913,10 @@ export async function updateOrderDeliveryDeadlineIfNeeded(
   return getOrderById(orderId);
 }
 
-/** Corrige día operativo de un import si la fecha de venta del marketplace difiere del deadline guardado. */
+/** Corrige día operativo de un import si la fecha de venta del marketplace difiere del deadline guardado.
+ *  Solo permite TRAER el día hacia atrás (p. ej. bug corte 00:00 → quedó en mañana).
+ *  Nunca adelanta el día: eso pisaba "Programado para hoy" en cada auto-import TN/Shopify.
+ */
 export async function syncMarketplaceOrderOperationalDay(
   orderId: string,
   soldAt: Date
@@ -929,18 +932,62 @@ export async function syncMarketplaceOrderOperationalDay(
     sellerId: order.sellerId,
     agencyId: order.agencyId,
   });
-  const expectedDeadline = computeDeliveryDeadline(soldAt, deadlineHour);
-  const expectedKey = getOperationalDateKey(expectedDeadline);
+  const todayKey = getOperationalDateKey(new Date());
+  const { start: todayStart } = getOperationalDayBounds(todayKey);
   const currentKey = order.deliveryDeadline
     ? getOperationalDateKey(new Date(order.deliveryDeadline))
     : getOperationalDateKey(new Date(order.createdAt));
 
-  if (expectedKey === currentKey) return null;
+  const [pinRows] = await pool.query<Array<{ n: number } & RowDataPacket>>(
+    `SELECT COUNT(*) AS n FROM order_history
+     WHERE order_id = ? AND comment LIKE 'Programado para hoy%' AND created_at >= ?`,
+    [orderId, todayStart]
+  );
+  const isPinnedToday = Number(pinRows[0]?.n) > 0;
 
+  // Override manual: fijar en hoy aunque el corte / auto-import digan mañana.
+  if (isPinnedToday && currentKey !== todayKey) {
+    const target = getTodayDeadline(deadlineHour);
+    const now = new Date();
+    await pool.query(
+      'UPDATE orders SET created_at = ?, delivery_deadline = ?, updated_at = ? WHERE id = ?',
+      [soldAt, target, now, orderId]
+    );
+    return getOrderById(orderId);
+  }
+
+  const expectedDeadline = computeDeliveryDeadline(soldAt, deadlineHour);
+  const expectedKey = getOperationalDateKey(expectedDeadline);
+
+  if (expectedKey === currentKey) {
+    const createdMs = new Date(order.createdAt).getTime();
+    if (createdMs !== soldAt.getTime()) {
+      await pool.query('UPDATE orders SET created_at = ?, updated_at = ? WHERE id = ?', [
+        soldAt,
+        new Date(),
+        orderId,
+      ]);
+    }
+    return null;
+  }
+
+  // No adelantar (rompe programación manual / operación del día).
+  if (currentKey != null && expectedKey > currentKey) {
+    return null;
+  }
+
+  // Pedido ya en hoy: no mover a otro día.
+  if (currentKey === todayKey) {
+    return null;
+  }
+
+  // Solo corrección hacia atrás (deadline adelantado respecto de la venta).
   const now = new Date();
+  const nextDeadline =
+    expectedKey < todayKey ? getTodayDeadline(deadlineHour) : expectedDeadline;
   await pool.query(
     'UPDATE orders SET created_at = ?, delivery_deadline = ?, updated_at = ? WHERE id = ?',
-    [soldAt, expectedDeadline, now, orderId]
+    [soldAt, nextDeadline, now, orderId]
   );
   return getOrderById(orderId);
 }
