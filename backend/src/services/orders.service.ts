@@ -15,6 +15,7 @@ import { isAgencyAdmin } from '../utils/roles.js';
 import {
   computeDeliveryDeadline,
   DELIVERY_DEADLINE_HOUR,
+  deliveryDeadlineForOperationalDate,
   getArHourMinute,
   getOperationalDateKey,
   getOperationalDayBounds,
@@ -708,6 +709,7 @@ export async function forceRescheduledOrdersStuckInPastToToday(
  * - Mueve a hoy los ausentes/reprogramables trabados en el pasado.
  * - Corrige ventas pre-corte con deadline adelantado (bug histórico corte 00:00).
  * - No avanza pedidos ya en HOY hacia mañana (respeta "Programado para hoy").
+ * - No mueve al día siguiente un pedido con override manual "Programado para hoy".
  * - No retrocede pedidos reprogramados que ya están en un día futuro.
  */
 export async function recalculateOpenOrdersDeliveryDeadlines(
@@ -754,6 +756,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       absent_comment: number;
       reschedule_comment: number;
       scheduled_today_comment: number;
+      last_programado_at: Date | null;
     } & RowDataPacket>
   >(
     `SELECT o.id, o.agency_id, o.seller_id, o.created_at, o.delivery_deadline,
@@ -773,7 +776,12 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
               WHERE h.order_id = o.id
                 AND h.comment LIKE 'Programado para hoy%'
                 AND h.created_at >= ?
-            ) AS scheduled_today_comment
+            ) AS scheduled_today_comment,
+            (
+              SELECT MAX(h.created_at) FROM order_history h
+              WHERE h.order_id = o.id
+                AND h.comment LIKE 'Programado para hoy%'
+            ) AS last_programado_at
      FROM orders o
      WHERE o.archived = 0
        AND o.status NOT IN (?, ?)
@@ -808,6 +816,11 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       Number(row.absent_comment) > 0 ||
       Number(row.reschedule_comment) > 0;
     const isPinnedToday = Number(row.scheduled_today_comment) > 0;
+    const lastProgramadoAt = row.last_programado_at ? new Date(row.last_programado_at) : null;
+    const manualProgramadoKey = lastProgramadoAt
+      ? getOperationalDateKey(lastProgramadoAt)
+      : null;
+    const hasManualProgramado = manualProgramadoKey != null;
     const createdHour = getArHourMinute(created).hour;
 
     let nextDeadline: Date | null = null;
@@ -818,6 +831,17 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
     } else if (isPinnedToday && (currentKey === todayKey || (currentKey != null && currentKey > todayKey))) {
       // Override manual "Programado para hoy": fijar en hoy (también si el recalc lo había empujado a mañana).
       nextDeadline = getTodayDeadline(hour);
+    } else if (
+      hasManualProgramado &&
+      manualProgramadoKey &&
+      currentKey != null &&
+      currentKey > manualProgramadoKey
+    ) {
+      // Empujado al día siguiente tras un "Programado para hoy" (p. ej. PED-2358): volver al día programado.
+      nextDeadline = deliveryDeadlineForOperationalDate(manualProgramadoKey, hour);
+    } else if (hasManualProgramado && currentKey != null && currentKey < todayKey) {
+      // Ya programado manualmente para un día pasado: no enrollar al día siguiente.
+      nextDeadline = null;
     } else if (!current) {
       nextDeadline = expected;
     } else if (currentKey != null && currentKey < todayKey) {
@@ -825,6 +849,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       nextDeadline = expectedKey >= todayKey ? expected : getTodayDeadline(hour);
     } else if (
       !isRescheduled &&
+      !hasManualProgramado &&
       currentKey != null &&
       expectedKey < currentKey &&
       createdHour < hour
@@ -853,6 +878,17 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       nextDeadline &&
       currentKey === todayKey &&
       getOperationalDateKey(nextDeadline) > todayKey
+    ) {
+      continue;
+    }
+
+    // Cinturón: no adelantar un override manual "Programado para hoy".
+    if (
+      nextDeadline &&
+      hasManualProgramado &&
+      manualProgramadoKey &&
+      getOperationalDateKey(nextDeadline) > manualProgramadoKey &&
+      !isRescheduled
     ) {
       continue;
     }
@@ -896,6 +932,17 @@ export async function updateOrderDeliveryDeadlineIfNeeded(
     const currentKey = getOperationalDateKey(current);
     if (currentKey === newKey) return null;
     if (newKey < currentKey && newKey < todayKey) return null;
+  }
+
+  // No adelantar si hay override manual "Programado para hoy" vigente hoy.
+  const { start: todayStart } = getOperationalDayBounds(todayKey);
+  const [pinRows] = await pool.query<Array<{ n: number } & RowDataPacket>>(
+    `SELECT COUNT(*) AS n FROM order_history
+     WHERE order_id = ? AND comment LIKE 'Programado para hoy%' AND created_at >= ?`,
+    [orderId, todayStart]
+  );
+  if (Number(pinRows[0]?.n) > 0 && newKey > todayKey) {
+    return null;
   }
 
   const now = new Date();
