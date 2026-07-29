@@ -20,6 +20,9 @@ export interface AgencyDriverScanEntry {
   routeDate: string;
   status: AgencyDriverScanStatus;
   note: string | null;
+  clientName?: string | null;
+  address?: string | null;
+  clientPhone?: string | null;
   scannedAt: string;
   deliveredAt: string | null;
 }
@@ -198,6 +201,7 @@ export default function AgencyDriverScanPage({
                   <th className="px-3 py-2 font-bold">Hora</th>
                   <th className="px-3 py-2 font-bold">Repartidor</th>
                   <th className="px-3 py-2 font-bold">Código</th>
+                  <th className="px-3 py-2 font-bold">Dirección</th>
                   <th className="px-3 py-2 font-bold">Estado</th>
                 </tr>
               </thead>
@@ -213,8 +217,13 @@ export default function AgencyDriverScanPage({
                     <td className="px-3 py-2 text-[var(--color-text)] whitespace-nowrap">
                       {entry.repartidorName ?? '—'}
                     </td>
-                    <td className="px-3 py-2 font-mono text-[var(--color-text)] break-all max-w-[20rem]">
-                      {formatScanCodeLabel(entry.scanCode)}
+                    <td className="px-3 py-2 font-mono text-[var(--color-text)] whitespace-nowrap">
+                      {entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}
+                    </td>
+                    <td className="px-3 py-2 text-[var(--color-text)] max-w-[18rem]">
+                      {entry.address?.trim() || (
+                        <span className="text-[var(--color-text-muted)]">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span

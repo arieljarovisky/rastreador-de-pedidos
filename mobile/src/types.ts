@@ -268,6 +268,9 @@ export interface DriverScanEntry {
   routeDate: string;
   status: DriverScanEntryStatus;
   note: string | null;
+  clientName?: string | null;
+  address?: string | null;
+  clientPhone?: string | null;
   scannedAt: string;
   deliveredAt: string | null;
   alreadyRegistered: boolean;

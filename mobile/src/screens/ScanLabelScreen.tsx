@@ -72,8 +72,12 @@ export default function ScanLabelScreen({ navigation }: Props) {
       setScannedCount((n) => n + 1);
       setLastResult(
         entry.alreadyRegistered
-          ? `Ya en tu registro: ${formatScanCodeLabel(entry.scanCode)}`
-          : `Registro personal: ${formatScanCodeLabel(entry.scanCode)}`
+          ? `Ya en tu registro: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
+              entry.address?.trim() ? `\n${entry.address.trim()}` : ''
+            }`
+          : `Registro personal: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
+              entry.address?.trim() ? `\n${entry.address.trim()}` : ''
+            }`
       );
     },
     [token]

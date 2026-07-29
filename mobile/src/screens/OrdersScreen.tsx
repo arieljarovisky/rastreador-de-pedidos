@@ -234,9 +234,17 @@ export default function OrdersScreen({ navigation }: Props) {
         <View style={styles.personalCardTop}>
           <View style={styles.personalCardText}>
             <Text style={styles.personalCode} numberOfLines={2}>
-              {formatScanCodeLabel(item.scanCode)}
+              {item.clientName?.trim() || formatScanCodeLabel(item.scanCode)}
             </Text>
+            {item.address?.trim() ? (
+              <Text style={styles.personalAddress} numberOfLines={2}>
+                {item.address.trim()}
+              </Text>
+            ) : null}
             <Text style={styles.personalMeta}>
+              {item.clientName?.trim()
+                ? `#${formatScanCodeLabel(item.scanCode)} · `
+                : ''}
               Escaneado {formatScanTime(item.scannedAt)}
               {item.deliveredAt ? ` · Entregado ${formatScanTime(item.deliveredAt)}` : ''}
             </Text>
@@ -600,6 +608,9 @@ const styles = StyleSheet.create({
     ...typography.body(14, colors.text),
     fontFamily: 'SpaceMono_700Bold',
     fontWeight: '700',
+  },
+  personalAddress: {
+    ...typography.body(13, colors.text),
   },
   personalMeta: {
     ...typography.body(12, colors.textFaint),

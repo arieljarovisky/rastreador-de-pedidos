@@ -4,6 +4,15 @@ import { pool } from '../config/database.js';
 import { User, UserRole } from '../types/index.js';
 import { getOperationalDateKey } from '../utils/delivery-deadline.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import { getIntegration, listMercadoLibreIntegrationsForAgencyScan } from './integrations.service.js';
+import {
+  extractContactFromMlShipment,
+  fetchMercadoLibreShipment,
+  parseMercadoLibreScanCode,
+  registerMercadoLibreCourierShipment,
+  resolveMercadoLibreFlexFromScan,
+  tryGetValidMercadoLibreIntegration,
+} from './mercadolibre.service.js';
 
 export type DriverScanEntryStatus = 'pending' | 'delivered' | 'cancelled';
 
@@ -16,6 +25,9 @@ export interface DriverScanEntry {
   routeDate: string;
   status: DriverScanEntryStatus;
   note: string | null;
+  clientName: string | null;
+  address: string | null;
+  clientPhone: string | null;
   scannedAt: string;
   deliveredAt: string | null;
   alreadyRegistered: boolean;
@@ -30,8 +42,17 @@ interface DbDriverScanRow extends RowDataPacket {
   route_date: string | Date;
   status: DriverScanEntryStatus;
   note: string | null;
+  client_name?: string | null;
+  address?: string | null;
+  client_phone?: string | null;
   scanned_at: Date | string;
   delivered_at: Date | string | null;
+}
+
+interface MlContactInfo {
+  clientName: string | null;
+  address: string | null;
+  clientPhone: string | null;
 }
 
 function toIso(value: Date | string | null | undefined): string | null {
@@ -62,6 +83,9 @@ function mapRow(row: DbDriverScanRow, alreadyRegistered = false): DriverScanEntr
     routeDate: formatRouteDate(row.route_date),
     status: row.status,
     note: row.note,
+    clientName: row.client_name?.trim() ? row.client_name.trim() : null,
+    address: row.address?.trim() ? row.address.trim() : null,
+    clientPhone: row.client_phone?.trim() ? row.client_phone.trim() : null,
     scannedAt: toIso(row.scanned_at) ?? new Date().toISOString(),
     deliveredAt: toIso(row.delivered_at),
     alreadyRegistered,
@@ -104,7 +128,7 @@ function isValidDateKey(value: string): boolean {
 
 let tableReady: Promise<void> | null = null;
 
-/** Self-heal: crea la tabla si el migrate no corrió aún. */
+/** Self-heal: crea la tabla / columnas si el migrate no corrió aún. */
 export function ensureDriverScanEntriesTable(): Promise<void> {
   if (!tableReady) {
     tableReady = (async () => {
@@ -117,6 +141,9 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
           route_date DATE NOT NULL,
           status ENUM('pending', 'delivered', 'cancelled') NOT NULL DEFAULT 'pending',
           note VARCHAR(500) NULL,
+          client_name VARCHAR(255) NULL,
+          address VARCHAR(500) NULL,
+          client_phone VARCHAR(64) NULL,
           scanned_at DATETIME(3) NOT NULL,
           delivered_at DATETIME(3) NULL,
           lat DECIMAL(10, 7) NULL,
@@ -128,12 +155,124 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
           CONSTRAINT fk_driver_scan_repartidor FOREIGN KEY (repartidor_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
+
+      const [cols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'driver_scan_entries'
+           AND COLUMN_NAME IN ('client_name', 'address', 'client_phone')`
+      );
+      const have = new Set(cols.map((c) => c.COLUMN_NAME));
+      if (!have.has('client_name')) {
+        await pool.query(
+          'ALTER TABLE driver_scan_entries ADD COLUMN client_name VARCHAR(255) NULL AFTER note'
+        );
+      }
+      if (!have.has('address')) {
+        await pool.query(
+          'ALTER TABLE driver_scan_entries ADD COLUMN address VARCHAR(500) NULL AFTER client_name'
+        );
+      }
+      if (!have.has('client_phone')) {
+        await pool.query(
+          'ALTER TABLE driver_scan_entries ADD COLUMN client_phone VARCHAR(64) NULL AFTER address'
+        );
+      }
     })().catch((err) => {
       tableReady = null;
       throw err;
     });
   }
   return tableReady;
+}
+
+/**
+ * Intenta obtener destinatario/dirección desde ML (token repartidor + vendedores de la agencia).
+ * No falla el alta personal si ML no responde o el envío no es legible.
+ */
+async function lookupMlContactForScan(
+  user: User & { agencyId: string },
+  rawCode: string
+): Promise<MlContactInfo | null> {
+  const candidates = parseMercadoLibreScanCode(rawCode);
+  if (candidates.length === 0) return null;
+
+  try {
+    const contexts = await listMercadoLibreIntegrationsForAgencyScan(user.agencyId);
+    const repartidorMl = await getIntegration(user.id, 'mercadolibre');
+
+    if (repartidorMl) {
+      for (const candidate of candidates) {
+        if (candidate.type !== 'shipment') continue;
+        try {
+          await registerMercadoLibreCourierShipment(repartidorMl, candidate.id);
+        } catch (err) {
+          console.warn('[driver-scan] courier-shipment error:', err);
+        }
+      }
+      if (!contexts.some((ctx) => ctx.integration.userId === repartidorMl.userId)) {
+        contexts.push({ integration: repartidorMl, isAgencyAccount: true });
+      }
+    }
+
+    for (const { integration } of contexts) {
+      const valid = await tryGetValidMercadoLibreIntegration(integration.userId);
+      if (!valid) continue;
+
+      const flex = await resolveMercadoLibreFlexFromScan(valid, candidates);
+      if (flex?.address) {
+        return {
+          clientName: flex.clientName?.trim() || null,
+          address: flex.address.trim(),
+          clientPhone: flex.clientPhone?.trim() || null,
+        };
+      }
+
+      for (const candidate of candidates) {
+        if (candidate.type !== 'shipment') continue;
+        try {
+          const shipment = await fetchMercadoLibreShipment(valid, candidate.id, {
+            quietStatuses: [403, 404],
+          });
+          const contact = extractContactFromMlShipment(shipment);
+          if (contact?.address) {
+            return {
+              clientName: contact.clientName?.trim() || null,
+              address: contact.address.trim(),
+              clientPhone: contact.clientPhone?.trim() || null,
+            };
+          }
+        } catch {
+          // probar siguiente candidato / token
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[driver-scan] lookup ML contact failed:', err);
+  }
+
+  return null;
+}
+
+async function persistContactOnEntry(
+  entryId: string,
+  contact: MlContactInfo
+): Promise<DbDriverScanRow | null> {
+  await pool.query(
+    `UPDATE driver_scan_entries
+     SET client_name = ?, address = ?, client_phone = ?
+     WHERE id = ?`,
+    [
+      contact.clientName?.slice(0, 255) ?? null,
+      contact.address?.slice(0, 500) ?? null,
+      contact.clientPhone?.slice(0, 64) ?? null,
+      entryId,
+    ]
+  );
+  const [rows] = await pool.query<DbDriverScanRow[]>(
+    'SELECT * FROM driver_scan_entries WHERE id = ? LIMIT 1',
+    [entryId]
+  );
+  return rows[0] ?? null;
 }
 
 export async function createDriverScanEntry(
@@ -157,14 +296,25 @@ export async function createDriverScanEntry(
     [user.id, routeDate, scanCode]
   );
   if (existingRows[0]) {
+    // Reescaneo: completar dirección si todavía no la tenemos.
+    if (!existingRows[0].address?.trim()) {
+      const contact = await lookupMlContactForScan(user, data.code);
+      if (contact?.address) {
+        const updated = await persistContactOnEntry(existingRows[0].id, contact);
+        if (updated) return mapRow(updated, true);
+      }
+    }
     return mapRow(existingRows[0], true);
   }
+
+  const contact = await lookupMlContactForScan(user, data.code);
 
   try {
     await pool.query<ResultSetHeader>(
       `INSERT INTO driver_scan_entries
-        (id, agency_id, repartidor_id, scan_code, route_date, status, note, scanned_at, delivered_at, lat, lng)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, NULL, ?, ?)`,
+        (id, agency_id, repartidor_id, scan_code, route_date, status, note,
+         client_name, address, client_phone, scanned_at, delivered_at, lat, lng)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, NULL, ?, ?)`,
       [
         id,
         user.agencyId,
@@ -172,6 +322,9 @@ export async function createDriverScanEntry(
         scanCode,
         routeDate,
         note,
+        contact?.clientName?.slice(0, 255) ?? null,
+        contact?.address?.slice(0, 500) ?? null,
+        contact?.clientPhone?.slice(0, 64) ?? null,
         now,
         data.lat ?? null,
         data.lng ?? null,
