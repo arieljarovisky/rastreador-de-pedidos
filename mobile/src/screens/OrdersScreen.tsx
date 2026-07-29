@@ -28,6 +28,7 @@ import MonoLabel from '../components/ui/MonoLabel';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
+import { formatScanCodeLabel } from '../utils/scanCodeLabel';
 import { RepartidorHomeStackParamList, RepartidorStackParamList } from '../navigation/types';
 
 type Props = CompositeScreenProps<
@@ -233,7 +234,7 @@ export default function OrdersScreen({ navigation }: Props) {
         <View style={styles.personalCardTop}>
           <View style={styles.personalCardText}>
             <Text style={styles.personalCode} numberOfLines={2}>
-              {item.scanCode}
+              {formatScanCodeLabel(item.scanCode)}
             </Text>
             <Text style={styles.personalMeta}>
               Escaneado {formatScanTime(item.scannedAt)}

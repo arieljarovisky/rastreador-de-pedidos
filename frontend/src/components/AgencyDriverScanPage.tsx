@@ -49,6 +49,25 @@ function formatTime(iso: string): string {
   }
 }
 
+/** Extrae ID legible de payloads JSON de QR (p. ej. ML Flex). */
+function formatScanCodeLabel(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      const id = parsed.id ?? parsed.shipment_id ?? parsed.shipping_id ?? parsed.order_id;
+      if (id != null && String(id).trim()) return String(id).trim();
+    } catch {
+      // fall through
+    }
+  }
+  if (trimmed.length <= 40) return trimmed;
+  const digits = trimmed.match(/\d{8,}/);
+  if (digits?.[0]) return digits[0];
+  return `${trimmed.slice(0, 12)}…${trimmed.slice(-8)}`;
+}
+
 export default function AgencyDriverScanPage({
   token,
   repartidores = [],
@@ -195,7 +214,7 @@ export default function AgencyDriverScanPage({
                       {entry.repartidorName ?? '—'}
                     </td>
                     <td className="px-3 py-2 font-mono text-[var(--color-text)] break-all max-w-[20rem]">
-                      {entry.scanCode}
+                      {formatScanCodeLabel(entry.scanCode)}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span

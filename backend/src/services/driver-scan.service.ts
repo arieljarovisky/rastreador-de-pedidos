@@ -74,9 +74,26 @@ function assertRepartidor(user: User): asserts user is User & { agencyId: string
   }
 }
 
+/**
+ * Extrae un código legible/estable del payload del QR.
+ * Los QR de ML Flex suelen ser JSON `{"id":"…","sender_id":…,"hash_code":"…"}`.
+ */
 function normalizeScanCode(raw: string): string {
   const code = raw.trim().replace(/\s+/g, ' ');
   if (!code) throw new Error('INVALID_CODE');
+
+  if (code.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(code) as Record<string, unknown>;
+      const id = parsed.id ?? parsed.shipment_id ?? parsed.shipping_id ?? parsed.order_id;
+      if (id != null && String(id).trim()) {
+        return String(id).trim().slice(0, 255);
+      }
+    } catch {
+      // seguir con el string original
+    }
+  }
+
   if (code.length > 255) return code.slice(0, 255);
   return code;
 }

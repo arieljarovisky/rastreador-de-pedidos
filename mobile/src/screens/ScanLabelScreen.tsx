@@ -16,6 +16,7 @@ import { api, ApiError } from '../api';
 import { colors, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
+import { formatScanCodeLabel } from '../utils/scanCodeLabel';
 import { RepartidorStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'ScanLabel'>;
@@ -49,12 +50,6 @@ function shouldFallbackToPersonalLog(err: unknown): boolean {
   return false;
 }
 
-function shortCode(code: string): string {
-  const trimmed = code.trim();
-  if (trimmed.length <= 28) return trimmed;
-  return `${trimmed.slice(0, 12)}…${trimmed.slice(-8)}`;
-}
-
 export default function ScanLabelScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
@@ -77,8 +72,8 @@ export default function ScanLabelScreen({ navigation }: Props) {
       setScannedCount((n) => n + 1);
       setLastResult(
         entry.alreadyRegistered
-          ? `Ya en tu registro: ${shortCode(entry.scanCode)}`
-          : `Registro personal: ${shortCode(entry.scanCode)}`
+          ? `Ya en tu registro: ${formatScanCodeLabel(entry.scanCode)}`
+          : `Registro personal: ${formatScanCodeLabel(entry.scanCode)}`
       );
     },
     [token]
