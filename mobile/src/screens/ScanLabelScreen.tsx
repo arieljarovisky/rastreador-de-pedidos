@@ -2,9 +2,11 @@ import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
@@ -17,6 +19,7 @@ import { colors, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
 import { formatScanCodeLabel } from '../utils/scanCodeLabel';
+import { DriverScanEntry } from '../types';
 import { RepartidorStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'ScanLabel'>;
@@ -59,8 +62,29 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [scannedCount, setScannedCount] = useState(0);
   /** Si está activo, saltea ML y guarda directo en la bitácora personal. */
   const [personalOnly, setPersonalOnly] = useState(false);
+  const [addressDraft, setAddressDraft] = useState('');
+  const [pendingAddressEntry, setPendingAddressEntry] = useState<DriverScanEntry | null>(null);
+  const [savingAddress, setSavingAddress] = useState(false);
   const lastCodeRef = useRef<string | null>(null);
   const busyRef = useRef(false);
+
+  const applyPersonalResult = useCallback((entry: DriverScanEntry) => {
+    setScannedCount((n) => n + 1);
+    setLastResult(
+      entry.alreadyRegistered
+        ? `Ya en tu registro: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
+            entry.address?.trim() ? `\n${entry.address.trim()}` : ''
+          }`
+        : `Registro personal: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
+            entry.address?.trim() ? `\n${entry.address.trim()}` : ''
+          }`
+    );
+    // El QR no trae la calle: si ML no la dio, pedimos la de la etiqueta.
+    if (!entry.address?.trim()) {
+      setAddressDraft('');
+      setPendingAddressEntry(entry);
+    }
+  }, []);
 
   const savePersonal = useCallback(
     async (code: string, location?: { lat: number; lng: number }) => {
@@ -69,24 +93,42 @@ export default function ScanLabelScreen({ navigation }: Props) {
         lat: location?.lat,
         lng: location?.lng,
       });
-      setScannedCount((n) => n + 1);
-      setLastResult(
-        entry.alreadyRegistered
-          ? `Ya en tu registro: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
-              entry.address?.trim() ? `\n${entry.address.trim()}` : ''
-            }`
-          : `Registro personal: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
-              entry.address?.trim() ? `\n${entry.address.trim()}` : ''
-            }`
-      );
+      applyPersonalResult(entry);
     },
-    [token]
+    [token, applyPersonalResult]
   );
+
+  const confirmAddressFromLabel = useCallback(async () => {
+    if (!token || !pendingAddressEntry) return;
+    const address = addressDraft.trim();
+    if (!address) {
+      Alert.alert('Dirección', 'Escribí la dirección que figura en la etiqueta.');
+      return;
+    }
+    setSavingAddress(true);
+    try {
+      const updated = await api.updateDriverScanEntryDetails(token, pendingAddressEntry.id, {
+        address,
+      });
+      setPendingAddressEntry(null);
+      setAddressDraft('');
+      setLastResult(
+        `Registro personal: ${updated.clientName?.trim() || formatScanCodeLabel(updated.scanCode)}\n${updated.address}`
+      );
+    } catch (err) {
+      Alert.alert(
+        'Dirección',
+        err instanceof Error ? err.message : 'No se pudo guardar la dirección.'
+      );
+    } finally {
+      setSavingAddress(false);
+    }
+  }, [token, pendingAddressEntry, addressDraft]);
 
   const handleScan = useCallback(
     async (scan: BarcodeScanningResult) => {
       const code = scan.data?.trim();
-      if (!token || !code || busyRef.current) return;
+      if (!token || !code || busyRef.current || pendingAddressEntry) return;
       // Evita reprocesar el mismo QR mientras sigue en el encuadre.
       if (lastCodeRef.current === code) return;
       busyRef.current = true;
@@ -139,7 +181,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         busyRef.current = false;
       }
     },
-    [token, personalOnly, savePersonal]
+    [token, personalOnly, savePersonal, pendingAddressEntry]
   );
 
   if (!permission) {
@@ -176,8 +218,53 @@ export default function ScanLabelScreen({ navigation }: Props) {
         style={StyleSheet.absoluteFill}
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ['qr', 'code128', 'datamatrix'] }}
-        onBarcodeScanned={processing ? undefined : (scan) => void handleScan(scan)}
+        onBarcodeScanned={processing || pendingAddressEntry ? undefined : (scan) => void handleScan(scan)}
       />
+
+      <Modal
+        visible={Boolean(pendingAddressEntry)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingAddressEntry(null)}
+      >
+        <View style={styles.addressModalBackdrop}>
+          <View style={styles.addressModalCard}>
+            <Text style={styles.addressModalTitle}>Dirección de la etiqueta</Text>
+            <Text style={styles.addressModalHint}>
+              El QR no trae la calle. Copiá la dirección impresa (ej. Calle Manuel Jose Baez 583).
+            </Text>
+            <TextInput
+              style={styles.addressInput}
+              value={addressDraft}
+              onChangeText={setAddressDraft}
+              placeholder="Dirección del destinatario"
+              placeholderTextColor={colors.textFaint}
+              autoFocus
+              multiline
+            />
+            <View style={styles.addressModalActions}>
+              <Pressable
+                style={styles.addressSkipBtn}
+                onPress={() => setPendingAddressEntry(null)}
+                disabled={savingAddress}
+              >
+                <Text style={styles.addressSkipText}>Omitir</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.addressSaveBtn, savingAddress && { opacity: 0.6 }]}
+                onPress={() => void confirmAddressFromLabel()}
+                disabled={savingAddress}
+              >
+                {savingAddress ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.addressSaveText}>Guardar</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable style={styles.closeBtn} onPress={() => navigation.goBack()} hitSlop={12}>
@@ -341,4 +428,62 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   doneBtn: { width: '100%' },
+  addressModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  addressModalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius?.lg ?? 16,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  addressModalTitle: {
+    ...typography.displayTitle(18),
+    color: colors.text,
+  },
+  addressModalHint: {
+    ...typography.body(13, colors.textFaint),
+    lineHeight: 18,
+  },
+  addressInput: {
+    marginTop: spacing.xs,
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: colors.text,
+    fontSize: 15,
+    textAlignVertical: 'top',
+  },
+  addressModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  addressSkipBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  addressSkipText: {
+    color: colors.textFaint,
+    fontWeight: '600',
+  },
+  addressSaveBtn: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    minWidth: 96,
+    alignItems: 'center',
+  },
+  addressSaveText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
 });

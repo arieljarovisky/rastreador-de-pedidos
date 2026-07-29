@@ -7,6 +7,7 @@ import {
   listDriverScanEntries,
   listAgencyDriverScanEntries,
   updateDriverScanEntryStatus,
+  updateDriverScanEntryDetails,
   type DriverScanEntryStatus,
 } from '../services/driver-scan.service.js';
 import { getOperationalDateKey } from '../utils/delivery-deadline.js';
@@ -18,6 +19,11 @@ function parseOptionalCoord(value: unknown): number | undefined {
   if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
     return Number(value);
   }
+  return undefined;
+}
+
+function parseOptionalText(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
   return undefined;
 }
 
@@ -67,12 +73,15 @@ router.get('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Res
 });
 
 router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  const { code, note, lat, lng, routeDate } = req.body as {
+  const { code, note, lat, lng, routeDate, clientName, address, clientPhone } = req.body as {
     code?: string;
     note?: string;
     lat?: unknown;
     lng?: unknown;
     routeDate?: string;
+    clientName?: unknown;
+    address?: unknown;
+    clientPhone?: unknown;
   };
 
   if (!code?.trim()) {
@@ -87,6 +96,9 @@ router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Re
       lat: parseOptionalCoord(lat),
       lng: parseOptionalCoord(lng),
       routeDate,
+      clientName: parseOptionalText(clientName),
+      address: parseOptionalText(address),
+      clientPhone: parseOptionalText(clientPhone),
     });
     res.status(entry.alreadyRegistered ? 200 : 201).json(entry);
   } catch (err: unknown) {
@@ -101,6 +113,39 @@ router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Re
     }
     console.error('[driver-scan] POST / error:', err);
     res.status(500).json({ error: 'No se pudo registrar el paquete.' });
+  }
+});
+
+router.put('/:id/details', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
+  const { clientName, address, clientPhone } = req.body as {
+    clientName?: unknown;
+    address?: unknown;
+    clientPhone?: unknown;
+  };
+
+  try {
+    const entry = await updateDriverScanEntryDetails(req.user!, req.params.id, {
+      clientName: parseOptionalText(clientName),
+      address: parseOptionalText(address),
+      clientPhone: parseOptionalText(clientPhone),
+    });
+    res.json(entry);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'ERROR';
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para actualizar este registro.' });
+      return;
+    }
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Registro no encontrado.' });
+      return;
+    }
+    if (message === 'INVALID_ADDRESS') {
+      res.status(400).json({ error: 'Ingresá la dirección del destinatario.', code: 'INVALID_ADDRESS' });
+      return;
+    }
+    console.error('[driver-scan] PUT /:id/details error:', err);
+    res.status(500).json({ error: 'No se pudo actualizar el registro.' });
   }
 });
 

@@ -4,7 +4,11 @@ import { pool } from '../config/database.js';
 import { User, UserRole } from '../types/index.js';
 import { getOperationalDateKey } from '../utils/delivery-deadline.js';
 import { isAgencyAdmin } from '../utils/roles.js';
-import { getIntegration, listMercadoLibreIntegrationsForAgencyScan } from './integrations.service.js';
+import {
+  getIntegration,
+  listMercadoLibreIntegrationsForAgencyScan,
+  type StoreIntegration,
+} from './integrations.service.js';
 import {
   extractContactFromMlShipment,
   fetchMercadoLibreShipment,
@@ -12,6 +16,7 @@ import {
   registerMercadoLibreCourierShipment,
   resolveMercadoLibreFlexFromScan,
   tryGetValidMercadoLibreIntegration,
+  type MercadoLibreScanCandidate,
 } from './mercadolibre.service.js';
 
 export type DriverScanEntryStatus = 'pending' | 'delivered' | 'cancelled';
@@ -185,8 +190,65 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
   return tableReady;
 }
 
+/** `sender_id` del JSON del QR Flex (vendedor dueño del envío). */
+function extractSenderIdFromScan(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    if (parsed.sender_id != null && String(parsed.sender_id).trim()) {
+      return String(parsed.sender_id).trim();
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readContactWithIntegration(
+  integration: StoreIntegration,
+  candidates: MercadoLibreScanCandidate[]
+): Promise<MlContactInfo | null> {
+  const valid = await tryGetValidMercadoLibreIntegration(integration.userId);
+  if (!valid) return null;
+
+  const flex = await resolveMercadoLibreFlexFromScan(valid, candidates);
+  if (flex?.address) {
+    return {
+      clientName: flex.clientName?.trim() || null,
+      address: flex.address.trim(),
+      clientPhone: flex.clientPhone?.trim() || null,
+    };
+  }
+
+  for (const candidate of candidates) {
+    if (candidate.type !== 'shipment') continue;
+    try {
+      const shipment = await fetchMercadoLibreShipment(valid, candidate.id, {
+        quietStatuses: [403, 404],
+      });
+      const contact = extractContactFromMlShipment(shipment);
+      if (contact?.address) {
+        return {
+          clientName: contact.clientName?.trim() || null,
+          address: contact.address.trim(),
+          clientPhone: contact.clientPhone?.trim() || null,
+        };
+      }
+    } catch {
+      // siguiente candidato
+    }
+  }
+  return null;
+}
+
 /**
  * Intenta obtener destinatario/dirección desde ML (token repartidor + vendedores de la agencia).
+ * Prioriza el `sender_id` del QR (vendedor dueño) y el token de mensajería tras courier-shipment.
  * No falla el alta personal si ML no responde o el envío no es legible.
  */
 async function lookupMlContactForScan(
@@ -198,54 +260,61 @@ async function lookupMlContactForScan(
 
   try {
     const contexts = await listMercadoLibreIntegrationsForAgencyScan(user.agencyId);
-    const repartidorMl = await getIntegration(user.id, 'mercadolibre');
+    const senderId = extractSenderIdFromScan(rawCode);
+    const integrations: StoreIntegration[] = [];
 
+    // 1) Vendedor dueño del envío (sender_id del QR), si está conectado en la agencia.
+    if (senderId) {
+      const owner = contexts.find((ctx) => ctx.integration.externalUserId === senderId);
+      if (owner) integrations.push(owner.integration);
+    }
+
+    // 2) Token del repartidor (mensajería): registrar courier y leer.
+    const repartidorMl = await getIntegration(user.id, 'mercadolibre');
+    let courierRegistered = false;
     if (repartidorMl) {
       for (const candidate of candidates) {
         if (candidate.type !== 'shipment') continue;
         try {
-          await registerMercadoLibreCourierShipment(repartidorMl, candidate.id);
+          const reg = await registerMercadoLibreCourierShipment(repartidorMl, candidate.id);
+          if (reg.ok) courierRegistered = true;
         } catch (err) {
           console.warn('[driver-scan] courier-shipment error:', err);
         }
       }
-      if (!contexts.some((ctx) => ctx.integration.userId === repartidorMl.userId)) {
-        contexts.push({ integration: repartidorMl, isAgencyAccount: true });
+      if (!integrations.some((i) => i.userId === repartidorMl.userId)) {
+        integrations.push(repartidorMl);
       }
+      // Tras registrar, ML a veces demora en habilitar PII al courier.
+      if (courierRegistered) await sleep(500);
     }
 
+    // 3) Resto de vendedores de la agencia.
     for (const { integration } of contexts) {
-      const valid = await tryGetValidMercadoLibreIntegration(integration.userId);
-      if (!valid) continue;
-
-      const flex = await resolveMercadoLibreFlexFromScan(valid, candidates);
-      if (flex?.address) {
-        return {
-          clientName: flex.clientName?.trim() || null,
-          address: flex.address.trim(),
-          clientPhone: flex.clientPhone?.trim() || null,
-        };
-      }
-
-      for (const candidate of candidates) {
-        if (candidate.type !== 'shipment') continue;
-        try {
-          const shipment = await fetchMercadoLibreShipment(valid, candidate.id, {
-            quietStatuses: [403, 404],
-          });
-          const contact = extractContactFromMlShipment(shipment);
-          if (contact?.address) {
-            return {
-              clientName: contact.clientName?.trim() || null,
-              address: contact.address.trim(),
-              clientPhone: contact.clientPhone?.trim() || null,
-            };
-          }
-        } catch {
-          // probar siguiente candidato / token
-        }
+      if (!integrations.some((i) => i.userId === integration.userId)) {
+        integrations.push(integration);
       }
     }
+
+    for (const integration of integrations) {
+      const contact = await readContactWithIntegration(integration, candidates);
+      if (contact?.address) {
+        console.log('[driver-scan] ML contact ok', {
+          viaUserId: integration.userId,
+          shipmentHint: candidates.find((c) => c.type === 'shipment')?.id,
+          hasName: Boolean(contact.clientName),
+        });
+        return contact;
+      }
+    }
+
+    console.warn('[driver-scan] ML contact no disponible', {
+      agencyId: user.agencyId,
+      senderId,
+      candidates,
+      tried: integrations.map((i) => i.userId),
+      courierRegistered,
+    });
   } catch (err) {
     console.warn('[driver-scan] lookup ML contact failed:', err);
   }
@@ -277,7 +346,16 @@ async function persistContactOnEntry(
 
 export async function createDriverScanEntry(
   user: User,
-  data: { code: string; note?: string; lat?: number; lng?: number; routeDate?: string }
+  data: {
+    code: string;
+    note?: string;
+    lat?: number;
+    lng?: number;
+    routeDate?: string;
+    clientName?: string;
+    address?: string;
+    clientPhone?: string;
+  }
 ): Promise<DriverScanEntry> {
   assertRepartidor(user);
   await ensureDriverScanEntriesTable();
@@ -286,6 +364,9 @@ export async function createDriverScanEntry(
   const routeDate =
     data.routeDate && isValidDateKey(data.routeDate) ? data.routeDate : getOperationalDateKey();
   const note = data.note?.trim() ? data.note.trim().slice(0, 500) : null;
+  const manualName = data.clientName?.trim() ? data.clientName.trim().slice(0, 255) : null;
+  const manualAddress = data.address?.trim() ? data.address.trim().slice(0, 500) : null;
+  const manualPhone = data.clientPhone?.trim() ? data.clientPhone.trim().slice(0, 64) : null;
   const now = new Date();
   const id = randomUUID();
 
@@ -298,16 +379,25 @@ export async function createDriverScanEntry(
   if (existingRows[0]) {
     // Reescaneo: completar dirección si todavía no la tenemos.
     if (!existingRows[0].address?.trim()) {
-      const contact = await lookupMlContactForScan(user, data.code);
+      const contact =
+        manualAddress
+          ? { clientName: manualName, address: manualAddress, clientPhone: manualPhone }
+          : await lookupMlContactForScan(user, data.code);
       if (contact?.address) {
-        const updated = await persistContactOnEntry(existingRows[0].id, contact);
+        const updated = await persistContactOnEntry(existingRows[0].id, {
+          clientName: contact.clientName ?? manualName,
+          address: contact.address,
+          clientPhone: contact.clientPhone ?? manualPhone,
+        });
         if (updated) return mapRow(updated, true);
       }
     }
     return mapRow(existingRows[0], true);
   }
 
-  const contact = await lookupMlContactForScan(user, data.code);
+  const contact = manualAddress
+    ? { clientName: manualName, address: manualAddress, clientPhone: manualPhone }
+    : await lookupMlContactForScan(user, data.code);
 
   try {
     await pool.query<ResultSetHeader>(
@@ -322,9 +412,9 @@ export async function createDriverScanEntry(
         scanCode,
         routeDate,
         note,
-        contact?.clientName?.slice(0, 255) ?? null,
-        contact?.address?.slice(0, 500) ?? null,
-        contact?.clientPhone?.slice(0, 64) ?? null,
+        contact?.clientName?.slice(0, 255) ?? manualName,
+        contact?.address?.slice(0, 500) ?? manualAddress,
+        contact?.clientPhone?.slice(0, 64) ?? manualPhone,
         now,
         data.lat ?? null,
         data.lng ?? null,
@@ -432,6 +522,59 @@ export async function updateDriverScanEntryStatus(
      SET status = ?, delivered_at = ?
      WHERE id = ? AND repartidor_id = ?`,
     [status, deliveredAt, entryId, user.id]
+  );
+
+  const [updated] = await pool.query<DbDriverScanRow[]>(
+    'SELECT * FROM driver_scan_entries WHERE id = ? LIMIT 1',
+    [entryId]
+  );
+  if (!updated[0]) throw new Error('NOT_FOUND');
+  return mapRow(updated[0]);
+}
+
+/** Completa o corrige destinatario/dirección de un registro personal (p. ej. leídos de la etiqueta). */
+export async function updateDriverScanEntryDetails(
+  user: User,
+  entryId: string,
+  data: { clientName?: string; address?: string; clientPhone?: string }
+): Promise<DriverScanEntry> {
+  assertRepartidor(user);
+  await ensureDriverScanEntriesTable();
+
+  const [rows] = await pool.query<DbDriverScanRow[]>(
+    'SELECT * FROM driver_scan_entries WHERE id = ? AND repartidor_id = ? LIMIT 1',
+    [entryId, user.id]
+  );
+  if (!rows[0]) throw new Error('NOT_FOUND');
+
+  const clientName =
+    data.clientName !== undefined
+      ? data.clientName.trim()
+        ? data.clientName.trim().slice(0, 255)
+        : null
+      : rows[0].client_name ?? null;
+  const address =
+    data.address !== undefined
+      ? data.address.trim()
+        ? data.address.trim().slice(0, 500)
+        : null
+      : rows[0].address ?? null;
+  const clientPhone =
+    data.clientPhone !== undefined
+      ? data.clientPhone.trim()
+        ? data.clientPhone.trim().slice(0, 64)
+        : null
+      : rows[0].client_phone ?? null;
+
+  if (data.address !== undefined && !address) {
+    throw new Error('INVALID_ADDRESS');
+  }
+
+  await pool.query(
+    `UPDATE driver_scan_entries
+     SET client_name = ?, address = ?, client_phone = ?
+     WHERE id = ? AND repartidor_id = ?`,
+    [clientName, address, clientPhone, entryId, user.id]
   );
 
   const [updated] = await pool.query<DbDriverScanRow[]>(

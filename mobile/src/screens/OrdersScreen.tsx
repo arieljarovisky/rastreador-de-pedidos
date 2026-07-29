@@ -206,6 +206,55 @@ export default function OrdersScreen({ navigation }: Props) {
     })();
   };
 
+  const promptPersonalAddress = (entry: DriverScanEntry) => {
+    if (!token) return;
+    const prompt = (Alert as { prompt?: typeof Alert.prompt }).prompt;
+    if (typeof prompt === 'function') {
+      prompt(
+        'Dirección de la etiqueta',
+        'El QR no trae la calle. Escribí la dirección impresa.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Guardar',
+            onPress: (value?: string) => {
+              const address = value?.trim();
+              if (!address) {
+                Alert.alert('Dirección', 'Ingresá una dirección.');
+                return;
+              }
+              void (async () => {
+                setUpdatingEntryId(entry.id);
+                try {
+                  const updated = await api.updateDriverScanEntryDetails(token, entry.id, {
+                    address,
+                  });
+                  setPersonalEntries((prev) =>
+                    prev.map((e) => (e.id === updated.id ? updated : e))
+                  );
+                } catch (err) {
+                  Alert.alert(
+                    'Dirección',
+                    err instanceof Error ? err.message : 'No se pudo guardar.'
+                  );
+                } finally {
+                  setUpdatingEntryId(null);
+                }
+              })();
+            },
+          },
+        ],
+        'plain-text',
+        entry.address ?? ''
+      );
+      return;
+    }
+    Alert.alert(
+      'Dirección',
+      'En este dispositivo abrí de nuevo el escáner: al registrar el paquete te va a pedir la dirección de la etiqueta.'
+    );
+  };
+
   const renderItem = ({ item }: { item: Order }) => (
     <OrderCard
       order={item}
@@ -240,7 +289,11 @@ export default function OrdersScreen({ navigation }: Props) {
               <Text style={styles.personalAddress} numberOfLines={2}>
                 {item.address.trim()}
               </Text>
-            ) : null}
+            ) : (
+              <Pressable onPress={() => promptPersonalAddress(item)} hitSlop={8}>
+                <Text style={styles.personalAddressMissing}>+ Agregar dirección de la etiqueta</Text>
+              </Pressable>
+            )}
             <Text style={styles.personalMeta}>
               {item.clientName?.trim()
                 ? `#${formatScanCodeLabel(item.scanCode)} · `
@@ -611,6 +664,10 @@ const styles = StyleSheet.create({
   },
   personalAddress: {
     ...typography.body(13, colors.text),
+  },
+  personalAddressMissing: {
+    ...typography.body(13, roleAccents.repartidor),
+    fontWeight: '600',
   },
   personalMeta: {
     ...typography.body(12, colors.textFaint),

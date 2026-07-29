@@ -199,7 +199,15 @@ export const api = {
   createDriverScanEntry(
     token: string,
     code: string,
-    options?: { note?: string; lat?: number; lng?: number; routeDate?: string }
+    options?: {
+      note?: string;
+      lat?: number;
+      lng?: number;
+      routeDate?: string;
+      clientName?: string;
+      address?: string;
+      clientPhone?: string;
+    }
   ): Promise<DriverScanEntry> {
     return request<DriverScanEntry>('/api/driver-scan', {
       method: 'POST',
@@ -210,8 +218,11 @@ export const api = {
         lat: options?.lat,
         lng: options?.lng,
         routeDate: options?.routeDate,
+        clientName: options?.clientName,
+        address: options?.address,
+        clientPhone: options?.clientPhone,
       },
-      timeoutMs: 20_000,
+      timeoutMs: 45_000,
     });
   },
 
@@ -219,6 +230,19 @@ export const api = {
   getDriverScanEntries(token: string, date?: string): Promise<DriverScanDayResult> {
     const qs = date ? `?date=${encodeURIComponent(date)}` : '';
     return request<DriverScanDayResult>(`/api/driver-scan${qs}`, { token });
+  },
+
+  /** Repartidor: completa dirección/destinatario leídos de la etiqueta. */
+  updateDriverScanEntryDetails(
+    token: string,
+    entryId: string,
+    data: { clientName?: string; address?: string; clientPhone?: string }
+  ): Promise<DriverScanEntry> {
+    return request<DriverScanEntry>(`/api/driver-scan/${entryId}/details`, {
+      method: 'PUT',
+      token,
+      body: data,
+    });
   },
 
   /** Repartidor: marca un paquete del registro personal como entregado/cancelado/pendiente. */
