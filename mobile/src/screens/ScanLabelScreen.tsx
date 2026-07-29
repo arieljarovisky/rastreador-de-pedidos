@@ -18,7 +18,7 @@ import { api } from '../api';
 import { colors, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
-import { formatScanCodeLabel } from '../utils/scanCodeLabel';
+import { formatScanCodeLabel, stripAddressReference } from '../utils/scanCodeLabel';
 import { parseShippingLabelOcr } from '../utils/parseShippingLabelOcr';
 import { DriverScanEntry } from '../types';
 import { RepartidorStackParamList } from '../navigation/types';
@@ -74,14 +74,13 @@ export default function ScanLabelScreen({ navigation }: Props) {
 
   const showPersonalResult = useCallback((entry: DriverScanEntry) => {
     setScannedCount((n) => n + 1);
+    const name = entry.clientName?.trim() || 'Sin nombre';
+    const code = formatScanCodeLabel(entry.scanCode);
+    const addr = entry.address?.trim() ? `\n${stripAddressReference(entry.address.trim())}` : '';
     setLastResult(
       entry.alreadyRegistered
-        ? `Ya en tu registro: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
-            entry.address?.trim() ? `\n${entry.address.trim()}` : ''
-          }`
-        : `Registro: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
-            entry.address?.trim() ? `\n${entry.address.trim()}` : ''
-          }`
+        ? `Ya en tu registro: ${name}\n#${code}${addr}`
+        : `Registro: ${name}\n#${code}${addr}`
     );
   }, []);
 
@@ -113,25 +112,27 @@ export default function ScanLabelScreen({ navigation }: Props) {
       let entry = await api.createDriverScanEntry(token, code, {
         lat: location?.lat,
         lng: location?.lng,
-        address: ocrFields.address ?? undefined,
+        address: ocrFields.address ? stripAddressReference(ocrFields.address) : undefined,
         clientName: ocrFields.clientName ?? undefined,
       });
 
       // Por si el alta no persistió la dirección del OCR, la completamos.
-      const resolvedAddress = entry.address?.trim() || ocrFields.address?.trim() || null;
+      const resolvedAddress =
+        stripAddressReference(entry.address?.trim() || ocrFields.address?.trim() || '') || null;
       const resolvedName = entry.clientName?.trim() || ocrFields.clientName?.trim() || null;
 
       if (ocrFields.address && !entryHasAddress(entry)) {
+        const cleanAddress = stripAddressReference(ocrFields.address);
         try {
           entry = await api.updateDriverScanEntryDetails(token, entry.id, {
-            address: ocrFields.address,
+            address: cleanAddress,
             clientName: ocrFields.clientName ?? undefined,
           });
         } catch (err) {
           console.warn('[ocr] update details failed:', err);
           entry = {
             ...entry,
-            address: ocrFields.address,
+            address: cleanAddress,
             clientName: ocrFields.clientName ?? entry.clientName,
           };
         }
@@ -141,6 +142,11 @@ export default function ScanLabelScreen({ navigation }: Props) {
           address: resolvedAddress ?? entry.address,
           clientName: resolvedName ?? entry.clientName,
         };
+      }
+
+      // Mostrar siempre sin "Ref:" aunque venga viejo en DB.
+      if (entry.address?.trim()) {
+        entry = { ...entry, address: stripAddressReference(entry.address) };
       }
 
       showPersonalResult(entry);

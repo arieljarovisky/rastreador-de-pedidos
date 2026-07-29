@@ -12,10 +12,6 @@ function cleanLine(line: string): string {
   return line.replace(/\s+/g, ' ').trim();
 }
 
-function stripLabelPrefix(value: string, labels: RegExp): string {
-  return cleanLine(value.replace(labels, ''));
-}
-
 /**
  * Une líneas OCR en un bloque usable y busca campos tipados de la etiqueta.
  */
@@ -47,13 +43,12 @@ export function parseShippingLabelOcr(rawText: string): LabelOcrFields {
 
     const destInline = line.match(/^destinatario\s*[:.]?\s*(.+)$/i);
     if (destInline?.[1]) {
-      clientName = stripLabelPrefix(destInline[1], /\([^)]*\)\s*$/);
-      // quitar nickname entre paréntesis tipo (NAMA885613)
-      clientName = cleanLine(clientName.replace(/\([^)]*\)\s*$/, ''));
+      // "Nasiff Martin (NAMA885613)" → solo el nombre
+      clientName = cleanLine(destInline[1].replace(/\s*\([^)]*\)\s*$/g, ''));
       continue;
     }
     if (/^destinatario\s*[:.]?\s*$/i.test(line) && next) {
-      clientName = cleanLine(next.replace(/\([^)]*\)\s*$/, ''));
+      clientName = cleanLine(next.replace(/\s*\([^)]*\)\s*$/g, ''));
       continue;
     }
 
@@ -75,8 +70,12 @@ export function parseShippingLabelOcr(rawText: string): LabelOcrFields {
     }
   }
 
-  if (address && reference && !address.toLowerCase().includes(reference.toLowerCase())) {
-    address = `${address} · Ref: ${reference}`;
+  if (address) {
+    address = address
+      .replace(/\s*[·•]\s*Ref(?:erencia)?\s*:.+$/i, '')
+      .replace(/\s+Ref(?:erencia)?\s*:.+$/i, '')
+      .replace(/\s+Referencia\s*:.+$/i, '')
+      .trim();
   }
 
   return {

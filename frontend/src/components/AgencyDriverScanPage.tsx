@@ -71,6 +71,15 @@ function formatScanCodeLabel(raw: string): string {
   return `${trimmed.slice(0, 12)}…${trimmed.slice(-8)}`;
 }
 
+/** Quita "· Ref: …" / "Referencia: …" de una dirección guardada o leída por OCR. */
+function stripAddressReference(address: string): string {
+  return address
+    .replace(/\s*[·•]\s*Ref(?:erencia)?\s*:.+$/i, '')
+    .replace(/\s+Ref(?:erencia)?\s*:.+$/i, '')
+    .replace(/\s+Referencia\s*:.+$/i, '')
+    .trim();
+}
+
 export default function AgencyDriverScanPage({
   token,
   repartidores = [],
@@ -200,6 +209,7 @@ export default function AgencyDriverScanPage({
                 <tr>
                   <th className="px-3 py-2 font-bold">Hora</th>
                   <th className="px-3 py-2 font-bold">Repartidor</th>
+                  <th className="px-3 py-2 font-bold">Cliente</th>
                   <th className="px-3 py-2 font-bold">Código</th>
                   <th className="px-3 py-2 font-bold">Dirección</th>
                   <th className="px-3 py-2 font-bold">Estado</th>
@@ -217,11 +227,18 @@ export default function AgencyDriverScanPage({
                     <td className="px-3 py-2 text-[var(--color-text)] whitespace-nowrap">
                       {entry.repartidorName ?? '—'}
                     </td>
+                    <td className="px-3 py-2 text-[var(--color-text)] max-w-[12rem]">
+                      {entry.clientName?.trim() || (
+                        <span className="text-[var(--color-text-muted)]">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 font-mono text-[var(--color-text)] whitespace-nowrap">
-                      {entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}
+                      {formatScanCodeLabel(entry.scanCode)}
                     </td>
                     <td className="px-3 py-2 text-[var(--color-text)] max-w-[18rem]">
-                      {entry.address?.trim() || (
+                      {entry.address?.trim() ? (
+                        stripAddressReference(entry.address.trim())
+                      ) : (
                         <span className="text-[var(--color-text-muted)]">—</span>
                       )}
                     </td>

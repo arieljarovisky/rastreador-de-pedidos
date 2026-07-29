@@ -28,7 +28,7 @@ import MonoLabel from '../components/ui/MonoLabel';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
-import { formatScanCodeLabel } from '../utils/scanCodeLabel';
+import { formatScanCodeLabel, stripAddressReference } from '../utils/scanCodeLabel';
 import { RepartidorHomeStackParamList, RepartidorStackParamList } from '../navigation/types';
 
 type Props = CompositeScreenProps<
@@ -282,12 +282,15 @@ export default function OrdersScreen({ navigation }: Props) {
       <View style={styles.personalCard}>
         <View style={styles.personalCardTop}>
           <View style={styles.personalCardText}>
-            <Text style={styles.personalCode} numberOfLines={2}>
-              {item.clientName?.trim() || formatScanCodeLabel(item.scanCode)}
+            <Text style={styles.personalCode} numberOfLines={1}>
+              {item.clientName?.trim() || 'Sin nombre'}
+            </Text>
+            <Text style={styles.personalScanCode} numberOfLines={1}>
+              {formatScanCodeLabel(item.scanCode)}
             </Text>
             {item.address?.trim() ? (
               <Text style={styles.personalAddress} numberOfLines={2}>
-                {item.address.trim()}
+                {stripAddressReference(item.address.trim())}
               </Text>
             ) : (
               <Pressable onPress={() => promptPersonalAddress(item)} hitSlop={8}>
@@ -295,9 +298,6 @@ export default function OrdersScreen({ navigation }: Props) {
               </Pressable>
             )}
             <Text style={styles.personalMeta}>
-              {item.clientName?.trim()
-                ? `#${formatScanCodeLabel(item.scanCode)} · `
-                : ''}
               Escaneado {formatScanTime(item.scannedAt)}
               {item.deliveredAt ? ` · Entregado ${formatScanTime(item.deliveredAt)}` : ''}
             </Text>
@@ -659,6 +659,10 @@ const styles = StyleSheet.create({
   personalCardText: { flex: 1, minWidth: 0, gap: 4 },
   personalCode: {
     ...typography.body(14, colors.text),
+    fontWeight: '700',
+  },
+  personalScanCode: {
+    ...typography.body(12, colors.textFaint),
     fontFamily: 'SpaceMono_700Bold',
     fontWeight: '700',
   },

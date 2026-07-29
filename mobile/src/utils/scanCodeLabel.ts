@@ -25,3 +25,12 @@ export function formatScanCodeLabel(raw: string): string {
 
   return `${trimmed.slice(0, 12)}…${trimmed.slice(-8)}`;
 }
+
+/** Quita "· Ref: …" / "Referencia: …" de una dirección guardada o leída por OCR. */
+export function stripAddressReference(address: string): string {
+  return address
+    .replace(/\s*[·•]\s*Ref(?:erencia)?\s*:.+$/i, '')
+    .replace(/\s+Ref(?:erencia)?\s*:.+$/i, '')
+    .replace(/\s+Referencia\s*:.+$/i, '')
+    .trim();
+}
