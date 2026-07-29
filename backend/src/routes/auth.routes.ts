@@ -467,8 +467,8 @@ router.post('/google', async (req: Request, res: Response) => {
     res.status(404).json({
       error:
         env.platformOwnerEmails.length > 0
-          ? 'No hay una cuenta con este Google. Si sos el dueño de Posta, usá exactamente el email de PLATFORM_OWNER_EMAILS desde Ingresar.'
-          : 'No hay una cuenta con este Google. Registrá tu agencia primero.',
+          ? 'No encontramos una cuenta con este Google. Si sos una agencia nueva, registrala primero. Si ya tenés cuenta o sos del equipo Posta, usá Ingresar con el correo correcto.'
+          : 'No encontramos una cuenta con este Google. Registrá tu agencia primero.',
       code: 'GOOGLE_ACCOUNT_NOT_FOUND',
     });
     return;

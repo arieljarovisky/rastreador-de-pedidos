@@ -248,7 +248,7 @@ export default function LoginScreen({
     setLocalError(null);
     setSuccessMessage(null);
     setRegisterHint(
-      'No hay una cuenta con ese Google. Si sos el dueño de Posta, poné tu mail en PLATFORM_OWNER_EMAILS, reiniciá el backend y usá Ingresar (no crees agencia). Si sos una agencia nueva, completá este registro.'
+      'No encontramos una cuenta con ese Google. Si sos una agencia nueva, completá este registro. Si ya tenés cuenta o sos del equipo Posta, volvé a Ingresar con el correo correcto.'
     );
     onClearError?.();
   }, [errorCode, onClearError]);
