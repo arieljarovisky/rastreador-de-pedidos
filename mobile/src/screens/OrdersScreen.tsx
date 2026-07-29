@@ -206,6 +206,34 @@ export default function OrdersScreen({ navigation }: Props) {
     })();
   };
 
+  const handlePersonalDelete = (entry: DriverScanEntry) => {
+    if (!token) return;
+    const label = entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode);
+    Alert.alert('Eliminar', `¿Eliminar "${label}" del registro?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setUpdatingEntryId(entry.id);
+            try {
+              await api.deleteDriverScanEntry(token, entry.id);
+              setPersonalEntries((prev) => prev.filter((e) => e.id !== entry.id));
+            } catch (err) {
+              Alert.alert(
+                'Registro',
+                err instanceof Error ? err.message : 'No se pudo eliminar el paquete.'
+              );
+            } finally {
+              setUpdatingEntryId(null);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
   const promptPersonalAddress = (entry: DriverScanEntry) => {
     if (!token) return;
     const prompt = (Alert as { prompt?: typeof Alert.prompt }).prompt;
@@ -343,6 +371,12 @@ export default function OrdersScreen({ navigation }: Props) {
                 <Text style={[styles.personalActionText, { color: accent }]}>Reabrir</Text>
               </Pressable>
             )}
+            <Pressable
+              style={[styles.personalActionBtn, { backgroundColor: `${colors.red}12` }]}
+              onPress={() => handlePersonalDelete(item)}
+            >
+              <Text style={[styles.personalActionText, { color: colors.red }]}>Eliminar</Text>
+            </Pressable>
           </View>
         )}
       </View>

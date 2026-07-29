@@ -584,3 +584,29 @@ export async function updateDriverScanEntryDetails(
   if (!updated[0]) throw new Error('NOT_FOUND');
   return mapRow(updated[0]);
 }
+
+/** Elimina un registro personal: el repartidor el propio, la agencia cualquiera de su flota. */
+export async function deleteDriverScanEntry(user: User, entryId: string): Promise<void> {
+  await ensureDriverScanEntriesTable();
+
+  if (user.role === UserRole.REPARTIDOR) {
+    assertRepartidor(user);
+    const [result] = await pool.query<ResultSetHeader>(
+      'DELETE FROM driver_scan_entries WHERE id = ? AND repartidor_id = ?',
+      [entryId, user.id]
+    );
+    if (result.affectedRows === 0) throw new Error('NOT_FOUND');
+    return;
+  }
+
+  if (isAgencyAdmin(user.role) && user.agencyId) {
+    const [result] = await pool.query<ResultSetHeader>(
+      'DELETE FROM driver_scan_entries WHERE id = ? AND agency_id = ?',
+      [entryId, user.agencyId]
+    );
+    if (result.affectedRows === 0) throw new Error('NOT_FOUND');
+    return;
+  }
+
+  throw new Error('FORBIDDEN');
+}

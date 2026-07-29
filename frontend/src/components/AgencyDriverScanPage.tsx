@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Loader2 } from 'lucide-react';
+import { ClipboardList, Loader2, Trash2 } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import { getOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
@@ -90,6 +90,7 @@ export default function AgencyDriverScanPage({
   const [entries, setEntries] = useState<AgencyDriverScanEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,6 +115,31 @@ export default function AgencyDriverScanPage({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleDelete = useCallback(
+    async (entry: AgencyDriverScanEntry) => {
+      const label = entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode);
+      if (!window.confirm(`¿Eliminar "${label}" del registro?`)) return;
+      setDeletingId(entry.id);
+      setError(null);
+      try {
+        const res = await fetch(apiUrl(`/api/driver-scan/${entry.id}`), {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || 'No se pudo eliminar.');
+        }
+        setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'No se pudo eliminar el registro.');
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [token]
+  );
 
   const counts = useMemo(() => {
     let pending = 0;
@@ -213,6 +239,7 @@ export default function AgencyDriverScanPage({
                   <th className="px-3 py-2 font-bold">Código</th>
                   <th className="px-3 py-2 font-bold">Dirección</th>
                   <th className="px-3 py-2 font-bold">Estado</th>
+                  <th className="px-3 py-2 font-bold w-10" />
                 </tr>
               </thead>
               <tbody>
@@ -248,6 +275,21 @@ export default function AgencyDriverScanPage({
                       >
                         {statusLabel(entry.status)}
                       </span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <button
+                        type="button"
+                        title="Eliminar"
+                        disabled={deletingId === entry.id}
+                        onClick={() => void handleDelete(entry)}
+                        className="inline-flex items-center justify-center p-1.5 rounded border border-[var(--color-danger)]/30 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 disabled:opacity-50"
+                      >
+                        {deletingId === entry.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={14} />
+                        )}
+                      </button>
                     </td>
                   </tr>
                 ))}

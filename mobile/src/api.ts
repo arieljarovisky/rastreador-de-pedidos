@@ -258,6 +258,14 @@ export const api = {
     });
   },
 
+  /** Repartidor/agencia: elimina un paquete del registro. */
+  deleteDriverScanEntry(token: string, entryId: string): Promise<void> {
+    return request<void>(`/api/driver-scan/${entryId}`, {
+      method: 'DELETE',
+      token,
+    });
+  },
+
   getRepartidores(token: string): Promise<User[]> {
     return request<User[]>('/api/repartidores', { token });
   },

@@ -8,6 +8,7 @@ import {
   listAgencyDriverScanEntries,
   updateDriverScanEntryStatus,
   updateDriverScanEntryDetails,
+  deleteDriverScanEntry,
   type DriverScanEntryStatus,
 } from '../services/driver-scan.service.js';
 import { getOperationalDateKey } from '../utils/delivery-deadline.js';
@@ -177,5 +178,28 @@ router.put('/:id/status', requireRoles(UserRole.REPARTIDOR), async (req: Request
     res.status(500).json({ error: 'No se pudo actualizar el registro.' });
   }
 });
+
+router.delete(
+  '/:id',
+  requireRoles(UserRole.REPARTIDOR, ...AGENCY_ADMIN_ROLES),
+  async (req: Request, res: Response) => {
+    try {
+      await deleteDriverScanEntry(req.user!, req.params.id);
+      res.status(204).send();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ERROR';
+      if (message === 'FORBIDDEN') {
+        res.status(403).json({ error: 'No tenés permiso para eliminar este registro.' });
+        return;
+      }
+      if (message === 'NOT_FOUND') {
+        res.status(404).json({ error: 'Registro no encontrado.' });
+        return;
+      }
+      console.error('[driver-scan] DELETE /:id error:', err);
+      res.status(500).json({ error: 'No se pudo eliminar el registro.' });
+    }
+  }
+);
 
 export default router;
