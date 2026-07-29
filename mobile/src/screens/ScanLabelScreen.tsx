@@ -14,7 +14,7 @@ import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
-import { api, ApiError } from '../api';
+import { api } from '../api';
 import { colors, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
@@ -27,15 +27,6 @@ type Props = NativeStackScreenProps<RepartidorStackParamList, 'ScanLabel'>;
 
 const POSTA_ORDER_QR_PREFIX = 'POSTA-ORDER:';
 
-/** Errores ML donde el paquete puede guardarse en el registro personal. */
-const PERSONAL_LOG_FALLBACK_CODES = new Set([
-  'ML_SCAN_NOT_FOUND',
-  'ML_SCAN_INVALID',
-  'ML_NOT_CONNECTED',
-  'ML_NO_SELLERS_CONNECTED',
-  'ML_SCAN_REGISTERED_NO_DATA',
-]);
-
 async function currentLocation(): Promise<{ lat: number; lng: number } | undefined> {
   try {
     const last = await Location.getLastKnownPositionAsync();
@@ -44,14 +35,6 @@ async function currentLocation(): Promise<{ lat: number; lng: number } | undefin
     // sin ubicación disponible
   }
   return undefined;
-}
-
-function shouldFallbackToPersonalLog(err: unknown): boolean {
-  if (!(err instanceof ApiError)) return false;
-  if (err.code && PERSONAL_LOG_FALLBACK_CODES.has(err.code)) return true;
-  // Compatibilidad si el backend aún no manda `code`.
-  if (err.status === 404) return true;
-  return false;
 }
 
 async function recognizeLabelFromPhoto(
@@ -70,6 +53,10 @@ async function recognizeLabelFromPhoto(
   }
 }
 
+function entryHasAddress(entry: Pick<DriverScanEntry, 'address'>): boolean {
+  return Boolean(entry.address?.trim());
+}
+
 export default function ScanLabelScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
@@ -77,8 +64,6 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [processing, setProcessing] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [scannedCount, setScannedCount] = useState(0);
-  /** Si está activo, saltea ML y guarda directo en la bitácora personal. */
-  const [personalOnly, setPersonalOnly] = useState(false);
   const [addressDraft, setAddressDraft] = useState('');
   const [pendingAddressEntry, setPendingAddressEntry] = useState<DriverScanEntry | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
@@ -94,68 +79,81 @@ export default function ScanLabelScreen({ navigation }: Props) {
         ? `Ya en tu registro: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
             entry.address?.trim() ? `\n${entry.address.trim()}` : ''
           }`
-        : `Registro personal: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
+        : `Registro: ${entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode)}${
             entry.address?.trim() ? `\n${entry.address.trim()}` : ''
           }`
     );
   }, []);
 
-  const enrichWithLabelOcr = useCallback(
-    async (entry: DriverScanEntry): Promise<DriverScanEntry> => {
-      if (!token || entry.address?.trim()) return entry;
-
-      setOcrReading(true);
-      setLastResult(`Leyendo dirección de la etiqueta…\n#${formatScanCodeLabel(entry.scanCode)}`);
-      try {
-        const photo = await cameraRef.current?.takePictureAsync({
-          quality: 0.85,
-          shutterSound: false,
-        });
-        if (!photo?.uri) return entry;
-
-        const fields = await recognizeLabelFromPhoto(photo.uri);
-        if (!fields.address && !fields.clientName) return entry;
-
-        if (fields.address) {
-          return await api.updateDriverScanEntryDetails(token, entry.id, {
-            address: fields.address,
-            clientName: fields.clientName ?? undefined,
-          });
-        }
-
-        // Solo nombre: lo dejamos pre-cargado en el modal manual.
-        if (fields.clientName) {
-          setAddressDraft('');
-          return {
-            ...entry,
-            clientName: fields.clientName,
-          };
-        }
-      } catch (err) {
-        console.warn('[ocr] capture failed:', err);
-      } finally {
-        setOcrReading(false);
-      }
-      return entry;
-    },
-    [token]
-  );
+  /** Foto + OCR de la etiqueta mientras sigue en el encuadre. */
+  const captureLabelFields = useCallback(async () => {
+    setOcrReading(true);
+    try {
+      const photo = await cameraRef.current?.takePictureAsync({
+        quality: 0.85,
+        shutterSound: false,
+      });
+      if (!photo?.uri) return { address: null as string | null, clientName: null as string | null };
+      return await recognizeLabelFromPhoto(photo.uri);
+    } catch (err) {
+      console.warn('[ocr] capture failed:', err);
+      return { address: null as string | null, clientName: null as string | null };
+    } finally {
+      setOcrReading(false);
+    }
+  }, []);
 
   const savePersonal = useCallback(
     async (code: string, location?: { lat: number; lng: number }) => {
       if (!token) throw new Error('Sesión inválida');
+
+      setLastResult(`Leyendo dirección de la etiqueta…\n#${formatScanCodeLabel(code)}`);
+      const ocrFields = await captureLabelFields();
+
       let entry = await api.createDriverScanEntry(token, code, {
         lat: location?.lat,
         lng: location?.lng,
+        address: ocrFields.address ?? undefined,
+        clientName: ocrFields.clientName ?? undefined,
       });
-      entry = await enrichWithLabelOcr(entry);
+
+      // Por si el alta no persistió la dirección del OCR, la completamos.
+      const resolvedAddress = entry.address?.trim() || ocrFields.address?.trim() || null;
+      const resolvedName = entry.clientName?.trim() || ocrFields.clientName?.trim() || null;
+
+      if (ocrFields.address && !entryHasAddress(entry)) {
+        try {
+          entry = await api.updateDriverScanEntryDetails(token, entry.id, {
+            address: ocrFields.address,
+            clientName: ocrFields.clientName ?? undefined,
+          });
+        } catch (err) {
+          console.warn('[ocr] update details failed:', err);
+          entry = {
+            ...entry,
+            address: ocrFields.address,
+            clientName: ocrFields.clientName ?? entry.clientName,
+          };
+        }
+      } else if (resolvedAddress || resolvedName) {
+        entry = {
+          ...entry,
+          address: resolvedAddress ?? entry.address,
+          clientName: resolvedName ?? entry.clientName,
+        };
+      }
+
       showPersonalResult(entry);
-      // Si el OCR no pudo leer la calle, pedimos confirmación manual (pre-cargada si hay borrador).
-      if (!entry.address?.trim()) {
+
+      // Solo pedir carga manual si no hay dirección de OCR ni del backend.
+      if (!entryHasAddress(entry)) {
+        setAddressDraft('');
         setPendingAddressEntry(entry);
+      } else {
+        setPendingAddressEntry(null);
       }
     },
-    [token, enrichWithLabelOcr, showPersonalResult]
+    [token, captureLabelFields, showPersonalResult]
   );
 
   const confirmAddressFromLabel = useCallback(async () => {
@@ -174,7 +172,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
       setPendingAddressEntry(null);
       setAddressDraft('');
       setLastResult(
-        `Registro personal: ${updated.clientName?.trim() || formatScanCodeLabel(updated.scanCode)}\n${updated.address}`
+        `Registro: ${updated.clientName?.trim() || formatScanCodeLabel(updated.scanCode)}\n${updated.address}`
       );
     } catch (err) {
       Alert.alert(
@@ -190,7 +188,6 @@ export default function ScanLabelScreen({ navigation }: Props) {
     async (scan: BarcodeScanningResult) => {
       const code = scan.data?.trim();
       if (!token || !code || busyRef.current || pendingAddressEntry || ocrReading) return;
-      // Evita reprocesar el mismo QR mientras sigue en el encuadre.
       if (lastCodeRef.current === code) return;
       busyRef.current = true;
       lastCodeRef.current = code;
@@ -205,25 +202,9 @@ export default function ScanLabelScreen({ navigation }: Props) {
               ? `Ya asignado: ${result.order.clientName} (${result.order.id})`
               : `Asignado: ${result.order.clientName} (${result.order.id})`
           );
-        } else if (personalOnly) {
-          await savePersonal(code, location);
         } else {
-          try {
-            const result = await api.scanImportMercadoLibre(token, code, location);
-            setScannedCount((n) => n + 1);
-            const flexNote = result.mlFlexRegistered ? '' : `\n${result.mlFlexMessage}`;
-            setLastResult(
-              result.alreadyImported
-                ? `Reescaneado: ${result.order.clientName} (${result.order.id})${flexNote}`
-                : `Agregado: ${result.order.clientName} (${result.order.id})${flexNote}`
-            );
-          } catch (mlErr) {
-            if (shouldFallbackToPersonalLog(mlErr)) {
-              await savePersonal(code, location);
-            } else {
-              throw mlErr;
-            }
-          }
+          // Siempre registro personal (paquetes ajenos / control).
+          await savePersonal(code, location);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No se pudo procesar el escaneo.';
@@ -232,7 +213,6 @@ export default function ScanLabelScreen({ navigation }: Props) {
           {
             text: 'OK',
             onPress: () => {
-              // Permite reintentar el mismo código tras cerrar el error.
               lastCodeRef.current = null;
             },
           },
@@ -242,7 +222,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         busyRef.current = false;
       }
     },
-    [token, personalOnly, savePersonal, pendingAddressEntry, ocrReading]
+    [token, savePersonal, pendingAddressEntry, ocrReading]
   );
 
   if (!permission) {
@@ -295,9 +275,9 @@ export default function ScanLabelScreen({ navigation }: Props) {
       >
         <View style={styles.addressModalBackdrop}>
           <View style={styles.addressModalCard}>
-            <Text style={styles.addressModalTitle}>Confirmar dirección</Text>
+            <Text style={styles.addressModalTitle}>Dirección de la etiqueta</Text>
             <Text style={styles.addressModalHint}>
-              No se pudo leer sola la calle. Revisá o escribí la dirección de la etiqueta.
+              No se pudo leer la calle automáticamente. Escribila para el registro.
             </Text>
             <TextInput
               style={styles.addressInput}
@@ -336,34 +316,18 @@ export default function ScanLabelScreen({ navigation }: Props) {
         <Pressable style={styles.closeBtn} onPress={() => navigation.goBack()} hitSlop={12}>
           <PostaIcon name="chevronDown" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.topTitle}>Escanear etiqueta</Text>
+        <Text style={styles.topTitle}>Registro de paquetes</Text>
         <View style={styles.closeBtn} />
       </View>
 
       <View style={styles.frame} pointerEvents="none">
         <View style={styles.frameBox} />
         <Text style={styles.frameHint}>
-          {ocrReading
-            ? 'Leyendo texto de la etiqueta…'
-            : personalOnly
-              ? 'Registro personal — cualquier etiqueta'
-              : 'Apuntá al QR de la etiqueta'}
+          {ocrReading ? 'Leyendo texto de la etiqueta…' : 'Apuntá al QR de la etiqueta'}
         </Text>
       </View>
 
       <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + spacing.lg }]}>
-        <Pressable
-          style={[styles.modeChip, personalOnly && styles.modeChipActive]}
-          onPress={() => setPersonalOnly((v) => !v)}
-          hitSlop={6}
-          disabled={processing || ocrReading}
-        >
-          <PostaIcon name="tag" size={14} color={personalOnly ? colors.accent : colors.textFaint} />
-          <Text style={[styles.modeChipText, personalOnly && styles.modeChipTextActive]}>
-            Solo registro personal
-          </Text>
-        </Pressable>
-
         {processing || ocrReading ? (
           <View style={styles.statusRow}>
             <ActivityIndicator color={colors.accent} />
@@ -380,14 +344,13 @@ export default function ScanLabelScreen({ navigation }: Props) {
           </View>
         ) : (
           <Text style={styles.statusText}>
-            {personalOnly
-              ? 'Escaneá paquetes ajenos para llevar tu seguimiento del día.'
-              : 'Escaneá la etiqueta. Si no está vinculada a ML, se guarda en tu registro personal.'}
+            Escaneá la etiqueta: queda en tu registro del día con la dirección leída del texto.
           </Text>
         )}
-        {scannedCount > 0 ? (
+
+        {scannedCount > 0 && !processing && !ocrReading ? (
           <Button
-            label={`Listo (${scannedCount} escaneado${scannedCount === 1 ? '' : 's'})`}
+            label={`Listo (${scannedCount})`}
             variant="amber"
             onPress={() => navigation.goBack()}
             style={styles.doneBtn}
@@ -464,30 +427,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
     backgroundColor: 'rgba(20, 18, 16, 0.85)',
-  },
-  modeChip: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  modeChipActive: {
-    borderColor: `${colors.accent}88`,
-    backgroundColor: `${colors.accent}22`,
-  },
-  modeChipText: {
-    color: colors.textFaint,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  modeChipTextActive: {
-    color: colors.accent,
   },
   statusRow: {
     flexDirection: 'row',
