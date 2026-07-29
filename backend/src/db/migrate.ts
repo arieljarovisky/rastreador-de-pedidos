@@ -912,4 +912,19 @@ export async function runMigrations(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }
+
+  // Notificaciones con user_id = 'all' filtraban a todas las agencias (cuentas nuevas veían demo/otros).
+  if (await tableExists('notifications')) {
+    const [globalNotifs] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
+      `SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = 'all'`
+    );
+    const globalCount = Number(globalNotifs[0]?.cnt ?? 0);
+    if (globalCount > 0) {
+      await pool.query(`DELETE FROM notification_dismissals WHERE notification_id IN (
+        SELECT id FROM (SELECT id FROM notifications WHERE user_id = 'all') t
+      )`);
+      await pool.query(`DELETE FROM notifications WHERE user_id = 'all'`);
+      console.log(`[migrate] Eliminadas ${globalCount} notificación(es) globales (user_id=all).`);
+    }
+  }
 }

@@ -381,10 +381,10 @@ async function syncOrderStatus(
   const sellerId = await getSellerIdForOrder(orderId);
   emitOrderUpdated(updated, sellerId);
 
-  if (nextStatus === OrderStatus.DELIVERED) {
+  if (nextStatus === OrderStatus.DELIVERED && sellerId) {
     await createNotification({
       id: `n_ml_delivered_${Date.now()}_${orderId}`,
-      userId: sellerId ?? 'all',
+      userId: sellerId,
       title: 'Entrega confirmada en Mercado Libre',
       body: `El pedido ${orderId} fue marcado como entregado en Mercado Libre.`,
       type: 'order_delivered',

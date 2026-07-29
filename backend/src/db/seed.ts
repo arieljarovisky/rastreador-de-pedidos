@@ -451,10 +451,11 @@ export async function seedDatabase(): Promise<void> {
     }
   }
 
+  // Solo usuarios demo (nunca user_id = 'all': filtraría a otras agencias).
   const notifications = [
     {
       id: 'n1',
-      userId: 'all',
+      userId: 'u5',
       title: '¡Bienvenido al sistema Lupo!',
       body: 'Nueva PWA de rastreo de pedidos activa. Repartidores, recuerden activar el GPS al iniciar un envío.',
       createdAt: new Date(now - 7200000),
@@ -481,7 +482,7 @@ export async function seedDatabase(): Promise<void> {
     },
     {
       id: 'n4',
-      userId: 'all',
+      userId: 'u5',
       title: 'Demo multi-vendedor activa',
       body: '60 pedidos de 7 vendedores cargados para la demostración. Usá logistica / logistica123 para ver el panel completo.',
       createdAt: new Date(now - 300000),
@@ -494,7 +495,7 @@ export async function seedDatabase(): Promise<void> {
     await pool.query(
       `INSERT INTO notifications (id, user_id, title, body, type, order_id, is_read, created_at)
        VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-       ON DUPLICATE KEY UPDATE title = VALUES(title), body = VALUES(body)`,
+       ON DUPLICATE KEY UPDATE title = VALUES(title), body = VALUES(body), user_id = VALUES(user_id)`,
       [n.id, n.userId, n.title, n.body, n.type, n.orderId, n.createdAt]
     );
   }

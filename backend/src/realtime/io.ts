@@ -69,10 +69,8 @@ export function emitRepartidorLocation(repartidor: User): void {
 
 export function emitNotificationCreated(notification: AppNotification): void {
   if (!io) return;
-  if (notification.userId === 'all') {
-    io.to('tracking').emit('notification:created', notification);
-    return;
-  }
+  // Solo al destinatario (nunca broadcast a 'tracking': filtraba entre agencias).
+  if (!notification.userId || notification.userId === 'all') return;
   io.to(`user:${notification.userId}`).emit('notification:created', notification);
 }
 

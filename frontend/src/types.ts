@@ -215,7 +215,7 @@ export interface DeliveryDailySummary {
 
 export interface AppNotification {
   id: string;
-  userId: string; // 'all' o un id de usuario específico
+  userId: string; // id del destinatario
   title: string;
   body: string;
   createdAt: string;

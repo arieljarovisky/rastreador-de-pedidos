@@ -361,7 +361,7 @@ export default function NotificationHub({
                   onClick={async () => {
                     const ok = await confirm({
                       title: 'Limpiar notificaciones',
-                      message: '¿Vaciar el buzón de alertas? Las notificaciones personales se eliminan y las generales dejan de mostrarse para tu cuenta.',
+                      message: '¿Vaciar el buzón de alertas? Se eliminarán todas las notificaciones de tu cuenta.',
                       variant: 'danger',
                       confirmText: 'Limpiar',
                       cancelText: 'Cancelar',

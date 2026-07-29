@@ -628,8 +628,12 @@ export default function App() {
   const applyAuthSession = (data: { user: User; token: string }) => {
     localStorage.setItem('lupo_token', data.token);
     localStorage.setItem('lupo_user', JSON.stringify(data.user));
+    localStorage.removeItem('cached_orders');
+    localStorage.removeItem('cached_notifications');
     setToken(data.token);
     setUser(data.user);
+    setOrders([]);
+    setNotifications([]);
     setAuthError(null);
     setAuthErrorCode(null);
     setPendingEmail(null);

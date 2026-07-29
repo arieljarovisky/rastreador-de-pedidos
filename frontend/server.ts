@@ -175,7 +175,7 @@ function initDatabase(): DatabaseSchema {
     notifications: [
       {
         id: 'n1',
-        userId: 'all',
+        userId: 'u5',
         title: '¡Bienvenido al sistema Lupo!',
         body: 'Nueva PWA de rastreo de pedidos activa. Repartidores, recuerden activar el GPS al iniciar un envío.',
         createdAt: new Date(Date.now() - 7200000).toISOString(),
@@ -339,10 +339,10 @@ async function startServer() {
 
     db.orders.unshift(newOrder); // Agregar al inicio de la lista
 
-    // Crear notificación para todos los repartidores
+    // Notificar al admin de logística demo (u5), no broadcast global
     const newNotif: AppNotification = {
       id: `n_order_${Date.now()}`,
-      userId: 'all',
+      userId: 'u5',
       title: 'Nuevo pedido disponible',
       body: `Un nuevo pedido con id ${newId} está listo para ser entregado en ${address}.`,
       createdAt: new Date().toISOString(),
@@ -590,9 +590,9 @@ async function startServer() {
       return;
     }
 
-    // Filtrar notificaciones del usuario específico o globales ('all')
+    // Solo notificaciones del usuario autenticado
     const userNotifications = db.notifications.filter(
-      n => n.userId === 'all' || n.userId === user.id
+      n => n.userId === user.id
     );
     res.json(userNotifications);
   });
@@ -606,7 +606,7 @@ async function startServer() {
     }
 
     db.notifications = db.notifications.map(n => {
-      if (n.userId === 'all' || n.userId === user.id) {
+      if (n.userId === user.id) {
         return { ...n, read: true };
       }
       return n;

@@ -1,7 +1,4 @@
-import {
-  listPushTokensForAllUsers,
-  listPushTokensForUser,
-} from './push-tokens.service.js';
+import { listPushTokensForUser } from './push-tokens.service.js';
 
 interface ExpoPushMessage {
   to: string;
@@ -46,17 +43,7 @@ export async function sendPushNotification(
   data?: Record<string, string>
 ): Promise<void> {
   if (userId === 'all') {
-    const tokens = await listPushTokensForAllUsers();
-    const messages = tokens.map((token) => ({
-      to: token,
-      sound: 'default' as const,
-      title,
-      body,
-      data,
-      priority: 'high' as const,
-      channelId: 'posta-alerts',
-    }));
-    await sendExpoPushBatch(messages);
+    console.warn('[push] sendPushNotification omitido: userId=all ya no se usa');
     return;
   }
 
