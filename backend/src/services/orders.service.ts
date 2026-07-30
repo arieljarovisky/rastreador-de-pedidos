@@ -1565,6 +1565,13 @@ export async function updateOrderStatus(
     await accrueDriverPayOnDelivery(updated).catch((err) => {
       console.warn('[driver-settlement] No se pudo liquidar entrega:', err);
     });
+
+    if (updated.externalSource === 'tiendanube' && updated.externalOrderId && updated.sellerId) {
+      const { markTiendaNubeOrderAsDelivered } = await import('./tiendanube.service.js');
+      markTiendaNubeOrderAsDelivered(updated.sellerId, updated.externalOrderId).catch((err) => {
+        console.warn('[tiendanube] No se pudo sincronizar entrega con Tienda Nube:', err);
+      });
+    }
   }
 
   return {
