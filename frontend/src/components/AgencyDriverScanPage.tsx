@@ -8,6 +8,7 @@ import { ClipboardList, Loader2, Trash2 } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import { getOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
+import { useModal } from '../context/ModalContext.tsx';
 
 export type AgencyDriverScanStatus = 'pending' | 'delivered' | 'cancelled';
 
@@ -84,6 +85,7 @@ export default function AgencyDriverScanPage({
   token,
   repartidores = [],
 }: AgencyDriverScanPageProps) {
+  const { confirm, alert: showAlert } = useModal();
   const todayKey = getOperationalDateKey();
   const [date, setDate] = useState(todayKey);
   const [repartidorId, setRepartidorId] = useState('');
@@ -119,7 +121,14 @@ export default function AgencyDriverScanPage({
   const handleDelete = useCallback(
     async (entry: AgencyDriverScanEntry) => {
       const label = entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode);
-      if (!window.confirm(`¿Eliminar "${label}" del registro?`)) return;
+      const ok = await confirm({
+        title: 'Eliminar del registro',
+        message: `¿Eliminar "${label}" del registro? Esta acción no se puede deshacer.`,
+        variant: 'danger',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+      });
+      if (!ok) return;
       setDeletingId(entry.id);
       setError(null);
       try {
@@ -133,12 +142,14 @@ export default function AgencyDriverScanPage({
         }
         setEntries((prev) => prev.filter((e) => e.id !== entry.id));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'No se pudo eliminar el registro.');
+        const message = err instanceof Error ? err.message : 'No se pudo eliminar el registro.';
+        setError(message);
+        void showAlert({ title: 'No se pudo eliminar', message, variant: 'error' });
       } finally {
         setDeletingId(null);
       }
     },
-    [token]
+    [token, confirm, showAlert]
   );
 
   const counts = useMemo(() => {
