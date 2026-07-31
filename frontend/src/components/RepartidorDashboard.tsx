@@ -253,6 +253,27 @@ export default function RepartidorDashboard({
                 <p className="text-[11px] text-[var(--color-ok)]">
                   Conectado como {repartidorMlStatus.mercadolibre.account?.nickname ?? 'ML'}
                 </p>
+                {onConnectRepartidorMercadoLibre && (
+                  <button
+                    type="button"
+                    className="text-[10px] font-mono font-bold uppercase px-2 py-1 rounded-[var(--radius-posta)] bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/30"
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          await onConnectRepartidorMercadoLibre();
+                        } catch (err: unknown) {
+                          void showAlert({
+                            title: 'Error',
+                            message: err instanceof Error ? err.message : 'No se pudo reconectar',
+                            variant: 'error',
+                          });
+                        }
+                      })();
+                    }}
+                  >
+                    Autorizar de nuevo
+                  </button>
+                )}
                 {onDisconnectRepartidorMercadoLibre && (
                   <button
                     type="button"

@@ -91,10 +91,19 @@ export default function RepartidorMlConnectBar() {
           <Text style={styles.ok} numberOfLines={1}>
             Conectado como {nickname}
           </Text>
-          <Pressable onPress={disconnect} disabled={busy} style={styles.disconnectBtn}>
-            <PostaIcon name="unlink" size={14} color={colors.red} />
-            <Text style={styles.danger}>{busy ? '…' : 'Desconectar'}</Text>
-          </Pressable>
+          <View style={styles.connectedActions}>
+            <Button
+              label="Autorizar de nuevo"
+              onPress={connect}
+              loading={busy}
+              disabled={!status.mercadolibre.configured}
+              style={styles.btn}
+            />
+            <Pressable onPress={disconnect} disabled={busy} style={styles.disconnectBtn}>
+              <PostaIcon name="unlink" size={14} color={colors.red} />
+              <Text style={styles.danger}>{busy ? '…' : 'Desconectar'}</Text>
+            </Pressable>
+          </View>
         </View>
       ) : (
         <View style={styles.disconnectedRow}>
@@ -155,6 +164,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   connectedRow: {
+    gap: spacing.sm,
+  },
+  connectedActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   disconnectedRow: {

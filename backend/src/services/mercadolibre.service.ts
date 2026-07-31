@@ -78,7 +78,11 @@ interface MlShipment {
   };
 }
 
-export function getMercadoLibreAuthUrl(state: string, codeChallenge?: string): string {
+export function getMercadoLibreAuthUrl(
+  state: string,
+  codeChallenge?: string,
+  options?: { forceLogin?: boolean }
+): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: env.mercadolibre.appId,
@@ -89,7 +93,60 @@ export function getMercadoLibreAuthUrl(state: string, codeChallenge?: string): s
     params.set('code_challenge', codeChallenge);
     params.set('code_challenge_method', 'S256');
   }
-  return `https://auth.mercadolibre.com.ar/authorization?${params}`;
+  const authUrl = `https://auth.mercadolibre.com.ar/authorization?${params}`;
+  if (!options?.forceLogin) return authUrl;
+
+  // Cierra la sesión ML y vuelve al authorize: así reaparece el cartel de permisos
+  // (si el grant ya fue revocado). Sin logout, ML reutiliza la sesión y saltea el consentimiento.
+  const site = (env.mercadolibre.siteId || 'MLA').toLowerCase();
+  return `https://www.mercadolibre.com/jms/${site}/lgz/logout?go=${encodeURIComponent(authUrl)}`;
+}
+
+/**
+ * Revoca el grant de la app en la cuenta ML del usuario.
+ * Sin esto, al reconectar ML saltea el cartel de "Autorizar".
+ */
+export async function revokeMercadoLibreAuthorization(
+  integration: Pick<StoreIntegration, 'externalUserId' | 'accessToken'>
+): Promise<boolean> {
+  const mlUserId = integration.externalUserId?.trim();
+  const accessToken = integration.accessToken?.trim();
+  const appId = env.mercadolibre.appId?.trim();
+  if (!mlUserId || !accessToken || !appId) return false;
+
+  try {
+    const res = await fetch(`${ML_API}/users/${mlUserId}/applications/${appId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn('[ml-oauth] revoke failed', { status: res.status, body: body.slice(0, 300) });
+      return false;
+    }
+    console.log('[ml-oauth] autorización ML revocada', { mlUserId });
+    return true;
+  } catch (err) {
+    console.warn('[ml-oauth] revoke error', err);
+    return false;
+  }
+}
+
+/** Intenta refrescar el token y revocar el grant; best-effort. */
+export async function revokeMercadoLibreForUser(userId: string): Promise<void> {
+  const integration = await getIntegration(userId, 'mercadolibre');
+  if (!integration) return;
+
+  let target = integration;
+  try {
+    if (tokenExpiresSoon(integration) && integration.refreshToken) {
+      target = await refreshMercadoLibreToken(integration);
+    }
+  } catch (err) {
+    console.warn('[ml-oauth] no se pudo refrescar token antes de revocar', err);
+  }
+
+  await revokeMercadoLibreAuthorization(target);
 }
 
 export async function exchangeMercadoLibreCode(
