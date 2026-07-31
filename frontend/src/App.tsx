@@ -102,6 +102,7 @@ export default function App() {
   const [barrios, setBarrios] = useState<Barrio[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [sellerHistoryRequestId, setSellerHistoryRequestId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
   const [accountSection, setAccountSection] = useState<'sellers' | 'drivers'>('sellers');
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
@@ -2469,6 +2470,10 @@ export default function App() {
                     }}
                     onScheduleOrderToday={handleScheduleOrderToday}
                     onGoToOperations={() => setMobileTab('dashboard')}
+                    onViewSellerHistory={(sellerId) => {
+                      setSellerHistoryRequestId(sellerId);
+                      setMobileTab('dashboard');
+                    }}
                   />
                 </div>
                 <div
@@ -2495,6 +2500,8 @@ export default function App() {
                     onScheduleOrderToday={handleScheduleOrderToday}
                     userRole={user.role}
                     onOpenShippingLabel={handleOpenShippingLabel}
+                    sellerHistoryRequestId={sellerHistoryRequestId}
+                    onSellerHistoryRequestConsumed={() => setSellerHistoryRequestId(null)}
                   />
                 </div>
               </>

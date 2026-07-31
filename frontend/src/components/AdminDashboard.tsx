@@ -48,6 +48,9 @@ interface AdminDashboardProps {
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
   onOpenShippingLabel?: (orderId: string) => Promise<void>;
+  /** Abre el historial completo de un vendedor (todas las fechas y estados). */
+  sellerHistoryRequestId?: string | null;
+  onSellerHistoryRequestConsumed?: () => void;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -156,6 +159,8 @@ export default function AdminDashboard({
   onScheduleOrderToday,
   userRole = UserRole.STORE_ADMIN,
   onOpenShippingLabel,
+  sellerHistoryRequestId = null,
+  onSellerHistoryRequestConsumed,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
@@ -186,6 +191,8 @@ export default function AdminDashboard({
   const todayKey = getOperationalDateKey();
   const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
   const [dateFilterKey, setDateFilterKey] = useState<string>(todayKey);
+  /** Historial por vendedor: todas las fechas, todos los estados (incluye archivados). */
+  const [sellerHistoryMode, setSellerHistoryMode] = useState(false);
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
     return new Set();
@@ -504,8 +511,8 @@ export default function AdminDashboard({
     [sellerFilterId, cordonFilterId, repartidorFilterId, dateFilterKey, deliveryZones, barrios, ambaGeoReady]
   );
 
-  /** Con fecha activa, los archivados de ese día entran en lista/mapa/stats. */
-  const includeArchivedForDate = Boolean(dateFilterKey);
+  /** Con fecha activa o en historial de vendedor, los archivados entran en lista/mapa/stats. */
+  const includeArchivedForDate = Boolean(dateFilterKey) || sellerHistoryMode;
 
   const dashboardScopedOrders = useMemo(
     () =>
@@ -615,8 +622,70 @@ export default function AdminDashboard({
     setCordonFilterId('');
     setRepartidorFilterId('');
     setDateFilterKey(todayKey);
+    setSellerHistoryMode(false);
     setMapRepartidorIds(new Set(repartidores.map((r) => r.id)));
   };
+
+  const openSellerHistory = useCallback(
+    (sellerId: string) => {
+      if (!sellerId) return;
+      setSellerFilterId(sellerId);
+      setDateFilterKey('');
+      setStatusFilter('all');
+      setCordonFilterId('');
+      setRepartidorFilterId('');
+      setSearchQuery('');
+      setSellerHistoryMode(true);
+      setOrdersHeaderCollapsed(false);
+    },
+    []
+  );
+
+  const exitSellerHistory = useCallback(() => {
+    setSellerHistoryMode(false);
+    setDateFilterKey(todayKey);
+    setStatusFilter('all');
+  }, [todayKey]);
+
+  useEffect(() => {
+    if (!sellerHistoryRequestId) return;
+    openSellerHistory(sellerHistoryRequestId);
+    onSellerHistoryRequestConsumed?.();
+  }, [sellerHistoryRequestId, openSellerHistory, onSellerHistoryRequestConsumed]);
+
+  const handleSellerFilterChange = (nextId: string) => {
+    setSellerFilterId(nextId);
+    if (!nextId) {
+      setSellerHistoryMode(false);
+    }
+  };
+
+  const handleDateFilterChange = (nextKey: string) => {
+    setDateFilterKey(nextKey);
+    if (nextKey) setSellerHistoryMode(false);
+  };
+
+  const sellerHistorySeller = useMemo(
+    () => (sellerHistoryMode ? sellers.find((s) => s.id === sellerFilterId) ?? null : null),
+    [sellerHistoryMode, sellers, sellerFilterId]
+  );
+
+  const sellerHistoryStats = useMemo(() => {
+    if (!sellerHistoryMode) return null;
+    const list =
+      sellerFilterId && isAgencyAdmin(userRole)
+        ? orders.filter((o) => o.sellerId === sellerFilterId)
+        : orders;
+    return {
+      total: list.length,
+      pending: list.filter((o) => o.status === OrderStatus.PENDING).length,
+      assigned: list.filter((o) => o.status === OrderStatus.ASSIGNED).length,
+      delivering: list.filter((o) => o.status === OrderStatus.DELIVERING).length,
+      delivered: list.filter((o) => o.status === OrderStatus.DELIVERED).length,
+      cancelled: list.filter((o) => o.status === OrderStatus.CANCELLED).length,
+      archived: list.filter((o) => o.archived).length,
+    };
+  }, [sellerHistoryMode, sellerFilterId, orders, userRole]);
 
   const toggleMapRepartidor = (id: string) => {
     setMapRepartidorIds((prev) => {
@@ -1433,14 +1502,143 @@ export default function AdminDashboard({
           </div>
 
           {isAgencyAdmin(userRole) && (
-            <SellerPickupPanel
-              collapsible
-              sellers={sellers}
-              pickupPoints={pickupPoints}
-              selectedSellerId={sellerFilterId}
-              onSellerChange={setSellerFilterId}
-              allSellersOptionLabel="Todos los vendedores"
-            />
+            <div className="space-y-2">
+              <SellerPickupPanel
+                collapsible
+                sellers={sellers}
+                pickupPoints={pickupPoints}
+                selectedSellerId={sellerFilterId}
+                onSellerChange={handleSellerFilterChange}
+                allSellersOptionLabel="Todos los vendedores"
+              />
+              {sellerFilterId && !sellerHistoryMode && (
+                <button
+                  type="button"
+                  onClick={() => openSellerHistory(sellerFilterId)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-[5px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/15 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] transition"
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Ver todos sus envíos
+                </button>
+              )}
+              {sellerHistoryMode && sellerHistorySeller && sellerHistoryStats && (
+                <div className="rounded-[5px] border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/8 p-2.5 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)]">
+                        Historial del vendedor
+                      </p>
+                      <p className="text-xs font-semibold text-[var(--ink-soft)] truncate mt-0.5">
+                        {sellerHistorySeller.name}
+                      </p>
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1 font-mono">
+                        {sellerHistoryStats.total} envío{sellerHistoryStats.total === 1 ? '' : 's'} · todos los
+                        estados y fechas
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={exitSellerHistory}
+                      className="shrink-0 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] px-1.5 py-1 rounded border border-[var(--surface-border)] hover:bg-[var(--surface-panel-2)]"
+                    >
+                      Volver a hoy
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
+                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Pend</p>
+                      <p className="text-xs font-bold font-mono text-[var(--ink-soft)]">
+                        {sellerHistoryStats.pending + sellerHistoryStats.assigned}
+                      </p>
+                    </div>
+                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
+                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Ruta</p>
+                      <p className="text-xs font-bold font-mono text-[var(--color-warn)]">
+                        {sellerHistoryStats.delivering}
+                      </p>
+                    </div>
+                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
+                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Listos</p>
+                      <p className="text-xs font-bold font-mono text-[var(--color-ok)]">
+                        {sellerHistoryStats.delivered}
+                      </p>
+                    </div>
+                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
+                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Canc.</p>
+                      <p className="text-xs font-bold font-mono text-[var(--color-danger)]">
+                        {sellerHistoryStats.cancelled}
+                      </p>
+                    </div>
+                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1 col-span-2">
+                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Archivados</p>
+                      <p className="text-xs font-bold font-mono text-[var(--color-text-muted)]">
+                        {sellerHistoryStats.archived}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {userRole === UserRole.STORE_ADMIN && !sellerHistoryMode && (
+            <button
+              type="button"
+              onClick={() => {
+                setDateFilterKey('');
+                setStatusFilter('all');
+                setSearchQuery('');
+                setSellerHistoryMode(true);
+                setOrdersHeaderCollapsed(false);
+              }}
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-[5px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/15 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] transition"
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              Ver todos mis envíos
+            </button>
+          )}
+
+          {userRole === UserRole.STORE_ADMIN && sellerHistoryMode && sellerHistoryStats && (
+            <div className="rounded-[5px] border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/8 p-2.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)]">
+                    Historial de envíos
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-1 font-mono">
+                    {sellerHistoryStats.total} envío{sellerHistoryStats.total === 1 ? '' : 's'} · todos los estados y
+                    fechas
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={exitSellerHistory}
+                  className="shrink-0 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] px-1.5 py-1 rounded border border-[var(--surface-border)] hover:bg-[var(--surface-panel-2)]"
+                >
+                  Volver a hoy
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 text-center">
+                <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
+                  <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Pend</p>
+                  <p className="text-xs font-bold font-mono text-[var(--ink-soft)]">
+                    {sellerHistoryStats.pending + sellerHistoryStats.assigned}
+                  </p>
+                </div>
+                <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
+                  <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Ruta</p>
+                  <p className="text-xs font-bold font-mono text-[var(--color-warn)]">
+                    {sellerHistoryStats.delivering}
+                  </p>
+                </div>
+                <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
+                  <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Listos</p>
+                  <p className="text-xs font-bold font-mono text-[var(--color-ok)]">
+                    {sellerHistoryStats.delivered}
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Filtros: fecha + cordón/repartidor, luego búsqueda y estados */}
@@ -1452,7 +1650,7 @@ export default function AdminDashboard({
                 value={dateFilterKey || todayKey}
                 maxDateKey={datePickerMaxKey}
                 nextShipmentDateKey={nextShipmentDateKey}
-                onChange={setDateFilterKey}
+                onChange={handleDateFilterChange}
               />
               <CordonFilterControl
                 zones={cordonZones}
@@ -1464,7 +1662,7 @@ export default function AdminDashboard({
               {dateFilterKey && dateFilterKey !== todayKey ? (
                 <button
                   type="button"
-                  onClick={() => setDateFilterKey(todayKey)}
+                  onClick={() => handleDateFilterChange(todayKey)}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
                   Hoy
@@ -1473,7 +1671,7 @@ export default function AdminDashboard({
               {dateFilterKey !== tomorrowKey ? (
                 <button
                   type="button"
-                  onClick={() => setDateFilterKey(tomorrowKey)}
+                  onClick={() => handleDateFilterChange(tomorrowKey)}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
                   Mañana
@@ -1482,7 +1680,7 @@ export default function AdminDashboard({
               {nextShipmentDateKey ? (
                 <button
                   type="button"
-                  onClick={() => setDateFilterKey(nextShipmentDateKey)}
+                  onClick={() => handleDateFilterChange(nextShipmentDateKey)}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
                   Próximos envíos
@@ -1491,7 +1689,7 @@ export default function AdminDashboard({
               {dateFilterKey ? (
                 <button
                   type="button"
-                  onClick={() => setDateFilterKey('')}
+                  onClick={() => handleDateFilterChange('')}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
                 >
                   Todas las fechas
@@ -1583,7 +1781,7 @@ export default function AdminDashboard({
                   value={dateFilterKey || todayKey}
                   maxDateKey={datePickerMaxKey}
                   nextShipmentDateKey={nextShipmentDateKey}
-                  onChange={setDateFilterKey}
+                  onChange={handleDateFilterChange}
                 />
                 <div className="min-w-0 flex flex-col gap-1.5">
                   <span
@@ -1924,13 +2122,13 @@ export default function AdminDashboard({
                         value={dateFilterKey || todayKey}
                         maxDateKey={datePickerMaxKey}
                         nextShipmentDateKey={nextShipmentDateKey}
-                        onChange={setDateFilterKey}
+                        onChange={handleDateFilterChange}
                       />
                       <div className="flex items-center gap-2 px-0.5 flex-wrap">
                         {dateFilterKey && dateFilterKey !== todayKey && (
                           <button
                             type="button"
-                            onClick={() => setDateFilterKey(todayKey)}
+                            onClick={() => handleDateFilterChange(todayKey)}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
                             Hoy
@@ -1939,7 +2137,7 @@ export default function AdminDashboard({
                         {dateFilterKey !== tomorrowKey && (
                           <button
                             type="button"
-                            onClick={() => setDateFilterKey(tomorrowKey)}
+                            onClick={() => handleDateFilterChange(tomorrowKey)}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
                             Mañana
@@ -1948,7 +2146,7 @@ export default function AdminDashboard({
                         {nextShipmentDateKey && (
                           <button
                             type="button"
-                            onClick={() => setDateFilterKey(nextShipmentDateKey)}
+                            onClick={() => handleDateFilterChange(nextShipmentDateKey)}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
                             Próximos envíos
@@ -1957,7 +2155,7 @@ export default function AdminDashboard({
                         {dateFilterKey ? (
                           <button
                             type="button"
-                            onClick={() => setDateFilterKey('')}
+                            onClick={() => handleDateFilterChange('')}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
                           >
                             Todas
@@ -1972,7 +2170,7 @@ export default function AdminDashboard({
                       <SellerFilterControl
                         sellers={sellers}
                         value={sellerFilterId}
-                        onChange={setSellerFilterId}
+                        onChange={handleSellerFilterChange}
                       />
                     )}
 

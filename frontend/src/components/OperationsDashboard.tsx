@@ -53,6 +53,8 @@ interface OperationsDashboardProps {
   onSelectOrder?: (orderId: string) => void;
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   onGoToOperations?: () => void;
+  /** Abre el historial completo del vendedor en el mapa/lista de envíos. */
+  onViewSellerHistory?: (sellerId: string) => void;
 }
 
 export default function OperationsDashboard({
@@ -66,6 +68,7 @@ export default function OperationsDashboard({
   onSelectOrder,
   onScheduleOrderToday,
   onGoToOperations,
+  onViewSellerHistory,
 }: OperationsDashboardProps) {
   const todayKey = getOperationalDateKey();
   const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
@@ -394,6 +397,7 @@ export default function OperationsDashboard({
               rows={sellerBreakdown}
               selectedSellerId={sellerFilterId}
               onSelectSeller={setSellerFilterId}
+              onViewSellerHistory={onViewSellerHistory}
               className="hidden 2xl:flex"
             />
           )}
@@ -404,6 +408,7 @@ export default function OperationsDashboard({
             rows={sellerBreakdown}
             selectedSellerId={sellerFilterId}
             onSelectSeller={setSellerFilterId}
+            onViewSellerHistory={onViewSellerHistory}
             className="mt-3 2xl:hidden"
           />
         )}
@@ -585,11 +590,13 @@ function SellerBreakdownSection({
   rows,
   selectedSellerId = '',
   onSelectSeller,
+  onViewSellerHistory,
   className = '',
 }: {
   rows: Array<{ id: string; name: string; undelivered: number; delivered: number }>;
   selectedSellerId?: string;
   onSelectSeller?: (sellerId: string) => void;
+  onViewSellerHistory?: (sellerId: string) => void;
   className?: string;
 }) {
   return (
@@ -602,7 +609,9 @@ function SellerBreakdownSection({
           Por vendedor
         </h2>
         {onSelectSeller && (
-          <p className="text-[10px] sm:text-[9px] text-[var(--color-text-faint)] mt-1">Tocá un vendedor para filtrar</p>
+          <p className="text-[10px] sm:text-[9px] text-[var(--color-text-faint)] mt-1">
+            Tocá para filtrar el día · historial abre todos los envíos
+          </p>
         )}
       </div>
       <div className="xl:flex-1 xl:min-h-0 max-h-[16rem] xl:max-h-none overflow-y-auto divide-y divide-[var(--surface-border)]/60 scrollbar-thin">
@@ -610,7 +619,9 @@ function SellerBreakdownSection({
           const isActive = selectedSellerId === row.id;
           const inner = (
             <>
-              <span className="font-medium text-[var(--ink-soft)] truncate text-[15px] sm:text-sm">{row.name}</span>
+              <span className="font-medium text-[var(--ink-soft)] truncate text-[15px] sm:text-sm min-w-0">
+                {row.name}
+              </span>
               <div className="flex items-center gap-2 shrink-0 font-mono text-[11px] sm:text-[10px]">
                 <span className="text-[var(--color-ok)]">{row.delivered} ok</span>
                 <span className={row.undelivered > 0 ? 'text-[var(--color-warn)] font-bold' : 'text-[var(--color-text-muted)]'}>
@@ -627,18 +638,32 @@ function SellerBreakdownSection({
             );
           }
           return (
-            <button
+            <div
               key={row.id}
-              type="button"
-              onClick={() => onSelectSeller(isActive ? '' : row.id)}
-              className={`w-full flex items-center justify-between px-3 py-3.5 sm:py-2.5 text-sm text-left transition min-h-12 sm:min-h-0 ${
-                isActive
-                  ? 'bg-[var(--color-accent)]/10 border-l-2 border-[var(--color-accent)]'
-                  : 'hover:bg-[var(--surface-panel-2)]/60 active:bg-[var(--surface-panel-2)]'
+              className={`flex items-stretch ${
+                isActive ? 'bg-[var(--color-accent)]/10 border-l-2 border-[var(--color-accent)]' : ''
               }`}
             >
-              {inner}
-            </button>
+              <button
+                type="button"
+                onClick={() => onSelectSeller(isActive ? '' : row.id)}
+                className={`flex-1 min-w-0 flex items-center justify-between px-3 py-3.5 sm:py-2.5 text-sm text-left transition min-h-12 sm:min-h-0 ${
+                  isActive ? '' : 'hover:bg-[var(--surface-panel-2)]/60 active:bg-[var(--surface-panel-2)]'
+                }`}
+              >
+                {inner}
+              </button>
+              {onViewSellerHistory && (
+                <button
+                  type="button"
+                  title={`Ver todos los envíos de ${row.name}`}
+                  onClick={() => onViewSellerHistory(row.id)}
+                  className="shrink-0 px-2.5 self-stretch flex items-center text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 border-l border-[var(--surface-border)]/60"
+                >
+                  Historial
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
