@@ -271,20 +271,28 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
         {isOpen && (
           <View style={styles.actions}>
             <Button label="Cómo llegar" variant="secondary" onPress={openInMaps} />
-            {order.status === OrderStatus.DELIVERING && (
+            {(order.status === OrderStatus.DELIVERING ||
+              (order.externalSource !== 'mercadolibre' && isOpen)) && (
               <Button
                 label="Marcar entregado"
                 variant="success"
                 loading={busy}
                 onPress={() =>
-                  run(async () => {
-                    await updateStatus(
-                      order.id,
-                      OrderStatus.DELIVERED,
-                      'Entregado desde app de agencia'
-                    );
-                    navigation.goBack();
-                  })
+                  Alert.alert('Marcar entregado', `¿Confirmar entrega de ${order.id}?`, [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Sí, entregado',
+                      onPress: () =>
+                        run(async () => {
+                          await updateStatus(
+                            order.id,
+                            OrderStatus.DELIVERED,
+                            'Entregado desde app de agencia'
+                          );
+                          navigation.goBack();
+                        }),
+                    },
+                  ])
                 }
               />
             )}

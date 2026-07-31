@@ -1483,6 +1483,7 @@ export async function updateOrderStatus(
   const order = await getOrderById(orderId);
   if (!order) throw new Error('NOT_FOUND');
 
+  const sellerId = await getSellerIdForOrder(orderId);
   const now = new Date();
   let assignedRepartidorId = order.repartidorId;
   let assignedRepartidorName = order.repartidorName;
@@ -1496,13 +1497,28 @@ export async function updateOrderStatus(
     } else if (order.repartidorId !== user.id) {
       throw new Error('FORBIDDEN');
     }
+  } else if (user.role === UserRole.STORE_ADMIN) {
+    if (!canViewOrder(user, order, sellerId)) throw new Error('FORBIDDEN');
+    if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+      throw new Error('NOT_AVAILABLE');
+    }
+    if (status === OrderStatus.CANCELLED) {
+      if (order.status !== OrderStatus.PENDING) throw new Error('FORBIDDEN');
+    } else if (status === OrderStatus.DELIVERED) {
+      // ML se sincroniza por webhook; el resto se confirma a mano.
+      if (order.externalSource === 'mercadolibre') throw new Error('MANUAL_DELIVER_ML_FORBIDDEN');
+    } else {
+      throw new Error('FORBIDDEN');
+    }
   } else if (status === OrderStatus.PENDING && isAgencyAdmin(user.role)) {
+    if (!canViewOrder(user, order, sellerId)) throw new Error('FORBIDDEN');
     if (order.status !== OrderStatus.ASSIGNED) {
       throw new Error('CANNOT_UNASSIGN');
     }
     assignedRepartidorId = null;
     assignedRepartidorName = null;
   } else if (status === OrderStatus.ASSIGNED) {
+    if (!canViewOrder(user, order, sellerId)) throw new Error('FORBIDDEN');
     if (!repartidorId) throw new Error('REPARTIDOR_REQUIRED');
     const rep = await getRepartidorById(repartidorId);
     if (!rep) throw new Error('REPARTIDOR_NOT_FOUND');
@@ -1511,6 +1527,8 @@ export async function updateOrderStatus(
     }
     assignedRepartidorId = rep.id;
     assignedRepartidorName = rep.name;
+  } else if (isAgencyAdmin(user.role)) {
+    if (!canViewOrder(user, order, sellerId)) throw new Error('FORBIDDEN');
   }
 
   if (

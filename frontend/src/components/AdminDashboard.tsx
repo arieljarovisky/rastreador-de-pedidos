@@ -723,12 +723,35 @@ export default function AdminDashboard({
       });
     }
 
-    if (agency && (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)) {
+    const isOpen =
+      order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED;
+    const isMl = order.externalSource === 'mercadolibre';
+    const canMarkDeliveredManual =
+      isOpen &&
+      ((agency && (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)) ||
+        (!isMl && (agency || isSeller)));
+
+    if (canMarkDeliveredManual) {
       items.push({
         id: 'mark-delivered',
         label: 'Marcar como entregado',
-        onClick: () =>
-          void onUpdateOrderStatus(order.id, OrderStatus.DELIVERED, undefined, 'Marcado como entregado desde menú'),
+        onClick: () => {
+          void confirm({
+            title: 'Marcar como entregado',
+            message: `¿Confirmar que el envío ${order.id} ya fue entregado?`,
+            variant: 'warning',
+            confirmText: 'Sí, entregado',
+            cancelText: 'Cancelar',
+          }).then((ok) => {
+            if (!ok) return;
+            void onUpdateOrderStatus(
+              order.id,
+              OrderStatus.DELIVERED,
+              undefined,
+              'Marcado como entregado desde menú'
+            );
+          });
+        },
       });
     }
 
@@ -2301,15 +2324,63 @@ export default function AdminDashboard({
                     )
                   )}
 
-                  {/* Estado del pedido y canceladores */}
+                  {/* Estado del pedido: entregar (no-ML) y cancelar */}
                   {selectedOrder.status !== OrderStatus.DELIVERED && selectedOrder.status !== OrderStatus.CANCELLED && (
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => onUpdateOrderStatus(selectedOrder.id, OrderStatus.CANCELLED, undefined, 'Cancelado manualmente por el administrador')}
-                        className="flex-1 text-center py-1 border border-[var(--color-danger)]/20 hover:border-[var(--color-danger)] bg-[var(--color-danger)]/5 text-[var(--color-danger)] font-bold text-[10px] uppercase tracking-wider rounded transition"
-                      >
-                        Cancelar Envío
-                      </button>
+                      {(() => {
+                        const isMl = selectedOrder.externalSource === 'mercadolibre';
+                        const agencyUser = isAgencyAdmin(userRole);
+                        const sellerUser = userRole === UserRole.STORE_ADMIN;
+                        const canMarkDelivered =
+                          (agencyUser &&
+                            (selectedOrder.status === OrderStatus.ASSIGNED ||
+                              selectedOrder.status === OrderStatus.DELIVERING)) ||
+                          (!isMl && (agencyUser || sellerUser));
+                        if (!canMarkDelivered) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void confirm({
+                                title: 'Marcar como entregado',
+                                message: `¿Confirmar que el envío ${selectedOrder.id} ya fue entregado?`,
+                                variant: 'warning',
+                                confirmText: 'Sí, entregado',
+                                cancelText: 'Cancelar',
+                              }).then((ok) => {
+                                if (!ok) return;
+                                void onUpdateOrderStatus(
+                                  selectedOrder.id,
+                                  OrderStatus.DELIVERED,
+                                  undefined,
+                                  'Marcado como entregado manualmente'
+                                );
+                              });
+                            }}
+                            className="flex-1 text-center py-1 border border-[var(--color-ok)]/30 hover:border-[var(--color-ok)] bg-[var(--color-ok)]/10 text-[var(--color-ok)] font-bold text-[10px] uppercase tracking-wider rounded transition"
+                          >
+                            Marcar entregado
+                          </button>
+                        );
+                      })()}
+                      {(isAgencyAdmin(userRole) ||
+                        (userRole === UserRole.STORE_ADMIN &&
+                          selectedOrder.status === OrderStatus.PENDING)) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateOrderStatus(
+                              selectedOrder.id,
+                              OrderStatus.CANCELLED,
+                              undefined,
+                              'Cancelado manualmente por el administrador'
+                            )
+                          }
+                          className="flex-1 text-center py-1 border border-[var(--color-danger)]/20 hover:border-[var(--color-danger)] bg-[var(--color-danger)]/5 text-[var(--color-danger)] font-bold text-[10px] uppercase tracking-wider rounded transition"
+                        >
+                          Cancelar Envío
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

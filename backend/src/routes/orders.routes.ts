@@ -439,6 +439,13 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
       res.status(403).json({ error: 'Este pedido no está asignado a ti.' });
       return;
     }
+    if (message === 'MANUAL_DELIVER_ML_FORBIDDEN') {
+      res.status(400).json({
+        error:
+          'Los envíos de Mercado Libre se marcan como entregados automáticamente. No se pueden confirmar a mano.',
+      });
+      return;
+    }
     if (message === 'REPARTIDOR_REQUIRED') {
       res.status(400).json({ error: 'Debe especificar el repartidorId.' });
       return;
