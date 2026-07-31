@@ -782,3 +782,78 @@ export async function ensureTiendaNubeShippingCarrier(
 export function isTiendaNubeConfigured(): boolean {
   return Boolean(env.tiendanube.appId && env.tiendanube.appSecret && env.tiendanube.redirectUri);
 }
+
+/**
+ * Marca un pedido de Tienda Nube como entregado creando un tracking event con status "delivered".
+ * Según la API de TN, esto actualiza automáticamente el fulfillment order a DELIVERED.
+ */
+export async function markTiendaNubeOrderAsDelivered(
+  sellerId: string,
+  externalOrderId: string
+): Promise<{ success: boolean; error?: string }> {
+  const integration = await getIntegration(sellerId, 'tiendanube');
+  if (!integration) {
+    return { success: false, error: 'TN_NOT_CONNECTED' };
+  }
+
+  const storeId = integration.externalStoreId;
+  if (!storeId) {
+    return { success: false, error: 'TN_NO_STORE_ID' };
+  }
+
+  try {
+    const order = await fetchTiendaNubeOrder(storeId, integration.accessToken, externalOrderId);
+
+    const fulfillments = getOrderFulfillments(order);
+    if (fulfillments.length === 0) {
+      console.warn(`[TN] Pedido ${externalOrderId} sin fulfillment orders, no se puede marcar como entregado`);
+      return { success: false, error: 'TN_NO_FULFILLMENTS' };
+    }
+
+    const deliverableFulfillment = fulfillments.find((f) => !fulfillmentIsPickup(f));
+    const fulfillmentId = deliverableFulfillment?.id ?? fulfillments[0]?.id;
+
+    if (!fulfillmentId) {
+      return { success: false, error: 'TN_NO_FULFILLMENT_ID' };
+    }
+
+    const happenedAt = new Date().toISOString();
+
+    const trackingEventRes = await fetch(
+      `${TN_API}/${storeId}/orders/${externalOrderId}/fulfillment-orders/${fulfillmentId}/tracking-events`,
+      {
+        method: 'POST',
+        headers: tnHeaders(integration.accessToken),
+        body: JSON.stringify({
+          status: 'delivered',
+          happened_at: happenedAt,
+          description: 'Entregado por Posta',
+        }),
+      }
+    );
+
+    if (!trackingEventRes.ok) {
+      const errorText = await trackingEventRes.text().catch(() => '');
+      console.error(
+        `[TN] Error al crear tracking event para pedido ${externalOrderId}:`,
+        trackingEventRes.status,
+        errorText
+      );
+
+      if (trackingEventRes.status === 422) {
+        return { success: true };
+      }
+
+      return { success: false, error: 'TN_TRACKING_EVENT_FAILED' };
+    }
+
+    console.log(`[TN] Pedido ${externalOrderId} marcado como entregado en Tienda Nube`);
+    return { success: true };
+  } catch (err) {
+    console.error('[TN] Error al marcar pedido como entregado:', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'TN_UNKNOWN_ERROR',
+    };
+  }
+}
