@@ -16,6 +16,7 @@ import {
   Search,
   ArrowRight,
   Check,
+  RefreshCw,
 } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import { useModal } from '../context/ModalContext.tsx';
@@ -117,6 +118,7 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [repricing, setRepricing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageOk, setMessageOk] = useState(true);
   const [newListName, setNewListName] = useState('');
@@ -255,6 +257,47 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
       }),
     [shipDraft, driverDraft]
   );
+
+  const handleRepriceCharges = async () => {
+    const ok = await confirm({
+      title: 'Aplicar tarifas a envíos facturados',
+      message:
+        'Se van a recalcular todos los cargos de envíos ya entregados de tu agencia con las tarifas actuales de cada zona (CABA y cordones). Los pagos registrados no se tocan. ¿Continuar?',
+      confirmText: 'Recalcular',
+      cancelText: 'Cancelar',
+    });
+    if (!ok) return;
+
+    setRepricing(true);
+    setMessage(null);
+    try {
+      const res = await fetch(apiUrl('/api/billing/reprice-charges'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudieron recalcular los cargos.');
+      const changed = Number(data.changed ?? 0);
+      const delta = Number(data.deltaTotal ?? 0);
+      const deltaLabel = new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: 'ARS',
+        maximumFractionDigits: 0,
+      }).format(delta);
+      setMessageOk(true);
+      setMessage(
+        changed === 0
+          ? 'Ningún cargo cambió: ya estaban al día con las tarifas actuales.'
+          : `Listo: ${changed} cargo${changed === 1 ? '' : 's'} actualizado${changed === 1 ? '' : 's'} (delta ${deltaLabel}).`
+      );
+    } catch (err) {
+      setMessageOk(false);
+      setMessage(err instanceof Error ? err.message : 'No se pudo recalcular.');
+    } finally {
+      setRepricing(false);
+    }
+  };
 
   const handleCreate = async () => {
     const name = newListName.trim() || `Lista ${summaries.length + 1}`;
@@ -431,7 +474,7 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex p-1 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50">
             <button
               type="button"
@@ -461,6 +504,21 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
               ) : null}
             </button>
           </div>
+
+          <button
+            type="button"
+            disabled={repricing || saving}
+            onClick={() => void handleRepriceCharges()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:bg-[var(--surface-panel)] disabled:opacity-40"
+            title="Recalcula cargos de envíos ya entregados con las tarifas actuales por zona"
+          >
+            {repricing ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3 text-[var(--color-accent)]" />
+            )}
+            Aplicar a facturados
+          </button>
 
           {message ? (
             <p

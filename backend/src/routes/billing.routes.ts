@@ -8,6 +8,7 @@ import {
   listAgencyZoneShippingRates,
   updateAgencyDefaultShippingRates,
   recordBillingPayment,
+  repriceAgencyChargesToCurrentRates,
 } from '../services/billing.service.js';
 import {
   createSellerBillingCheckout,
@@ -123,6 +124,28 @@ router.put(
         return;
       }
       res.status(500).json({ error: 'No se pudieron guardar las tarifas.' });
+    }
+  }
+);
+
+router.post(
+  '/reprice-charges',
+  authenticate,
+  requireRoles(UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const sellerId = typeof req.body?.sellerId === 'string' ? req.body.sellerId : undefined;
+      const dryRun = req.body?.dryRun === true;
+      const result = await repriceAgencyChargesToCurrentRates(req.user!, { sellerId, dryRun });
+      res.json(result);
+    } catch (err: unknown) {
+      const code = err instanceof Error ? err.message : 'ERROR';
+      if (code === 'FORBIDDEN') {
+        res.status(403).json({ error: 'No tenés permiso para recalcular cargos.' });
+        return;
+      }
+      console.error('[billing] POST /reprice-charges error:', err);
+      res.status(500).json({ error: 'No se pudieron recalcular los cargos.' });
     }
   }
 );

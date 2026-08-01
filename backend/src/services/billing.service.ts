@@ -184,6 +184,87 @@ export async function updateAgencyDefaultShippingRates(
   return { ...next, currency: 'ARS' };
 }
 
+export interface RepriceChargesResult {
+  scanned: number;
+  changed: number;
+  unchanged: number;
+  skipped: number;
+  deltaTotal: number;
+}
+
+/** Recalcula cargos ya facturados de la agencia con las tarifas actuales de listas/zonas. */
+export async function repriceAgencyChargesToCurrentRates(
+  user: User,
+  options?: { sellerId?: string | null; dryRun?: boolean }
+): Promise<RepriceChargesResult> {
+  if (!isAgencyAdmin(user.role) || !user.agencyId) throw new Error('FORBIDDEN');
+
+  const dryRun = options?.dryRun === true;
+  const params: string[] = [user.agencyId];
+  let sellerFilter = '';
+  if (options?.sellerId) {
+    sellerFilter = ' AND b.seller_id = ?';
+    params.push(options.sellerId);
+  }
+
+  const [charges] = await pool.query<
+    Array<{ id: string; order_id: string; amount: string | number } & RowDataPacket>
+  >(
+    `SELECT b.id, b.order_id, b.amount
+     FROM billing_ledger_entries b
+     WHERE b.agency_id = ?
+       AND b.entry_type = 'charge'
+       AND b.order_id IS NOT NULL${sellerFilter}`,
+    params
+  );
+
+  let changed = 0;
+  let unchanged = 0;
+  let skipped = 0;
+  let deltaTotal = 0;
+
+  for (const charge of charges) {
+    const order = await getOrderById(charge.order_id);
+    if (!order?.agencyId || order.agencyId !== user.agencyId) {
+      skipped += 1;
+      continue;
+    }
+    if (order.lat == null || order.lng == null) {
+      skipped += 1;
+      continue;
+    }
+
+    const newAmount = await resolveOrderShippingRate(order);
+    const oldAmount = Number(charge.amount);
+    if (Math.abs(oldAmount - newAmount) < 0.01) {
+      unchanged += 1;
+      continue;
+    }
+
+    deltaTotal += newAmount - oldAmount;
+    changed += 1;
+
+    if (!dryRun) {
+      await pool.query(
+        `UPDATE billing_ledger_entries SET amount = ? WHERE id = ? AND entry_type = 'charge'`,
+        [newAmount, charge.id]
+      );
+      await pool.query(`UPDATE orders SET shipping_cost = ? WHERE id = ?`, [
+        newAmount,
+        charge.order_id,
+      ]);
+    }
+  }
+
+  return {
+    scanned: charges.length,
+    changed,
+    unchanged,
+    skipped,
+    deltaTotal: Math.round(deltaTotal * 100) / 100,
+  };
+}
+
 export async function chargeOrderOnDelivery(order: Order): Promise<boolean> {
   if (order.status !== OrderStatus.DELIVERED) return false;
   if (!order.sellerId || !order.agencyId) return false;
