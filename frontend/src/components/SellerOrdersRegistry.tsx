@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ClipboardList, Loader2, Package, Search, Trash2 } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Loader2, Package, Search, Trash2 } from 'lucide-react';
 import { Order, OrderStatus, User, isAgencyAdmin, UserRole } from '../types.js';
 import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
@@ -22,6 +22,8 @@ import type {
   AgencyDriverScanEntry,
   AgencyDriverScanStatus,
 } from './AgencyDriverScanPage.tsx';
+
+const PAGE_SIZE = 25;
 
 interface SellerOrdersRegistryProps {
   token: string;
@@ -109,6 +111,7 @@ export default function SellerOrdersRegistry({
   const [marketplaceSource, setMarketplaceSource] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [personalEntries, setPersonalEntries] = useState<AgencyDriverScanEntry[]>([]);
   const [personalLoading, setPersonalLoading] = useState(false);
@@ -209,6 +212,21 @@ export default function SellerOrdersRegistry({
     ];
     return list.sort((a, b) => b.sortAt - a.sortAt);
   }, [postaScoped, personalScoped]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return rows.slice(start, start + PAGE_SIZE);
+  }, [rows, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sellerId, marketplaceSource, statusFilter, searchQuery]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const stats = useMemo(() => {
     const postaBase = sellerId
@@ -411,7 +429,10 @@ export default function SellerOrdersRegistry({
           <button
             key={card.key}
             type="button"
-            onClick={() => setStatusFilter(card.key)}
+            onClick={() => {
+              setStatusFilter(card.key);
+              setPage(1);
+            }}
             className={`rounded-[5px] border px-2 py-2 text-left transition ${
               statusFilter === card.key
                 ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10'
@@ -442,6 +463,7 @@ export default function SellerOrdersRegistry({
             </p>
           </div>
         ) : (
+          <div className="space-y-3">
           <div className="overflow-x-auto rounded-[5px] border border-[var(--surface-border)]">
             <table className="w-full text-left text-xs">
               <thead className="bg-[var(--surface-panel-2)] text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -458,7 +480,7 @@ export default function SellerOrdersRegistry({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {pageRows.map((row) => {
                   if (row.kind === 'posta') {
                     const order = row.order;
                     const exception = getOrderExceptionBadge(order);
@@ -633,6 +655,40 @@ export default function SellerOrdersRegistry({
                 })}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
+            <p className="text-[10px] font-mono text-[var(--color-text-muted)]">
+              {rows.length === 0
+                ? '0 registros'
+                : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, rows.length)} de ${rows.length}`}
+              {' · '}
+              {PAGE_SIZE} por página
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 disabled:opacity-35 disabled:pointer-events-none"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Anterior
+              </button>
+              <span className="min-w-[4.5rem] text-center text-[11px] font-mono font-bold text-[var(--ink-soft)]">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 disabled:opacity-35 disabled:pointer-events-none"
+              >
+                Siguiente
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
           </div>
         )}
       </div>
