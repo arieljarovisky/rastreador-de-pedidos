@@ -360,10 +360,7 @@ function addMovimientosSheet(
 
   ledger.forEach((entry, index) => {
     const amount = entry.entryType === 'payment' ? -moneyNum(entry.amount) : moneyNum(entry.amount);
-    const zoneLabel =
-      entry.entryType === 'charge'
-        ? entry.pricingZoneName ?? (entry.pricingZoneId === 'fuera_de_zona' ? 'Fuera de zona' : '')
-        : '';
+    const zoneLabel = entry.entryType === 'charge' ? entry.pricingZoneName ?? '' : '';
     const row = sheet.getRow(6 + index);
     const values: Array<string | number> = [
       new Date(entry.createdAt).toLocaleString('es-AR'),
@@ -386,16 +383,11 @@ function addMovimientosSheet(
           ? POSTA.warn
           : POSTA.route;
 
-    const fuera = zoneLabel === 'Fuera de zona';
-
     styleDataCell(row.getCell(1), { color: POSTA.ink2 });
     styleDataCell(row.getCell(2), { color: typeColor, bold: true });
     styleDataCell(row.getCell(3));
     styleDataCell(row.getCell(4), { color: POSTA.ink3 });
-    styleDataCell(row.getCell(5), {
-      color: fuera ? POSTA.warn : POSTA.route,
-      bold: fuera,
-    });
+    styleDataCell(row.getCell(5), { color: POSTA.route });
     styleDataCell(row.getCell(6), { color: POSTA.ink2 });
     if (includeSeller) {
       styleDataCell(row.getCell(7), { color: POSTA.route });

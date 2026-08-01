@@ -468,8 +468,9 @@ export async function listBillingLedger(
           pricingZoneId = canonical;
           pricingZoneName = ZONE_NAMES[canonical] ?? zone.name;
         } else {
-          pricingZoneId = 'fuera_de_zona';
-          pricingZoneName = 'Fuera de zona';
+          // Sin cobertura AMBA: se cobra como 3° cordón (no existe tarifa “fuera de zona”).
+          pricingZoneId = 'zona_cordon_3';
+          pricingZoneName = '3° Cordón';
         }
       } catch {
         pricingZoneId = null;

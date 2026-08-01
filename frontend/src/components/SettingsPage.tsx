@@ -1373,7 +1373,7 @@ export default function SettingsPage({
                   meta="Cobro al vendedor y pago al repartidor por zona"
                 />
                 <p className="text-[9px] text-[var(--color-text-muted)] leading-relaxed">
-                  Las tarifas de CABA, cordones AMBA y fuera de zona se editan en una pantalla aparte,
+                  Las tarifas de CABA y cordones AMBA se editan en una pantalla aparte,
                   más clara.
                 </p>
                 <button

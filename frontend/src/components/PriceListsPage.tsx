@@ -10,7 +10,6 @@ import {
   Loader2,
   Trash2,
   Plus,
-  MapPin,
   CircleDollarSign,
   Bike,
   Users,
@@ -65,8 +64,6 @@ interface PriceListsPageProps {
   token: string;
 }
 
-const OUTSIDE_KEY = '__outside__';
-
 const RATE_ROWS: { key: RateKey; label: string; hint: string }[] = [
   { key: 'flex', label: 'Flex', hint: 'Mercado Libre Flex' },
   { key: 'express', label: 'Express', hint: 'Tienda Nube Express' },
@@ -99,7 +96,6 @@ function parseDraftAmount(value: string): number {
 }
 
 function zoneColor(zoneKey: string): string {
-  if (zoneKey === OUTSIDE_KEY) return '#888';
   if (zoneKey === 'zona_caba') return '#F9E04B';
   if (zoneKey === 'zona_cordon_1') return '#6BCB9A';
   if (zoneKey === 'zona_cordon_2') return '#6BA4E8';
@@ -112,7 +108,8 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
   const [summaries, setSummaries] = useState<PriceListSummary[]>([]);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [list, setList] = useState<PriceList | null>(null);
-  const [selectedZoneKey, setSelectedZoneKey] = useState<string>(OUTSIDE_KEY);
+  const [selectedZoneKey, setSelectedZoneKey] = useState<string>('zona_caba');
+
   const [shipDraft, setShipDraft] = useState<DraftTrio>(trioToDraft({ flex: 0, express: 0, standard: 0 }));
   const [driverDraft, setDriverDraft] = useState<DraftTrio>(trioToDraft({ flex: 0, express: 0, standard: 0 }));
   const [listName, setListName] = useState('');
@@ -193,17 +190,16 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
 
   useEffect(() => {
     if (!list) return;
-    let ship: DraftTrio;
-    let driver: DraftTrio;
-    if (selectedZoneKey === OUTSIDE_KEY) {
-      ship = trioToDraft(list.outsideShipping);
-      driver = trioToDraft(list.outsideDriverPay);
-    } else {
-      const zr = list.zoneRates.find((z) => z.zoneKey === selectedZoneKey);
-      if (!zr) return;
-      ship = trioToDraft(zr.shipping);
-      driver = trioToDraft(zr.driverPay);
+    const zr = list.zoneRates.find((z) => z.zoneKey === selectedZoneKey);
+    if (!zr) {
+      const first = list.zoneRates[0];
+      if (first && selectedZoneKey !== first.zoneKey) {
+        setSelectedZoneKey(first.zoneKey);
+      }
+      return;
     }
+    const ship = trioToDraft(zr.shipping);
+    const driver = trioToDraft(zr.driverPay);
     setShipDraft(ship);
     setDriverDraft(driver);
     setBaseline({ name: list.name, ship, driver });
@@ -211,14 +207,11 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
 
   const zoneOptions = useMemo(() => {
     if (!list) return [];
-    return [
-      { key: OUTSIDE_KEY, name: 'Fuera de zona', color: zoneColor(OUTSIDE_KEY) },
-      ...list.zoneRates.map((z) => ({
-        key: z.zoneKey,
-        name: z.zoneName,
-        color: zoneColor(z.zoneKey),
-      })),
-    ];
+    return list.zoneRates.map((z) => ({
+      key: z.zoneKey,
+      name: z.zoneName,
+      color: zoneColor(z.zoneKey),
+    }));
   }, [list]);
 
   const selectedZone = zoneOptions.find((z) => z.key === selectedZoneKey) ?? zoneOptions[0];
@@ -301,19 +294,16 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
     setSaving(true);
     setMessage(null);
     try {
-      const body: Record<string, unknown> = { name: listName.trim() || list.name };
-      if (selectedZoneKey === OUTSIDE_KEY) {
-        body.outsideShipping = shipping;
-        body.outsideDriverPay = driverPay;
-      } else {
-        body.zoneRates = [
+      const body: Record<string, unknown> = {
+        name: listName.trim() || list.name,
+        zoneRates: [
           {
             zoneKey: selectedZoneKey,
             shipping,
             driverPay,
           },
-        ];
-      }
+        ],
+      };
       const res = await fetch(apiUrl(`/api/price-lists/${list.id}`), {
         method: 'PUT',
         headers,
@@ -641,14 +631,10 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
                             : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--surface-panel)]/70 hover:text-[var(--ink-soft)]'
                         }`}
                       >
-                        {z.key === OUTSIDE_KEY ? (
-                          <MapPin className="h-3 w-3" />
-                        ) : (
-                          <span
+                        <span
                             className="h-2 w-2 rounded-full shrink-0"
                             style={{ background: z.color }}
                           />
-                        )}
                         {z.name}
                       </button>
                     );
