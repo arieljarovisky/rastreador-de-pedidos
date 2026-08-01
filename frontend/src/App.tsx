@@ -2565,7 +2565,6 @@ export default function App() {
                   token={token}
                   orders={orders}
                   sellers={sellers}
-                  repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
                   userRole={user.role}
                   initialSellerId={registroSellerId}
                   onUpdateOrderStatus={handleUpdateOrderStatus}

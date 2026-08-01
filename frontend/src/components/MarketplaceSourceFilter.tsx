@@ -12,6 +12,7 @@ export const MARKETPLACE_SOURCE_OPTIONS = [
   { value: 'shopify', label: 'Shopify' },
   { value: 'woocommerce', label: 'WooCommerce' },
   { value: 'manual', label: 'Manual (sin tienda)' },
+  { value: 'personal', label: 'Paquete personal' },
 ] as const;
 
 interface MarketplaceSourceFilterProps {

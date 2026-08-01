@@ -463,17 +463,24 @@ export async function listDriverScanEntries(
 
 export async function listAgencyDriverScanEntries(
   user: User,
-  options?: { date?: string; repartidorId?: string }
-): Promise<{ date: string; entries: DriverScanEntry[] }> {
+  options?: { date?: string; all?: boolean; repartidorId?: string }
+): Promise<{ date: string | null; entries: DriverScanEntry[] }> {
   if (!isAgencyAdmin(user.role) || !user.agencyId) {
     throw new Error('FORBIDDEN');
   }
   await ensureDriverScanEntriesTable();
 
-  const routeDate =
-    options?.date && isValidDateKey(options.date) ? options.date : getOperationalDateKey();
+  const params: unknown[] = [user.agencyId];
+  let dateFilter = '';
+  let routeDate: string | null = null;
 
-  const params: unknown[] = [user.agencyId, routeDate];
+  if (!options?.all) {
+    routeDate =
+      options?.date && isValidDateKey(options.date) ? options.date : getOperationalDateKey();
+    dateFilter = ' AND e.route_date = ?';
+    params.push(routeDate);
+  }
+
   let repartidorFilter = '';
   if (options?.repartidorId?.trim()) {
     repartidorFilter = ' AND e.repartidor_id = ?';
@@ -484,8 +491,9 @@ export async function listAgencyDriverScanEntries(
     `SELECT e.*, u.name AS repartidor_name
      FROM driver_scan_entries e
      LEFT JOIN users u ON u.id = e.repartidor_id
-     WHERE e.agency_id = ? AND e.route_date = ?${repartidorFilter}
-     ORDER BY e.scanned_at DESC`,
+     WHERE e.agency_id = ?${dateFilter}${repartidorFilter}
+     ORDER BY e.scanned_at DESC
+     LIMIT 5000`,
     params
   );
 
@@ -500,18 +508,30 @@ export async function updateDriverScanEntryStatus(
   entryId: string,
   status: DriverScanEntryStatus
 ): Promise<DriverScanEntry> {
-  assertRepartidor(user);
   await ensureDriverScanEntriesTable();
 
   if (!['pending', 'delivered', 'cancelled'].includes(status)) {
     throw new Error('INVALID_STATUS');
   }
 
-  const [rows] = await pool.query<DbDriverScanRow[]>(
-    'SELECT * FROM driver_scan_entries WHERE id = ? AND repartidor_id = ? LIMIT 1',
-    [entryId, user.id]
-  );
-  const existing = rows[0];
+  let existing: DbDriverScanRow | undefined;
+  if (user.role === UserRole.REPARTIDOR) {
+    assertRepartidor(user);
+    const [rows] = await pool.query<DbDriverScanRow[]>(
+      'SELECT * FROM driver_scan_entries WHERE id = ? AND repartidor_id = ? LIMIT 1',
+      [entryId, user.id]
+    );
+    existing = rows[0];
+  } else if (isAgencyAdmin(user.role) && user.agencyId) {
+    const [rows] = await pool.query<DbDriverScanRow[]>(
+      'SELECT * FROM driver_scan_entries WHERE id = ? AND agency_id = ? LIMIT 1',
+      [entryId, user.agencyId]
+    );
+    existing = rows[0];
+  } else {
+    throw new Error('FORBIDDEN');
+  }
+
   if (!existing) throw new Error('NOT_FOUND');
 
   const now = new Date();
@@ -520,8 +540,8 @@ export async function updateDriverScanEntryStatus(
   await pool.query(
     `UPDATE driver_scan_entries
      SET status = ?, delivered_at = ?
-     WHERE id = ? AND repartidor_id = ?`,
-    [status, deliveredAt, entryId, user.id]
+     WHERE id = ?`,
+    [status, deliveredAt, entryId]
   );
 
   const [updated] = await pool.query<DbDriverScanRow[]>(

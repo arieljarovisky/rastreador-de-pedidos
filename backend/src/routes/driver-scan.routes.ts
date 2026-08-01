@@ -34,13 +34,20 @@ router.get(
   requireRoles(...AGENCY_ADMIN_ROLES),
   async (req: Request, res: Response) => {
     try {
+      const all = req.query.all === '1' || req.query.all === 'true';
       const date =
-        typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
+        !all &&
+        typeof req.query.date === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
           ? req.query.date
-          : getOperationalDateKey();
+          : undefined;
       const repartidorId =
         typeof req.query.repartidorId === 'string' ? req.query.repartidorId : undefined;
-      const result = await listAgencyDriverScanEntries(req.user!, { date, repartidorId });
+      const result = await listAgencyDriverScanEntries(req.user!, {
+        date,
+        all,
+        repartidorId,
+      });
       res.json(result);
     } catch (err: unknown) {
       const code = err instanceof Error ? err.message : 'ERROR';
@@ -150,7 +157,10 @@ router.put('/:id/details', requireRoles(UserRole.REPARTIDOR), async (req: Reques
   }
 });
 
-router.put('/:id/status', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
+router.put(
+  '/:id/status',
+  requireRoles(UserRole.REPARTIDOR, ...AGENCY_ADMIN_ROLES),
+  async (req: Request, res: Response) => {
   const { status } = req.body as { status?: DriverScanEntryStatus };
   if (!status || !['pending', 'delivered', 'cancelled'].includes(status)) {
     res.status(400).json({ error: 'Estado inválido.', code: 'INVALID_STATUS' });
