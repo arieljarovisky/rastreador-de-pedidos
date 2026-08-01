@@ -628,7 +628,7 @@ function SellerBreakdownSection({
         </h2>
         {onSelectSeller && (
           <p className="text-[10px] sm:text-[9px] text-[var(--color-text-faint)] mt-1">
-            Tocá para filtrar el día · historial abre todos los envíos
+            Tocá para filtrar el día · Historial abre Registro completo
           </p>
         )}
       </div>

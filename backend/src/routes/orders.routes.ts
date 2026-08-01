@@ -397,27 +397,36 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
     const order = await updateOrderStatus(req.user!, req.params.id, status as OrderStatus, repartidorId, comment);
 
     if (status === OrderStatus.ASSIGNED && repartidorId && req.user!.role !== UserRole.REPARTIDOR) {
-      await createNotification({
-        id: `n_assign_${Date.now()}`,
-        userId: repartidorId,
-        title: 'Pedido Asignado',
-        body: `Se te ha asignado el pedido ${order.id} con entrega en ${order.address}.`,
-        type: 'order_assigned',
-        orderId: order.id,
-      });
+      try {
+        await createNotification({
+          id: `n_assign_${Date.now()}`,
+          userId: repartidorId,
+          title: 'Pedido Asignado',
+          body: `Se te ha asignado el pedido ${order.id} con entrega en ${order.address}.`,
+          type: 'order_assigned',
+          orderId: order.id,
+        });
+      } catch (notifErr) {
+        console.warn('[orders] No se pudo notificar asignación:', notifErr);
+      }
     }
 
     if (status === OrderStatus.DELIVERED) {
       const sellerId = await getSellerIdForOrder(order.id);
       if (sellerId) {
-        await createNotification({
-          id: `n_deliv_${Date.now()}`,
-          userId: sellerId,
-          title: 'Pedido Entregado',
-          body: `¡El pedido ${order.id} ha sido entregado exitosamente por ${order.repartidorName}!`,
-          type: 'order_delivered',
-          orderId: order.id,
-        });
+        try {
+          const byWhom = order.repartidorName?.trim() || req.user!.name;
+          await createNotification({
+            id: `n_deliv_${Date.now()}`,
+            userId: sellerId,
+            title: 'Pedido Entregado',
+            body: `¡El pedido ${order.id} ha sido entregado exitosamente por ${byWhom}!`,
+            type: 'order_delivered',
+            orderId: order.id,
+          });
+        } catch (notifErr) {
+          console.warn('[orders] No se pudo notificar entrega:', notifErr);
+        }
       }
     }
 

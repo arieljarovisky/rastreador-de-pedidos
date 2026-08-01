@@ -16,7 +16,7 @@ import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import ShippingAccountPage from './components/ShippingAccountPage.tsx';
 import DriverSettlementPage from './components/DriverSettlementPage.tsx';
-import AgencyDriverScanPage from './components/AgencyDriverScanPage.tsx';
+import RegistroPage from './components/RegistroPage.tsx';
 import RepartidorDashboard from './components/RepartidorDashboard.tsx';
 import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
@@ -102,7 +102,7 @@ export default function App() {
   const [barrios, setBarrios] = useState<Barrio[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const [sellerHistoryRequestId, setSellerHistoryRequestId] = useState<string | null>(null);
+  const [registroSellerId, setRegistroSellerId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
   const [accountSection, setAccountSection] = useState<'sellers' | 'drivers'>('sellers');
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
@@ -1785,9 +1785,13 @@ export default function App() {
         throw new Error(body.error || 'Error al actualizar pedido');
       }
 
-      fetchData();
+      const updated = (await res.json()) as Order;
+      mergeOrder(updated);
+      void fetchData();
     } catch (e) {
       console.error(e);
+      const message = e instanceof Error ? e.message : 'Error al actualizar pedido';
+      void showAlert({ title: 'No se pudo actualizar', message, variant: 'error' });
       throw e;
     }
   };
@@ -2203,7 +2207,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setMobileTab('registro')}
-                      title="Registro personal de paquetes de los repartidores"
+                      title="Registro de envíos por vendedor y paquetes personales"
                       className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                         mobileTab === 'registro'
                           ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
@@ -2471,8 +2475,8 @@ export default function App() {
                     onScheduleOrderToday={handleScheduleOrderToday}
                     onGoToOperations={() => setMobileTab('dashboard')}
                     onViewSellerHistory={(sellerId) => {
-                      setSellerHistoryRequestId(sellerId);
-                      setMobileTab('dashboard');
+                      setRegistroSellerId(sellerId);
+                      setMobileTab('registro');
                     }}
                   />
                 </div>
@@ -2500,8 +2504,10 @@ export default function App() {
                     onScheduleOrderToday={handleScheduleOrderToday}
                     userRole={user.role}
                     onOpenShippingLabel={handleOpenShippingLabel}
-                    sellerHistoryRequestId={sellerHistoryRequestId}
-                    onSellerHistoryRequestConsumed={() => setSellerHistoryRequestId(null)}
+                    onViewSellerRegistry={(sellerId) => {
+                      setRegistroSellerId(sellerId);
+                      setMobileTab('registro');
+                    }}
                   />
                 </div>
               </>
@@ -2555,9 +2561,18 @@ export default function App() {
 
             {mobileTab === 'registro' && token && isAgencyAdmin(user.role) && (
               <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-                <AgencyDriverScanPage
+                <RegistroPage
                   token={token}
+                  orders={orders}
+                  sellers={sellers}
                   repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
+                  userRole={user.role}
+                  initialSellerId={registroSellerId}
+                  onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onSelectOrder={(orderId) => {
+                    setActiveOrderId(orderId);
+                    setMobileTab('dashboard');
+                  }}
                 />
               </div>
             )}

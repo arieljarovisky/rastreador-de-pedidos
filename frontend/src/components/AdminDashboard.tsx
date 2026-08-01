@@ -49,9 +49,8 @@ interface AdminDashboardProps {
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
   onOpenShippingLabel?: (orderId: string) => Promise<void>;
-  /** Abre el historial completo de un vendedor (todas las fechas y estados). */
-  sellerHistoryRequestId?: string | null;
-  onSellerHistoryRequestConsumed?: () => void;
+  /** Abre el registro completo de envíos del vendedor (pestaña Registro). */
+  onViewSellerRegistry?: (sellerId: string) => void;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -160,8 +159,7 @@ export default function AdminDashboard({
   onScheduleOrderToday,
   userRole = UserRole.STORE_ADMIN,
   onOpenShippingLabel,
-  sellerHistoryRequestId = null,
-  onSellerHistoryRequestConsumed,
+  onViewSellerRegistry,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
@@ -193,8 +191,6 @@ export default function AdminDashboard({
   const todayKey = getOperationalDateKey();
   const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
   const [dateFilterKey, setDateFilterKey] = useState<string>(todayKey);
-  /** Historial por vendedor: todas las fechas, todos los estados (incluye archivados). */
-  const [sellerHistoryMode, setSellerHistoryMode] = useState(false);
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
     return new Set();
@@ -525,8 +521,8 @@ export default function AdminDashboard({
     ]
   );
 
-  /** Con fecha activa o en historial de vendedor, los archivados entran en lista/mapa/stats. */
-  const includeArchivedForDate = Boolean(dateFilterKey) || sellerHistoryMode;
+  /** Con fecha activa, los archivados de ese día entran en lista/mapa/stats. */
+  const includeArchivedForDate = Boolean(dateFilterKey);
 
   const dashboardScopedOrders = useMemo(
     () =>
@@ -639,70 +635,16 @@ export default function AdminDashboard({
     setCordonFilterId('');
     setRepartidorFilterId('');
     setDateFilterKey(todayKey);
-    setSellerHistoryMode(false);
     setMapRepartidorIds(new Set(repartidores.map((r) => r.id)));
   };
 
-  const openSellerHistory = useCallback(
-    (sellerId: string) => {
-      if (!sellerId) return;
-      setSellerFilterId(sellerId);
-      setDateFilterKey('');
-      setStatusFilter('all');
-      setCordonFilterId('');
-      setRepartidorFilterId('');
-      setSearchQuery('');
-      setSellerHistoryMode(true);
-      setOrdersHeaderCollapsed(false);
-    },
-    []
-  );
-
-  const exitSellerHistory = useCallback(() => {
-    setSellerHistoryMode(false);
-    setDateFilterKey(todayKey);
-    setStatusFilter('all');
-  }, [todayKey]);
-
-  useEffect(() => {
-    if (!sellerHistoryRequestId) return;
-    openSellerHistory(sellerHistoryRequestId);
-    onSellerHistoryRequestConsumed?.();
-  }, [sellerHistoryRequestId, openSellerHistory, onSellerHistoryRequestConsumed]);
-
   const handleSellerFilterChange = (nextId: string) => {
     setSellerFilterId(nextId);
-    if (!nextId) {
-      setSellerHistoryMode(false);
-    }
   };
 
   const handleDateFilterChange = (nextKey: string) => {
     setDateFilterKey(nextKey);
-    if (nextKey) setSellerHistoryMode(false);
   };
-
-  const sellerHistorySeller = useMemo(
-    () => (sellerHistoryMode ? sellers.find((s) => s.id === sellerFilterId) ?? null : null),
-    [sellerHistoryMode, sellers, sellerFilterId]
-  );
-
-  const sellerHistoryStats = useMemo(() => {
-    if (!sellerHistoryMode) return null;
-    const list =
-      sellerFilterId && isAgencyAdmin(userRole)
-        ? orders.filter((o) => o.sellerId === sellerFilterId)
-        : orders;
-    return {
-      total: list.length,
-      pending: list.filter((o) => o.status === OrderStatus.PENDING).length,
-      assigned: list.filter((o) => o.status === OrderStatus.ASSIGNED).length,
-      delivering: list.filter((o) => o.status === OrderStatus.DELIVERING).length,
-      delivered: list.filter((o) => o.status === OrderStatus.DELIVERED).length,
-      cancelled: list.filter((o) => o.status === OrderStatus.CANCELLED).length,
-      archived: list.filter((o) => o.archived).length,
-    };
-  }, [sellerHistoryMode, sellerFilterId, orders, userRole]);
 
   const toggleMapRepartidor = (id: string) => {
     setMapRepartidorIds((prev) => {
@@ -828,14 +770,18 @@ export default function AdminDashboard({
             variant: 'warning',
             confirmText: 'Sí, entregado',
             cancelText: 'Cancelar',
-          }).then((ok) => {
+          }).then(async (ok) => {
             if (!ok) return;
-            void onUpdateOrderStatus(
-              order.id,
-              OrderStatus.DELIVERED,
-              undefined,
-              'Marcado como entregado desde menú'
-            );
+            try {
+              await onUpdateOrderStatus(
+                order.id,
+                OrderStatus.DELIVERED,
+                undefined,
+                'Marcado como entregado desde menú'
+              );
+            } catch {
+              // El error ya se muestra en handleUpdateOrderStatus
+            }
           });
         },
       });
@@ -1528,133 +1474,16 @@ export default function AdminDashboard({
                 onSellerChange={handleSellerFilterChange}
                 allSellersOptionLabel="Todos los vendedores"
               />
-              {sellerFilterId && !sellerHistoryMode && (
+              {sellerFilterId && onViewSellerRegistry && (
                 <button
                   type="button"
-                  onClick={() => openSellerHistory(sellerFilterId)}
+                  onClick={() => onViewSellerRegistry(sellerFilterId)}
                   className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-[5px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/15 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] transition"
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
-                  Ver todos sus envíos
+                  Ver todos en Registro
                 </button>
               )}
-              {sellerHistoryMode && sellerHistorySeller && sellerHistoryStats && (
-                <div className="rounded-[5px] border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/8 p-2.5 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)]">
-                        Historial del vendedor
-                      </p>
-                      <p className="text-xs font-semibold text-[var(--ink-soft)] truncate mt-0.5">
-                        {sellerHistorySeller.name}
-                      </p>
-                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1 font-mono">
-                        {sellerHistoryStats.total} envío{sellerHistoryStats.total === 1 ? '' : 's'} · todos los
-                        estados y fechas
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={exitSellerHistory}
-                      className="shrink-0 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] px-1.5 py-1 rounded border border-[var(--surface-border)] hover:bg-[var(--surface-panel-2)]"
-                    >
-                      Volver a hoy
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5 text-center">
-                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
-                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Pend</p>
-                      <p className="text-xs font-bold font-mono text-[var(--ink-soft)]">
-                        {sellerHistoryStats.pending + sellerHistoryStats.assigned}
-                      </p>
-                    </div>
-                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
-                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Ruta</p>
-                      <p className="text-xs font-bold font-mono text-[var(--color-warn)]">
-                        {sellerHistoryStats.delivering}
-                      </p>
-                    </div>
-                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
-                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Listos</p>
-                      <p className="text-xs font-bold font-mono text-[var(--color-ok)]">
-                        {sellerHistoryStats.delivered}
-                      </p>
-                    </div>
-                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
-                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Canc.</p>
-                      <p className="text-xs font-bold font-mono text-[var(--color-danger)]">
-                        {sellerHistoryStats.cancelled}
-                      </p>
-                    </div>
-                    <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1 col-span-2">
-                      <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Archivados</p>
-                      <p className="text-xs font-bold font-mono text-[var(--color-text-muted)]">
-                        {sellerHistoryStats.archived}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {userRole === UserRole.STORE_ADMIN && !sellerHistoryMode && (
-            <button
-              type="button"
-              onClick={() => {
-                setDateFilterKey('');
-                setStatusFilter('all');
-                setSearchQuery('');
-                setSellerHistoryMode(true);
-                setOrdersHeaderCollapsed(false);
-              }}
-              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-[5px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/15 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] transition"
-            >
-              <ClipboardList className="w-3.5 h-3.5" />
-              Ver todos mis envíos
-            </button>
-          )}
-
-          {userRole === UserRole.STORE_ADMIN && sellerHistoryMode && sellerHistoryStats && (
-            <div className="rounded-[5px] border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/8 p-2.5 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)]">
-                    Historial de envíos
-                  </p>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-1 font-mono">
-                    {sellerHistoryStats.total} envío{sellerHistoryStats.total === 1 ? '' : 's'} · todos los estados y
-                    fechas
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={exitSellerHistory}
-                  className="shrink-0 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)] px-1.5 py-1 rounded border border-[var(--surface-border)] hover:bg-[var(--surface-panel-2)]"
-                >
-                  Volver a hoy
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5 text-center">
-                <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
-                  <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Pend</p>
-                  <p className="text-xs font-bold font-mono text-[var(--ink-soft)]">
-                    {sellerHistoryStats.pending + sellerHistoryStats.assigned}
-                  </p>
-                </div>
-                <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
-                  <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Ruta</p>
-                  <p className="text-xs font-bold font-mono text-[var(--color-warn)]">
-                    {sellerHistoryStats.delivering}
-                  </p>
-                </div>
-                <div className="rounded bg-[var(--surface-panel)]/80 border border-[var(--surface-border)]/60 px-1 py-1">
-                  <p className="text-[9px] font-mono text-[var(--color-text-muted)]">Listos</p>
-                  <p className="text-xs font-bold font-mono text-[var(--color-ok)]">
-                    {sellerHistoryStats.delivered}
-                  </p>
-                </div>
-              </div>
             </div>
           )}
 
@@ -2587,14 +2416,18 @@ export default function AdminDashboard({
                                 variant: 'warning',
                                 confirmText: 'Sí, entregado',
                                 cancelText: 'Cancelar',
-                              }).then((ok) => {
+                              }).then(async (ok) => {
                                 if (!ok) return;
-                                void onUpdateOrderStatus(
-                                  selectedOrder.id,
-                                  OrderStatus.DELIVERED,
-                                  undefined,
-                                  'Marcado como entregado manualmente'
-                                );
+                                try {
+                                  await onUpdateOrderStatus(
+                                    selectedOrder.id,
+                                    OrderStatus.DELIVERED,
+                                    undefined,
+                                    'Marcado como entregado manualmente'
+                                  );
+                                } catch {
+                                  // El error ya se muestra en handleUpdateOrderStatus
+                                }
                               });
                             }}
                             className="flex-1 text-center py-1 border border-[var(--color-ok)]/30 hover:border-[var(--color-ok)] bg-[var(--color-ok)]/10 text-[var(--color-ok)] font-bold text-[10px] uppercase tracking-wider rounded transition"
