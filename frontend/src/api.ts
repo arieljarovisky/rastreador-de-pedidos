@@ -41,6 +41,7 @@ export type FetchRegistryOptions = {
   sellerId?: string;
   externalSource?: string;
   status?: string;
+  dateKey?: string;
   q?: string;
   signal?: AbortSignal;
 };
@@ -57,6 +58,7 @@ export async function fetchOrdersRegistry(
   if (opts.sellerId) params.set('sellerId', opts.sellerId);
   if (opts.externalSource) params.set('externalSource', opts.externalSource);
   if (opts.status && opts.status !== 'all') params.set('status', opts.status);
+  if (opts.dateKey) params.set('dateKey', opts.dateKey);
   if (opts.q?.trim()) params.set('q', opts.q.trim());
 
   const res = await fetch(apiUrl(`/api/orders/registry?${params}`), {

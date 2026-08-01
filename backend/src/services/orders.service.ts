@@ -278,6 +278,8 @@ export type OrdersRegistryFilters = {
   externalSource?: string;
   /** pending | assigned | delivering | delivered | cancelled | archived | all */
   status?: string;
+  /** Día operativo YYYY-MM-DD (por created_at ART). Vacío = todos. */
+  dateKey?: string;
   q?: string;
   limit?: number;
   offset?: number;
@@ -328,6 +330,14 @@ function buildRegistryScope(
       `(o.id LIKE ? OR o.client_name LIKE ? OR o.address LIKE ? OR o.external_order_id LIKE ? OR s.name LIKE ? OR r.name LIKE ?)`
     );
     params.push(like, like, like, like, like, like);
+  }
+
+  const dateKey = filters.dateKey?.trim();
+  if (dateKey && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    const { start, end } = getOperationalDayBounds(dateKey);
+    // Día de alta/importación (coincide con la columna Fecha del Registro).
+    where.push('o.created_at >= ? AND o.created_at < ?');
+    params.push(start, end);
   }
 
   return { where: where.join(' AND '), params };

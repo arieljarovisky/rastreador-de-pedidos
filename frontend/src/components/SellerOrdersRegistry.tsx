@@ -4,12 +4,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Loader2, Package, Search, Trash2 } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Loader2, Package, Search, Trash2, X } from 'lucide-react';
 import { Order, OrderStatus, User, isAgencyAdmin, UserRole } from '../types.js';
 import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
+import OperationalDatePicker from './OperationalDatePicker.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
 import {
   getOrderImportedDateKey,
@@ -117,6 +118,7 @@ export default function SellerOrdersRegistry({
   const [sellerId, setSellerId] = useState(initialSellerId ?? '');
   const [marketplaceSource, setMarketplaceSource] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFilterKey, setDateFilterKey] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [page, setPage] = useState(1);
@@ -172,6 +174,11 @@ export default function SellerOrdersRegistry({
     return personalEntries
       .filter((entry) => {
         if (!personalMatchesStatus(entry.status, statusFilter)) return false;
+        if (dateFilterKey) {
+          const entryDay =
+            entry.routeDate || getOperationalDateKey(new Date(entry.scannedAt));
+          if (entryDay !== dateFilterKey) return false;
+        }
         const q = searchDebounced.toLowerCase();
         if (!q) return true;
         const code = formatScanCodeLabel(entry.scanCode).toLowerCase();
@@ -184,7 +191,7 @@ export default function SellerOrdersRegistry({
         );
       })
       .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime());
-  }, [includePersonal, personalEntries, statusFilter, searchDebounced]);
+  }, [includePersonal, personalEntries, statusFilter, searchDebounced, dateFilterKey]);
 
   const personalN = marketplaceSource === 'personal' ? personalScoped.length : includePersonal ? personalScoped.length : 0;
   const onlyPersonal = marketplaceSource === 'personal';
@@ -234,6 +241,7 @@ export default function SellerOrdersRegistry({
           sellerId: sellerId || undefined,
           externalSource: marketplaceSource || undefined,
           status: statusFilter,
+          dateKey: dateFilterKey || undefined,
           q: searchDebounced || undefined,
           signal,
         });
@@ -262,6 +270,7 @@ export default function SellerOrdersRegistry({
       sellerId,
       marketplaceSource,
       statusFilter,
+      dateFilterKey,
       searchDebounced,
     ]
   );
@@ -332,7 +341,7 @@ export default function SellerOrdersRegistry({
 
   useEffect(() => {
     setPage(1);
-  }, [sellerId, marketplaceSource, statusFilter, searchDebounced]);
+  }, [sellerId, marketplaceSource, statusFilter, searchDebounced, dateFilterKey]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -511,7 +520,32 @@ export default function SellerOrdersRegistry({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="relative min-w-0">
+            <OperationalDatePicker
+              layout="field"
+              label="Fecha"
+              value={dateFilterKey || getOperationalDateKey()}
+              onChange={setDateFilterKey}
+              maxDateKey={getOperationalDateKey()}
+            />
+            <div className="mt-1 flex items-center gap-2">
+              {dateFilterKey ? (
+                <button
+                  type="button"
+                  onClick={() => setDateFilterKey('')}
+                  className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
+                >
+                  <X className="w-3 h-3" />
+                  Ver todas
+                </button>
+              ) : (
+                <span className="text-[9px] font-mono text-[var(--color-text-faint)]">
+                  Todas las fechas · elegí un día para filtrar
+                </span>
+              )}
+            </div>
+          </div>
           {agency && sellers.length > 0 && (
             <SellerFilterControl sellers={sellers} value={sellerId} onChange={setSellerId} />
           )}
@@ -573,6 +607,43 @@ export default function SellerOrdersRegistry({
             <div className="text-lg font-display font-bold text-[var(--color-text)]">{card.value}</div>
           </button>
         ))}
+      </div>
+
+      {/* Paginación sticky: queda visible al scrollear */}
+      <div className="sticky top-0 z-30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-2.5 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/95 backdrop-blur-md shadow-[0_1px_0_0_var(--surface-border)]">
+        <p className="text-[10px] font-mono text-[var(--color-text-muted)]">
+          {historyLoading && pageRows.length === 0
+            ? 'Cargando…'
+            : totalCount === 0
+              ? '0 registros'
+              : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, totalCount)} de ${totalCount}`}
+          {' · '}
+          {PAGE_SIZE} por página
+          {dateFilterKey ? ` · ${formatOperationalDateShort(dateFilterKey)}` : ''}
+        </p>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            disabled={currentPage <= 1 || historyLoading}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 disabled:opacity-35 disabled:pointer-events-none"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            Anterior
+          </button>
+          <span className="min-w-[4.5rem] text-center text-[11px] font-mono font-bold text-[var(--ink-soft)]">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages || historyLoading}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 disabled:opacity-35 disabled:pointer-events-none"
+          >
+            Siguiente
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="px-4 py-3 pb-6">
@@ -797,39 +868,6 @@ export default function SellerOrdersRegistry({
                 })}
               </tbody>
             </table>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
-            <p className="text-[10px] font-mono text-[var(--color-text-muted)]">
-              {totalCount === 0
-                ? '0 registros'
-                : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, totalCount)} de ${totalCount}`}
-              {' · '}
-              {PAGE_SIZE} por página
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                disabled={currentPage <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 disabled:opacity-35 disabled:pointer-events-none"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                Anterior
-              </button>
-              <span className="min-w-[4.5rem] text-center text-[11px] font-mono font-bold text-[var(--ink-soft)]">
-                {currentPage} / {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={currentPage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:border-[var(--color-accent)]/40 disabled:opacity-35 disabled:pointer-events-none"
-              >
-                Siguiente
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
           </div>
           </div>
         )}

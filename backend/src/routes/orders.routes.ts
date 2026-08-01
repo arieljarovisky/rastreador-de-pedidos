@@ -159,12 +159,17 @@ router.get(
       typeof req.query.status === 'string' && req.query.status.trim()
         ? req.query.status.trim()
         : 'all';
+    const dateKey =
+      typeof req.query.dateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dateKey.trim())
+        ? req.query.dateKey.trim()
+        : undefined;
     const q = typeof req.query.q === 'string' ? req.query.q : undefined;
 
     const result = await listOrdersRegistry(req.user!, {
       sellerId,
       externalSource,
       status,
+      dateKey,
       q,
       limit: Number.isFinite(limit) ? limit : 25,
       offset: Number.isFinite(offset) ? offset : 0,
