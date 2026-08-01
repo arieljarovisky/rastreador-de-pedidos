@@ -29,6 +29,9 @@ interface OperationalDatePickerProps {
   layout?: 'icon' | 'navigator' | 'field';
   label?: string;
   className?: string;
+  /** Si true, muestra `placeholder` en lugar de la fecha (filtro aún no elegido). */
+  empty?: boolean;
+  placeholder?: string;
   onPreviousDay?: () => void;
   onNextDay?: () => void;
   canGoNextDay?: boolean;
@@ -248,6 +251,8 @@ export default function OperationalDatePicker({
   layout = 'icon',
   label = 'Fecha',
   className = '',
+  empty = false,
+  placeholder = 'Elegir fecha',
   onPreviousDay,
   onNextDay,
   canGoNextDay = false,
@@ -328,12 +333,20 @@ export default function OperationalDatePicker({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
-          className={`w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-xs flex items-center justify-between gap-2 text-left transition focus:outline-none ${
-            open ? 'border-[var(--color-accent)]' : 'hover:border-[var(--color-accent)]/50'
+          className={`w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border rounded-[5px] px-3 text-xs flex items-center justify-between gap-2 text-left transition focus:outline-none ${
+            open
+              ? 'border-[var(--color-accent)]'
+              : empty
+                ? 'border-dashed border-[var(--surface-border)] hover:border-[var(--color-accent)]/50'
+                : 'border-[var(--surface-border)] hover:border-[var(--color-accent)]/50'
           }`}
         >
-          <span className="font-mono text-[var(--color-text)] truncate">
-            {formatOperationalDateShort(value)}
+          <span
+            className={`font-mono truncate ${
+              empty ? 'text-[var(--color-text-faint)]' : 'text-[var(--color-text)]'
+            }`}
+          >
+            {empty ? placeholder : formatOperationalDateShort(value)}
           </span>
           <ChevronDown
             className={`w-4 h-4 shrink-0 text-[var(--color-text-muted)] transition-transform duration-200 ${

@@ -526,61 +526,67 @@ export default function SellerOrdersRegistry({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
-          <div className="relative min-w-0">
-            <OperationalDatePicker
-              layout="field"
-              label="Desde"
-              value={dateFromKey || getOperationalDateKey()}
-              onChange={setDateFromKey}
-              maxDateKey={dateToKey || getOperationalDateKey()}
-            />
-          </div>
-          <div className="relative min-w-0">
-            <OperationalDatePicker
-              layout="field"
-              label="Hasta"
-              value={dateToKey || getOperationalDateKey()}
-              onChange={setDateToKey}
-              minDateKey={dateFromKey || undefined}
-              maxDateKey={getOperationalDateKey()}
-            />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-1 xl:col-span-1 flex items-end pb-0.5">
-            {dateFromKey || dateToKey ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setDateFromKey('');
-                  setDateToKey('');
-                }}
-                className="inline-flex items-center gap-1 h-[2.375rem] px-2.5 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:border-[var(--color-accent)]/40 transition"
-              >
-                <X className="w-3 h-3" />
-                Limpiar fechas
-              </button>
-            ) : (
-              <span className="text-[9px] font-mono text-[var(--color-text-faint)] leading-tight pb-2">
-                Sin rango · elegí desde / hasta
+        <div className="space-y-2">
+          <div className="rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/40 p-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Rango de fechas
               </span>
-            )}
+              {(dateFromKey || dateToKey) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFromKey('');
+                    setDateToKey('');
+                  }}
+                  className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
+                >
+                  <X className="w-3 h-3" />
+                  Limpiar
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <OperationalDatePicker
+                layout="field"
+                label="Desde"
+                empty={!dateFromKey}
+                placeholder="Sin fecha"
+                value={dateFromKey || dateToKey || getOperationalDateKey()}
+                onChange={setDateFromKey}
+                maxDateKey={dateToKey || getOperationalDateKey()}
+              />
+              <OperationalDatePicker
+                layout="field"
+                label="Hasta"
+                empty={!dateToKey}
+                placeholder="Sin fecha"
+                value={dateToKey || dateFromKey || getOperationalDateKey()}
+                onChange={setDateToKey}
+                minDateKey={dateFromKey || undefined}
+                maxDateKey={getOperationalDateKey()}
+              />
+            </div>
           </div>
-          {agency && sellers.length > 0 && (
-            <SellerFilterControl sellers={sellers} value={sellerId} onChange={setSellerId} />
-          )}
-          <MarketplaceSourceFilter value={marketplaceSource} onChange={setMarketplaceSource} />
-          <div className="relative min-w-0 sm:col-span-2 lg:col-span-1 xl:col-span-2">
-            <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-1.5 mb-1.5">
-              <Search className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-              Buscar
-            </label>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Pedido, cliente, dirección…"
-              className="w-full min-h-11 sm:min-h-0 sm:h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-sm sm:text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
-            />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {agency && sellers.length > 0 && (
+              <SellerFilterControl sellers={sellers} value={sellerId} onChange={setSellerId} />
+            )}
+            <MarketplaceSourceFilter value={marketplaceSource} onChange={setMarketplaceSource} />
+            <div className="relative min-w-0 sm:col-span-2 lg:col-span-1">
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-1.5 mb-1.5">
+                <Search className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                Buscar
+              </label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Pedido, cliente, dirección…"
+                className="w-full min-h-11 sm:min-h-0 sm:h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-sm sm:text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"
+              />
+            </div>
           </div>
         </div>
 
