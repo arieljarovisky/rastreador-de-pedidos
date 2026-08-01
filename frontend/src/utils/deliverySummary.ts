@@ -23,14 +23,16 @@ function getArDateParts(date: Date): ArDateParts {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(date);
 
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  // Algunos engines devuelven hour=24 cerca de medianoche con hour12:false.
   return {
     year: get('year'),
     month: get('month'),
     day: get('day'),
-    hour: get('hour'),
+    hour: get('hour') % 24,
     minute: get('minute'),
   };
 }
@@ -46,10 +48,13 @@ function arLocalToUtc(year: number, month: number, day: number, hour: number, mi
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    hourCycle: 'h23',
   }).formatToParts(guess);
 
   const get = (type: string) => Number(formatted.find((p) => p.type === type)?.value ?? 0);
-  const diffMinutes = (hour - get('hour')) * 60 + (minute - get('minute'));
+  const actualHour = get('hour') % 24;
+  const actualMinute = get('minute');
+  const diffMinutes = (hour - actualHour) * 60 + (minute - actualMinute);
   return new Date(guess.getTime() + diffMinutes * 60_000);
 }
 
@@ -234,26 +239,33 @@ export function getOrderDeliveredAt(order: Order): Date | null {
   return null;
 }
 
-export function getOrderDeadline(order: Order): Date {
+export function getOrderDeadline(order: Order, forDateKey?: string): Date {
   // Límite de entrega del día (21 hs), no el corte de ventas stampado en deliveryDeadline.
-  const dateKey = order.deliveryDeadline
-    ? getOperationalDateKey(new Date(order.deliveryDeadline))
-    : getOperationalDateKey(new Date(order.createdAt));
+  // Si hay día del dashboard, usar ese: un pedido puede aparecer por fecha de importación
+  // aunque su deliveryDeadline apunte a otro día (p. ej. ISO de ML en UTC).
+  const dateKey =
+    forDateKey ??
+    (order.deliveryDeadline
+      ? getOperationalDateKey(new Date(order.deliveryDeadline))
+      : getOperationalDateKey(new Date(order.createdAt)));
   return getDeadlineForOperationalDate(dateKey, DELIVERY_SLA_HOUR);
 }
 
-export function wasDeliveredAfterDeadline(order: Order): boolean {
+/** Tarde = entregado después de las 21:00 ART del día operativo indicado. */
+export function wasDeliveredAfterDeadline(order: Order, forDateKey?: string): boolean {
   if (order.status !== OrderStatus.DELIVERED) return false;
   const deliveredAt = getOrderDeliveredAt(order);
   if (!deliveredAt) return false;
-  return deliveredAt.getTime() > getOrderDeadline(order).getTime();
+  return deliveredAt.getTime() > getOrderDeadline(order, forDateKey).getTime();
 }
 
 export function getDeliveredLateTodayOrders(
   orders: Order[],
   dateKey: string = getOperationalDateKey()
 ): Order[] {
-  return getDeliveredTodayOrders(orders, dateKey).filter(wasDeliveredAfterDeadline);
+  return getDeliveredTodayOrders(orders, dateKey).filter((o) =>
+    wasDeliveredAfterDeadline(o, dateKey)
+  );
 }
 
 export function computeDeliverySummaryFromOrders(
@@ -265,7 +277,7 @@ export function computeDeliverySummaryFromOrders(
   const todayOrders = orders.filter((o) => !o.archived && isTodayOrder(o, dateKey));
   const deliveredToday = todayOrders.filter((o) => o.status === OrderStatus.DELIVERED);
   const delivered = deliveredToday.length;
-  const deliveredLate = deliveredToday.filter(wasDeliveredAfterDeadline).length;
+  const deliveredLate = deliveredToday.filter((o) => wasDeliveredAfterDeadline(o, dateKey)).length;
   const cancelled = todayOrders.filter((o) => o.status === OrderStatus.CANCELLED).length;
   const undelivered = todayOrders.filter(
     (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
