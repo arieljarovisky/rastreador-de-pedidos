@@ -2451,7 +2451,9 @@ export default function App() {
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
             className={`flex flex-col xl:flex-row w-full ${
-              mobileTab === 'panel' || mobileTab === 'notifications' ? 'h-full overflow-hidden' : ''
+              mobileTab === 'panel' || mobileTab === 'notifications'
+                ? 'h-full overflow-hidden'
+                : ''
             } ${notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (

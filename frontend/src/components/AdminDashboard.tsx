@@ -1408,11 +1408,7 @@ export default function AdminDashboard({
   return (
     <>
     <div
-      className={`flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 ${
-        showMapPanel
-          ? 'h-[calc(100dvh-7.25rem)] sm:h-[calc(100dvh-7.5rem)] xl:h-[calc(100dvh-5.75rem)] overflow-hidden'
-          : ''
-      }`}
+      className="flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 h-[calc(100dvh-7.25rem)] sm:h-[calc(100dvh-7.5rem)] xl:h-[calc(100dvh-5.75rem)] overflow-hidden"
       id="admin-dashboard"
     >      {contextMenu && (
         <OrderContextMenu
@@ -1452,9 +1448,7 @@ export default function AdminDashboard({
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN */}
       <div className={`${
         showMapPanel ? 'lg:col-span-6 2xl:col-span-5' : 'lg:col-span-12'
-      } flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 ${
-        showMapPanel ? 'flex-1 min-h-0 overflow-hidden' : ''
-      } ${
+      } flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 flex-1 min-h-0 overflow-hidden ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
@@ -1801,14 +1795,8 @@ export default function AdminDashboard({
           )}
         </div>
 
-        {/* LISTADO DE PEDIDOS: con mapa abierto scroll interno; sin mapa crece y scrollea el main */}
-        <div
-          className={`mt-1.5 pr-1 ${
-            showMapPanel
-              ? 'flex-1 min-h-0 overflow-y-auto scrollbar-thin'
-              : ''
-          }`}
-        >
+        {/* LISTADO: scroll X/Y en el mismo contenedor (barra horizontal siempre visible) */}
+        <div className="mt-1.5 flex-1 min-h-0 overflow-auto scrollbar-thin rounded border border-[var(--surface-border)]">
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
               <span className="mono-label block mb-2">Sin resultados</span>
@@ -1819,34 +1807,32 @@ export default function AdminDashboard({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded border border-[var(--surface-border)]">
-              <table className="w-full min-w-[36rem] text-left border-collapse">
-                <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
-                  <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                    <th className="px-2 py-2 font-bold">ID</th>
-                    <th className="px-2 py-2 font-bold">Cliente</th>
-                    <th className="px-2 py-2 font-bold">Dirección</th>
-                    <th className="px-2 py-2 font-bold">Estado</th>
-                    {isAgencyAdmin(userRole) && <th className="px-2 py-2 font-bold">Vendedor</th>}
-                    <th className="px-2 py-2 font-bold">Repartidor</th>
-                    <th className="px-2 py-2 font-bold">Fecha</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((order) => (
-                    <AdminOrderTableRow
-                      key={order.id}
-                      order={order}
-                      isSelected={order.id === activeOrderId}
-                      showSeller={isAgencyAdmin(userRole)}
-                      onSelect={handleSelectOrder}
-                      onContextMenu={openOrderContextMenu}
-                      onAssign={openAssignModal}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <table className="w-full min-w-[36rem] text-left border-collapse">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
+                <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                  <th className="px-2 py-2 font-bold">ID</th>
+                  <th className="px-2 py-2 font-bold">Cliente</th>
+                  <th className="px-2 py-2 font-bold">Dirección</th>
+                  <th className="px-2 py-2 font-bold">Estado</th>
+                  {isAgencyAdmin(userRole) && <th className="px-2 py-2 font-bold">Vendedor</th>}
+                  <th className="px-2 py-2 font-bold">Repartidor</th>
+                  <th className="px-2 py-2 font-bold">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order) => (
+                  <AdminOrderTableRow
+                    key={order.id}
+                    order={order}
+                    isSelected={order.id === activeOrderId}
+                    showSeller={isAgencyAdmin(userRole)}
+                    onSelect={handleSelectOrder}
+                    onContextMenu={openOrderContextMenu}
+                    onAssign={openAssignModal}
+                  />
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
 
