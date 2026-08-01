@@ -2450,13 +2450,9 @@ export default function App() {
         >
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
-            className={`flex flex-col ${
-              mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'registro' || mobileTab === 'prices' || mobileTab === 'platform'
-                ? 'w-full'
-                : mobileTab === 'dashboard'
-                  ? 'xl:flex-row w-full'
-                  : 'xl:flex-row h-full overflow-hidden'
-            } ${mobileTab !== 'settings' && mobileTab !== 'account' && mobileTab !== 'registro' && mobileTab !== 'prices' && mobileTab !== 'platform' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
+            className={`flex flex-col xl:flex-row w-full ${
+              mobileTab === 'panel' || mobileTab === 'notifications' ? 'h-full overflow-hidden' : ''
+            } ${notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
               <>
@@ -2571,7 +2567,7 @@ export default function App() {
             )}
 
             {mobileTab === 'registro' && token && isAgencyAdmin(user.role) && (
-              <div className="w-full flex flex-col rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-visible">
+              <div className="flex-1 min-w-0 w-full flex flex-col rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-visible">
                 <RegistroPage
                   token={token}
                   orders={orders}
@@ -2674,24 +2670,22 @@ export default function App() {
               </div>
             )}
 
-            {(mobileTab === 'panel' || mobileTab === 'dashboard' || mobileTab === 'notifications') && (
-              <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
-                <NotificationHub
-                  notifications={notifications}
-                  onMarkAllRead={handleMarkAllRead}
-                  onClearNotifications={handleClearNotifications}
-                  activeUserId={user.id}
-                  onToggleCollapse={toggleNotifsSidebar}
-                  showCollapseButton
-                  orders={orders}
-                  onOpenOrder={(orderId) => {
-                    setActiveOrderId(orderId);
-                    setMobileTab('dashboard');
-                  }}
-                  onOpenMap={() => setMobileTab('dashboard')}
-                />
-              </NotifsSidebar>
-            )}
+            <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+              <NotificationHub
+                notifications={notifications}
+                onMarkAllRead={handleMarkAllRead}
+                onClearNotifications={handleClearNotifications}
+                activeUserId={user.id}
+                onToggleCollapse={toggleNotifsSidebar}
+                showCollapseButton
+                orders={orders}
+                onOpenOrder={(orderId) => {
+                  setActiveOrderId(orderId);
+                  setMobileTab('dashboard');
+                }}
+                onOpenMap={() => setMobileTab('dashboard')}
+              />
+            </NotifsSidebar>
           </div>
         ) : (
           <div
