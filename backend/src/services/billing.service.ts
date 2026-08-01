@@ -28,6 +28,7 @@ export interface BillingLedgerEntry {
   sellerId: string;
   sellerName: string | null;
   orderId: string | null;
+  orderAddress: string | null;
   entryType: 'charge' | 'payment' | 'adjustment';
   amount: number;
   description: string;
@@ -409,6 +410,7 @@ export async function listBillingLedger(
       seller_id: string;
       seller_name: string | null;
       order_id: string | null;
+      order_address: string | null;
       entry_type: 'charge' | 'payment' | 'adjustment';
       amount: string;
       description: string;
@@ -417,9 +419,11 @@ export async function listBillingLedger(
     } & RowDataPacket>
   >(
     `SELECT b.id, b.agency_id, b.seller_id, u.name AS seller_name, b.order_id,
+            o.address AS order_address,
             b.entry_type, b.amount, b.description, b.created_by, b.created_at
      FROM billing_ledger_entries b
      LEFT JOIN users u ON u.id = b.seller_id
+     LEFT JOIN orders o ON o.id = b.order_id
      WHERE b.agency_id = ?
        AND b.created_at >= ? AND b.created_at <= ?${sellerFilter}
      ORDER BY b.created_at DESC
@@ -433,6 +437,7 @@ export async function listBillingLedger(
     sellerId: row.seller_id,
     sellerName: row.seller_name,
     orderId: row.order_id,
+    orderAddress: row.order_address?.trim() || null,
     entryType: row.entry_type,
     amount: toMoney(row.amount),
     description: row.description,

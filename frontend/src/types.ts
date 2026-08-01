@@ -253,6 +253,7 @@ export interface BillingLedgerEntry {
   sellerId: string;
   sellerName: string | null;
   orderId: string | null;
+  orderAddress?: string | null;
   entryType: 'charge' | 'payment' | 'adjustment';
   amount: number;
   description: string;

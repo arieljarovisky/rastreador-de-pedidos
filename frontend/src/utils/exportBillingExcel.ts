@@ -324,7 +324,7 @@ function addMovimientosSheet(
   ledger: BillingLedgerEntry[],
   includeSeller: boolean
 ) {
-  const cols = includeSeller ? 6 : 5;
+  const cols = includeSeller ? 7 : 6;
   const sheet = workbook.addWorksheet('Movimientos', {
     properties: { tabColor: { argb: `FF${POSTA.warn}` } },
   });
@@ -337,22 +337,22 @@ function addMovimientosSheet(
   );
 
   if (includeSeller) {
-    autosize(sheet, [20, 10, 42, 14, 22, 14]);
+    autosize(sheet, [20, 10, 36, 14, 36, 22, 14]);
   } else {
-    autosize(sheet, [20, 10, 48, 14, 14]);
+    autosize(sheet, [20, 10, 36, 14, 42, 14]);
   }
 
   const header = sheet.getRow(5);
   header.values = includeSeller
-    ? ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Vendedor', 'Monto']
-    : ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Monto'];
+    ? ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Dirección', 'Vendedor', 'Monto']
+    : ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Dirección', 'Monto'];
   styleHeaderRow(header);
 
   if (ledger.length === 0) {
     const empty = sheet.getRow(6);
     empty.values = includeSeller
-      ? ['Sin movimientos', '', '', '', '', '']
-      : ['Sin movimientos', '', '', '', ''];
+      ? ['Sin movimientos', '', '', '', '', '', '']
+      : ['Sin movimientos', '', '', '', '', ''];
     paintRow(empty, `FF${POSTA.paper2}`);
     styleDataCell(empty.getCell(1), { color: POSTA.ink3 });
     return;
@@ -366,6 +366,7 @@ function addMovimientosSheet(
       entryTypeLabel(entry.entryType),
       entry.description,
       entry.orderId ?? '',
+      entry.orderAddress ?? '',
     ];
     if (includeSeller) values.push(entry.sellerName ?? entry.sellerId);
     values.push(amount);
@@ -384,11 +385,12 @@ function addMovimientosSheet(
     styleDataCell(row.getCell(2), { color: typeColor, bold: true });
     styleDataCell(row.getCell(3));
     styleDataCell(row.getCell(4), { color: POSTA.ink3 });
+    styleDataCell(row.getCell(5), { color: POSTA.ink2 });
     if (includeSeller) {
-      styleDataCell(row.getCell(5), { color: POSTA.route });
-      styleDataCell(row.getCell(6), { money: true, color: typeColor, bold: true });
+      styleDataCell(row.getCell(6), { color: POSTA.route });
+      styleDataCell(row.getCell(7), { money: true, color: typeColor, bold: true });
     } else {
-      styleDataCell(row.getCell(5), { money: true, color: typeColor, bold: true });
+      styleDataCell(row.getCell(6), { money: true, color: typeColor, bold: true });
     }
   });
 }
