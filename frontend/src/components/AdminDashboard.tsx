@@ -68,19 +68,19 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
           : 'hover:bg-[var(--surface-panel-2)]/80'
       }`}
     >
-      <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
-        <span className="inline-flex items-center gap-1">
+      <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] overflow-hidden">
+        <span className="inline-flex items-center gap-1 max-w-full truncate">
           {order.id}
           <MarketplaceSourceIcon source={order.externalSource} />
         </span>
       </td>
-      <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] max-w-[8rem] truncate">
+      <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] truncate overflow-hidden">
         {order.clientName}
       </td>
-      <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[12rem] truncate">
+      <td className="px-2 py-2 text-[var(--color-text-muted)] truncate overflow-hidden">
         {order.address}
       </td>
-      <td className="px-2 py-2 whitespace-nowrap">
+      <td className="px-2 py-2 overflow-hidden">
         <StatusBadge
           status={order.status}
           label={exception?.label}
@@ -88,11 +88,11 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
         />
       </td>
       {showSeller && (
-        <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[7rem] truncate">
+        <td className="px-2 py-2 text-[var(--color-text-muted)] truncate overflow-hidden">
           {order.sellerName ?? '—'}
         </td>
       )}
-      <td className="px-2 py-2 whitespace-nowrap">
+      <td className="px-2 py-2 overflow-hidden">
         {order.status === OrderStatus.PENDING && showSeller ? (
           <button
             type="button"
@@ -105,17 +105,17 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
             Gestionar
           </button>
         ) : (
-          <span className="text-[var(--color-text-muted)] truncate max-w-[6rem] inline-block">
+          <span className="text-[var(--color-text-muted)] truncate max-w-full inline-block">
             {order.repartidorName?.split(' ')[0] ?? 'Sin asignar'}
           </span>
         )}
       </td>
       <td
-        className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap"
+        className="px-1.5 py-2 font-mono text-[9px] text-[var(--color-text-faint)] overflow-hidden"
         title={`Importado ${importedLabel} ${timeLabel}`}
       >
-        <span className="block text-[var(--ink-soft)]">{importedLabel}</span>
-        <span className="block">{timeLabel}</span>
+        <span className="block text-[var(--ink-soft)] truncate">{importedLabel}</span>
+        <span className="block truncate">{timeLabel}</span>
       </td>
     </tr>
   );
@@ -1436,7 +1436,7 @@ export default function AdminDashboard({
 
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN */}
       <div className={`${
-        showMapPanel ? 'lg:col-span-6 2xl:col-span-5' : 'lg:col-span-12'
+        showMapPanel ? 'lg:col-span-7 2xl:col-span-7' : 'lg:col-span-12'
       } flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 flex-1 min-h-0 overflow-hidden h-full ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
@@ -1784,8 +1784,8 @@ export default function AdminDashboard({
           )}
         </div>
 
-        {/* LISTADO: scroll X/Y en el mismo contenedor (barra horizontal siempre visible) */}
-        <div className="mt-1.5 flex-1 min-h-0 overflow-auto scrollbar-thin rounded border border-[var(--surface-border)]">
+        {/* LISTADO: scroll vertical; columnas fijas evitan scroll X */}
+        <div className="mt-1.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin rounded border border-[var(--surface-border)]">
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
               <span className="mono-label block mb-2">Sin resultados</span>
@@ -1796,16 +1796,18 @@ export default function AdminDashboard({
               </p>
             </div>
           ) : (
-            <table className="w-full min-w-[36rem] text-left border-collapse">
+            <table className="w-full min-w-0 text-left border-collapse table-fixed">
               <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
                 <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                  <th className="px-2 py-2 font-bold">ID</th>
-                  <th className="px-2 py-2 font-bold">Cliente</th>
+                  <th className="px-2 py-2 font-bold w-[6.25rem]">ID</th>
+                  <th className="px-2 py-2 font-bold w-[16%]">Cliente</th>
                   <th className="px-2 py-2 font-bold">Dirección</th>
-                  <th className="px-2 py-2 font-bold">Estado</th>
-                  {isAgencyAdmin(userRole) && <th className="px-2 py-2 font-bold">Vendedor</th>}
-                  <th className="px-2 py-2 font-bold">Repartidor</th>
-                  <th className="px-2 py-2 font-bold">Fecha</th>
+                  <th className="px-2 py-2 font-bold w-[6.5rem]">Estado</th>
+                  {isAgencyAdmin(userRole) && (
+                    <th className="px-2 py-2 font-bold w-[12%]">Vendedor</th>
+                  )}
+                  <th className="px-2 py-2 font-bold w-[5.75rem]">Repartidor</th>
+                  <th className="px-2 py-2 font-bold w-[4.5rem]">Fecha</th>
                 </tr>
               </thead>
               <tbody>
@@ -1913,7 +1915,7 @@ export default function AdminDashboard({
 
       {/* SECCIÓN DERECHA: MAPA E HISTORIAL */}
       <div
-        className={`lg:col-span-6 2xl:col-span-7 flex flex-col h-full min-h-0 gap-2 sm:gap-3 overflow-hidden ${
+        className={`lg:col-span-5 2xl:col-span-5 flex flex-col h-full min-h-0 gap-2 sm:gap-3 overflow-hidden ${
           !showMapPanel
             ? 'hidden'
             : adminMobileTab !== 'map'
