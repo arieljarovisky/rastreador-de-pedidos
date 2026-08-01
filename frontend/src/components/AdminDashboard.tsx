@@ -9,7 +9,7 @@ import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgenc
 import {
   Plus, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
   ChevronDown, ChevronUp, Package, Crown, Settings, ClipboardList, Map,
-  Store, Bike, AlertTriangle, Check, X, Filter, EyeOff, Eye,
+  Store, Bike, AlertTriangle, Check, X, Filter, EyeOff, Eye, GripVertical,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -156,6 +156,10 @@ const MAP_REPS_STORAGE_KEY = 'lupo_map_repartidor_ids';
 const MAP_DELIVERED_STORAGE_KEY = 'lupo_map_show_delivered';
 const ORDERS_HEADER_COLLAPSED_KEY = 'posta_orders_header_collapsed';
 const SHOW_MAP_PANEL_KEY = 'posta_show_map_panel';
+const MAP_SPLIT_PCT_KEY = 'posta_envios_map_split_pct';
+const MAP_SPLIT_DEFAULT = 58;
+const MAP_SPLIT_MIN = 35;
+const MAP_SPLIT_MAX = 75;
 
 function loadOrdersHeaderCollapsed(): boolean {
   try {
@@ -171,6 +175,16 @@ function loadShowMapPanel(): boolean {
     return localStorage.getItem(SHOW_MAP_PANEL_KEY) === '1';
   } catch {
     return false;
+  }
+}
+
+function loadMapSplitPct(): number {
+  try {
+    const raw = Number(localStorage.getItem(MAP_SPLIT_PCT_KEY));
+    if (!Number.isFinite(raw)) return MAP_SPLIT_DEFAULT;
+    return Math.min(MAP_SPLIT_MAX, Math.max(MAP_SPLIT_MIN, raw));
+  } catch {
+    return MAP_SPLIT_DEFAULT;
   }
 }
 
@@ -254,6 +268,9 @@ export default function AdminDashboard({
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
   const [showMapPanel, setShowMapPanel] = useState(loadShowMapPanel);
+  const [mapSplitPct, setMapSplitPct] = useState(loadMapSplitPct);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const splitDraggingRef = useRef(false);
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
   const { confirm, alert: showAlert } = useModal();
   const [incidentDraft, setIncidentDraft] = useState('');
@@ -328,6 +345,55 @@ export default function AdminDashboard({
       // ignore storage errors
     }
   }, [showMapPanel]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_SPLIT_PCT_KEY, String(Math.round(mapSplitPct)));
+    } catch {
+      // ignore storage errors
+    }
+  }, [mapSplitPct]);
+
+  const updateSplitFromClientX = useCallback((clientX: number) => {
+    const el = splitContainerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const pct = ((clientX - rect.left) / rect.width) * 100;
+    setMapSplitPct(Math.min(MAP_SPLIT_MAX, Math.max(MAP_SPLIT_MIN, pct)));
+  }, []);
+
+  const onSplitPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      splitDraggingRef.current = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      updateSplitFromClientX(e.clientX);
+    },
+    [updateSplitFromClientX]
+  );
+
+  const onSplitPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!splitDraggingRef.current) return;
+      updateSplitFromClientX(e.clientX);
+    },
+    [updateSplitFromClientX]
+  );
+
+  const onSplitPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!splitDraggingRef.current) return;
+    splitDraggingRef.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
 
   const toggleOrdersHeader = useCallback(() => {
     setOrdersHeaderCollapsed((collapsed) => !collapsed);
@@ -1397,7 +1463,8 @@ export default function AdminDashboard({
   return (
     <>
     <div
-      className="flex flex-col lg:grid lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 h-full overflow-hidden"
+      ref={splitContainerRef}
+      className="flex flex-col lg:flex-row min-h-0 h-full overflow-hidden gap-2 sm:gap-3 lg:gap-0"
       id="admin-dashboard"
     >      {contextMenu && (
         <OrderContextMenu
@@ -1435,11 +1502,18 @@ export default function AdminDashboard({
       </div>
 
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN */}
-      <div className={`${
-        showMapPanel ? 'lg:col-span-7 2xl:col-span-7' : 'lg:col-span-12'
-      } flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 flex-1 min-h-0 overflow-hidden h-full ${
-        adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
-      }`}>
+      <div
+        className={`flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 min-h-0 overflow-hidden h-full ${
+          showMapPanel
+            ? 'lg:shrink-0 lg:basis-[var(--posta-split)] lg:w-[var(--posta-split)] lg:max-w-[var(--posta-split)]'
+            : 'flex-1'
+        } ${adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'}`}
+        style={
+          showMapPanel
+            ? ({ ['--posta-split' as string]: `${mapSplitPct}%` } as React.CSSProperties)
+            : undefined
+        }
+      >
         
         {/* Cabecera compacta, búsqueda y filtros */}
         <div className="shrink-0 space-y-1.5">
@@ -1913,9 +1987,32 @@ export default function AdminDashboard({
         )}
       </div>
 
+      {/* Divisor arrastrable lista ↔ mapa (solo desktop con mapa visible) */}
+      {showMapPanel && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Redimensionar lista y mapa"
+          aria-valuemin={MAP_SPLIT_MIN}
+          aria-valuemax={MAP_SPLIT_MAX}
+          aria-valuenow={Math.round(mapSplitPct)}
+          title="Arrastrá para cambiar el tamaño"
+          onPointerDown={onSplitPointerDown}
+          onPointerMove={onSplitPointerMove}
+          onPointerUp={onSplitPointerUp}
+          onPointerCancel={onSplitPointerUp}
+          className="relative hidden lg:flex shrink-0 w-3 cursor-col-resize items-center justify-center group touch-none select-none z-20"
+        >
+          <div className="h-full w-px bg-[var(--surface-border)] group-hover:bg-[var(--color-accent)] group-active:bg-[var(--color-accent)] transition-colors" />
+          <div className="absolute flex items-center justify-center w-4 h-8 rounded-full border border-[var(--surface-border)] bg-[var(--surface-panel)] text-[var(--color-text-muted)] group-hover:border-[var(--color-accent)]/50 group-hover:text-[var(--color-accent)] shadow-sm pointer-events-none">
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
+        </div>
+      )}
+
       {/* SECCIÓN DERECHA: MAPA E HISTORIAL */}
       <div
-        className={`lg:col-span-5 2xl:col-span-5 flex flex-col h-full min-h-0 gap-2 sm:gap-3 overflow-hidden ${
+        className={`flex flex-col h-full min-h-0 min-w-0 gap-2 sm:gap-3 overflow-hidden flex-1 ${
           !showMapPanel
             ? 'hidden'
             : adminMobileTab !== 'map'
