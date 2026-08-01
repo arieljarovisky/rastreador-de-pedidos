@@ -13,6 +13,7 @@
  *   --express=3000       fuerza cobro Express
  *   --standard=2500      fuerza cobro Estándar
  *   --seller=ariel       solo cargos de vendedores cuyo nombre/username matchea
+ *                        (sin este flag: TODOS los vendedores)
  *   --drivers            también recalcula liquidación de repartidores
  */
 import 'dotenv/config';
@@ -34,8 +35,9 @@ function argValue(name: string): string | null {
 const FORCE_FLEX = argValue('flex') != null ? Number(argValue('flex')) : null;
 const FORCE_EXPRESS = argValue('express') != null ? Number(argValue('express')) : null;
 const FORCE_STANDARD = argValue('standard') != null ? Number(argValue('standard')) : null;
-const SELLER_FILTER = (argValue('seller') || 'ariel').trim().toLowerCase();
-const ALL_SELLERS = process.argv.includes('--all-sellers');
+/** Por defecto todos los vendedores. Usá --seller=ariel para limitar. */
+const SELLER_FILTER = argValue('seller')?.trim().toLowerCase() || null;
+const ALL_SELLERS = !SELLER_FILTER;
 
 function money(n: number): string {
   return new Intl.NumberFormat('es-AR', {
@@ -259,8 +261,7 @@ async function equalizePriceLists(): Promise<
 }
 
 async function resolveSellerIdsForFilter(): Promise<string[] | null> {
-  if (ALL_SELLERS) return null;
-  if (!SELLER_FILTER) return null;
+  if (ALL_SELLERS || !SELLER_FILTER) return null;
   const like = `%${SELLER_FILTER}%`;
   const [rows] = await pool.query<Array<{ id: string; name: string; username: string } & RowDataPacket>>(
     `SELECT id, name, username FROM users
@@ -271,7 +272,7 @@ async function resolveSellerIdsForFilter(): Promise<string[] | null> {
   console.log(`\nFiltro vendedor "${SELLER_FILTER}":`);
   for (const r of rows) console.log(`  ${r.id} @${r.username} "${r.name}"`);
   if (!rows.length) {
-    console.log('  (ninguno — no se tocarán cargos; usá --all-sellers para todos)');
+    console.log('  (ninguno — no se tocarán cargos)');
   }
   return rows.map((r) => r.id);
 }
@@ -511,7 +512,6 @@ async function main(): Promise<void> {
     console.log(
       '  node ./node_modules/tsx/dist/cli.mjs scripts/migrate-equal-prices-and-delete-payment.ts --flex=3000 --express=3000 --standard=2500 --apply'
     );
-    console.log('  (agregá --all-sellers si querés todos los vendedores, no solo Ariel)');
   } else {
     console.log('\nCambios aplicados.');
   }
