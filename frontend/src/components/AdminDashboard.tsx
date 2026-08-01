@@ -345,15 +345,6 @@ export default function AdminDashboard({
     }
   }, [activeOrderId]);
 
-  /** Al abrir el mapa, subir el scroll del main para ver el panel completo. */
-  useEffect(() => {
-    if (!showMapPanel) return;
-    const main = document.querySelector('main');
-    if (main instanceof HTMLElement) {
-      main.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [showMapPanel]);
-
   const handleSelectOrder = useCallback(
     (orderId: string | null) => {
       onSelectOrder(orderId);
@@ -1408,7 +1399,7 @@ export default function AdminDashboard({
   return (
     <>
     <div
-      className="flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 h-[calc(100dvh-7.25rem)] sm:h-[calc(100dvh-7.5rem)] xl:h-[calc(100dvh-5.75rem)] overflow-hidden"
+      className="flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 h-full overflow-hidden"
       id="admin-dashboard"
     >      {contextMenu && (
         <OrderContextMenu
@@ -1448,7 +1439,7 @@ export default function AdminDashboard({
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN */}
       <div className={`${
         showMapPanel ? 'lg:col-span-6 2xl:col-span-5' : 'lg:col-span-12'
-      } flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 flex-1 min-h-0 overflow-hidden ${
+      } flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 flex-1 min-h-0 overflow-hidden h-full ${
         adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
       }`}>
         
@@ -1924,7 +1915,7 @@ export default function AdminDashboard({
 
       {/* SECCIÓN DERECHA: MAPA E HISTORIAL */}
       <div
-        className={`lg:col-span-6 2xl:col-span-7 flex flex-col h-full gap-2 sm:gap-3 overflow-hidden ${
+        className={`lg:col-span-6 2xl:col-span-7 flex flex-col h-full min-h-0 gap-2 sm:gap-3 overflow-hidden ${
           !showMapPanel
             ? 'hidden'
             : adminMobileTab !== 'map'
@@ -1934,7 +1925,7 @@ export default function AdminDashboard({
       >
         
         {/* Mapa Interactivo */}
-        <div className="flex-1 min-h-[140px] sm:min-h-[180px] md:min-h-[220px] lg:min-h-[250px] xl:min-h-[320px] 2xl:min-h-[380px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
+        <div className="flex-1 min-h-0 rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
           <div ref={mapFilterRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 z-[1100] flex flex-col gap-2 w-[min(11rem,calc(100%-1rem))] sm:w-44 md:w-48">
             <button
               type="button"
