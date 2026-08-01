@@ -18,10 +18,6 @@ import {
   getOperationalDateKey,
   formatOperationalDateShort,
 } from '../utils/deliverySummary.js';
-import {
-  exportAgencyBillingExcel,
-  exportSellerBillingExcel,
-} from '../utils/exportBillingExcel.js';
 
 interface ShippingAccountPageProps {
   token: string;
@@ -170,8 +166,10 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       const exportLedger = body as BillingLedgerEntry[];
 
       if (isAgency && !selectedSellerId) {
+        const { exportAgencyBillingExcel } = await import('../utils/exportBillingExcel.js');
         await exportAgencyBillingExcel(summary, exportLedger);
       } else {
+        const { exportSellerBillingExcel } = await import('../utils/exportBillingExcel.js');
         const label =
           summary.sellerName ||
           sellers.find((s) => s.id === selectedSellerId)?.name ||

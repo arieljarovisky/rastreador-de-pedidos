@@ -34,6 +34,15 @@ import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 import { pool } from '../config/database.js';
 import { RowDataPacket } from 'mysql2';
 
+function parseLimitOffset(req: Request): { limit: number; offset: number } {
+  const limit = Number(req.query.limit ?? 200);
+  const offset = Number(req.query.offset ?? 0);
+  return {
+    limit: Number.isFinite(limit) ? limit : 200,
+    offset: Number.isFinite(offset) ? offset : 0,
+  };
+}
+
 function mercadoLibreLabelErrorMessage(code: string): string {
   switch (code) {
     case 'ML_NOT_CONNECTED':
@@ -89,7 +98,8 @@ router.get('/delivery-summary', authenticate, requireRoles(
 
 router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   const synced = await syncFlexScansForRepartidor(req.user!, { force: true });
-  const orders = await listOrdersForUser(req.user!, { mode: 'list' });
+  const { limit, offset } = parseLimitOffset(req);
+  const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset });
   // ML live sync en background: el listado responde ya; updates llegan por WS.
   void syncOpenMercadoLibreOrdersInList(orders).catch((err) => {
     console.error('[orders/flex-sync] background ML sync failed', err);
@@ -98,7 +108,8 @@ router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async
 });
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
-  const orders = await listOrdersForUser(req.user!, { mode: 'list' });
+  const { limit, offset } = parseLimitOffset(req);
+  const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset });
   res.json(orders);
   scheduleOrdersBackgroundSync(req.user!, orders);
 });
@@ -559,7 +570,7 @@ router.put('/archive-finished', authenticate, async (req: Request, res: Response
 router.delete('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const result = await deleteOrder(req.user!, req.params.id);
-    emitOrderDeleted(req.params.id, result.sellerId);
+    emitOrderDeleted(req.params.id, result.sellerId, result.agencyId);
     res.status(204).send();
   } catch (err) {
     const message = err instanceof Error ? err.message : '';

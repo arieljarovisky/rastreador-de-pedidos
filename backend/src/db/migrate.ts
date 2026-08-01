@@ -140,6 +140,19 @@ export async function runMigrations(): Promise<void> {
     );
   }
 
+  const [agencyArchivedStatusIdx] = await pool.query<
+    Array<{ INDEX_NAME: string } & import('mysql2').RowDataPacket>
+  >(
+    `SELECT INDEX_NAME FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders'
+       AND INDEX_NAME = 'idx_orders_agency_archived_status'`
+  );
+  if (agencyArchivedStatusIdx.length === 0 && (await columnExists('orders', 'agency_id'))) {
+    await pool.query(
+      'CREATE INDEX idx_orders_agency_archived_status ON orders (agency_id, archived, status)'
+    );
+  }
+
   const [agencyCount] = await pool.query<Array<{ cnt: number } & import('mysql2').RowDataPacket>>(
     'SELECT COUNT(*) AS cnt FROM agencies'
   );

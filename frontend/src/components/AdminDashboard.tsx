@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import {
@@ -21,7 +21,7 @@ import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
-import MapComponent from './MapComponent.tsx';
+const MapComponent = lazy(() => import('./MapComponent.tsx'));
 import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
@@ -30,6 +30,96 @@ import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterC
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import { getOperationalDateKey, shiftOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
 
+const AdminOrderTableRow = memo(function AdminOrderTableRow({
+  order,
+  isSelected,
+  showSeller,
+  onSelect,
+  onContextMenu,
+  onAssign,
+}: {
+  order: Order;
+  isSelected: boolean;
+  showSeller: boolean;
+  onSelect: (orderId: string) => void;
+  onContextMenu: (order: Order, x: number, y: number) => void;
+  onAssign: (orderId: string) => void;
+}) {
+  const exception = getOrderExceptionBadge(order);
+  const importedKey = getOrderImportedDateKey(order);
+  const importedLabel = formatOperationalDateShort(importedKey);
+  const timeLabel = new Date(order.createdAt).toLocaleTimeString('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires',
+  });
+
+  return (
+    <tr
+      onClick={() => onSelect(order.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(order, e.clientX, e.clientY);
+      }}
+      className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] transition ${
+        isSelected
+          ? 'bg-[var(--color-accent)]/10'
+          : 'hover:bg-[var(--surface-panel-2)]/80'
+      }`}
+    >
+      <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
+        <span className="inline-flex items-center gap-1">
+          {order.id}
+          <MarketplaceSourceIcon source={order.externalSource} />
+        </span>
+      </td>
+      <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] max-w-[8rem] truncate">
+        {order.clientName}
+      </td>
+      <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[12rem] truncate">
+        {order.address}
+      </td>
+      <td className="px-2 py-2 whitespace-nowrap">
+        <StatusBadge
+          status={order.status}
+          label={exception?.label}
+          tone={exception?.tone}
+        />
+      </td>
+      {showSeller && (
+        <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[7rem] truncate">
+          {order.sellerName ?? '—'}
+        </td>
+      )}
+      <td className="px-2 py-2 whitespace-nowrap">
+        {order.status === OrderStatus.PENDING && showSeller ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAssign(order.id);
+            }}
+            className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
+          >
+            Gestionar
+          </button>
+        ) : (
+          <span className="text-[var(--color-text-muted)] truncate max-w-[6rem] inline-block">
+            {order.repartidorName?.split(' ')[0] ?? 'Sin asignar'}
+          </span>
+        )}
+      </td>
+      <td
+        className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap"
+        title={`Importado ${importedLabel} ${timeLabel}`}
+      >
+        <span className="block text-[var(--ink-soft)]">{importedLabel}</span>
+        <span className="block">{timeLabel}</span>
+      </td>
+    </tr>
+  );
+});
 interface AdminDashboardProps {
   orders: Order[];
   repartidores: User[];
@@ -388,6 +478,10 @@ export default function AdminDashboard({
     },
     [handleSelectOrder]
   );
+
+  const openOrderContextMenu = useCallback((order: Order, x: number, y: number) => {
+    setContextMenu({ order, x, y });
+  }, []);
 
   // Aplicar preset de dirección
   const applyPreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
@@ -1739,83 +1833,17 @@ export default function AdminDashboard({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredOrders.map((order) => {
-                    const isSelected = order.id === activeOrderId;
-                    const exception = getOrderExceptionBadge(order);
-                    const importedKey = getOrderImportedDateKey(order);
-                    const importedLabel = formatOperationalDateShort(importedKey);
-                    const timeLabel = new Date(order.createdAt).toLocaleTimeString('es-AR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      timeZone: 'America/Argentina/Buenos_Aires',
-                    });
-                    return (
-                      <tr
-                        key={order.id}
-                        onClick={() => handleSelectOrder(order.id)}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setContextMenu({ order, x: e.clientX, y: e.clientY });
-                        }}
-                        className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] transition ${
-                          isSelected
-                            ? 'bg-[var(--color-accent)]/10'
-                            : 'hover:bg-[var(--surface-panel-2)]/80'
-                        }`}
-                      >
-                        <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1">
-                            {order.id}
-                            <MarketplaceSourceIcon source={order.externalSource} />
-                          </span>
-                        </td>
-                        <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] max-w-[8rem] truncate">
-                          {order.clientName}
-                        </td>
-                        <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[12rem] truncate">
-                          {order.address}
-                        </td>
-                        <td className="px-2 py-2 whitespace-nowrap">
-                          <StatusBadge
-                            status={order.status}
-                            label={exception?.label}
-                            tone={exception?.tone}
-                          />
-                        </td>
-                        {isAgencyAdmin(userRole) && (
-                          <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[7rem] truncate">
-                            {order.sellerName ?? '—'}
-                          </td>
-                        )}
-                        <td className="px-2 py-2 whitespace-nowrap">
-                          {order.status === OrderStatus.PENDING && isAgencyAdmin(userRole) ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openAssignModal(order.id);
-                              }}
-                              className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
-                            >
-                              Gestionar
-                            </button>
-                          ) : (
-                            <span className="text-[var(--color-text-muted)] truncate max-w-[6rem] inline-block">
-                              {order.repartidorName?.split(' ')[0] ?? 'Sin asignar'}
-                            </span>
-                          )}
-                        </td>
-                        <td
-                          className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap"
-                          title={`Importado ${importedLabel} ${timeLabel}`}
-                        >
-                          <span className="block text-[var(--ink-soft)]">{importedLabel}</span>
-                          <span className="block">{timeLabel}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {filteredOrders.map((order) => (
+                    <AdminOrderTableRow
+                      key={order.id}
+                      order={order}
+                      isSelected={order.id === activeOrderId}
+                      showSeller={isAgencyAdmin(userRole)}
+                      onSelect={handleSelectOrder}
+                      onContextMenu={openOrderContextMenu}
+                      onAssign={openAssignModal}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -2124,18 +2152,20 @@ export default function AdminDashboard({
               )}
             </div>
           </div>
-          <MapComponent
-            orders={mapOrders}
-            repartidores={mapRepartidores}
-            departurePoint={departurePoint}
-            pickupPoints={pickupPoints}
-            deliveryZones={deliveryZones}
-            barrios={barrios}
-            activeOrderId={activeOrderId}
-            onSelectOrder={handleSelectOrder}
-            showDeliveryZones={false}
-            focusZoneId={cordonFilterId || null}
-          />
+          <Suspense fallback={<div className="absolute inset-0 bg-[var(--surface-bg)]" />}>
+            <MapComponent
+              orders={mapOrders}
+              repartidores={mapRepartidores}
+              departurePoint={departurePoint}
+              pickupPoints={pickupPoints}
+              deliveryZones={deliveryZones}
+              barrios={barrios}
+              activeOrderId={activeOrderId}
+              onSelectOrder={handleSelectOrder}
+              showDeliveryZones={false}
+              focusZoneId={cordonFilterId || null}
+            />
+          </Suspense>
           {/* Overlay Map Grid design like in the spec */}
           <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
         </div>

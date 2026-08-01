@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, memo, type ReactNode } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
@@ -37,7 +37,7 @@ import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '.
 
 const REPARTIDORES_PAGE_SIZE = 8;
 
-function SettingsSectionHeader({
+const SettingsSectionHeader = memo(function SettingsSectionHeader({
   icon,
   emoji,
   title,
@@ -66,9 +66,9 @@ function SettingsSectionHeader({
       {action}
     </div>
   );
-}
+});
 
-function SettingsFleetColumn({
+const SettingsFleetColumn = memo(function SettingsFleetColumn({
   children,
   className = '',
 }: {
@@ -78,7 +78,7 @@ function SettingsFleetColumn({
   return (
     <div className={`flex flex-col min-w-0 w-full p-3 ${className}`}>{children}</div>
   );
-}
+});
 
 const DIRECTORY_PRESETS = [
   { name: 'Palermo Chico (Av. del Libertador 2400)', lat: -34.5802, lng: -58.4035 },

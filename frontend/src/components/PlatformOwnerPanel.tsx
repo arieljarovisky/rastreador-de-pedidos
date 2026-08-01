@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, memo } from 'react';
 import {
   ArrowLeft,
   Building2,
@@ -88,7 +88,13 @@ function roleLabel(role: UserRole): string {
   return 'Repartidor';
 }
 
-function statusBadge(status: string, ok?: boolean) {
+const PlatformStatusBadge = memo(function PlatformStatusBadge({
+  status,
+  ok,
+}: {
+  status: string;
+  ok?: boolean;
+}) {
   const tone =
     ok === true
       ? 'text-[var(--color-ok)] border-[var(--color-ok)]/30 bg-[var(--color-ok)]/10'
@@ -100,7 +106,52 @@ function statusBadge(status: string, ok?: boolean) {
       {status}
     </span>
   );
-}
+});
+
+const PlatformAgencyListItemRow = memo(function PlatformAgencyListItemRow({
+  agency,
+  selected,
+  onSelect,
+}: {
+  agency: PlatformAgencyListItem;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onSelect(agency.id)}
+        className={`w-full text-left px-3 py-2.5 hover:bg-[var(--surface-panel-2)] transition ${
+          selected ? 'bg-[var(--color-accent)]/8' : ''
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[var(--ink-soft)] truncate flex items-center gap-1.5">
+              <Building2 className="w-3 h-3 text-[var(--color-accent)] shrink-0" />
+              {agency.name}
+            </p>
+            <p className="text-[10px] font-mono text-[var(--color-text-muted)] truncate">
+              {agency.city || '—'} · {agency.ownerEmail || 'sin dueño'}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <PlatformStatusBadge status={agency.status} ok={agency.status === 'active'} />
+            <PlatformStatusBadge
+              status={agency.subscriptionStatus ?? '—'}
+              ok={agency.subscriptionActive}
+            />
+          </div>
+        </div>
+        <p className="mt-1 text-[9px] font-mono text-[var(--color-text-muted)]">
+          {agency.sellers} vend. · {agency.repartidores} rep. · {agency.openOrders} abiertos
+          {agency.daysRemaining != null ? ` · ${agency.daysRemaining}d` : ''}
+        </p>
+      </button>
+    </li>
+  );
+});
 
 export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
@@ -699,41 +750,15 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
             ) : (
               <ul className="divide-y divide-[var(--surface-border)]/60">
                 {agencies.map((a) => (
-                  <li key={a.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDetailTab('resumen');
-                        setSelectedId(a.id);
-                      }}
-                      className={`w-full text-left px-3 py-2.5 hover:bg-[var(--surface-panel-2)] transition ${
-                        selectedId === a.id ? 'bg-[var(--color-accent)]/8' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-[var(--ink-soft)] truncate flex items-center gap-1.5">
-                            <Building2 className="w-3 h-3 text-[var(--color-accent)] shrink-0" />
-                            {a.name}
-                          </p>
-                          <p className="text-[10px] font-mono text-[var(--color-text-muted)] truncate">
-                            {a.city || '—'} · {a.ownerEmail || 'sin dueño'}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          {statusBadge(a.status, a.status === 'active')}
-                          {statusBadge(
-                            a.subscriptionStatus ?? '—',
-                            a.subscriptionActive
-                          )}
-                        </div>
-                      </div>
-                      <p className="mt-1 text-[9px] font-mono text-[var(--color-text-muted)]">
-                        {a.sellers} vend. · {a.repartidores} rep. · {a.openOrders} abiertos
-                        {a.daysRemaining != null ? ` · ${a.daysRemaining}d` : ''}
-                      </p>
-                    </button>
-                  </li>
+                  <PlatformAgencyListItemRow
+                    key={a.id}
+                    agency={a}
+                    selected={selectedId === a.id}
+                    onSelect={(id) => {
+                      setDetailTab('resumen');
+                      setSelectedId(id);
+                    }}
+                  />
                 ))}
               </ul>
             )}
@@ -796,7 +821,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    {statusBadge(detail.agency.status, detail.agency.status === 'active')}
+                    <PlatformStatusBadge status={detail.agency.status} ok={detail.agency.status === 'active'} />
                     <button
                       type="button"
                       disabled={busy}
@@ -909,10 +934,10 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                 {detailTab === 'suscripcion' && (
                   <div className="border border-[var(--surface-border)] rounded p-3 space-y-3">
                     <div className="flex flex-wrap gap-2 text-[10px] font-mono">
-                      {statusBadge(
-                        detail.subscription.status,
-                        detail.subscription.isActive
-                      )}
+                      <PlatformStatusBadge
+                        status={detail.subscription.status}
+                        ok={detail.subscription.isActive}
+                      />
                       <span className="text-[var(--color-text-muted)]">
                         Activa: {detail.subscription.isActive ? 'sí' : 'no'}
                         {detail.subscription.daysRemaining != null
@@ -1092,7 +1117,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                         <li key={o.id} className="px-3 py-2 text-[11px] space-y-1">
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-mono font-bold text-[var(--ink-soft)]">{o.id}</p>
-                            {statusBadge(o.status)}
+                            <PlatformStatusBadge status={o.status} />
                           </div>
                           <p className="text-[var(--color-text-muted)] truncate">
                             {o.clientName} · {o.address}

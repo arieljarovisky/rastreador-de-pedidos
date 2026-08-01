@@ -29,9 +29,16 @@ export function emitOrderUpdated(order: Order, sellerId: string | null): void {
   }
 }
 
-export function emitOrderDeleted(orderId: string, sellerId: string | null): void {
+export function emitOrderDeleted(
+  orderId: string,
+  sellerId: string | null,
+  agencyId?: string | null
+): void {
   if (!io) return;
-  io.to('tracking').emit('order:deleted', { orderId, sellerId });
+  // Scope por agencia (nunca broadcast a 'tracking': filtraba entre agencias).
+  if (agencyId) {
+    io.to(`agency:${agencyId}`).emit('order:deleted', { orderId, sellerId });
+  }
   if (sellerId) {
     io.to(`seller:${sellerId}`).emit('order:deleted', { orderId, sellerId });
   }
@@ -54,13 +61,14 @@ export function emitOrderLocation(
 }
 
 export function emitRepartidorLocation(repartidor: User): void {
-  if (!io || !repartidor.currentLocation) return;
+  if (!io || !repartidor.currentLocation || !repartidor.agencyId) return;
   logRepartidorGps('socket_emit', repartidor, {
     lat: repartidor.currentLocation.lat,
     lng: repartidor.currentLocation.lng,
     savedAt: repartidor.currentLocation.timestamp,
   });
-  io.to('tracking').emit('repartidor:location', {
+  // Scope por agencia (nunca broadcast a 'tracking': filtraba entre agencias).
+  io.to(`agency:${repartidor.agencyId}`).emit('repartidor:location', {
     repartidorId: repartidor.id,
     name: repartidor.name,
     location: repartidor.currentLocation,
@@ -74,13 +82,19 @@ export function emitNotificationCreated(notification: AppNotification): void {
   io.to(`user:${notification.userId}`).emit('notification:created', notification);
 }
 
-export function joinUserRooms(socketId: string, user: { id: string; role: UserRole }): void {
+export function joinUserRooms(
+  socketId: string,
+  user: { id: string; role: UserRole; agencyId?: string | null }
+): void {
   if (!io) return;
   const socket = io.sockets.sockets.get(socketId);
   if (!socket) return;
 
   socket.join('tracking');
   socket.join(`user:${user.id}`);
+  if (user.agencyId) {
+    socket.join(`agency:${user.agencyId}`);
+  }
 
   if (isAgencyAdmin(user.role)) {
     socket.join('logistics');

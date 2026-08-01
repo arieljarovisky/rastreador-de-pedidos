@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint, RepartidorMercadoLibreStatus } from '../types.js';
 import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText } from 'lucide-react';
 import { useModal } from '../context/ModalContext.tsx';
-import MapComponent from './MapComponent.tsx';
+const MapComponent = lazy(() => import('./MapComponent.tsx'));
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 
 function getCollectLabel(
@@ -455,18 +455,20 @@ export default function RepartidorDashboard({
                     key={`courier-map-${selectedOrder.id}`}
                     className="absolute inset-0 w-full h-full"
                   >
-                    <MapComponent
-                      orders={[selectedOrder]}
-                      repartidores={repForMap}
-                      departurePoint={departurePoint}
-                      pickupPoints={[]}
-                      activeOrderId={selectedOrder.id}
-                      liveRepartidorLocation={currentCoords}
-                      showDepartureHub={false}
-                      showDeliveryZones={false}
-                      compact
-                      interactive={true}
-                    />
+                    <Suspense fallback={<div className="absolute inset-0 bg-[var(--surface-bg)]" />}>
+                      <MapComponent
+                        orders={[selectedOrder]}
+                        repartidores={repForMap}
+                        departurePoint={departurePoint}
+                        pickupPoints={[]}
+                        activeOrderId={selectedOrder.id}
+                        liveRepartidorLocation={currentCoords}
+                        showDepartureHub={false}
+                        showDeliveryZones={false}
+                        compact
+                        interactive={true}
+                      />
+                    </Suspense>
                   </div>
                 </div>
 

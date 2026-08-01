@@ -235,28 +235,30 @@ export async function getOrderById(id: string): Promise<Order | null> {
 
 export async function listOrdersForUser(
   user: User,
-  options?: { mode?: EnrichOrdersMode }
+  options?: { mode?: EnrichOrdersMode; limit?: number; offset?: number }
 ): Promise<Order[]> {
   let rows: OrderWithRepartidorRow[];
   const mode = options?.mode ?? 'list';
+  const limit = Math.min(Math.max(options?.limit ?? 200, 1), 500);
+  const offset = Math.max(options?.offset ?? 0, 0);
 
   if (user.role === UserRole.STORE_ADMIN) {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE o.seller_id = ? ORDER BY o.created_at DESC`,
-      [user.id]
+      `${ORDER_SELECT} WHERE o.seller_id = ? AND o.archived = 0 ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      [user.id, limit, offset]
     );
   } else if (isAgencyAdmin(user.role)) {
     if (!user.agencyId) {
       return [];
     }
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE o.agency_id = ? ORDER BY o.created_at DESC`,
-      [user.agencyId]
+      `${ORDER_SELECT} WHERE o.agency_id = ? AND o.archived = 0 ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      [user.agencyId, limit, offset]
     );
   } else {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id <=> ?)) AND o.archived = 0 ORDER BY o.created_at DESC`,
-      [user.id, OrderStatus.PENDING, user.agencyId ?? null]
+      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id <=> ?)) AND o.archived = 0 ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      [user.id, OrderStatus.PENDING, user.agencyId ?? null, limit, offset]
     );
   }
 
@@ -1704,12 +1706,12 @@ export async function reportOrderLocationsBatch(
   }));
 
   if (order.status === OrderStatus.DELIVERING) {
-    for (const p of sorted) {
-      await pool.query(
-        `INSERT INTO order_location_history (order_id, lat, lng, created_at) VALUES (?, ?, ?, ?)`,
-        [orderId, p.lat, p.lng, new Date(p.timestamp)]
-      );
-    }
+    const placeholders = sorted.map(() => '(?, ?, ?, ?)').join(', ');
+    const values = sorted.flatMap((p) => [orderId, p.lat, p.lng, new Date(p.timestamp)]);
+    await pool.query(
+      `INSERT INTO order_location_history (order_id, lat, lng, created_at) VALUES ${placeholders}`,
+      values
+    );
     await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [lastWhen, orderId]);
   }
 
@@ -1804,7 +1806,10 @@ export async function countOrders(): Promise<number> {
   return Number(rows[0]?.cnt ?? 0);
 }
 
-export async function deleteOrder(user: User, orderId: string): Promise<{ sellerId: string | null }> {
+export async function deleteOrder(
+  user: User,
+  orderId: string
+): Promise<{ sellerId: string | null; agencyId: string | null }> {
   const order = await getOrderById(orderId);
   if (!order) throw new Error('NOT_FOUND');
 
@@ -1818,7 +1823,7 @@ export async function deleteOrder(user: User, orderId: string): Promise<{ seller
   }
 
   await pool.query('DELETE FROM orders WHERE id = ?', [orderId]);
-  return { sellerId: order.sellerId };
+  return { sellerId: order.sellerId, agencyId: order.agencyId ?? null };
 }
 
 export async function archiveAllFinishedOrders(

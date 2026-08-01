@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, RepartidorMercadoLibreStatus } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen, {
@@ -11,13 +11,13 @@ import LoginScreen, {
   type AgencyGoogleRegisterData,
   type RegisterAgencyResult,
 } from './components/LoginScreen.tsx';
-import AdminDashboard from './components/AdminDashboard.tsx';
+const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
 import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
-import ShippingAccountPage from './components/ShippingAccountPage.tsx';
-import DriverSettlementPage from './components/DriverSettlementPage.tsx';
+const ShippingAccountPage = lazy(() => import('./components/ShippingAccountPage.tsx'));
+const DriverSettlementPage = lazy(() => import('./components/DriverSettlementPage.tsx'));
 import RegistroPage from './components/RegistroPage.tsx';
-import RepartidorDashboard from './components/RepartidorDashboard.tsx';
+const RepartidorDashboard = lazy(() => import('./components/RepartidorDashboard.tsx'));
 import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import type { MarketplacePlatform } from './components/MarketplaceIntegrations.tsx';
@@ -36,6 +36,13 @@ import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
 
+function LazyFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[12rem] text-[11px] font-mono uppercase tracking-wider text-[var(--color-text-muted)]">
+      Cargando…
+    </div>
+  );
+}
 type AppTab = 'panel' | 'dashboard' | 'account' | 'registro' | 'prices' | 'notifications' | 'settings' | 'platform';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
@@ -2485,30 +2492,32 @@ export default function App() {
                     mobileTab !== 'dashboard' ? 'hidden' : 'flex flex-col'
                   }`}
                 >
-                  <AdminDashboard
-                    orders={orders}
-                    repartidores={repartidores}
-                    sellers={sellers}
-                    departurePoint={departurePoint}
-                    pickupPoints={pickupPoints}
-                    deliveryZones={deliveryZones}
-                    barrios={barrios}
-                    activeOrderId={activeOrderId}
-                    onSelectOrder={setActiveOrderId}
-                    onCreateOrder={handleCreateOrder}
-                    onUpdateOrderStatus={handleUpdateOrderStatus}
-                    onAddOrderIncident={handleAddOrderIncident}
-                    onAssignOrderSeller={handleAssignOrderSeller}
-                    onDeleteOrder={handleDeleteOrder}
-                    onArchiveOrder={handleArchiveOrder}
-                    onScheduleOrderToday={handleScheduleOrderToday}
-                    userRole={user.role}
-                    onOpenShippingLabel={handleOpenShippingLabel}
-                    onViewSellerRegistry={(sellerId) => {
-                      setRegistroSellerId(sellerId);
-                      setMobileTab('registro');
-                    }}
-                  />
+                  <Suspense fallback={<LazyFallback />}>
+                    <AdminDashboard
+                      orders={orders}
+                      repartidores={repartidores}
+                      sellers={sellers}
+                      departurePoint={departurePoint}
+                      pickupPoints={pickupPoints}
+                      deliveryZones={deliveryZones}
+                      barrios={barrios}
+                      activeOrderId={activeOrderId}
+                      onSelectOrder={setActiveOrderId}
+                      onCreateOrder={handleCreateOrder}
+                      onUpdateOrderStatus={handleUpdateOrderStatus}
+                      onAddOrderIncident={handleAddOrderIncident}
+                      onAssignOrderSeller={handleAssignOrderSeller}
+                      onDeleteOrder={handleDeleteOrder}
+                      onArchiveOrder={handleArchiveOrder}
+                      onScheduleOrderToday={handleScheduleOrderToday}
+                      userRole={user.role}
+                      onOpenShippingLabel={handleOpenShippingLabel}
+                      onViewSellerRegistry={(sellerId) => {
+                        setRegistroSellerId(sellerId);
+                        setMobileTab('registro');
+                      }}
+                    />
+                  </Suspense>
                 </div>
               </>
             )}
@@ -2542,19 +2551,21 @@ export default function App() {
                   </div>
                 )}
                 <div className="flex-1 min-h-0">
-                  {isAgencyAdmin(user.role) && accountSection === 'drivers' ? (
-                    <DriverSettlementPage
-                      token={token}
-                      user={user}
-                      repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
-                    />
-                  ) : (
-                    <ShippingAccountPage
-                      token={token}
-                      user={user}
-                      sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
-                    />
-                  )}
+                  <Suspense fallback={<LazyFallback />}>
+                    {isAgencyAdmin(user.role) && accountSection === 'drivers' ? (
+                      <DriverSettlementPage
+                        token={token}
+                        user={user}
+                        repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
+                      />
+                    ) : (
+                      <ShippingAccountPage
+                        token={token}
+                        user={user}
+                        sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+                      />
+                    )}
+                  </Suspense>
                 </div>
               </div>
             )}
@@ -2693,25 +2704,27 @@ export default function App() {
                 mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
               }`}
             >
-              <RepartidorDashboard
-                orders={orders}
-                currentUser={user}
-                activeOrderId={activeOrderId}
-                departurePoint={departurePoint}
-                pickupPoints={pickupPoints}
-                onSelectOrder={setActiveOrderId}
-                onUpdateOrderStatus={handleUpdateOrderStatus}
-                onAddOrderIncident={handleAddOrderIncident}
-                onReportLocation={handleReportLocation}
-                onReportUserLocation={handleReportUserLocation}
-                onOpenShippingLabel={handleOpenShippingLabel}
-                repartidorMlStatus={repartidorMlStatus}
-                repartidorMlLoading={repartidorMlLoading}
-                onRefreshRepartidorMlStatus={fetchRepartidorMlStatus}
-                onConnectRepartidorMercadoLibre={connectRepartidorMercadoLibre}
-                onDisconnectRepartidorMercadoLibre={disconnectRepartidorMercadoLibre}
-                onRefreshOrders={fetchData}
-              />
+              <Suspense fallback={<LazyFallback />}>
+                <RepartidorDashboard
+                  orders={orders}
+                  currentUser={user}
+                  activeOrderId={activeOrderId}
+                  departurePoint={departurePoint}
+                  pickupPoints={pickupPoints}
+                  onSelectOrder={setActiveOrderId}
+                  onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onAddOrderIncident={handleAddOrderIncident}
+                  onReportLocation={handleReportLocation}
+                  onReportUserLocation={handleReportUserLocation}
+                  onOpenShippingLabel={handleOpenShippingLabel}
+                  repartidorMlStatus={repartidorMlStatus}
+                  repartidorMlLoading={repartidorMlLoading}
+                  onRefreshRepartidorMlStatus={fetchRepartidorMlStatus}
+                  onConnectRepartidorMercadoLibre={connectRepartidorMercadoLibre}
+                  onDisconnectRepartidorMercadoLibre={disconnectRepartidorMercadoLibre}
+                  onRefreshOrders={fetchData}
+                />
+              </Suspense>
             </div>
 
             <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>

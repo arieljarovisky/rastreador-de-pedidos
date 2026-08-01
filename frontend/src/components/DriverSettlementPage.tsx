@@ -19,10 +19,6 @@ import {
   getOperationalDateKey,
   formatOperationalDateShort,
 } from '../utils/deliverySummary.js';
-import {
-  exportAgencyDriverSettlementExcel,
-  exportDriverSettlementExcel,
-} from '../utils/exportDriverSettlementExcel.js';
 
 interface DriverSettlementPageProps {
   token: string;
@@ -193,8 +189,10 @@ export default function DriverSettlementPage({
       const exportLedger = body as DriverLedgerEntry[];
 
       if (isAgency && !selectedRepartidorId) {
+        const { exportAgencyDriverSettlementExcel } = await import('../utils/exportDriverSettlementExcel.js');
         await exportAgencyDriverSettlementExcel(summary, exportLedger);
       } else {
+        const { exportDriverSettlementExcel } = await import('../utils/exportDriverSettlementExcel.js');
         const label =
           summary.repartidorName ||
           repartidores.find((r) => r.id === selectedRepartidorId)?.name ||
