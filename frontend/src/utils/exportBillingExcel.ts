@@ -324,7 +324,7 @@ function addMovimientosSheet(
   ledger: BillingLedgerEntry[],
   includeSeller: boolean
 ) {
-  const cols = includeSeller ? 7 : 6;
+  const cols = includeSeller ? 8 : 7;
   const sheet = workbook.addWorksheet('Movimientos', {
     properties: { tabColor: { argb: `FF${POSTA.warn}` } },
   });
@@ -337,22 +337,22 @@ function addMovimientosSheet(
   );
 
   if (includeSeller) {
-    autosize(sheet, [20, 10, 36, 14, 36, 22, 14]);
+    autosize(sheet, [20, 10, 32, 14, 14, 36, 20, 14]);
   } else {
-    autosize(sheet, [20, 10, 36, 14, 42, 14]);
+    autosize(sheet, [20, 10, 32, 14, 14, 42, 14]);
   }
 
   const header = sheet.getRow(5);
   header.values = includeSeller
-    ? ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Dirección', 'Vendedor', 'Monto']
-    : ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Dirección', 'Monto'];
+    ? ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Zona', 'Dirección', 'Vendedor', 'Monto']
+    : ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Zona', 'Dirección', 'Monto'];
   styleHeaderRow(header);
 
   if (ledger.length === 0) {
     const empty = sheet.getRow(6);
     empty.values = includeSeller
-      ? ['Sin movimientos', '', '', '', '', '', '']
-      : ['Sin movimientos', '', '', '', '', ''];
+      ? ['Sin movimientos', '', '', '', '', '', '', '']
+      : ['Sin movimientos', '', '', '', '', '', ''];
     paintRow(empty, `FF${POSTA.paper2}`);
     styleDataCell(empty.getCell(1), { color: POSTA.ink3 });
     return;
@@ -360,12 +360,17 @@ function addMovimientosSheet(
 
   ledger.forEach((entry, index) => {
     const amount = entry.entryType === 'payment' ? -moneyNum(entry.amount) : moneyNum(entry.amount);
+    const zoneLabel =
+      entry.entryType === 'charge'
+        ? entry.pricingZoneName ?? (entry.pricingZoneId === 'fuera_de_zona' ? 'Fuera de zona' : '')
+        : '';
     const row = sheet.getRow(6 + index);
     const values: Array<string | number> = [
       new Date(entry.createdAt).toLocaleString('es-AR'),
       entryTypeLabel(entry.entryType),
       entry.description,
       entry.orderId ?? '',
+      zoneLabel,
       entry.orderAddress ?? '',
     ];
     if (includeSeller) values.push(entry.sellerName ?? entry.sellerId);
@@ -381,16 +386,22 @@ function addMovimientosSheet(
           ? POSTA.warn
           : POSTA.route;
 
+    const fuera = zoneLabel === 'Fuera de zona';
+
     styleDataCell(row.getCell(1), { color: POSTA.ink2 });
     styleDataCell(row.getCell(2), { color: typeColor, bold: true });
     styleDataCell(row.getCell(3));
     styleDataCell(row.getCell(4), { color: POSTA.ink3 });
-    styleDataCell(row.getCell(5), { color: POSTA.ink2 });
+    styleDataCell(row.getCell(5), {
+      color: fuera ? POSTA.warn : POSTA.route,
+      bold: fuera,
+    });
+    styleDataCell(row.getCell(6), { color: POSTA.ink2 });
     if (includeSeller) {
-      styleDataCell(row.getCell(6), { color: POSTA.route });
-      styleDataCell(row.getCell(7), { money: true, color: typeColor, bold: true });
+      styleDataCell(row.getCell(7), { color: POSTA.route });
+      styleDataCell(row.getCell(8), { money: true, color: typeColor, bold: true });
     } else {
-      styleDataCell(row.getCell(6), { money: true, color: typeColor, bold: true });
+      styleDataCell(row.getCell(7), { money: true, color: typeColor, bold: true });
     }
   });
 }

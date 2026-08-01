@@ -29,6 +29,8 @@ export interface BillingLedgerEntry {
   sellerName: string | null;
   orderId: string | null;
   orderAddress: string | null;
+  pricingZoneId: string | null;
+  pricingZoneName: string | null;
   entryType: 'charge' | 'payment' | 'adjustment';
   amount: number;
   description: string;
@@ -411,6 +413,8 @@ export async function listBillingLedger(
       seller_name: string | null;
       order_id: string | null;
       order_address: string | null;
+      order_lat: number | null;
+      order_lng: number | null;
       entry_type: 'charge' | 'payment' | 'adjustment';
       amount: string;
       description: string;
@@ -419,7 +423,7 @@ export async function listBillingLedger(
     } & RowDataPacket>
   >(
     `SELECT b.id, b.agency_id, b.seller_id, u.name AS seller_name, b.order_id,
-            o.address AS order_address,
+            o.address AS order_address, o.lat AS order_lat, o.lng AS order_lng,
             b.entry_type, b.amount, b.description, b.created_by, b.created_at
      FROM billing_ledger_entries b
      LEFT JOIN users u ON u.id = b.seller_id
@@ -431,19 +435,65 @@ export async function listBillingLedger(
     params
   );
 
-  return rows.map((row) => ({
-    id: row.id,
-    agencyId: row.agency_id,
-    sellerId: row.seller_id,
-    sellerName: row.seller_name,
-    orderId: row.order_id,
-    orderAddress: row.order_address?.trim() || null,
-    entryType: row.entry_type,
-    amount: toMoney(row.amount),
-    description: row.description,
-    createdBy: row.created_by,
-    createdAt: new Date(row.created_at).toISOString(),
-  }));
+  const ZONE_NAMES: Record<string, string> = {
+    zona_caba: 'CABA',
+    zona_cordon_1: '1° Cordón',
+    zona_cordon_2: '2° Cordón',
+    zona_cordon_3: '3° Cordón',
+  };
+
+  const result: BillingLedgerEntry[] = [];
+  for (const row of rows) {
+    let pricingZoneId: string | null = null;
+    let pricingZoneName: string | null = null;
+    if (
+      row.entry_type === 'charge' &&
+      row.order_id &&
+      row.order_lat != null &&
+      row.order_lng != null &&
+      Number.isFinite(Number(row.order_lat)) &&
+      Number.isFinite(Number(row.order_lng))
+    ) {
+      try {
+        const zone = await findPricingZoneForPoint(
+          row.agency_id,
+          Number(row.order_lat),
+          Number(row.order_lng)
+        );
+        if (zone) {
+          const canonical =
+            Object.keys(ZONE_NAMES).find(
+              (id) => zone.id === id || zone.id.endsWith(`_${id}`)
+            ) ?? zone.id;
+          pricingZoneId = canonical;
+          pricingZoneName = ZONE_NAMES[canonical] ?? zone.name;
+        } else {
+          pricingZoneId = 'fuera_de_zona';
+          pricingZoneName = 'Fuera de zona';
+        }
+      } catch {
+        pricingZoneId = null;
+        pricingZoneName = null;
+      }
+    }
+
+    result.push({
+      id: row.id,
+      agencyId: row.agency_id,
+      sellerId: row.seller_id,
+      sellerName: row.seller_name,
+      orderId: row.order_id,
+      orderAddress: row.order_address?.trim() || null,
+      pricingZoneId,
+      pricingZoneName,
+      entryType: row.entry_type,
+      amount: toMoney(row.amount),
+      description: row.description,
+      createdBy: row.created_by,
+      createdAt: new Date(row.created_at).toISOString(),
+    });
+  }
+  return result;
 }
 
 export async function recordBillingPayment(

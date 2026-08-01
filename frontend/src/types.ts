@@ -254,6 +254,8 @@ export interface BillingLedgerEntry {
   sellerName: string | null;
   orderId: string | null;
   orderAddress?: string | null;
+  pricingZoneId?: string | null;
+  pricingZoneName?: string | null;
   entryType: 'charge' | 'payment' | 'adjustment';
   amount: number;
   description: string;
