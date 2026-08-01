@@ -1,8 +1,16 @@
 import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { DEFAULT_DELIVERY_ZONES, DeliveryZone, LEGACY_ZONE_IDS } from '../config/delivery-zones.js';
-import { isPricingZoneId, isLegacyZoneId } from '../config/amba-cordon-zones.js';
-import { pointInZoneBarrios, resolveBarriosToBounds } from '../config/barrios.js';
+import { isPricingZoneId, isLegacyZoneId, PRICING_ZONE_IDS } from '../config/amba-cordon-zones.js';
+import { BARRIOS, pointInZoneBarrios, resolveBarriosToBounds } from '../config/barrios.js';
+import { ensureAmbaGeoLoaded, findZoneForPointByGeo } from './amba-geo.service.js';
+
+function canonicalizePricingZoneId(zoneId: string): string | null {
+  for (const id of PRICING_ZONE_IDS) {
+    if (zoneId === id || zoneId.endsWith(`_${id}`)) return id;
+  }
+  return null;
+}
 
 interface DeliveryZoneRow extends RowDataPacket {
   id: string;
@@ -89,8 +97,19 @@ export async function listAssignmentZonesForAgency(agencyId: string): Promise<De
   return zones.filter((z) => !isPricingZoneId(z.id));
 }
 
-function matchZoneForPoint(zones: DeliveryZone[], lat: number, lng: number): DeliveryZone | null {
-  for (const zone of zones) {
+function matchZoneForPointBbox(zones: DeliveryZone[], lat: number, lng: number): DeliveryZone | null {
+  // Preferir CABA → 1° → 2° → 3° para no clasificar CABA dentro del bbox de un cordón.
+  const ordered = [...zones].sort((a, b) => {
+    const ai = PRICING_ZONE_IDS.indexOf(
+      (canonicalizePricingZoneId(a.id) ?? a.id) as (typeof PRICING_ZONE_IDS)[number]
+    );
+    const bi = PRICING_ZONE_IDS.indexOf(
+      (canonicalizePricingZoneId(b.id) ?? b.id) as (typeof PRICING_ZONE_IDS)[number]
+    );
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
+  for (const zone of ordered) {
     if (zone.barrios?.length) {
       if (pointInZoneBarrios(lat, lng, zone.barrios)) return zone;
       continue;
@@ -107,8 +126,22 @@ export async function findPricingZoneForPoint(
   lat: number,
   lng: number
 ): Promise<DeliveryZone | null> {
-  const zones = await listPricingZonesForAgency(agencyId);
-  return matchZoneForPoint(zones, lat, lng);
+  let zones = await listPricingZonesForAgency(agencyId);
+  if (zones.length === 0) {
+    await ensureCordonZonesForAgency(agencyId);
+    zones = await listPricingZonesForAgency(agencyId);
+  }
+  if (zones.length === 0) return null;
+
+  try {
+    await ensureAmbaGeoLoaded();
+    const byGeo = findZoneForPointByGeo(zones, lat, lng, BARRIOS);
+    if (byGeo) return byGeo;
+  } catch (err) {
+    console.warn('[delivery-zones] GeoJSON AMBA no disponible, fallback a bbox:', err);
+  }
+
+  return matchZoneForPointBbox(zones, lat, lng);
 }
 
 export async function findAssignmentZoneForPoint(
@@ -117,7 +150,7 @@ export async function findAssignmentZoneForPoint(
   lng: number
 ): Promise<DeliveryZone | null> {
   const zones = await listAssignmentZonesForAgency(agencyId);
-  return matchZoneForPoint(zones, lat, lng);
+  return matchZoneForPointBbox(zones, lat, lng);
 }
 
 export async function getZoneById(agencyId: string, zoneId: string): Promise<DeliveryZone | null> {
@@ -216,9 +249,13 @@ export async function seedDefaultZonesForAgency(agencyId: string): Promise<void>
 /** Asegura zonas cordón AMBA (CABA + 3 anillos) y retira presets viejos sin uso. */
 export async function ensureCordonZonesForAgency(agencyId: string): Promise<void> {
   const now = new Date();
+  const agencyZones = await listZonesForAgency(agencyId);
 
   for (const zone of DEFAULT_DELIVERY_ZONES) {
-    const existing = await getZoneById(agencyId, zone.id);
+    const existing =
+      agencyZones.find((z) => z.id === zone.id) ??
+      agencyZones.find((z) => canonicalizePricingZoneId(z.id) === zone.id);
+
     if (existing) {
       await pool.query(
         `UPDATE delivery_zones
@@ -232,7 +269,7 @@ export async function ensureCordonZonesForAgency(agencyId: string): Promise<void
           zone.north,
           zone.east,
           zone.barrios?.length ? JSON.stringify(zone.barrios) : null,
-          zone.id,
+          existing.id,
           agencyId,
         ]
       );
@@ -274,11 +311,11 @@ export async function ensureCordonZonesForAgency(agencyId: string): Promise<void
   // Zonas custom sin barrios (rectángulos viejos del preset anterior)
   const [legacyBounds] = await pool.query<DeliveryZoneRow[]>(
     `SELECT ${ZONE_SELECT} FROM delivery_zones
-     WHERE agency_id = ? AND (barrios IS NULL OR barrios = '[]' OR barrios = 'null')
-       AND id NOT IN (?, ?, ?, ?)`,
-    [agencyId, 'zona_caba', 'zona_cordon_1', 'zona_cordon_2', 'zona_cordon_3']
+     WHERE agency_id = ? AND (barrios IS NULL OR barrios = '[]' OR barrios = 'null')`,
+    [agencyId]
   );
   for (const row of legacyBounds) {
+    if (isPricingZoneId(row.id)) continue;
     const [usage] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
       `SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND delivery_zone = ?`,
       [agencyId, row.id]

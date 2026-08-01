@@ -1,10 +1,20 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { BARRIOS, type Barrio } from '../config/barrios.js';
+import type { DeliveryZone } from '../config/delivery-zones.js';
+import { PRICING_ZONE_IDS } from '../config/amba-cordon-zones.js';
 
-import type { Feature, FeatureCollection, Geometry, Polygon, MultiPolygon, Position } from 'geojson';
-import type { Barrio, DeliveryZone } from '../config/deliveryZones.js';
+type Position = [number, number] | number[];
+type Polygon = { type: 'Polygon'; coordinates: Position[][] };
+type MultiPolygon = { type: 'MultiPolygon'; coordinates: Position[][][] };
+type Geometry = Polygon | MultiPolygon | { type: string; coordinates?: unknown };
+type Feature = {
+  type: 'Feature';
+  properties: Record<string, unknown> | null;
+  geometry: Geometry | null;
+};
+type FeatureCollection = { type: 'FeatureCollection'; features: Feature[] };
 
 type GeoProps = {
   id?: string;
@@ -15,7 +25,6 @@ type GeoProps = {
 
 const MATANZA_SPLIT_LAT = -34.74;
 
-/** Partidos cuyo nombre en IGN difiere del id interno. */
 const GBA_PARTIDO_OVERRIDES: Record<string, string> = {
   san_martin_gba: 'General San Martín',
   tortuguitas: 'Malvinas Argentinas',
@@ -34,9 +43,10 @@ const GBA_PARTIDO_OVERRIDES: Record<string, string> = {
   la_matanza_sur: 'La Matanza',
 };
 
-export const ZONE_PAINT_ORDER = ['zona_cordon_3', 'zona_cordon_2', 'zona_cordon_1', 'zona_caba'] as const;
+const ZONE_MATCH_ORDER = ['zona_caba', 'zona_cordon_1', 'zona_cordon_2', 'zona_cordon_3'] as const;
 
 let ambaGeo: FeatureCollection | null = null;
+let loadPromise: Promise<FeatureCollection> | null = null;
 let partidoByName = new Map<string, Feature>();
 let comunaFeatures: Feature[] = [];
 
@@ -55,11 +65,11 @@ function barrioCenter(barrio: Barrio): [number, number] {
 function ringContainsPoint(lat: number, lng: number, ring: Position[]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0];
-    const yi = ring[i][1];
-    const xj = ring[j][0];
-    const yj = ring[j][1];
-    const intersects = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi + 0) + xi;
+    const xi = Number(ring[i][0]);
+    const yi = Number(ring[i][1]);
+    const xj = Number(ring[j][0]);
+    const yj = Number(ring[j][1]);
+    const intersects = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi || Number.EPSILON) + xi;
     if (intersects) inside = !inside;
   }
   return inside;
@@ -76,7 +86,9 @@ function geometryContainsPoint(lat: number, lng: number, geometry: Geometry): bo
   }
   if (geometry.type === 'MultiPolygon') {
     const multi = geometry as MultiPolygon;
-    return multi.coordinates.some((poly) => geometryContainsPoint(lat, lng, { type: 'Polygon', coordinates: poly }));
+    return multi.coordinates.some((poly) =>
+      geometryContainsPoint(lat, lng, { type: 'Polygon', coordinates: poly })
+    );
   }
   return false;
 }
@@ -88,14 +100,14 @@ function featureContainsPoint(lat: number, lng: number, feature: Feature): boole
 
 function featureKey(feature: Feature): string {
   const props = feature.properties as GeoProps | null;
-  return props?.id ?? props?.nombre ?? JSON.stringify(feature.geometry?.type);
+  return props?.id ?? props?.nombre ?? String(feature.geometry?.type ?? 'feature');
 }
 
 function intersectEdgeWithLat(a: Position, b: Position, lat: number): Position {
-  const dy = b[1] - a[1];
-  if (Math.abs(dy) < 1e-12) return [a[0], lat];
-  const t = (lat - a[1]) / dy;
-  return [a[0] + t * (b[0] - a[0]), lat];
+  const dy = Number(b[1]) - Number(a[1]);
+  if (Math.abs(dy) < 1e-12) return [Number(a[0]), lat];
+  const t = (lat - Number(a[1])) / dy;
+  return [Number(a[0]) + t * (Number(b[0]) - Number(a[0])), lat];
 }
 
 function closeRing(ring: Position[]): Position[] {
@@ -108,15 +120,16 @@ function closeRing(ring: Position[]): Position[] {
 
 function clipRingNorth(ring: Position[], minLat: number): Position[] {
   if (ring.length < 2) return [];
-  const open = ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
-    ? ring.slice(0, -1)
-    : ring;
+  const open =
+    ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+      ? ring.slice(0, -1)
+      : ring;
   const result: Position[] = [];
   for (let i = 0; i < open.length; i += 1) {
     const curr = open[i];
     const next = open[(i + 1) % open.length];
-    const currIn = curr[1] >= minLat;
-    const nextIn = next[1] >= minLat;
+    const currIn = Number(curr[1]) >= minLat;
+    const nextIn = Number(next[1]) >= minLat;
     if (currIn) result.push(curr);
     if (currIn !== nextIn) result.push(intersectEdgeWithLat(curr, next, minLat));
   }
@@ -125,15 +138,16 @@ function clipRingNorth(ring: Position[], minLat: number): Position[] {
 
 function clipRingSouth(ring: Position[], maxLat: number): Position[] {
   if (ring.length < 2) return [];
-  const open = ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
-    ? ring.slice(0, -1)
-    : ring;
+  const open =
+    ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]
+      ? ring.slice(0, -1)
+      : ring;
   const result: Position[] = [];
   for (let i = 0; i < open.length; i += 1) {
     const curr = open[i];
     const next = open[(i + 1) % open.length];
-    const currIn = curr[1] <= maxLat;
-    const nextIn = next[1] <= maxLat;
+    const currIn = Number(curr[1]) <= maxLat;
+    const nextIn = Number(next[1]) <= maxLat;
     if (currIn) result.push(curr);
     if (currIn !== nextIn) result.push(intersectEdgeWithLat(curr, next, maxLat));
   }
@@ -145,12 +159,13 @@ function clipGeometry(
   mode: 'north' | 'south',
   splitLat: number
 ): Geometry | null {
-  const clipRing = mode === 'north'
-    ? (ring: Position[]) => clipRingNorth(ring, splitLat)
-    : (ring: Position[]) => clipRingSouth(ring, splitLat);
+  const clipRing =
+    mode === 'north'
+      ? (ring: Position[]) => clipRingNorth(ring, splitLat)
+      : (ring: Position[]) => clipRingSouth(ring, splitLat);
 
   if (geometry.type === 'Polygon') {
-    const coords = geometry.coordinates
+    const coords = (geometry as Polygon).coordinates
       .map((ring) => clipRing(ring))
       .filter((ring) => ring.length >= 4);
     if (!coords.length) return null;
@@ -158,7 +173,7 @@ function clipGeometry(
   }
 
   if (geometry.type === 'MultiPolygon') {
-    const polys = geometry.coordinates
+    const polys = (geometry as MultiPolygon).coordinates
       .map((poly) => {
         const coords = poly.map((ring) => clipRing(ring)).filter((ring) => ring.length >= 4);
         return coords.length ? coords : null;
@@ -201,24 +216,47 @@ function indexAmbaGeo(collection: FeatureCollection): void {
   }
 }
 
-export async function loadAmbaGeoJson(): Promise<FeatureCollection> {
-  if (ambaGeo) return ambaGeo;
-
-  const res = await fetch('/geo/departamentos-ar.geojson');
-  if (!res.ok) throw new Error('No se pudo cargar el mapa de zonas.');
-
-  const raw = (await res.json()) as FeatureCollection;
-  const features = raw.features.filter((feature) => {
-    const prov = (feature.properties as GeoProps | null)?.provincia?.nombre;
-    return prov === 'Buenos Aires' || prov === 'Ciudad Autónoma de Buenos Aires';
-  });
-
-  ambaGeo = { type: 'FeatureCollection', features };
-  indexAmbaGeo(ambaGeo);
-  return ambaGeo;
+function resolveGeoJsonPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // src/services → src/data  |  dist/services → dist/data
+  return join(here, '..', 'data', 'departamentos-ar.geojson');
 }
 
-export function resolveBarrioGeoFeature(barrio: Barrio): Feature | null {
+export async function ensureAmbaGeoLoaded(): Promise<FeatureCollection> {
+  if (ambaGeo) return ambaGeo;
+  if (loadPromise) return loadPromise;
+
+  loadPromise = (async () => {
+    const raw = JSON.parse(readFileSync(resolveGeoJsonPath(), 'utf8')) as FeatureCollection;
+    const features = raw.features.filter((feature) => {
+      const prov = (feature.properties as GeoProps | null)?.provincia?.nombre;
+      return prov === 'Buenos Aires' || prov === 'Ciudad Autónoma de Buenos Aires';
+    });
+    ambaGeo = { type: 'FeatureCollection', features };
+    indexAmbaGeo(ambaGeo);
+    return ambaGeo;
+  })();
+
+  try {
+    return await loadPromise;
+  } catch (err) {
+    loadPromise = null;
+    throw err;
+  }
+}
+
+export function isAmbaGeoLoaded(): boolean {
+  return ambaGeo != null;
+}
+
+function canonicalPricingZoneId(zoneId: string): string {
+  for (const id of PRICING_ZONE_IDS) {
+    if (zoneId === id || zoneId.endsWith(`_${id}`)) return id;
+  }
+  return zoneId;
+}
+
+function resolveBarrioGeoFeature(barrio: Barrio): Feature | null {
   if (!ambaGeo) return null;
 
   if (barrio.id === 'la_matanza_norte' || barrio.id === 'la_matanza_sur') {
@@ -239,16 +277,13 @@ export function resolveBarrioGeoFeature(barrio: Barrio): Feature | null {
   return null;
 }
 
-export function collectZoneGeoFeatures(
-  zone: DeliveryZone,
-  barrioCatalog: Barrio[]
-): Feature[] {
+function collectZoneGeoFeatures(zone: DeliveryZone, barrioCatalog: Barrio[]): Feature[] {
   const catalog = new Map(barrioCatalog.map((b) => [b.id, b]));
   const unique = new Map<string, Feature>();
-
   const barrioIds = zone.barrios ?? [];
+  const canonicalId = canonicalPricingZoneId(zone.id);
 
-  if (canonicalPaintZoneId(zone.id) === 'zona_caba' && comunaFeatures.length > 0) {
+  if (canonicalId === 'zona_caba' && comunaFeatures.length > 0) {
     for (const feature of comunaFeatures) {
       unique.set(featureKey(feature), feature);
     }
@@ -279,53 +314,26 @@ export function collectZoneGeoFeatures(
   return Array.from(unique.values());
 }
 
-export function sortZonesForMapPaint(zones: DeliveryZone[]): DeliveryZone[] {
-  return [...zones].sort((a, b) => {
-    const ai = ZONE_PAINT_ORDER.indexOf(a.id as (typeof ZONE_PAINT_ORDER)[number]);
-    const bi = ZONE_PAINT_ORDER.indexOf(b.id as (typeof ZONE_PAINT_ORDER)[number]);
-    if (ai === -1 && bi === -1) return a.name.localeCompare(b.name, 'es');
-    if (ai === -1) return -1;
-    if (bi === -1) return 1;
-    return ai - bi;
-  });
-}
-
-/** Prioridad de matching: CABA → 1° → 2° → 3° (polígonos no se solapan). */
-const ZONE_MATCH_ORDER = ['zona_caba', 'zona_cordon_1', 'zona_cordon_2', 'zona_cordon_3'] as const;
-
-function canonicalPaintZoneId(zoneId: string): string {
-  for (const id of ZONE_MATCH_ORDER) {
-    if (zoneId === id || zoneId.endsWith(`_${id}`)) return id;
-  }
-  return zoneId;
-}
-
-export function isAmbaGeoLoaded(): boolean {
-  return ambaGeo != null;
-}
-
 /**
- * Asigna un punto al cordón usando los mismos polígonos IGN que pinta el mapa.
- * Evita el error de los bbox aproximados (pedidos en GBA clasificados como CABA).
+ * Asigna un punto al cordón con los mismos polígonos IGN que el mapa del frontend.
+ * Evita huecos de los bbox aproximados de barrios (que mandaban casi todo a "fuera de zona").
  */
 export function findZoneForPointByGeo(
   zones: DeliveryZone[],
   lat: number,
   lng: number,
-  barrioCatalog: Barrio[]
+  barrioCatalog: Barrio[] = BARRIOS
 ): DeliveryZone | null {
   if (!ambaGeo || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
   const ordered = [...zones].sort((a, b) => {
     const ai = ZONE_MATCH_ORDER.indexOf(
-      canonicalPaintZoneId(a.id) as (typeof ZONE_MATCH_ORDER)[number]
+      canonicalPricingZoneId(a.id) as (typeof ZONE_MATCH_ORDER)[number]
     );
     const bi = ZONE_MATCH_ORDER.indexOf(
-      canonicalPaintZoneId(b.id) as (typeof ZONE_MATCH_ORDER)[number]
+      canonicalPricingZoneId(b.id) as (typeof ZONE_MATCH_ORDER)[number]
     );
-    const aIdx = ai === -1 ? 99 : ai;
-    const bIdx = bi === -1 ? 99 : bi;
-    return aIdx - bIdx;
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 
   for (const zone of ordered) {
