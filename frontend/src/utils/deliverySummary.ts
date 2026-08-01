@@ -196,12 +196,12 @@ export function getOperationalDateKey(date: Date = new Date()): string {
 }
 
 function isTodayOrder(order: Order, dateKey: string): boolean {
-  // Incluye el día de importación/alta y el día operativo de entrega.
-  if (getOperationalDateKey(new Date(order.createdAt)) === dateKey) return true;
-  if (order.deliveryDeadline) {
-    return getOperationalDateKey(new Date(order.deliveryDeadline)) === dateKey;
-  }
-  return false;
+  // Solo el día operativo de entrega (deliveryDeadline). No mezclar con createdAt:
+  // un pedido dado de alta el sábado con corte→lunes no debe aparecer en el sábado.
+  const operationalKey = order.deliveryDeadline
+    ? getOperationalDateKey(new Date(order.deliveryDeadline))
+    : getOperationalDateKey(new Date(order.createdAt));
+  return operationalKey === dateKey;
 }
 
 export function getTodayOrders(
@@ -241,8 +241,6 @@ export function getOrderDeliveredAt(order: Order): Date | null {
 
 export function getOrderDeadline(order: Order, forDateKey?: string): Date {
   // Límite de entrega del día (21 hs), no el corte de ventas stampado en deliveryDeadline.
-  // Si hay día del dashboard, usar ese: un pedido puede aparecer por fecha de importación
-  // aunque su deliveryDeadline apunte a otro día (p. ej. ISO de ML en UTC).
   const dateKey =
     forDateKey ??
     (order.deliveryDeadline

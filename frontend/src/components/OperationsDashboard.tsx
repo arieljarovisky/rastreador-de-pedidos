@@ -39,7 +39,7 @@ import SellerFilterControl from './SellerFilterControl.tsx';
 import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import { getOrderDateKeys, matchesOrderFilters } from '../utils/orderFilters.js';
+import { getOrderOperationalDateKey, matchesOrderFilters } from '../utils/orderFilters.js';
 import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import type { Barrio, DeliveryZone } from '../config/deliveryZones.js';
 
@@ -127,14 +127,12 @@ export default function OperationsDashboard({
     [orders, orderFilterContext]
   );
 
-  /** Fechas con envíos: importación y entrega operativa (según filtros activos). */
+  /** Fechas con envíos: solo día operativo de entrega (según filtros activos). */
   const datesWithShipments = useMemo(() => {
     const keys = new Set<string>();
     for (const order of scopedOrders) {
       if (order.archived) continue;
-      for (const key of getOrderDateKeys(order)) {
-        keys.add(key);
-      }
+      keys.add(getOrderOperationalDateKey(order));
     }
     return [...keys].sort();
   }, [scopedOrders]);
