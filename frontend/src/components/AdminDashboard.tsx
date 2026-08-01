@@ -14,7 +14,7 @@ import {
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import { matchesOrderFilters, getOrderDateKeys, getOrderImportedDateKey } from '../utils/orderFilters.js';
+import { matchesOrderFilters, getOrderOperationalDateKey, getOrderImportedDateKey } from '../utils/orderFilters.js';
 import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
@@ -565,13 +565,11 @@ export default function AdminDashboard({
     [deliveryZones, barrios]
   );
 
-  /** Fechas con envíos: día de importación y día operativo de entrega. */
+  /** Fechas con envíos: solo día operativo de entrega. */
   const datesWithShipments = useMemo(() => {
     const keys = new Set<string>();
     for (const order of orders) {
-      for (const key of getOrderDateKeys(order)) {
-        keys.add(key);
-      }
+      keys.add(getOrderOperationalDateKey(order));
     }
     return [...keys].sort();
   }, [orders]);
