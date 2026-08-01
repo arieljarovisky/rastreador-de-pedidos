@@ -13,17 +13,24 @@ import SellerFilterControl from './SellerFilterControl.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
 import {
   getOrderImportedDateKey,
-  matchesOrderFilters,
 } from '../utils/orderFilters.js';
 import { formatOperationalDateShort, getOperationalDateKey } from '../utils/deliverySummary.js';
 import { useModal } from '../context/ModalContext.tsx';
-import { apiUrl, fetchAllOrders } from '../api.ts';
+import { apiUrl, fetchOrdersRegistry, type OrdersRegistryStats } from '../api.ts';
 import type {
   AgencyDriverScanEntry,
   AgencyDriverScanStatus,
 } from './AgencyDriverScanPage.tsx';
 
 const PAGE_SIZE = 25;
+const EMPTY_STATS: OrdersRegistryStats = {
+  total: 0,
+  pending: 0,
+  delivering: 0,
+  delivered: 0,
+  cancelled: 0,
+  archived: 0,
+};
 
 interface SellerOrdersRegistryProps {
   token: string;
@@ -111,12 +118,14 @@ export default function SellerOrdersRegistry({
   const [marketplaceSource, setMarketplaceSource] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [personalEntries, setPersonalEntries] = useState<AgencyDriverScanEntry[]>([]);
   const [personalLoading, setPersonalLoading] = useState(false);
-  /** Historial completo (incluye archivados); no depende del tope del listado operativo. */
-  const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
+  const [pageOrders, setPageOrders] = useState<Order[]>([]);
+  const [postaTotal, setPostaTotal] = useState(0);
+  const [postaStats, setPostaStats] = useState<OrdersRegistryStats>(EMPTY_STATS);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
@@ -124,57 +133,10 @@ export default function SellerOrdersRegistry({
     if (initialSellerId) setSellerId(initialSellerId);
   }, [initialSellerId]);
 
-  const loadHistory = useCallback(async (signal?: AbortSignal) => {
-    if (!token) {
-      setHistoryOrders([]);
-      setHistoryLoading(false);
-      return;
-    }
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      const data = await fetchAllOrders(token, { includeArchived: true, signal });
-      if (signal?.aborted) return;
-      setHistoryOrders(data as Order[]);
-    } catch (err) {
-      if (signal?.aborted) return;
-      setHistoryError(err instanceof Error ? err.message : 'No se pudo cargar el historial');
-      setHistoryOrders([]);
-    } finally {
-      if (!signal?.aborted) setHistoryLoading(false);
-    }
-  }, [token]);
-
   useEffect(() => {
-    const ac = new AbortController();
-    void loadHistory(ac.signal);
-    return () => ac.abort();
-  }, [loadHistory]);
-
-  // Incorporar altas/cambios en vivo del listado operativo sin perder el historial.
-  useEffect(() => {
-    if (historyLoading || orders.length === 0) return;
-    setHistoryOrders((prev) => {
-      if (prev.length === 0) return orders;
-      const byId = new Map(prev.map((o) => [o.id, o]));
-      let changed = false;
-      for (const order of orders) {
-        const existing = byId.get(order.id);
-        if (
-          !existing ||
-          existing.updatedAt !== order.updatedAt ||
-          existing.status !== order.status ||
-          existing.archived !== order.archived ||
-          existing.repartidorId !== order.repartidorId
-        ) {
-          byId.set(order.id, order);
-          changed = true;
-        }
-      }
-      if (!changed) return prev;
-      return [...byId.values()];
-    });
-  }, [orders, historyLoading]);
+    const t = window.setTimeout(() => setSearchDebounced(searchQuery.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [searchQuery]);
 
   const loadPersonal = useCallback(async () => {
     if (!agency || !token) {
@@ -205,125 +167,205 @@ export default function SellerOrdersRegistry({
     !sellerId &&
     (marketplaceSource === '' || marketplaceSource === 'personal');
 
-  const sourceOrders = historyOrders;
-
-  const postaScoped = useMemo(() => {
-    if (marketplaceSource === 'personal') return [];
-    return sourceOrders.filter((order) => {
-      if (
-        !matchesOrderFilters(order, {
-          sellerId: sellerId || undefined,
-          externalSource: marketplaceSource || undefined,
-        })
-      ) {
-        return false;
-      }
-      if (statusFilter === 'archived') {
-        if (!order.archived) return false;
-      } else {
-        if (order.archived) return false;
-        if (statusFilter !== 'all' && order.status !== statusFilter) return false;
-      }
-      const q = searchQuery.trim().toLowerCase();
-      if (!q) return true;
-      return (
-        order.id.toLowerCase().includes(q) ||
-        order.clientName.toLowerCase().includes(q) ||
-        order.address.toLowerCase().includes(q) ||
-        (order.sellerName?.toLowerCase().includes(q) ?? false) ||
-        (order.repartidorName?.toLowerCase().includes(q) ?? false) ||
-        (order.externalOrderId?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [sourceOrders, sellerId, marketplaceSource, statusFilter, searchQuery]);
-
   const personalScoped = useMemo(() => {
     if (!includePersonal) return [];
-    return personalEntries.filter((entry) => {
-      if (!personalMatchesStatus(entry.status, statusFilter)) return false;
-      const q = searchQuery.trim().toLowerCase();
-      if (!q) return true;
-      const code = formatScanCodeLabel(entry.scanCode).toLowerCase();
-      return (
-        code.includes(q) ||
-        (entry.clientName?.toLowerCase().includes(q) ?? false) ||
-        (entry.address?.toLowerCase().includes(q) ?? false) ||
-        (entry.repartidorName?.toLowerCase().includes(q) ?? false) ||
-        entry.scanCode.toLowerCase().includes(q)
-      );
+    return personalEntries
+      .filter((entry) => {
+        if (!personalMatchesStatus(entry.status, statusFilter)) return false;
+        const q = searchDebounced.toLowerCase();
+        if (!q) return true;
+        const code = formatScanCodeLabel(entry.scanCode).toLowerCase();
+        return (
+          code.includes(q) ||
+          (entry.clientName?.toLowerCase().includes(q) ?? false) ||
+          (entry.address?.toLowerCase().includes(q) ?? false) ||
+          (entry.repartidorName?.toLowerCase().includes(q) ?? false) ||
+          entry.scanCode.toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime());
+  }, [includePersonal, personalEntries, statusFilter, searchDebounced]);
+
+  const personalN = marketplaceSource === 'personal' ? personalScoped.length : includePersonal ? personalScoped.length : 0;
+  const onlyPersonal = marketplaceSource === 'personal';
+  const onlyPosta = !includePersonal || (marketplaceSource !== '' && marketplaceSource !== 'personal');
+
+  // Offset/limit de Posta según si los personales van primero en la lista.
+  const postaQuery = useMemo(() => {
+    if (onlyPersonal) return { offset: 0, limit: 0, skip: true as const };
+    const start = (page - 1) * PAGE_SIZE;
+    if (onlyPosta || personalN === 0) {
+      return { offset: start, limit: PAGE_SIZE, skip: false as const };
+    }
+    if (start + PAGE_SIZE <= personalN) {
+      return { offset: 0, limit: 0, skip: true as const };
+    }
+    if (start < personalN) {
+      return { offset: 0, limit: PAGE_SIZE - (personalN - start), skip: false as const };
+    }
+    return { offset: start - personalN, limit: PAGE_SIZE, skip: false as const };
+  }, [onlyPersonal, onlyPosta, page, personalN]);
+
+  const loadRegistryPage = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!token) {
+        setPageOrders([]);
+        setPostaTotal(0);
+        setPostaStats(EMPTY_STATS);
+        setHistoryLoading(false);
+        return;
+      }
+      if (onlyPersonal) {
+        setPageOrders([]);
+        setPostaTotal(0);
+        setPostaStats(EMPTY_STATS);
+        setHistoryLoading(false);
+        setHistoryError(null);
+        return;
+      }
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const limit = postaQuery.skip || postaQuery.limit === 0 ? 1 : postaQuery.limit;
+        const offset = postaQuery.skip || postaQuery.limit === 0 ? 0 : postaQuery.offset;
+        const data = await fetchOrdersRegistry(token, {
+          limit,
+          offset,
+          sellerId: sellerId || undefined,
+          externalSource: marketplaceSource || undefined,
+          status: statusFilter,
+          q: searchDebounced || undefined,
+          signal,
+        });
+        if (signal?.aborted) return;
+        setPageOrders(
+          postaQuery.skip || postaQuery.limit === 0 ? [] : (data.items as Order[])
+        );
+        setPostaTotal(data.total);
+        setPostaStats(data.stats);
+      } catch (err) {
+        if (signal?.aborted) return;
+        setHistoryError(err instanceof Error ? err.message : 'No se pudo cargar el historial');
+        setPageOrders([]);
+        setPostaTotal(0);
+        setPostaStats(EMPTY_STATS);
+      } finally {
+        if (!signal?.aborted) setHistoryLoading(false);
+      }
+    },
+    [
+      token,
+      onlyPersonal,
+      postaQuery.skip,
+      postaQuery.limit,
+      postaQuery.offset,
+      sellerId,
+      marketplaceSource,
+      statusFilter,
+      searchDebounced,
+    ]
+  );
+
+  useEffect(() => {
+    const ac = new AbortController();
+    void loadRegistryPage(ac.signal);
+    return () => ac.abort();
+  }, [loadRegistryPage]);
+
+  // Sync liviano: si el listado operativo actualiza un pedido visible, refrescar la fila.
+  useEffect(() => {
+    if (orders.length === 0 || pageOrders.length === 0) return;
+    setPageOrders((prev) => {
+      let changed = false;
+      const next = prev.map((o) => {
+        const live = orders.find((x) => x.id === o.id);
+        if (
+          live &&
+          (live.updatedAt !== o.updatedAt ||
+            live.status !== o.status ||
+            live.archived !== o.archived ||
+            live.repartidorId !== o.repartidorId)
+        ) {
+          changed = true;
+          return live;
+        }
+        return o;
+      });
+      return changed ? next : prev;
     });
-  }, [includePersonal, personalEntries, statusFilter, searchQuery]);
+  }, [orders, pageOrders.length]);
 
-  const rows = useMemo(() => {
-    const list: RegistryRow[] = [
-      ...postaScoped.map((order) => ({
-        kind: 'posta' as const,
-        id: `posta-${order.id}`,
-        sortAt: new Date(order.createdAt).getTime(),
-        order,
-      })),
-      ...personalScoped.map((entry) => ({
-        kind: 'personal' as const,
-        id: `personal-${entry.id}`,
-        sortAt: new Date(entry.scannedAt).getTime(),
-        entry,
-      })),
-    ];
-    return list.sort((a, b) => b.sortAt - a.sortAt);
-  }, [postaScoped, personalScoped]);
-
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
   const pageRows = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return rows.slice(start, start + PAGE_SIZE);
-  }, [rows, currentPage]);
+    const start = (page - 1) * PAGE_SIZE;
+    const personalRows: RegistryRow[] = personalScoped.map((entry) => ({
+      kind: 'personal' as const,
+      id: `personal-${entry.id}`,
+      sortAt: new Date(entry.scannedAt).getTime(),
+      entry,
+    }));
+    const postaRows: RegistryRow[] = pageOrders.map((order) => ({
+      kind: 'posta' as const,
+      id: `posta-${order.id}`,
+      sortAt: new Date(order.createdAt).getTime(),
+      order,
+    }));
+
+    if (onlyPersonal) {
+      return personalRows.slice(start, start + PAGE_SIZE);
+    }
+    if (onlyPosta || personalN === 0) {
+      return postaRows;
+    }
+    // Personales primero (ya ordenados), luego la página de Posta del servidor.
+    if (start + PAGE_SIZE <= personalN) {
+      return personalRows.slice(start, start + PAGE_SIZE);
+    }
+    if (start < personalN) {
+      return [...personalRows.slice(start), ...postaRows];
+    }
+    return postaRows;
+  }, [page, personalScoped, pageOrders, onlyPersonal, onlyPosta, personalN]);
+
+  const totalCount = onlyPersonal ? personalN : postaTotal + (includePersonal ? personalN : 0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
 
   useEffect(() => {
     setPage(1);
-  }, [sellerId, marketplaceSource, statusFilter, searchQuery]);
+  }, [sellerId, marketplaceSource, statusFilter, searchDebounced]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
   const stats = useMemo(() => {
-    const postaBase = sellerId
-      ? sourceOrders.filter((o) => o.sellerId === sellerId)
-      : marketplaceSource === 'personal'
-        ? []
-        : marketplaceSource
-          ? sourceOrders.filter((o) =>
-              matchesOrderFilters(o, { externalSource: marketplaceSource })
-            )
-          : sourceOrders;
-    const personalBase =
-      agency && !sellerId && (marketplaceSource === '' || marketplaceSource === 'personal')
-        ? personalEntries
-        : [];
+    const personalBase = includePersonal ? personalEntries : [];
+    const personalPending = personalBase.filter((e) => e.status === 'pending').length;
+    const personalDelivered = personalBase.filter((e) => e.status === 'delivered').length;
+    const personalCancelled = personalBase.filter((e) => e.status === 'cancelled').length;
+
+    if (marketplaceSource === 'personal') {
+      return {
+        total: personalBase.length,
+        pending: personalPending,
+        delivering: 0,
+        delivered: personalDelivered,
+        cancelled: personalCancelled,
+        archived: 0,
+        personal: personalBase.length,
+      };
+    }
 
     return {
-      total:
-        postaBase.filter((o) => !o.archived).length + personalBase.length,
-      pending:
-        postaBase.filter(
-          (o) =>
-            !o.archived &&
-            (o.status === OrderStatus.PENDING || o.status === OrderStatus.ASSIGNED)
-        ).length + personalBase.filter((e) => e.status === 'pending').length,
-      delivering: postaBase.filter(
-        (o) => !o.archived && o.status === OrderStatus.DELIVERING
-      ).length,
-      delivered:
-        postaBase.filter((o) => !o.archived && o.status === OrderStatus.DELIVERED).length +
-        personalBase.filter((e) => e.status === 'delivered').length,
-      cancelled:
-        postaBase.filter((o) => !o.archived && o.status === OrderStatus.CANCELLED).length +
-        personalBase.filter((e) => e.status === 'cancelled').length,
-      archived: postaBase.filter((o) => o.archived).length,
-      personal: personalBase.length,
+      total: postaStats.total + (includePersonal ? personalBase.length : 0),
+      pending: postaStats.pending + (includePersonal ? personalPending : 0),
+      delivering: postaStats.delivering,
+      delivered: postaStats.delivered + (includePersonal ? personalDelivered : 0),
+      cancelled: postaStats.cancelled + (includePersonal ? personalCancelled : 0),
+      archived: postaStats.archived,
+      personal: includePersonal ? personalBase.length : 0,
     };
-  }, [sourceOrders, sellerId, marketplaceSource, agency, personalEntries]);
+  }, [postaStats, includePersonal, personalEntries, marketplaceSource]);
 
   const markPostaDelivered = async (order: Order) => {
     if (order.externalSource === 'mercadolibre' && !agency) {
@@ -351,13 +393,14 @@ export default function SellerOrdersRegistry({
         undefined,
         'Marcado como entregado desde Registro'
       );
-      setHistoryOrders((prev) =>
+      setPageOrders((prev) =>
         prev.map((o) =>
           o.id === order.id
             ? { ...o, status: OrderStatus.DELIVERED, updatedAt: new Date().toISOString() }
             : o
         )
       );
+      void loadRegistryPage();
     } catch (err: unknown) {
       await showAlert({
         title: 'No se pudo marcar entregado',
@@ -460,7 +503,7 @@ export default function SellerOrdersRegistry({
               <button
                 type="button"
                 className="underline font-semibold"
-                onClick={() => void loadHistory()}
+                onClick={() => void loadRegistryPage()}
               >
                 Reintentar
               </button>
@@ -533,15 +576,15 @@ export default function SellerOrdersRegistry({
       </div>
 
       <div className="px-4 py-3 pb-6">
-        {historyLoading && rows.length === 0 ? (
+        {historyLoading && pageRows.length === 0 ? (
           <div className="h-40 flex flex-col items-center justify-center gap-2 text-center px-4">
             <Loader2 size={22} className="animate-spin text-[var(--color-text-muted)]" />
             <p className="text-sm text-[var(--color-text)] font-medium">Cargando historial…</p>
             <p className="text-[11px] text-[var(--color-text-muted)]">
-              Traemos todos los envíos desde el primer día.
+              Página {currentPage} · {PAGE_SIZE} por página.
             </p>
           </div>
-        ) : rows.length === 0 ? (
+        ) : pageRows.length === 0 ? (
           <div className="h-40 flex flex-col items-center justify-center gap-1 text-center px-4">
             {personalLoading ? (
               <Loader2 size={22} className="animate-spin text-[var(--color-text-muted)]" />
@@ -758,9 +801,9 @@ export default function SellerOrdersRegistry({
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
             <p className="text-[10px] font-mono text-[var(--color-text-muted)]">
-              {rows.length === 0
+              {totalCount === 0
                 ? '0 registros'
-                : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, rows.length)} de ${rows.length}`}
+                : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, totalCount)} de ${totalCount}`}
               {' · '}
               {PAGE_SIZE} por página
             </p>

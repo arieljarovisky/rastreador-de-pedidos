@@ -16,14 +16,74 @@ export function socketUrl(): string {
 
 type FetchOrdersOptions = {
   includeArchived?: boolean;
-  /** Tamaño de página al recorrer el historial. */
   pageSize?: number;
   signal?: AbortSignal;
 };
 
+export type OrdersRegistryStats = {
+  total: number;
+  pending: number;
+  delivering: number;
+  delivered: number;
+  cancelled: number;
+  archived: number;
+};
+
+export type OrdersRegistryPage = {
+  items: unknown[];
+  total: number;
+  stats: OrdersRegistryStats;
+};
+
+export type FetchRegistryOptions = {
+  limit?: number;
+  offset?: number;
+  sellerId?: string;
+  externalSource?: string;
+  status?: string;
+  q?: string;
+  signal?: AbortSignal;
+};
+
+/** Página de Registro: items + COUNT total + stats agregados. */
+export async function fetchOrdersRegistry(
+  token: string,
+  opts: FetchRegistryOptions = {}
+): Promise<OrdersRegistryPage> {
+  const params = new URLSearchParams({
+    limit: String(opts.limit ?? 25),
+    offset: String(opts.offset ?? 0),
+  });
+  if (opts.sellerId) params.set('sellerId', opts.sellerId);
+  if (opts.externalSource) params.set('externalSource', opts.externalSource);
+  if (opts.status && opts.status !== 'all') params.set('status', opts.status);
+  if (opts.q?.trim()) params.set('q', opts.q.trim());
+
+  const res = await fetch(apiUrl(`/api/orders/registry?${params}`), {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: opts.signal,
+  });
+  if (!res.ok) {
+    throw new Error('No se pudieron cargar los pedidos del registro');
+  }
+  const data = await res.json();
+  return {
+    items: Array.isArray(data.items) ? data.items : [],
+    total: Number(data.total ?? 0),
+    stats: {
+      total: Number(data.stats?.total ?? 0),
+      pending: Number(data.stats?.pending ?? 0),
+      delivering: Number(data.stats?.delivering ?? 0),
+      delivered: Number(data.stats?.delivered ?? 0),
+      cancelled: Number(data.stats?.cancelled ?? 0),
+      archived: Number(data.stats?.archived ?? 0),
+    },
+  };
+}
+
 /**
- * Trae todos los pedidos del usuario paginando el API (sin tope artificial de 200).
- * Usar includeArchived en vistas de historial (Registro).
+ * Trae pedidos paginando el API (uso operativo / sync).
+ * Preferí fetchOrdersRegistry en vistas de historial.
  */
 export async function fetchAllOrders(
   token: string,

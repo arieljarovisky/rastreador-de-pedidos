@@ -3,6 +3,7 @@ import { authenticate, requireRoles, requireAgencyAdmin } from '../middleware/au
 import { UserRole, OrderStatus, Order, User } from '../types/index.js';
 import {
   listOrdersForUser,
+  listOrdersRegistry,
   getOrderById,
   createOrder,
   updateOrderStatus,
@@ -120,6 +121,57 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
   res.json(orders);
   scheduleOrdersBackgroundSync(req.user!, orders);
 });
+
+/** Registro: página + COUNT + stats (sin traer todo el historial). */
+router.get(
+  '/registry',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN),
+  async (req: Request, res: Response) => {
+    const externalSource =
+      typeof req.query.externalSource === 'string' && req.query.externalSource.trim()
+        ? req.query.externalSource.trim()
+        : undefined;
+
+    if (externalSource === 'personal') {
+      res.json({
+        items: [],
+        total: 0,
+        stats: {
+          total: 0,
+          pending: 0,
+          delivering: 0,
+          delivered: 0,
+          cancelled: 0,
+          archived: 0,
+        },
+      });
+      return;
+    }
+
+    const limit = Number(req.query.limit ?? 25);
+    const offset = Number(req.query.offset ?? 0);
+    const sellerId =
+      typeof req.query.sellerId === 'string' && req.query.sellerId.trim()
+        ? req.query.sellerId.trim()
+        : undefined;
+    const status =
+      typeof req.query.status === 'string' && req.query.status.trim()
+        ? req.query.status.trim()
+        : 'all';
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+
+    const result = await listOrdersRegistry(req.user!, {
+      sellerId,
+      externalSource,
+      status,
+      q,
+      limit: Number.isFinite(limit) ? limit : 25,
+      offset: Number.isFinite(offset) ? offset : 0,
+    });
+    res.json(result);
+  }
+);
 
 router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
   const { clientName, clientPhone, address, lat, lng, notes, sellerId } = req.body;

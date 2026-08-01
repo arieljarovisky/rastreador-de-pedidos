@@ -272,6 +272,175 @@ export async function listOrdersForUser(
   return enrichOrders(rows, mode);
 }
 
+export type OrdersRegistryFilters = {
+  sellerId?: string;
+  /** mercadolibre | tiendanube | shopify | woocommerce | manual */
+  externalSource?: string;
+  /** pending | assigned | delivering | delivered | cancelled | archived | all */
+  status?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type OrdersRegistryStats = {
+  total: number;
+  pending: number;
+  delivering: number;
+  delivered: number;
+  cancelled: number;
+  archived: number;
+};
+
+function buildRegistryScope(
+  user: User,
+  filters: OrdersRegistryFilters
+): { where: string; params: unknown[] } | null {
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  if (user.role === UserRole.STORE_ADMIN) {
+    where.push('o.seller_id = ?');
+    params.push(user.id);
+  } else if (isAgencyAdmin(user.role)) {
+    if (!user.agencyId) return null;
+    where.push('o.agency_id = ?');
+    params.push(user.agencyId);
+    if (filters.sellerId) {
+      where.push('o.seller_id = ?');
+      params.push(filters.sellerId);
+    }
+  } else {
+    return null;
+  }
+
+  if (filters.externalSource === 'manual') {
+    where.push('(o.external_source IS NULL OR o.external_source = \'\')');
+  } else if (filters.externalSource) {
+    where.push('o.external_source = ?');
+    params.push(filters.externalSource);
+  }
+
+  const q = filters.q?.trim();
+  if (q) {
+    const like = `%${q}%`;
+    where.push(
+      `(o.id LIKE ? OR o.client_name LIKE ? OR o.address LIKE ? OR o.external_order_id LIKE ? OR s.name LIKE ? OR r.name LIKE ?)`
+    );
+    params.push(like, like, like, like, like, like);
+  }
+
+  return { where: where.join(' AND '), params };
+}
+
+function buildRegistryListWhere(
+  scopeWhere: string,
+  status?: string
+): { where: string; params: unknown[] } {
+  const where = [scopeWhere];
+  const params: unknown[] = [];
+
+  if (status === 'archived') {
+    where.push('o.archived = 1');
+  } else {
+    where.push('o.archived = 0');
+    if (status && status !== 'all') {
+      if (status === OrderStatus.PENDING) {
+        where.push('(o.status = ? OR o.status = ?)');
+        params.push(OrderStatus.PENDING, OrderStatus.ASSIGNED);
+      } else {
+        where.push('o.status = ?');
+        params.push(status);
+      }
+    }
+  }
+
+  return { where: where.join(' AND '), params };
+}
+
+/** Listado paginado para Registro (solo agencia / vendedor). */
+export async function listOrdersRegistry(
+  user: User,
+  filters: OrdersRegistryFilters = {}
+): Promise<{ items: Order[]; total: number; stats: OrdersRegistryStats }> {
+  const emptyStats: OrdersRegistryStats = {
+    total: 0,
+    pending: 0,
+    delivering: 0,
+    delivered: 0,
+    cancelled: 0,
+    archived: 0,
+  };
+
+  const scope = buildRegistryScope(user, filters);
+  if (!scope) {
+    return { items: [], total: 0, stats: emptyStats };
+  }
+
+  const limit = Math.min(Math.max(filters.limit ?? 25, 1), 100);
+  const offset = Math.max(filters.offset ?? 0, 0);
+  const listClause = buildRegistryListWhere(scope.where, filters.status ?? 'all');
+  const needsUserJoin = Boolean(filters.q?.trim());
+  const joinSql = needsUserJoin
+    ? `LEFT JOIN users r ON r.id = o.repartidor_id
+       LEFT JOIN users s ON s.id = o.seller_id`
+    : '';
+
+  const [[countRow]] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS cnt
+     FROM orders o
+     ${joinSql}
+     WHERE ${listClause.where}`,
+    [...scope.params, ...listClause.params]
+  );
+  const total = Number(countRow?.cnt ?? 0);
+
+  const [[statsRow]] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       SUM(CASE WHEN o.archived = 0 THEN 1 ELSE 0 END) AS total,
+       SUM(CASE WHEN o.archived = 0 AND (o.status = ? OR o.status = ?) THEN 1 ELSE 0 END) AS pending,
+       SUM(CASE WHEN o.archived = 0 AND o.status = ? THEN 1 ELSE 0 END) AS delivering,
+       SUM(CASE WHEN o.archived = 0 AND o.status = ? THEN 1 ELSE 0 END) AS delivered,
+       SUM(CASE WHEN o.archived = 0 AND o.status = ? THEN 1 ELSE 0 END) AS cancelled,
+       SUM(CASE WHEN o.archived = 1 THEN 1 ELSE 0 END) AS archived
+     FROM orders o
+     ${joinSql}
+     WHERE ${scope.where}`,
+    [
+      OrderStatus.PENDING,
+      OrderStatus.ASSIGNED,
+      OrderStatus.DELIVERING,
+      OrderStatus.DELIVERED,
+      OrderStatus.CANCELLED,
+      ...scope.params,
+    ]
+  );
+
+  const stats: OrdersRegistryStats = {
+    total: Number(statsRow?.total ?? 0),
+    pending: Number(statsRow?.pending ?? 0),
+    delivering: Number(statsRow?.delivering ?? 0),
+    delivered: Number(statsRow?.delivered ?? 0),
+    cancelled: Number(statsRow?.cancelled ?? 0),
+    archived: Number(statsRow?.archived ?? 0),
+  };
+
+  if (total === 0) {
+    return { items: [], total: 0, stats };
+  }
+
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT}
+     WHERE ${listClause.where}
+     ORDER BY o.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...scope.params, ...listClause.params, limit, offset]
+  );
+
+  const items = await enrichOrders(rows, 'list');
+  return { items, total, stats };
+}
+
 export function canViewOrder(user: User, order: Order, sellerId?: string | null): boolean {
   if (isAgencyAdmin(user.role)) return belongsToUserAgency(user, order.agencyId);
   if (user.role === UserRole.STORE_ADMIN) return sellerId === user.id;

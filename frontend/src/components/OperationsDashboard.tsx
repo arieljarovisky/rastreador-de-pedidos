@@ -14,6 +14,9 @@ import {
   ChevronRight,
   Bike,
   Layers,
+  Filter,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
@@ -79,10 +82,24 @@ export default function OperationsDashboard({
   const [marketplaceSourceFilter, setMarketplaceSourceFilter] = useState('');
   const [cordonFilterId, setCordonFilterId] = useState('');
   const [repartidorFilterId, setRepartidorFilterId] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [ambaGeoReady, setAmbaGeoReady] = useState(() => isAmbaGeoLoaded());
   const isToday = selectedDateKey === todayKey;
   const isTomorrow = selectedDateKey === tomorrowKey;
   const isFuture = selectedDateKey > todayKey;
+
+  const activeFiltersCount =
+    (sellerFilterId ? 1 : 0) +
+    (marketplaceSourceFilter ? 1 : 0) +
+    (cordonFilterId ? 1 : 0) +
+    (repartidorFilterId ? 1 : 0);
+
+  const clearFilters = () => {
+    setSellerFilterId('');
+    setMarketplaceSourceFilter('');
+    setCordonFilterId('');
+    setRepartidorFilterId('');
+  };
 
   useEffect(() => {
     if (ambaGeoReady) return;
@@ -264,31 +281,68 @@ export default function OperationsDashboard({
           onGoToday={() => setSelectedDateKey(todayKey)}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-2">
-          {isAgency && sellers.length > 0 && (
-            <SellerFilterControl
-              sellers={sellers}
-              value={sellerFilterId}
-              onChange={setSellerFilterId}
-            />
-          )}
-          <MarketplaceSourceFilter
-            value={marketplaceSourceFilter}
-            onChange={setMarketplaceSourceFilter}
-          />
-          <CordonFilterControl
-            zones={cordonZones}
-            value={cordonFilterId}
-            onChange={setCordonFilterId}
-          />
-          {isAgency && (
-            <RepartidorFilterControl
-              repartidores={repartidores}
-              value={repartidorFilterId}
-              onChange={setRepartidorFilterId}
-            />
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+              filtersOpen || activeFiltersCount > 0
+                ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--ink-soft)] hover:border-[var(--color-accent)]/30'
+            }`}
+          >
+            <Filter className="w-3.5 h-3.5 shrink-0" />
+            Filtros
+            {activeFiltersCount > 0 && (
+              <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-accent)] text-white text-[9px] flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
+            {filtersOpen ? (
+              <ChevronUp className="w-3.5 h-3.5 shrink-0 opacity-70" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-70" />
+            )}
+          </button>
+          {activeFiltersCount > 0 && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
+            >
+              Limpiar
+            </button>
           )}
         </div>
+
+        {filtersOpen && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-2">
+            {isAgency && sellers.length > 0 && (
+              <SellerFilterControl
+                sellers={sellers}
+                value={sellerFilterId}
+                onChange={setSellerFilterId}
+              />
+            )}
+            <MarketplaceSourceFilter
+              value={marketplaceSourceFilter}
+              onChange={setMarketplaceSourceFilter}
+            />
+            <CordonFilterControl
+              zones={cordonZones}
+              value={cordonFilterId}
+              onChange={setCordonFilterId}
+            />
+            {isAgency && (
+              <RepartidorFilterControl
+                repartidores={repartidores}
+                value={repartidorFilterId}
+                onChange={setRepartidorFilterId}
+              />
+            )}
+          </div>
+        )}
 
         <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 flex-wrap">
           <Clock className="w-3.5 h-3.5 shrink-0" />
