@@ -336,12 +336,23 @@ function formatMlAddress(shipment: MlShipment): string {
   const addr = shipment.receiver_address;
   if (!addr) return '';
   const line = unmaskMlText(addr.address_line);
-  if (line) return line;
+  const city = unmaskMlText(addr.city?.name);
+  const state = unmaskMlText(addr.state?.name);
+  const zip = unmaskMlText(addr.zip_code);
+
+  if (line) {
+    // Siempre anexar localidad/provincia: sin eso Nominatim confunde calles homónimas
+    // (p. ej. Gurruchaga en CABA vs Florencio Varela) y el pedido cae en otra zona.
+    const tail = [city, state, zip, 'Argentina'].filter(Boolean);
+    const missingTail = tail.filter((part) => !line.toLowerCase().includes(part.toLowerCase()));
+    return missingTail.length ? `${line}, ${missingTail.join(', ')}` : line;
+  }
+
   const parts = [
     [unmaskMlText(addr.street_name), unmaskMlText(addr.street_number)].filter(Boolean).join(' '),
-    unmaskMlText(addr.city?.name),
-    unmaskMlText(addr.state?.name),
-    unmaskMlText(addr.zip_code),
+    city,
+    state,
+    zip,
     'Argentina',
   ].filter(Boolean);
   // Si solo quedó "Argentina", el domicilio sigue oculto.
