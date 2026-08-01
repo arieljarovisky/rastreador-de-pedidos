@@ -77,11 +77,11 @@ export function getOrderDeliverySla(order: Order): Date {
 }
 
 function isTodayOrder(order: Order, dateKey: string): boolean {
+  if (getOperationalDateKey(new Date(order.createdAt)) === dateKey) return true;
   if (order.deliveryDeadline) {
-    const deadlineKey = getOperationalDateKey(new Date(order.deliveryDeadline));
-    return deadlineKey === dateKey;
+    return getOperationalDateKey(new Date(order.deliveryDeadline)) === dateKey;
   }
-  return getOperationalDateKey(new Date(order.createdAt)) === dateKey;
+  return false;
 }
 
 export function getTodayOrders(

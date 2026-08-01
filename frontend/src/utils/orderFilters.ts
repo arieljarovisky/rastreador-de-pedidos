@@ -47,6 +47,24 @@ export function getOrderOperationalDateKey(order: Order): string {
   return getOperationalDateKey(new Date(order.createdAt));
 }
 
+/** Día en que el pedido se importó / creó en Posta. */
+export function getOrderImportedDateKey(order: Order): string {
+  return getOperationalDateKey(new Date(order.createdAt));
+}
+
+/** Fechas relevantes del pedido: importación y día operativo de entrega. */
+export function getOrderDateKeys(order: Order): string[] {
+  const keys = new Set<string>();
+  keys.add(getOrderImportedDateKey(order));
+  keys.add(getOrderOperationalDateKey(order));
+  return [...keys];
+}
+
+/** True si el pedido pertenece al día (por importación o por entrega operativa). */
+export function orderBelongsToDateKey(order: Order, dateKey: string): boolean {
+  return getOrderDateKeys(order).includes(dateKey);
+}
+
 export function matchesOrderFilters(
   order: Order,
   filters: {
@@ -76,7 +94,7 @@ export function matchesOrderFilters(
     if (!orderCordon || orderCordon !== filterCordon) return false;
   }
 
-  if (filters.dateKey && getOrderOperationalDateKey(order) !== filters.dateKey) {
+  if (filters.dateKey && !orderBelongsToDateKey(order, filters.dateKey)) {
     return false;
   }
 

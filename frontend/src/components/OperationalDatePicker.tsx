@@ -36,6 +36,8 @@ interface OperationalDatePickerProps {
   isToday?: boolean;
   /** Próxima fecha operativa con envíos (después de `value`). */
   nextShipmentDateKey?: string | null;
+  /** Días con envíos (importación o entrega) — se marcan en el calendario. */
+  shipmentDateKeys?: string[];
 }
 
 function CalendarPopover({
@@ -45,6 +47,7 @@ function CalendarPopover({
   todayKey,
   deadlineHour,
   nextShipmentDateKey,
+  shipmentDateKeys,
   onPick,
   style,
 }: {
@@ -54,6 +57,7 @@ function CalendarPopover({
   todayKey: string;
   deadlineHour?: number;
   nextShipmentDateKey?: string | null;
+  shipmentDateKeys?: ReadonlySet<string>;
   onPick: (dateKey: string) => void;
   style: CSSProperties;
 }) {
@@ -123,6 +127,7 @@ function CalendarPopover({
           const isBeyondMax = dateKey > maxDateKey;
           const isBeforeMin = minDateKey ? dateKey < minDateKey : false;
           const isDisabled = isBeyondMax || isBeforeMin;
+          const hasShipments = shipmentDateKeys?.has(dateKey) ?? false;
           const day = parseOperationalDateKey(dateKey).day;
 
           return (
@@ -131,17 +136,28 @@ function CalendarPopover({
               type="button"
               disabled={isDisabled}
               onClick={() => onPick(dateKey)}
+              title={hasShipments ? 'Hay envíos este día' : undefined}
               className={[
-                'h-9 w-full rounded-lg text-[12px] font-mono font-bold transition flex items-center justify-center',
+                'relative h-9 w-full rounded-lg text-[12px] font-mono font-bold transition flex flex-col items-center justify-center gap-0.5',
                 isSelected
                   ? 'bg-[var(--color-accent)] text-white shadow-md'
                   : isToday
                     ? 'border border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10'
-                    : 'text-[var(--color-text)] hover:bg-[var(--surface-panel-2)] border border-transparent',
+                    : hasShipments
+                      ? 'text-[var(--ink-soft)] bg-[var(--color-accent)]/8 border border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/15'
+                      : 'text-[var(--color-text)] hover:bg-[var(--surface-panel-2)] border border-transparent',
                 isDisabled ? 'opacity-25 pointer-events-none' : '',
               ].join(' ')}
             >
-              {day}
+              <span className="leading-none">{day}</span>
+              {hasShipments && (
+                <span
+                  className={`h-1 w-1 rounded-full ${
+                    isSelected ? 'bg-white/90' : 'bg-[var(--color-accent)]'
+                  }`}
+                  aria-hidden
+                />
+              )}
             </button>
           );
         })}
@@ -152,6 +168,7 @@ function CalendarPopover({
           {deadlineHour != null
             ? `Corte operativo ${deadlineHour}:00 ART`
             : 'Corte operativo ART'}
+          {shipmentDateKeys && shipmentDateKeys.size > 0 ? ' · días con envíos marcados' : ''}
         </p>
         <div className="flex items-center gap-1.5 shrink-0">
           {canGoNextShipment && (
@@ -237,6 +254,7 @@ export default function OperationalDatePicker({
   onGoToday,
   isToday = value === getOperationalDateKey(),
   nextShipmentDateKey = null,
+  shipmentDateKeys,
 }: OperationalDatePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -244,6 +262,10 @@ export default function OperationalDatePicker({
   const popoverStyle = useCalendarPopoverPosition(anchorRef, open);
   const todayKey = getOperationalDateKey();
   const isFuture = value > todayKey;
+  const shipmentDateKeySet = useMemo(
+    () => (shipmentDateKeys && shipmentDateKeys.length > 0 ? new Set(shipmentDateKeys) : undefined),
+    [shipmentDateKeys]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -286,6 +308,7 @@ export default function OperationalDatePicker({
           todayKey={todayKey}
           deadlineHour={deadlineHour}
           nextShipmentDateKey={nextShipmentDateKey}
+          shipmentDateKeys={shipmentDateKeySet}
           onPick={pickDate}
           style={popoverStyle}
         />

@@ -14,7 +14,7 @@ import {
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import { matchesOrderFilters, getOrderOperationalDateKey } from '../utils/orderFilters.js';
+import { matchesOrderFilters, getOrderDateKeys } from '../utils/orderFilters.js';
 import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
@@ -482,11 +482,13 @@ export default function AdminDashboard({
     [deliveryZones, barrios]
   );
 
-  /** Fechas operativas con al menos un envío (incluye archivados). */
+  /** Fechas con envíos: día de importación y día operativo de entrega. */
   const datesWithShipments = useMemo(() => {
     const keys = new Set<string>();
     for (const order of orders) {
-      keys.add(getOrderOperationalDateKey(order));
+      for (const key of getOrderDateKeys(order)) {
+        keys.add(key);
+      }
     }
     return [...keys].sort();
   }, [orders]);
@@ -1650,6 +1652,7 @@ export default function AdminDashboard({
                 value={dateFilterKey || todayKey}
                 maxDateKey={datePickerMaxKey}
                 nextShipmentDateKey={nextShipmentDateKey}
+                shipmentDateKeys={datesWithShipments}
                 onChange={handleDateFilterChange}
               />
               <CordonFilterControl
@@ -1781,6 +1784,7 @@ export default function AdminDashboard({
                   value={dateFilterKey || todayKey}
                   maxDateKey={datePickerMaxKey}
                   nextShipmentDateKey={nextShipmentDateKey}
+                  shipmentDateKeys={datesWithShipments}
                   onChange={handleDateFilterChange}
                 />
                 <div className="min-w-0 flex flex-col gap-1.5">
@@ -2122,6 +2126,7 @@ export default function AdminDashboard({
                         value={dateFilterKey || todayKey}
                         maxDateKey={datePickerMaxKey}
                         nextShipmentDateKey={nextShipmentDateKey}
+                        shipmentDateKeys={datesWithShipments}
                         onChange={handleDateFilterChange}
                       />
                       <div className="flex items-center gap-2 px-0.5 flex-wrap">
