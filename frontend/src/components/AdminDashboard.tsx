@@ -14,7 +14,7 @@ import {
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import { matchesOrderFilters, getOrderDateKeys } from '../utils/orderFilters.js';
+import { matchesOrderFilters, getOrderDateKeys, getOrderImportedDateKey } from '../utils/orderFilters.js';
 import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
@@ -25,9 +25,10 @@ import MapComponent from './MapComponent.tsx';
 import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
+import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
-import { getOperationalDateKey, shiftOperationalDateKey } from '../utils/deliverySummary.js';
+import { getOperationalDateKey, shiftOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
 
 interface AdminDashboardProps {
   orders: Order[];
@@ -186,6 +187,7 @@ export default function AdminDashboard({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sellerFilterId, setSellerFilterId] = useState<string>('');
+  const [marketplaceSourceFilter, setMarketplaceSourceFilter] = useState<string>('');
   const [cordonFilterId, setCordonFilterId] = useState<string>('');
   const [repartidorFilterId, setRepartidorFilterId] = useState<string>('');
   const todayKey = getOperationalDateKey();
@@ -505,12 +507,22 @@ export default function AdminDashboard({
       cordonId: cordonFilterId || undefined,
       repartidorId: repartidorFilterId || undefined,
       dateKey: dateFilterKey || undefined,
+      externalSource: marketplaceSourceFilter || undefined,
       deliveryZones,
       barrios,
       // Fuerza recalcular cordón cuando cargan los polígonos IGN.
       ambaGeoReady,
     }),
-    [sellerFilterId, cordonFilterId, repartidorFilterId, dateFilterKey, deliveryZones, barrios, ambaGeoReady]
+    [
+      sellerFilterId,
+      cordonFilterId,
+      repartidorFilterId,
+      dateFilterKey,
+      marketplaceSourceFilter,
+      deliveryZones,
+      barrios,
+      ambaGeoReady,
+    ]
   );
 
   /** Con fecha activa o en historial de vendedor, los archivados entran en lista/mapa/stats. */
@@ -600,6 +612,7 @@ export default function AdminDashboard({
   const activeMapFiltersCount = useMemo(() => {
     let count = 0;
     if (sellerFilterId) count += 1;
+    if (marketplaceSourceFilter) count += 1;
     if (cordonFilterId) count += 1;
     if (repartidorFilterId) count += 1;
     if (dateFilterKey && dateFilterKey !== todayKey) count += 1;
@@ -609,6 +622,7 @@ export default function AdminDashboard({
     return count;
   }, [
     sellerFilterId,
+    marketplaceSourceFilter,
     cordonFilterId,
     repartidorFilterId,
     dateFilterKey,
@@ -621,6 +635,7 @@ export default function AdminDashboard({
 
   const clearMapFilters = () => {
     setSellerFilterId('');
+    setMarketplaceSourceFilter('');
     setCordonFilterId('');
     setRepartidorFilterId('');
     setDateFilterKey(todayKey);
@@ -1703,10 +1718,23 @@ export default function AdminDashboard({
             </div>
 
             {isAgencyAdmin(userRole) && (
-              <RepartidorFilterControl
-                repartidores={repartidores}
-                value={repartidorFilterId}
-                onChange={setRepartidorFilterId}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <MarketplaceSourceFilter
+                  value={marketplaceSourceFilter}
+                  onChange={setMarketplaceSourceFilter}
+                />
+                <RepartidorFilterControl
+                  repartidores={repartidores}
+                  value={repartidorFilterId}
+                  onChange={setRepartidorFilterId}
+                />
+              </div>
+            )}
+
+            {!isAgencyAdmin(userRole) && (
+              <MarketplaceSourceFilter
+                value={marketplaceSourceFilter}
+                onChange={setMarketplaceSourceFilter}
               />
             )}
 
@@ -1787,26 +1815,22 @@ export default function AdminDashboard({
                   shipmentDateKeys={datesWithShipments}
                   onChange={handleDateFilterChange}
                 />
-                <div className="min-w-0 flex flex-col gap-1.5">
-                  <span
-                    className="h-[1.125rem] shrink-0 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
-                    aria-hidden
-                  >
-                    &nbsp;
-                  </span>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-[var(--color-text-muted)]">
-                      <Search className="w-3.5 h-3.5" />
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Buscar..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full posta-input h-[2.375rem] px-2 py-2 pl-7 text-xs font-sans"
-                    />
-                  </div>
-                </div>
+                <MarketplaceSourceFilter
+                  value={marketplaceSourceFilter}
+                  onChange={setMarketplaceSourceFilter}
+                />
+              </div>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-[var(--color-text-muted)]">
+                  <Search className="w-3.5 h-3.5" />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Buscar..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full posta-input h-[2.375rem] px-2 py-2 pl-7 text-xs font-sans"
+                />
               </div>
               <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0">
                 <button
@@ -1882,13 +1906,20 @@ export default function AdminDashboard({
                     <th className="px-2 py-2 font-bold">Estado</th>
                     {isAgencyAdmin(userRole) && <th className="px-2 py-2 font-bold">Vendedor</th>}
                     <th className="px-2 py-2 font-bold">Repartidor</th>
-                    <th className="px-2 py-2 font-bold">Hora</th>
+                    <th className="px-2 py-2 font-bold">Fecha</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOrders.map((order) => {
                     const isSelected = order.id === activeOrderId;
                     const exception = getOrderExceptionBadge(order);
+                    const importedKey = getOrderImportedDateKey(order);
+                    const importedLabel = formatOperationalDateShort(importedKey);
+                    const timeLabel = new Date(order.createdAt).toLocaleTimeString('es-AR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'America/Argentina/Buenos_Aires',
+                    });
                     return (
                       <tr
                         key={order.id}
@@ -1946,11 +1977,12 @@ export default function AdminDashboard({
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
-                          {new Date(order.createdAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                        <td
+                          className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap"
+                          title={`Importado ${importedLabel} ${timeLabel}`}
+                        >
+                          <span className="block text-[var(--ink-soft)]">{importedLabel}</span>
+                          <span className="block">{timeLabel}</span>
                         </td>
                       </tr>
                     );
@@ -2178,6 +2210,11 @@ export default function AdminDashboard({
                         onChange={handleSellerFilterChange}
                       />
                     )}
+
+                    <MarketplaceSourceFilter
+                      value={marketplaceSourceFilter}
+                      onChange={setMarketplaceSourceFilter}
+                    />
 
                     <CordonFilterControl
                       zones={cordonZones}

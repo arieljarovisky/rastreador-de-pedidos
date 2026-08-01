@@ -72,6 +72,8 @@ export function matchesOrderFilters(
     cordonId?: string;
     repartidorId?: string;
     dateKey?: string;
+    /** Marketplace: mercadolibre | tiendanube | shopify | woocommerce | manual */
+    externalSource?: string;
     deliveryZones?: DeliveryZone[];
     barrios?: Barrio[];
   }
@@ -96,6 +98,14 @@ export function matchesOrderFilters(
 
   if (filters.dateKey && !orderBelongsToDateKey(order, filters.dateKey)) {
     return false;
+  }
+
+  if (filters.externalSource) {
+    if (filters.externalSource === 'manual') {
+      if (order.externalSource) return false;
+    } else if (order.externalSource !== filters.externalSource) {
+      return false;
+    }
   }
 
   return true;

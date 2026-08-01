@@ -36,6 +36,7 @@ import {
   formatArTime,
 } from '../utils/deliverySummary.js';
 import SellerFilterControl from './SellerFilterControl.tsx';
+import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
 import { getOrderDateKeys, matchesOrderFilters } from '../utils/orderFilters.js';
@@ -75,6 +76,7 @@ export default function OperationsDashboard({
   const cutHour = deadlineHour;
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [sellerFilterId, setSellerFilterId] = useState('');
+  const [marketplaceSourceFilter, setMarketplaceSourceFilter] = useState('');
   const [cordonFilterId, setCordonFilterId] = useState('');
   const [repartidorFilterId, setRepartidorFilterId] = useState('');
   const [ambaGeoReady, setAmbaGeoReady] = useState(() => isAmbaGeoLoaded());
@@ -104,11 +106,20 @@ export default function OperationsDashboard({
       sellerId: sellerFilterId || undefined,
       cordonId: cordonFilterId || undefined,
       repartidorId: repartidorFilterId || undefined,
+      externalSource: marketplaceSourceFilter || undefined,
       deliveryZones,
       barrios,
       ambaGeoReady,
     }),
-    [sellerFilterId, cordonFilterId, repartidorFilterId, deliveryZones, barrios, ambaGeoReady]
+    [
+      sellerFilterId,
+      cordonFilterId,
+      repartidorFilterId,
+      marketplaceSourceFilter,
+      deliveryZones,
+      barrios,
+      ambaGeoReady,
+    ]
   );
 
   const scopedOrders = useMemo(
@@ -263,6 +274,10 @@ export default function OperationsDashboard({
               onChange={setSellerFilterId}
             />
           )}
+          <MarketplaceSourceFilter
+            value={marketplaceSourceFilter}
+            onChange={setMarketplaceSourceFilter}
+          />
           <CordonFilterControl
             zones={cordonZones}
             value={cordonFilterId}
