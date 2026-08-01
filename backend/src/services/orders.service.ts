@@ -235,16 +235,23 @@ export async function getOrderById(id: string): Promise<Order | null> {
 
 export async function listOrdersForUser(
   user: User,
-  options?: { mode?: EnrichOrdersMode; limit?: number; offset?: number }
+  options?: {
+    mode?: EnrichOrdersMode;
+    limit?: number;
+    offset?: number;
+    /** Si es true, incluye pedidos archivados (historial / Registro). */
+    includeArchived?: boolean;
+  }
 ): Promise<Order[]> {
   let rows: OrderWithRepartidorRow[];
   const mode = options?.mode ?? 'list';
-  const limit = Math.min(Math.max(options?.limit ?? 200, 1), 500);
+  const limit = Math.min(Math.max(options?.limit ?? 500, 1), 5000);
   const offset = Math.max(options?.offset ?? 0, 0);
+  const archivedClause = options?.includeArchived ? '' : 'AND o.archived = 0';
 
   if (user.role === UserRole.STORE_ADMIN) {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE o.seller_id = ? AND o.archived = 0 ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      `${ORDER_SELECT} WHERE o.seller_id = ? ${archivedClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
       [user.id, limit, offset]
     );
   } else if (isAgencyAdmin(user.role)) {
@@ -252,12 +259,12 @@ export async function listOrdersForUser(
       return [];
     }
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE o.agency_id = ? AND o.archived = 0 ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      `${ORDER_SELECT} WHERE o.agency_id = ? ${archivedClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
       [user.agencyId, limit, offset]
     );
   } else {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id <=> ?)) AND o.archived = 0 ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id <=> ?)) ${archivedClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
       [user.id, OrderStatus.PENDING, user.agencyId ?? null, limit, offset]
     );
   }

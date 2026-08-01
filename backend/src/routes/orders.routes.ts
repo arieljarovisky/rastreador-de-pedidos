@@ -35,12 +35,17 @@ import { pool } from '../config/database.js';
 import { RowDataPacket } from 'mysql2';
 
 function parseLimitOffset(req: Request): { limit: number; offset: number } {
-  const limit = Number(req.query.limit ?? 200);
+  const limit = Number(req.query.limit ?? 500);
   const offset = Number(req.query.offset ?? 0);
   return {
-    limit: Number.isFinite(limit) ? limit : 200,
-    offset: Number.isFinite(offset) ? offset : 0,
+    limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 5000) : 500,
+    offset: Number.isFinite(offset) ? Math.max(offset, 0) : 0,
   };
+}
+
+function parseIncludeArchived(req: Request): boolean {
+  const raw = req.query.includeArchived;
+  return raw === '1' || raw === 'true';
 }
 
 function mercadoLibreLabelErrorMessage(code: string): string {
@@ -99,7 +104,8 @@ router.get('/delivery-summary', authenticate, requireRoles(
 router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   const synced = await syncFlexScansForRepartidor(req.user!, { force: true });
   const { limit, offset } = parseLimitOffset(req);
-  const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset });
+  const includeArchived = parseIncludeArchived(req);
+  const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset, includeArchived });
   // ML live sync en background: el listado responde ya; updates llegan por WS.
   void syncOpenMercadoLibreOrdersInList(orders).catch((err) => {
     console.error('[orders/flex-sync] background ML sync failed', err);
@@ -109,7 +115,8 @@ router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
   const { limit, offset } = parseLimitOffset(req);
-  const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset });
+  const includeArchived = parseIncludeArchived(req);
+  const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset, includeArchived });
   res.json(orders);
   scheduleOrdersBackgroundSync(req.user!, orders);
 });

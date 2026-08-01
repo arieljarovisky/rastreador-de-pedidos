@@ -30,7 +30,7 @@ import PlatformOwnerPanel from './components/PlatformOwnerPanel.tsx';
 import SubscriptionExpiredOverlay from './components/SubscriptionExpiredOverlay.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
-import { apiUrl, oauthReturnOriginQuery } from './api.ts';
+import { apiUrl, oauthReturnOriginQuery, fetchAllOrders } from './api.ts';
 import { mergeRepartidorLocation, mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
@@ -281,13 +281,18 @@ export default function App() {
       const useFlexSync =
         Boolean(opts?.forceFlexSync) && currentUser?.role === UserRole.REPARTIDOR;
 
-      const ordersPromise = fetch(
-        apiUrl(useFlexSync ? '/api/orders/flex-sync' : '/api/orders'),
-        { headers, method: useFlexSync ? 'POST' : 'GET' }
-      ).then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json();
-        setOrders(Array.isArray(data) ? data : data.orders);
+      const ordersPromise = (
+        useFlexSync
+          ? fetch(apiUrl('/api/orders/flex-sync'), { headers, method: 'POST' }).then(async (res) => {
+              if (!res.ok) return;
+              const data = await res.json();
+              setOrders(Array.isArray(data) ? data : data.orders);
+            })
+          : fetchAllOrders(token).then((data) => {
+              setOrders(data as Order[]);
+            })
+      ).catch(() => {
+        /* ignore: polling/WS reintentan */
       });
 
       const notifsPromise = fetch(apiUrl('/api/notifications'), { headers }).then(async (res) => {
@@ -508,12 +513,9 @@ export default function App() {
         void (async () => {
           try {
             const headers = { Authorization: `Bearer ${token}` };
-            const ordersRes = await fetch(apiUrl('/api/orders'), { headers });
-            if (ordersRes.ok) {
-              const data = await ordersRes.json();
-              setOrders(data);
-              setLastSyncAt(new Date());
-            }
+            const data = await fetchAllOrders(token);
+            setOrders(data as Order[]);
+            setLastSyncAt(new Date());
           } catch {
             /* ignore */
           }

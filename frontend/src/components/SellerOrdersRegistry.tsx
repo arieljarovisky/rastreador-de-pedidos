@@ -17,7 +17,7 @@ import {
 } from '../utils/orderFilters.js';
 import { formatOperationalDateShort, getOperationalDateKey } from '../utils/deliverySummary.js';
 import { useModal } from '../context/ModalContext.tsx';
-import { apiUrl } from '../api.ts';
+import { apiUrl, fetchAllOrders } from '../api.ts';
 import type {
   AgencyDriverScanEntry,
   AgencyDriverScanStatus,
@@ -115,10 +115,66 @@ export default function SellerOrdersRegistry({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [personalEntries, setPersonalEntries] = useState<AgencyDriverScanEntry[]>([]);
   const [personalLoading, setPersonalLoading] = useState(false);
+  /** Historial completo (incluye archivados); no depende del tope del listado operativo. */
+  const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialSellerId) setSellerId(initialSellerId);
   }, [initialSellerId]);
+
+  const loadHistory = useCallback(async (signal?: AbortSignal) => {
+    if (!token) {
+      setHistoryOrders([]);
+      setHistoryLoading(false);
+      return;
+    }
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const data = await fetchAllOrders(token, { includeArchived: true, signal });
+      if (signal?.aborted) return;
+      setHistoryOrders(data as Order[]);
+    } catch (err) {
+      if (signal?.aborted) return;
+      setHistoryError(err instanceof Error ? err.message : 'No se pudo cargar el historial');
+      setHistoryOrders([]);
+    } finally {
+      if (!signal?.aborted) setHistoryLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    void loadHistory(ac.signal);
+    return () => ac.abort();
+  }, [loadHistory]);
+
+  // Incorporar altas/cambios en vivo del listado operativo sin perder el historial.
+  useEffect(() => {
+    if (historyLoading || orders.length === 0) return;
+    setHistoryOrders((prev) => {
+      if (prev.length === 0) return orders;
+      const byId = new Map(prev.map((o) => [o.id, o]));
+      let changed = false;
+      for (const order of orders) {
+        const existing = byId.get(order.id);
+        if (
+          !existing ||
+          existing.updatedAt !== order.updatedAt ||
+          existing.status !== order.status ||
+          existing.archived !== order.archived ||
+          existing.repartidorId !== order.repartidorId
+        ) {
+          byId.set(order.id, order);
+          changed = true;
+        }
+      }
+      if (!changed) return prev;
+      return [...byId.values()];
+    });
+  }, [orders, historyLoading]);
 
   const loadPersonal = useCallback(async () => {
     if (!agency || !token) {
@@ -149,9 +205,11 @@ export default function SellerOrdersRegistry({
     !sellerId &&
     (marketplaceSource === '' || marketplaceSource === 'personal');
 
+  const sourceOrders = historyOrders;
+
   const postaScoped = useMemo(() => {
     if (marketplaceSource === 'personal') return [];
-    return orders.filter((order) => {
+    return sourceOrders.filter((order) => {
       if (
         !matchesOrderFilters(order, {
           sellerId: sellerId || undefined,
@@ -162,8 +220,9 @@ export default function SellerOrdersRegistry({
       }
       if (statusFilter === 'archived') {
         if (!order.archived) return false;
-      } else if (statusFilter !== 'all' && order.status !== statusFilter) {
-        return false;
+      } else {
+        if (order.archived) return false;
+        if (statusFilter !== 'all' && order.status !== statusFilter) return false;
       }
       const q = searchQuery.trim().toLowerCase();
       if (!q) return true;
@@ -176,7 +235,7 @@ export default function SellerOrdersRegistry({
         (order.externalOrderId?.toLowerCase().includes(q) ?? false)
       );
     });
-  }, [orders, sellerId, marketplaceSource, statusFilter, searchQuery]);
+  }, [sourceOrders, sellerId, marketplaceSource, statusFilter, searchQuery]);
 
   const personalScoped = useMemo(() => {
     if (!includePersonal) return [];
@@ -230,35 +289,41 @@ export default function SellerOrdersRegistry({
 
   const stats = useMemo(() => {
     const postaBase = sellerId
-      ? orders.filter((o) => o.sellerId === sellerId)
+      ? sourceOrders.filter((o) => o.sellerId === sellerId)
       : marketplaceSource === 'personal'
         ? []
         : marketplaceSource
-          ? orders.filter((o) =>
+          ? sourceOrders.filter((o) =>
               matchesOrderFilters(o, { externalSource: marketplaceSource })
             )
-          : orders;
+          : sourceOrders;
     const personalBase =
       agency && !sellerId && (marketplaceSource === '' || marketplaceSource === 'personal')
         ? personalEntries
         : [];
 
     return {
-      total: postaBase.length + personalBase.length,
+      total:
+        postaBase.filter((o) => !o.archived).length + personalBase.length,
       pending:
-        postaBase.filter((o) => o.status === OrderStatus.PENDING || o.status === OrderStatus.ASSIGNED)
-          .length + personalBase.filter((e) => e.status === 'pending').length,
-      delivering: postaBase.filter((o) => o.status === OrderStatus.DELIVERING).length,
+        postaBase.filter(
+          (o) =>
+            !o.archived &&
+            (o.status === OrderStatus.PENDING || o.status === OrderStatus.ASSIGNED)
+        ).length + personalBase.filter((e) => e.status === 'pending').length,
+      delivering: postaBase.filter(
+        (o) => !o.archived && o.status === OrderStatus.DELIVERING
+      ).length,
       delivered:
-        postaBase.filter((o) => o.status === OrderStatus.DELIVERED).length +
+        postaBase.filter((o) => !o.archived && o.status === OrderStatus.DELIVERED).length +
         personalBase.filter((e) => e.status === 'delivered').length,
       cancelled:
-        postaBase.filter((o) => o.status === OrderStatus.CANCELLED).length +
+        postaBase.filter((o) => !o.archived && o.status === OrderStatus.CANCELLED).length +
         personalBase.filter((e) => e.status === 'cancelled').length,
       archived: postaBase.filter((o) => o.archived).length,
       personal: personalBase.length,
     };
-  }, [orders, sellerId, marketplaceSource, agency, personalEntries]);
+  }, [sourceOrders, sellerId, marketplaceSource, agency, personalEntries]);
 
   const markPostaDelivered = async (order: Order) => {
     if (order.externalSource === 'mercadolibre' && !agency) {
@@ -285,6 +350,13 @@ export default function SellerOrdersRegistry({
         OrderStatus.DELIVERED,
         undefined,
         'Marcado como entregado desde Registro'
+      );
+      setHistoryOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id
+            ? { ...o, status: OrderStatus.DELIVERED, updatedAt: new Date().toISOString() }
+            : o
+        )
       );
     } catch (err: unknown) {
       await showAlert({
@@ -379,8 +451,21 @@ export default function SellerOrdersRegistry({
           </div>
           <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
             Envíos Posta y paquetes personales en la misma lista.
+            {historyLoading ? ' · Cargando historial…' : ''}
             {personalLoading ? ' · Cargando personales…' : ''}
           </p>
+          {historyError && (
+            <p className="mt-1 text-[11px] text-[var(--color-danger)]">
+              {historyError}{' '}
+              <button
+                type="button"
+                className="underline font-semibold"
+                onClick={() => void loadHistory()}
+              >
+                Reintentar
+              </button>
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -448,7 +533,15 @@ export default function SellerOrdersRegistry({
       </div>
 
       <div className="px-4 py-3 pb-6">
-        {rows.length === 0 ? (
+        {historyLoading && rows.length === 0 ? (
+          <div className="h-40 flex flex-col items-center justify-center gap-2 text-center px-4">
+            <Loader2 size={22} className="animate-spin text-[var(--color-text-muted)]" />
+            <p className="text-sm text-[var(--color-text)] font-medium">Cargando historial…</p>
+            <p className="text-[11px] text-[var(--color-text-muted)]">
+              Traemos todos los envíos desde el primer día.
+            </p>
+          </div>
+        ) : rows.length === 0 ? (
           <div className="h-40 flex flex-col items-center justify-center gap-1 text-center px-4">
             {personalLoading ? (
               <Loader2 size={22} className="animate-spin text-[var(--color-text-muted)]" />
@@ -506,19 +599,25 @@ export default function SellerOrdersRegistry({
                           <span className="block">{timeLabel}</span>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <span className="inline-flex px-1.5 py-0.5 rounded border border-[var(--color-accent)]/25 bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-[9px] font-mono font-bold uppercase">
-                            Posta
-                          </span>
+                          {order.externalSource ? (
+                            <MarketplaceSourceIcon source={order.externalSource} size="md" />
+                          ) : (
+                            <span
+                              className="inline-flex items-center justify-center h-4 w-4 rounded-[3px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]"
+                              title="Carga manual"
+                            >
+                              <Package className="w-2.5 h-2.5 text-[var(--color-text-muted)]" />
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 font-mono text-[10px] whitespace-nowrap">
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 text-[var(--color-accent)] hover:underline"
+                            className="text-[var(--color-accent)] hover:underline"
                             onClick={() => onSelectOrder?.(order.id)}
                             title="Ver en Envíos"
                           >
                             {order.id}
-                            <MarketplaceSourceIcon source={order.externalSource} />
                           </button>
                         </td>
                         <td className="px-3 py-2 font-semibold text-[var(--ink-soft)] max-w-[9rem] truncate">

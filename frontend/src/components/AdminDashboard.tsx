@@ -1399,7 +1399,7 @@ export default function AdminDashboard({
   return (
     <>
     <div
-      className="flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 h-full overflow-hidden"
+      className="flex flex-col lg:grid lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 h-full overflow-hidden"
       id="admin-dashboard"
     >      {contextMenu && (
         <OrderContextMenu
