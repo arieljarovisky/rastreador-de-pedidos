@@ -20,7 +20,7 @@
     "db:clear-orders": "tsx src/db/clear-orders.ts",
     "db:purge-legacy-zones": "tsx src/db/purge-legacy-zones.ts",
     "db:reset-password": "tsx src/db/reset-password.ts",
-    "db:migrate-equal-prices": "tsx scripts/migrate-equal-prices-and-delete-payment.ts",
+    "db:migrate-equal-prices": "node ./node_modules/tsx/dist/cli.mjs scripts/migrate-equal-prices-and-delete-payment.ts",
 
     "google:token": "tsx scripts/get-google-calendar-token.ts",
     "lint": "node ./node_modules/typescript/lib/tsc.js --noEmit"
