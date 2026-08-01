@@ -48,9 +48,14 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
   const exception = getOrderExceptionBadge(order);
   const importedKey = getOrderImportedDateKey(order);
   const importedLabel = formatOperationalDateShort(importedKey);
-  const timeLabel = new Date(order.createdAt).toLocaleTimeString('es-AR', {
+  const [, monthStr, dayStr] = importedKey.split('-');
+  const dateCompact =
+    monthStr && dayStr ? `${dayStr}/${monthStr}` : importedLabel;
+  const timeCompact = new Date(order.createdAt).toLocaleTimeString('es-AR', {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
     timeZone: 'America/Argentina/Buenos_Aires',
   });
 
@@ -111,11 +116,11 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
         )}
       </td>
       <td
-        className="px-1.5 py-2 font-mono text-[9px] text-[var(--color-text-faint)] overflow-hidden"
-        title={`Importado ${importedLabel} ${timeLabel}`}
+        className="px-1.5 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap"
+        title={`Importado ${importedLabel} ${timeCompact}`}
       >
-        <span className="block text-[var(--ink-soft)] truncate">{importedLabel}</span>
-        <span className="block truncate">{timeLabel}</span>
+        <span className="block text-[var(--ink-soft)] tabular-nums">{dateCompact}</span>
+        <span className="block tabular-nums">{timeCompact}</span>
       </td>
     </tr>
   );
@@ -1881,7 +1886,7 @@ export default function AdminDashboard({
                     <th className="px-2 py-2 font-bold w-[12%]">Vendedor</th>
                   )}
                   <th className="px-2 py-2 font-bold w-[5.75rem]">Repartidor</th>
-                  <th className="px-2 py-2 font-bold w-[4.5rem]">Fecha</th>
+                  <th className="px-1.5 py-2 font-bold w-[4rem]">Fecha</th>
                 </tr>
               </thead>
               <tbody>
