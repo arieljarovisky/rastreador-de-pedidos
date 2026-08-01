@@ -2429,7 +2429,7 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
         className={`flex-1 min-h-0 relative ${
-          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'dashboard' || mobileTab === 'platform'
+          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'dashboard' || mobileTab === 'platform' || mobileTab === 'registro'
             ? 'overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch] px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
             : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
@@ -2560,7 +2560,7 @@ export default function App() {
             )}
 
             {mobileTab === 'registro' && token && isAgencyAdmin(user.role) && (
-              <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
+              <div className="w-full flex flex-col rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-visible">
                 <RegistroPage
                   token={token}
                   orders={orders}

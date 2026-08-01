@@ -350,7 +350,7 @@ export default function SellerOrdersRegistry({
   const selectedSeller = sellers.find((s) => s.id === sellerId);
 
   return (
-    <div className="h-full flex flex-col min-h-0 overflow-hidden">
+    <div className="w-full flex flex-col">
       <div className="shrink-0 border-b border-[var(--surface-border)] px-4 py-3 space-y-3">
         <div>
           <div className="flex items-center gap-2 text-[var(--color-accent)]">
@@ -426,7 +426,7 @@ export default function SellerOrdersRegistry({
         ))}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto px-4 py-3">
+      <div className="px-4 py-3 pb-6">
         {rows.length === 0 ? (
           <div className="h-40 flex flex-col items-center justify-center gap-1 text-center px-4">
             {personalLoading ? (
