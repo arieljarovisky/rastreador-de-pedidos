@@ -83,6 +83,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const [mpAvailable, setMpAvailable] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingSellerId, setExportingSellerId] = useState<string | null>(null);
   const todayKey = getOperationalDateKey();
 
   const applyMonthPreset = (offset: number) => {
@@ -145,16 +146,36 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
     if (key < dateFrom) setDateFrom(key);
   };
 
-  const exportExcel = async () => {
-    if (!summary) return;
+  const exportExcel = async (opts?: { sellerId: string; sellerName: string }) => {
+    if (!summary && !opts?.sellerId) return;
+    const targetSellerId = opts?.sellerId ?? (isAgency ? selectedSellerId || null : null);
     setExporting(true);
+    setExportingSellerId(opts?.sellerId ?? null);
     setMessage(null);
     try {
+      const headers = { Authorization: `Bearer ${token}` };
       const params = new URLSearchParams({ dateFrom, dateTo, limit: '5000' });
-      if (isAgency && selectedSellerId) params.set('sellerId', selectedSellerId);
-      const res = await fetch(apiUrl(`/api/billing/ledger?${params}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (targetSellerId) params.set('sellerId', targetSellerId);
+
+      let exportSummary = summary;
+      if (opts?.sellerId || (targetSellerId && (!summary?.sellerId || summary.sellerId !== targetSellerId))) {
+        const sumRes = await fetch(
+          apiUrl(`/api/billing/summary?${new URLSearchParams({ dateFrom, dateTo, sellerId: targetSellerId! })}`),
+          { headers }
+        );
+        const sumBody = await sumRes.json().catch(() => ({}));
+        if (!sumRes.ok) {
+          throw new Error(
+            typeof sumBody === 'object' && sumBody && 'error' in sumBody
+              ? String((sumBody as { error?: string }).error || 'No se pudo exportar.')
+              : 'No se pudo exportar.'
+          );
+        }
+        exportSummary = sumBody as BillingSummary;
+      }
+      if (!exportSummary) throw new Error('No hay datos para exportar.');
+
+      const res = await fetch(apiUrl(`/api/billing/ledger?${params}`), { headers });
       const body = await res.json().catch(() => ([]));
       if (!res.ok) {
         throw new Error(
@@ -165,22 +186,24 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       }
       const exportLedger = body as BillingLedgerEntry[];
 
-      if (isAgency && !selectedSellerId) {
+      if (isAgency && !targetSellerId) {
         const { exportAgencyBillingExcel } = await import('../utils/exportBillingExcel.js');
-        await exportAgencyBillingExcel(summary, exportLedger);
+        await exportAgencyBillingExcel(exportSummary, exportLedger);
       } else {
         const { exportSellerBillingExcel } = await import('../utils/exportBillingExcel.js');
         const label =
-          summary.sellerName ||
-          sellers.find((s) => s.id === selectedSellerId)?.name ||
+          opts?.sellerName ||
+          exportSummary.sellerName ||
+          sellers.find((s) => s.id === targetSellerId)?.name ||
           user.name;
-        await exportSellerBillingExcel(summary, exportLedger, label);
+        await exportSellerBillingExcel(exportSummary, exportLedger, label);
       }
-      setMessage('Excel descargado.');
+      setMessage(opts?.sellerName ? `Excel de ${opts.sellerName} descargado.` : 'Excel descargado.');
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : 'Error al exportar.');
     } finally {
       setExporting(false);
+      setExportingSellerId(null);
     }
   };
 
@@ -407,26 +430,50 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
                     className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline disabled:opacity-40"
                   >
                     <Download className="w-3 h-3" />
-                    Exportar Excel
+                    Exportar todos
                   </button>
                 </div>
                 <div className="divide-y divide-[var(--surface-border)]/60">
-                  {summary.sellers.map((row) => (
-                    <button
-                      key={row.sellerId}
-                      type="button"
-                      onClick={() => setSelectedSellerId(row.sellerId)}
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-[var(--surface-panel-2)]/60 transition"
-                    >
-                      <span className="font-medium text-[var(--ink-soft)]">{row.sellerName}</span>
-                      <div className="text-right font-mono text-[11px]">
-                        <p className="text-[var(--color-accent)] font-bold">{formatArs(row.totalSpent)}</p>
-                        <p className={row.balance > 0 ? 'text-[var(--color-warn)]' : 'text-[var(--color-text-muted)]'}>
-                          Saldo {formatArs(row.balance)}
-                        </p>
+                  {summary.sellers.map((row) => {
+                    const rowExporting = exporting && exportingSellerId === row.sellerId;
+                    return (
+                      <div
+                        key={row.sellerId}
+                        className="flex items-center gap-2 px-3 py-2.5 hover:bg-[var(--surface-panel-2)]/60 transition"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSellerId(row.sellerId)}
+                          className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left"
+                        >
+                          <span className="font-medium text-[var(--ink-soft)] truncate">{row.sellerName}</span>
+                          <div className="text-right font-mono text-[11px] shrink-0">
+                            <p className="text-[var(--color-accent)] font-bold">{formatArs(row.totalSpent)}</p>
+                            <p className={row.balance > 0 ? 'text-[var(--color-warn)]' : 'text-[var(--color-text-muted)]'}>
+                              Saldo {formatArs(row.balance)}
+                            </p>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          title={`Exportar Excel de ${row.sellerName}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void exportExcel({ sellerId: row.sellerId, sellerName: row.sellerName });
+                          }}
+                          disabled={exporting}
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--surface-panel)] disabled:opacity-40"
+                        >
+                          {rowExporting ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Download className="w-3 h-3" />
+                          )}
+                          Excel
+                        </button>
                       </div>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             )}
