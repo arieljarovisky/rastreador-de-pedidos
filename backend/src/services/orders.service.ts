@@ -278,8 +278,10 @@ export type OrdersRegistryFilters = {
   externalSource?: string;
   /** pending | assigned | delivering | delivered | cancelled | archived | all */
   status?: string;
-  /** Día operativo YYYY-MM-DD (por created_at ART). Vacío = todos. */
-  dateKey?: string;
+  /** Día operativo YYYY-MM-DD inclusive (inicio del rango, por created_at ART). */
+  dateFrom?: string;
+  /** Día operativo YYYY-MM-DD inclusive (fin del rango, por created_at ART). */
+  dateTo?: string;
   q?: string;
   limit?: number;
   offset?: number;
@@ -332,12 +334,28 @@ function buildRegistryScope(
     params.push(like, like, like, like, like, like);
   }
 
-  const dateKey = filters.dateKey?.trim();
-  if (dateKey && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
-    const { start, end } = getOperationalDayBounds(dateKey);
-    // Día de alta/importación (coincide con la columna Fecha del Registro).
-    where.push('o.created_at >= ? AND o.created_at < ?');
-    params.push(start, end);
+  const dateFrom = filters.dateFrom?.trim();
+  const dateTo = filters.dateTo?.trim();
+  const fromOk = dateFrom && /^\d{4}-\d{2}-\d{2}$/.test(dateFrom);
+  const toOk = dateTo && /^\d{4}-\d{2}-\d{2}$/.test(dateTo);
+  if (fromOk || toOk) {
+    // Rango inclusive por día de alta/importación (columna Fecha del Registro).
+    if (fromOk && toOk) {
+      const startKey = dateFrom! <= dateTo! ? dateFrom! : dateTo!;
+      const endKey = dateFrom! <= dateTo! ? dateTo! : dateFrom!;
+      const { start } = getOperationalDayBounds(startKey);
+      const { end } = getOperationalDayBounds(endKey);
+      where.push('o.created_at >= ? AND o.created_at < ?');
+      params.push(start, end);
+    } else if (fromOk) {
+      const { start } = getOperationalDayBounds(dateFrom!);
+      where.push('o.created_at >= ?');
+      params.push(start);
+    } else if (toOk) {
+      const { end } = getOperationalDayBounds(dateTo!);
+      where.push('o.created_at < ?');
+      params.push(end);
+    }
   }
 
   return { where: where.join(' AND '), params };

@@ -159,9 +159,13 @@ router.get(
       typeof req.query.status === 'string' && req.query.status.trim()
         ? req.query.status.trim()
         : 'all';
-    const dateKey =
-      typeof req.query.dateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dateKey.trim())
-        ? req.query.dateKey.trim()
+    const dateFrom =
+      typeof req.query.dateFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dateFrom.trim())
+        ? req.query.dateFrom.trim()
+        : undefined;
+    const dateTo =
+      typeof req.query.dateTo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dateTo.trim())
+        ? req.query.dateTo.trim()
         : undefined;
     const q = typeof req.query.q === 'string' ? req.query.q : undefined;
 
@@ -169,7 +173,8 @@ router.get(
       sellerId,
       externalSource,
       status,
-      dateKey,
+      dateFrom,
+      dateTo,
       q,
       limit: Number.isFinite(limit) ? limit : 25,
       offset: Number.isFinite(offset) ? offset : 0,

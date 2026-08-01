@@ -118,7 +118,8 @@ export default function SellerOrdersRegistry({
   const [sellerId, setSellerId] = useState(initialSellerId ?? '');
   const [marketplaceSource, setMarketplaceSource] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateFilterKey, setDateFilterKey] = useState('');
+  const [dateFromKey, setDateFromKey] = useState('');
+  const [dateToKey, setDateToKey] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [page, setPage] = useState(1);
@@ -174,10 +175,13 @@ export default function SellerOrdersRegistry({
     return personalEntries
       .filter((entry) => {
         if (!personalMatchesStatus(entry.status, statusFilter)) return false;
-        if (dateFilterKey) {
+        if (dateFromKey || dateToKey) {
           const entryDay =
             entry.routeDate || getOperationalDateKey(new Date(entry.scannedAt));
-          if (entryDay !== dateFilterKey) return false;
+          const from = dateFromKey && dateToKey && dateFromKey > dateToKey ? dateToKey : dateFromKey;
+          const to = dateFromKey && dateToKey && dateFromKey > dateToKey ? dateFromKey : dateToKey;
+          if (from && entryDay < from) return false;
+          if (to && entryDay > to) return false;
         }
         const q = searchDebounced.toLowerCase();
         if (!q) return true;
@@ -191,7 +195,7 @@ export default function SellerOrdersRegistry({
         );
       })
       .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime());
-  }, [includePersonal, personalEntries, statusFilter, searchDebounced, dateFilterKey]);
+  }, [includePersonal, personalEntries, statusFilter, searchDebounced, dateFromKey, dateToKey]);
 
   const personalN = marketplaceSource === 'personal' ? personalScoped.length : includePersonal ? personalScoped.length : 0;
   const onlyPersonal = marketplaceSource === 'personal';
@@ -241,7 +245,8 @@ export default function SellerOrdersRegistry({
           sellerId: sellerId || undefined,
           externalSource: marketplaceSource || undefined,
           status: statusFilter,
-          dateKey: dateFilterKey || undefined,
+          dateFrom: dateFromKey || undefined,
+          dateTo: dateToKey || undefined,
           q: searchDebounced || undefined,
           signal,
         });
@@ -270,7 +275,8 @@ export default function SellerOrdersRegistry({
       sellerId,
       marketplaceSource,
       statusFilter,
-      dateFilterKey,
+      dateFromKey,
+      dateToKey,
       searchDebounced,
     ]
   );
@@ -341,7 +347,7 @@ export default function SellerOrdersRegistry({
 
   useEffect(() => {
     setPage(1);
-  }, [sellerId, marketplaceSource, statusFilter, searchDebounced, dateFilterKey]);
+  }, [sellerId, marketplaceSource, statusFilter, searchDebounced, dateFromKey, dateToKey]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -520,37 +526,50 @@ export default function SellerOrdersRegistry({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
           <div className="relative min-w-0">
             <OperationalDatePicker
               layout="field"
-              label="Fecha"
-              value={dateFilterKey || getOperationalDateKey()}
-              onChange={setDateFilterKey}
+              label="Desde"
+              value={dateFromKey || getOperationalDateKey()}
+              onChange={setDateFromKey}
+              maxDateKey={dateToKey || getOperationalDateKey()}
+            />
+          </div>
+          <div className="relative min-w-0">
+            <OperationalDatePicker
+              layout="field"
+              label="Hasta"
+              value={dateToKey || getOperationalDateKey()}
+              onChange={setDateToKey}
+              minDateKey={dateFromKey || undefined}
               maxDateKey={getOperationalDateKey()}
             />
-            <div className="mt-1 flex items-center gap-2">
-              {dateFilterKey ? (
-                <button
-                  type="button"
-                  onClick={() => setDateFilterKey('')}
-                  className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
-                >
-                  <X className="w-3 h-3" />
-                  Ver todas
-                </button>
-              ) : (
-                <span className="text-[9px] font-mono text-[var(--color-text-faint)]">
-                  Todas las fechas · elegí un día para filtrar
-                </span>
-              )}
-            </div>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-1 xl:col-span-1 flex items-end pb-0.5">
+            {dateFromKey || dateToKey ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFromKey('');
+                  setDateToKey('');
+                }}
+                className="inline-flex items-center gap-1 h-[2.375rem] px-2.5 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:border-[var(--color-accent)]/40 transition"
+              >
+                <X className="w-3 h-3" />
+                Limpiar fechas
+              </button>
+            ) : (
+              <span className="text-[9px] font-mono text-[var(--color-text-faint)] leading-tight pb-2">
+                Sin rango · elegí desde / hasta
+              </span>
+            )}
           </div>
           {agency && sellers.length > 0 && (
             <SellerFilterControl sellers={sellers} value={sellerId} onChange={setSellerId} />
           )}
           <MarketplaceSourceFilter value={marketplaceSource} onChange={setMarketplaceSource} />
-          <div className="relative min-w-0">
+          <div className="relative min-w-0 sm:col-span-2 lg:col-span-1 xl:col-span-2">
             <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-1.5 mb-1.5">
               <Search className="w-3.5 h-3.5 text-[var(--color-accent)]" />
               Buscar
@@ -619,7 +638,9 @@ export default function SellerOrdersRegistry({
               : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, totalCount)} de ${totalCount}`}
           {' · '}
           {PAGE_SIZE} por página
-          {dateFilterKey ? ` · ${formatOperationalDateShort(dateFilterKey)}` : ''}
+          {dateFromKey || dateToKey
+            ? ` · ${dateFromKey ? formatOperationalDateShort(dateFromKey) : '…'} → ${dateToKey ? formatOperationalDateShort(dateToKey) : '…'}`
+            : ''}
         </p>
         <div className="flex items-center gap-1.5">
           <button
