@@ -105,9 +105,17 @@ export function previousBusinessOperationalDateKey(dateKey: string): string {
   return key;
 }
 
-/** Día operativo activo: domingo → sábado. */
+export function nextBusinessOperationalDateKey(dateKey: string): string {
+  let key = dateKey;
+  while (isWeekendOperationalDate(key)) {
+    key = shiftOperationalDateKey(key, 1);
+  }
+  return key;
+}
+
+/** Día operativo activo: domingo → lunes (próximo hábil). */
 export function getActiveOperationalDateKey(date: Date = new Date()): string {
-  return previousBusinessOperationalDateKey(getOperationalDateKey(date));
+  return nextBusinessOperationalDateKey(getOperationalDateKey(date));
 }
 
 /** SLA de entrega (21 hs ART) del día operativo del pedido. No usar deliveryDeadline (corte 13 hs). */

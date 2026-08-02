@@ -15,7 +15,7 @@ import {
   getActiveOperationalDateKey,
   getOperationalDateKey,
   getOperationalMonthKey,
-  isRolledBackWeekendOperationalDay,
+  isRolledForwardWeekendOperationalDay,
   parseOperationalDateKey,
   shiftOperationalMonthKey,
 } from '../utils/deliverySummary.js';
@@ -366,8 +366,8 @@ export default function OperationalDatePicker({
     const weekday = formatOperationalWeekday(value);
     const shortDate = formatOperationalDateShort(value);
     const dayNum = parseOperationalDateKey(value).day;
-    const isWeekendRollback = isRolledBackWeekendOperationalDay(value);
-    const highlightAsCurrent = isToday || isWeekendRollback;
+    const isWeekendForward = isRolledForwardWeekendOperationalDay(value);
+    const highlightAsCurrent = isToday || isWeekendForward;
 
     return (
       <div ref={rootRef} className="relative w-full">
@@ -406,11 +406,11 @@ export default function OperationalDatePicker({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-sm sm:text-base font-display font-bold text-[var(--ink-soft)] truncate">
-                  {isWeekendRollback ? weekday : dateLabel}
+                  {dateLabel}
                 </span>
-                {isWeekendRollback ? (
+                {isWeekendForward ? (
                   <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 text-[var(--color-accent)] text-[8px] font-mono font-bold uppercase tracking-wider">
-                    Último hábil
+                    Próximo hábil
                   </span>
                 ) : isToday ? (
                   <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 text-[var(--color-accent)] text-[8px] font-mono font-bold uppercase tracking-wider">
@@ -427,7 +427,7 @@ export default function OperationalDatePicker({
                 )}
               </div>
               <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate">
-                {isWeekendRollback
+                {isWeekendForward
                   ? `Domingo sin operación · ${weekday}, ${shortDate}`
                   : `${weekday}, ${shortDate}`}
               </p>
@@ -461,7 +461,7 @@ export default function OperationalDatePicker({
           </button>
         </div>
 
-        {!isToday && !isWeekendRollback && onGoToday && (
+        {!isToday && !isWeekendForward && onGoToday && (
           <div className="mt-1.5 flex justify-end">
             <button
               type="button"

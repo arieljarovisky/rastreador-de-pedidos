@@ -96,7 +96,7 @@ export function computeDeliveryDeadline(
   return deliveryDeadlineForBusinessDate(dateKey, cutHour);
 }
 
-/** Corte del día operativo activo (domingo → sábado). */
+/** Corte del día operativo activo (domingo → lunes). */
 export function getTodayDeadline(deadlineHour: number = DELIVERY_DEADLINE_HOUR): Date {
   return deliveryDeadlineForOperationalDate(getActiveOperationalDateKey(), deadlineHour);
 }
@@ -163,10 +163,10 @@ export function previousBusinessOperationalDateKey(dateKey: string): string {
 
 /**
  * Día operativo activo para paneles / “hoy”.
- * Domingo no se trabaja → se usa el sábado anterior.
+ * Domingo no se trabaja → se usa el lunes (próximo hábil).
  */
 export function getActiveOperationalDateKey(date: Date = new Date()): string {
-  return previousBusinessOperationalDateKey(getOperationalDateKey(date));
+  return nextBusinessOperationalDateKey(getOperationalDateKey(date));
 }
 
 /** Día hábil siguiente al indicado (salta domingo). */

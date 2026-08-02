@@ -137,11 +137,11 @@ export function previousBusinessOperationalDateKey(dateKey: string): string {
 
 /**
  * Día operativo activo para paneles / datos.
- * Domingo no se trabaja → se usa el sábado anterior (misma lógica de negocio).
+ * Domingo no se trabaja → se usa el lunes (próximo hábil).
  * Para etiquetas “Hoy/Ayer” usar getOperationalDateKey (calendario).
  */
 export function getActiveOperationalDateKey(date: Date = new Date()): string {
-  return previousBusinessOperationalDateKey(getOperationalDateKey(date));
+  return nextBusinessOperationalDateKey(getOperationalDateKey(date));
 }
 
 /** Día hábil siguiente (salta domingo). */
@@ -151,12 +151,13 @@ export function getNextOperationalDateKey(dateKey: string): string {
 
 /**
  * Etiqueta relativa al calendario Argentina (no al día operativo rolleteado).
- * Así el domingo no muestra el sábado como “Hoy”.
+ * Así el domingo no muestra otro día como “Hoy”.
  */
 export function formatOperationalDateLabel(dateKey: string, now: Date = new Date()): string {
   const calendarToday = getOperationalDateKey(now);
   if (dateKey === calendarToday) return 'Hoy';
   if (dateKey === shiftOperationalDateKey(calendarToday, -1)) return 'Ayer';
+  if (dateKey === shiftOperationalDateKey(calendarToday, 1)) return 'Mañana';
   if (dateKey === getNextOperationalDateKey(getActiveOperationalDateKey(now))) return 'Mañana';
   const { year, month, day } = parseOperationalDateKey(dateKey);
   const label = new Intl.DateTimeFormat('es-AR', {
@@ -168,8 +169,8 @@ export function formatOperationalDateLabel(dateKey: string, now: Date = new Date
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-/** True si el calendario es domingo y el panel está en el sábado operativo. */
-export function isRolledBackWeekendOperationalDay(
+/** True si el calendario es domingo y el panel está en el lunes (próximo hábil). */
+export function isRolledForwardWeekendOperationalDay(
   dateKey: string,
   now: Date = new Date()
 ): boolean {

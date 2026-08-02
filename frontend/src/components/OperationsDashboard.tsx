@@ -35,7 +35,7 @@ import {
   shiftOperationalDateKey,
   formatOperationalDateShort,
   formatOperationalWeekday,
-  isRolledBackWeekendOperationalDay,
+  isRolledForwardWeekendOperationalDay,
   DELIVERY_DEADLINE_HOUR,
   DELIVERY_SLA_HOUR,
   DELIVERY_TIMEZONE_LABEL,
@@ -226,8 +226,8 @@ export default function OperationsDashboard({
         : 'ok';
 
   const isAgency = isAgencyAdmin(userRole);
-  const isWeekendRollback = isToday && isRolledBackWeekendOperationalDay(selectedDateKey);
-  const dayScopeLabel = isWeekendRollback
+  const isWeekendForward = isToday && isRolledForwardWeekendOperationalDay(selectedDateKey);
+  const dayScopeLabel = isWeekendForward
     ? formatOperationalWeekday(selectedDateKey).toLowerCase()
     : isToday
       ? 'hoy'
@@ -418,7 +418,7 @@ export default function OperationsDashboard({
         >
           <OrderListSection
             title={
-              isWeekendRollback
+              isWeekendForward
                 ? `Sin entregar el ${dayScopeLabel}`
                 : isToday
                   ? 'Sin entregar hoy'
@@ -429,8 +429,8 @@ export default function OperationsDashboard({
             count={undelivered.length}
             orders={undelivered}
             emptyMessage={
-              isWeekendRollback
-                ? `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
+              isWeekendForward
+                ? `No hay pedidos sin entregar el ${dayScopeLabel}.`
                 : isToday
                   ? 'Todos los pedidos del día fueron entregados.'
                   : isTomorrow
@@ -446,7 +446,7 @@ export default function OperationsDashboard({
           />
           <OrderListSection
             title={
-              isWeekendRollback
+              isWeekendForward
                 ? `Entregados el ${dayScopeLabel}`
                 : isToday
                   ? 'Entregados hoy'
@@ -457,8 +457,8 @@ export default function OperationsDashboard({
             count={delivered.length}
             orders={delivered}
             emptyMessage={
-              isWeekendRollback
-                ? `No hubo entregas registradas el ${dayScopeLabel}.`
+              isWeekendForward
+                ? `Todavía no hay entregas registradas el ${dayScopeLabel}.`
                 : isToday
                   ? 'Todavía no hay entregas registradas hoy.'
                   : isTomorrow
@@ -474,7 +474,7 @@ export default function OperationsDashboard({
             count={deliveredLate.length}
             orders={deliveredLate}
             emptyMessage={
-              isWeekendRollback
+              isWeekendForward
                 ? `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
                 : isToday
                   ? `Ningún pedido entregado después de las ${DELIVERY_SLA_HOUR}:00.`
