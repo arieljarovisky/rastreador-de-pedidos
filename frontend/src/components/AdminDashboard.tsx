@@ -63,6 +63,7 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
     hourCycle: 'h23',
     timeZone: 'America/Argentina/Buenos_Aires',
   });
+  const canBatchLabel = !(order.externalSource === 'mercadolibre' && order.externalOrderId);
 
   return (
     <tr
@@ -80,21 +81,24 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
             : 'hover:bg-[var(--surface-panel-2)]/80'
       }`}
     >
-      <td
-        className="px-1.5 py-2 w-8"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleCheck(order.id);
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={isChecked}
-          onChange={() => onToggleCheck(order.id)}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`Seleccionar ${order.id}`}
-          className="accent-[var(--color-accent)] cursor-pointer"
-        />
+      <td className="px-1.5 py-2 w-8">
+        {canBatchLabel ? (
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={() => onToggleCheck(order.id)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Seleccionar ${order.id}`}
+            title="Seleccionar para imprimir etiquetas"
+            className="accent-[var(--color-accent)] cursor-pointer"
+          />
+        ) : (
+          <span
+            className="block w-3.5 h-3.5"
+            title="Mercado Libre: imprimí la etiqueta desde el detalle del pedido"
+            aria-hidden
+          />
+        )}
       </td>
       <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] overflow-hidden">
         <span className="inline-flex items-center gap-1 max-w-full truncate">
@@ -739,57 +743,59 @@ export default function AdminDashboard({
     return matchesFilters && matchesStatus && matchesSearch;
   });
 
-  const printableCheckedIds = useMemo(() => {
-    return filteredOrders
-      .filter((o) => checkedOrderIds.has(o.id))
-      .filter((o) => !(o.externalSource === 'mercadolibre' && o.externalOrderId))
-      .map((o) => o.id);
-  }, [filteredOrders, checkedOrderIds]);
+  const isPrintableLabelOrder = useCallback((order: Order) => {
+    return !(order.externalSource === 'mercadolibre' && order.externalOrderId);
+  }, []);
 
-  const checkedInViewCount = useMemo(
-    () => filteredOrders.filter((o) => checkedOrderIds.has(o.id)).length,
-    [filteredOrders, checkedOrderIds]
+  const selectableFilteredOrders = useMemo(
+    () => filteredOrders.filter(isPrintableLabelOrder),
+    [filteredOrders, isPrintableLabelOrder]
   );
 
-  const allFilteredChecked =
-    filteredOrders.length > 0 && filteredOrders.every((o) => checkedOrderIds.has(o.id));
+  const printableCheckedIds = useMemo(() => {
+    return selectableFilteredOrders
+      .filter((o) => checkedOrderIds.has(o.id))
+      .map((o) => o.id);
+  }, [selectableFilteredOrders, checkedOrderIds]);
 
-  const toggleOrderCheck = useCallback((orderId: string) => {
-    setCheckedOrderIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(orderId)) next.delete(orderId);
-      else next.add(orderId);
-      return next;
-    });
-  }, []);
+  const checkedInViewCount = printableCheckedIds.length;
+
+  const allFilteredChecked =
+    selectableFilteredOrders.length > 0 &&
+    selectableFilteredOrders.every((o) => checkedOrderIds.has(o.id));
+
+  const toggleOrderCheck = useCallback(
+    (orderId: string) => {
+      const order = filteredOrders.find((o) => o.id === orderId);
+      if (order && !isPrintableLabelOrder(order)) return;
+      setCheckedOrderIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(orderId)) next.delete(orderId);
+        else next.add(orderId);
+        return next;
+      });
+    },
+    [filteredOrders, isPrintableLabelOrder]
+  );
 
   const toggleSelectAllFiltered = useCallback(() => {
     setCheckedOrderIds((prev) => {
       const next = new Set(prev);
       if (allFilteredChecked) {
-        for (const o of filteredOrders) next.delete(o.id);
+        for (const o of selectableFilteredOrders) next.delete(o.id);
       } else {
-        for (const o of filteredOrders) next.add(o.id);
+        for (const o of selectableFilteredOrders) next.add(o.id);
       }
       return next;
     });
-  }, [allFilteredChecked, filteredOrders]);
+  }, [allFilteredChecked, selectableFilteredOrders]);
 
   const handlePrintSelectedLabels = useCallback(async () => {
     if (!onOpenShippingLabels) return;
-    const mlSelected = filteredOrders.filter(
-      (o) =>
-        checkedOrderIds.has(o.id) &&
-        o.externalSource === 'mercadolibre' &&
-        o.externalOrderId
-    );
     if (printableCheckedIds.length === 0) {
       void showAlert({
-        title: 'Sin etiquetas Posta',
-        message:
-          mlSelected.length > 0
-            ? 'Los pedidos de Mercado Libre se imprimen uno por uno con su etiqueta oficial (abrí el detalle del pedido).'
-            : 'Seleccioná al menos un pedido para imprimir etiquetas.',
+        title: 'Sin etiquetas',
+        message: 'Seleccioná al menos un pedido (no Mercado Libre) para imprimir etiquetas.',
         variant: 'error',
       });
       return;
@@ -797,13 +803,6 @@ export default function AdminDashboard({
     setPrintingLabels(true);
     try {
       await onOpenShippingLabels(printableCheckedIds, labelSheetLayout);
-      if (mlSelected.length > 0) {
-        void showAlert({
-          title: 'Etiquetas generadas',
-          message: `Se generaron ${printableCheckedIds.length} etiqueta(s) Posta. ${mlSelected.length} de Mercado Libre se omitieron (imprimilas desde el detalle).`,
-          variant: 'info',
-        });
-      }
       setCheckedOrderIds((prev) => {
         const next = new Set(prev);
         for (const id of printableCheckedIds) next.delete(id);
@@ -814,14 +813,7 @@ export default function AdminDashboard({
     } finally {
       setPrintingLabels(false);
     }
-  }, [
-    onOpenShippingLabels,
-    filteredOrders,
-    checkedOrderIds,
-    printableCheckedIds,
-    labelSheetLayout,
-    showAlert,
-  ]);
+  }, [onOpenShippingLabels, printableCheckedIds, labelSheetLayout, showAlert]);
 
   const allRepartidoresOnMap = useMemo(
     () =>
@@ -2048,14 +2040,20 @@ export default function AdminDashboard({
               <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
                 <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                   <th className="px-1.5 py-2 w-8">
-                    <input
-                      type="checkbox"
-                      checked={allFilteredChecked}
-                      onChange={toggleSelectAllFiltered}
-                      title={allFilteredChecked ? 'Deseleccionar todos' : 'Seleccionar todos'}
-                      aria-label="Seleccionar todos los pedidos visibles"
-                      className="accent-[var(--color-accent)] cursor-pointer"
-                    />
+                    {selectableFilteredOrders.length > 0 ? (
+                      <input
+                        type="checkbox"
+                        checked={allFilteredChecked}
+                        onChange={toggleSelectAllFiltered}
+                        title={
+                          allFilteredChecked
+                            ? 'Deseleccionar todos'
+                            : 'Seleccionar todos (excepto Mercado Libre)'
+                        }
+                        aria-label="Seleccionar todos los pedidos imprimibles"
+                        className="accent-[var(--color-accent)] cursor-pointer"
+                      />
+                    ) : null}
                   </th>
                   <th className="px-2 py-2 font-bold w-[6.25rem]">ID</th>
                   <th className="px-2 py-2 font-bold w-[16%]">Cliente</th>
