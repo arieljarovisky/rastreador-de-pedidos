@@ -10,6 +10,7 @@ import {
   Plus, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
   ChevronDown, ChevronUp, Package, Crown, Settings, ClipboardList, Map,
   Store, Bike, AlertTriangle, Check, X, Filter, EyeOff, Eye, GripVertical,
+  Printer,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -33,15 +34,19 @@ import { getOperationalDateKey, formatOperationalDateShort, getActiveOperational
 const AdminOrderTableRow = memo(function AdminOrderTableRow({
   order,
   isSelected,
+  isChecked,
   showSeller,
   onSelect,
+  onToggleCheck,
   onContextMenu,
   onAssign,
 }: {
   order: Order;
   isSelected: boolean;
+  isChecked: boolean;
   showSeller: boolean;
   onSelect: (orderId: string) => void;
+  onToggleCheck: (orderId: string) => void;
   onContextMenu: (order: Order, x: number, y: number) => void;
   onAssign: (orderId: string) => void;
 }) {
@@ -70,9 +75,27 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
       className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] transition ${
         isSelected
           ? 'bg-[var(--color-accent)]/10'
-          : 'hover:bg-[var(--surface-panel-2)]/80'
+          : isChecked
+            ? 'bg-[var(--color-accent)]/5'
+            : 'hover:bg-[var(--surface-panel-2)]/80'
       }`}
     >
+      <td
+        className="px-1.5 py-2 w-8"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleCheck(order.id);
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={() => onToggleCheck(order.id)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Seleccionar ${order.id}`}
+          className="accent-[var(--color-accent)] cursor-pointer"
+        />
+      </td>
       <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] overflow-hidden">
         <span className="inline-flex items-center gap-1 max-w-full truncate">
           {order.id}
@@ -144,6 +167,11 @@ interface AdminDashboardProps {
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
   onOpenShippingLabel?: (orderId: string) => Promise<void>;
+  /** Imprime varias etiquetas Posta en hojas A4 (grilla). */
+  onOpenShippingLabels?: (
+    orderIds: string[],
+    layout?: '2x2' | '2x1'
+  ) => Promise<void>;
   /** Abre el registro completo de envíos del vendedor (pestaña Registro). */
   onViewSellerRegistry?: (sellerId: string) => void;
 }
@@ -268,6 +296,7 @@ export default function AdminDashboard({
   onScheduleOrderToday,
   userRole = UserRole.STORE_ADMIN,
   onOpenShippingLabel,
+  onOpenShippingLabels,
   onViewSellerRegistry,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
@@ -280,6 +309,9 @@ export default function AdminDashboard({
   const { confirm, alert: showAlert } = useModal();
   const [incidentDraft, setIncidentDraft] = useState('');
   const [savingIncident, setSavingIncident] = useState(false);
+  const [checkedOrderIds, setCheckedOrderIds] = useState<Set<string>>(() => new Set());
+  const [printingLabels, setPrintingLabels] = useState(false);
+  const [labelSheetLayout, setLabelSheetLayout] = useState<'2x2' | '2x1'>('2x2');
 
   const selectedOrder = orders.find((o) => o.id === activeOrderId) ?? null;
 
@@ -707,6 +739,90 @@ export default function AdminDashboard({
     return matchesFilters && matchesStatus && matchesSearch;
   });
 
+  const printableCheckedIds = useMemo(() => {
+    return filteredOrders
+      .filter((o) => checkedOrderIds.has(o.id))
+      .filter((o) => !(o.externalSource === 'mercadolibre' && o.externalOrderId))
+      .map((o) => o.id);
+  }, [filteredOrders, checkedOrderIds]);
+
+  const checkedInViewCount = useMemo(
+    () => filteredOrders.filter((o) => checkedOrderIds.has(o.id)).length,
+    [filteredOrders, checkedOrderIds]
+  );
+
+  const allFilteredChecked =
+    filteredOrders.length > 0 && filteredOrders.every((o) => checkedOrderIds.has(o.id));
+
+  const toggleOrderCheck = useCallback((orderId: string) => {
+    setCheckedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllFiltered = useCallback(() => {
+    setCheckedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredChecked) {
+        for (const o of filteredOrders) next.delete(o.id);
+      } else {
+        for (const o of filteredOrders) next.add(o.id);
+      }
+      return next;
+    });
+  }, [allFilteredChecked, filteredOrders]);
+
+  const handlePrintSelectedLabels = useCallback(async () => {
+    if (!onOpenShippingLabels) return;
+    const mlSelected = filteredOrders.filter(
+      (o) =>
+        checkedOrderIds.has(o.id) &&
+        o.externalSource === 'mercadolibre' &&
+        o.externalOrderId
+    );
+    if (printableCheckedIds.length === 0) {
+      void showAlert({
+        title: 'Sin etiquetas Posta',
+        message:
+          mlSelected.length > 0
+            ? 'Los pedidos de Mercado Libre se imprimen uno por uno con su etiqueta oficial (abrí el detalle del pedido).'
+            : 'Seleccioná al menos un pedido para imprimir etiquetas.',
+        variant: 'error',
+      });
+      return;
+    }
+    setPrintingLabels(true);
+    try {
+      await onOpenShippingLabels(printableCheckedIds, labelSheetLayout);
+      if (mlSelected.length > 0) {
+        void showAlert({
+          title: 'Etiquetas generadas',
+          message: `Se generaron ${printableCheckedIds.length} etiqueta(s) Posta. ${mlSelected.length} de Mercado Libre se omitieron (imprimilas desde el detalle).`,
+          variant: 'info',
+        });
+      }
+      setCheckedOrderIds((prev) => {
+        const next = new Set(prev);
+        for (const id of printableCheckedIds) next.delete(id);
+        return next;
+      });
+    } catch {
+      // El error ya se mostró en App.handleOpenShippingLabels
+    } finally {
+      setPrintingLabels(false);
+    }
+  }, [
+    onOpenShippingLabels,
+    filteredOrders,
+    checkedOrderIds,
+    printableCheckedIds,
+    labelSheetLayout,
+    showAlert,
+  ]);
+
   const allRepartidoresOnMap = useMemo(
     () =>
       repartidores.length > 0 &&
@@ -839,6 +955,28 @@ export default function AdminDashboard({
         onClick: () => void navigator.clipboard.writeText(order.address),
       },
     ];
+
+    if (onOpenShippingLabel) {
+      items.push({
+        id: 'shipping-label',
+        label:
+          order.externalSource === 'mercadolibre' && order.externalOrderId
+            ? 'Ver etiqueta ML'
+            : 'Ver etiqueta de envío',
+        onClick: () => void onOpenShippingLabel(order.id),
+      });
+    }
+
+    if (
+      onOpenShippingLabels &&
+      !(order.externalSource === 'mercadolibre' && order.externalOrderId)
+    ) {
+      items.push({
+        id: 'shipping-label-sheet',
+        label: 'Imprimir en hoja A4',
+        onClick: () => void onOpenShippingLabels([order.id], labelSheetLayout),
+      });
+    }
 
     if (agency && order.status === OrderStatus.PENDING && onAssignOrderSeller) {
       items.push({
@@ -1572,6 +1710,35 @@ export default function AdminDashboard({
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
+              {onOpenShippingLabels && checkedInViewCount > 0 && (
+                <div className="flex items-center gap-1">
+                  <select
+                    value={labelSheetLayout}
+                    onChange={(e) =>
+                      setLabelSheetLayout(e.target.value === '2x1' ? '2x1' : '2x2')
+                    }
+                    title="Etiquetas por hoja"
+                    className="hidden sm:block text-[10px] font-mono font-bold uppercase tracking-wider bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-1.5 py-1.5 text-[var(--color-text-muted)]"
+                  >
+                    <option value="2x2">4 / hoja</option>
+                    <option value="2x1">2 / hoja</option>
+                  </select>
+                  <button
+                    type="button"
+                    disabled={printingLabels}
+                    onClick={() => void handlePrintSelectedLabels()}
+                    title="Imprimir etiquetas seleccionadas en hoja A4"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition disabled:opacity-50"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>
+                      {printingLabels
+                        ? 'Generando…'
+                        : `Etiquetas (${printableCheckedIds.length || checkedInViewCount})`}
+                    </span>
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1880,6 +2047,16 @@ export default function AdminDashboard({
             <table className="w-full min-w-0 text-left border-collapse table-fixed">
               <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
                 <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                  <th className="px-1.5 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredChecked}
+                      onChange={toggleSelectAllFiltered}
+                      title={allFilteredChecked ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                      aria-label="Seleccionar todos los pedidos visibles"
+                      className="accent-[var(--color-accent)] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-2 py-2 font-bold w-[6.25rem]">ID</th>
                   <th className="px-2 py-2 font-bold w-[16%]">Cliente</th>
                   <th className="px-2 py-2 font-bold">Dirección</th>
@@ -1897,8 +2074,10 @@ export default function AdminDashboard({
                     key={order.id}
                     order={order}
                     isSelected={order.id === activeOrderId}
+                    isChecked={checkedOrderIds.has(order.id)}
                     showSeller={isAgencyAdmin(userRole)}
                     onSelect={handleSelectOrder}
+                    onToggleCheck={toggleOrderCheck}
                     onContextMenu={openOrderContextMenu}
                     onAssign={openAssignModal}
                   />

@@ -22,7 +22,12 @@ import {
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../services/mercadolibre.service.js';
-import { generatePostaShippingLabelPdf, POSTA_ORDER_QR_PREFIX } from '../services/shipping-label.service.js';
+import {
+  generatePostaShippingLabelPdf,
+  generatePostaShippingLabelsSheetPdf,
+  parseLabelSheetLayout,
+  POSTA_ORDER_QR_PREFIX,
+} from '../services/shipping-label.service.js';
 import { getShippingLabelBranding } from '../services/seller-branding.service.js';
 import {
   syncOpenMercadoLibreOrdersInList,
@@ -243,6 +248,92 @@ router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER
     }
     throw err;
   }
+});
+
+const MAX_LABELS_PER_SHEET = 40;
+
+/**
+ * Varias etiquetas Posta en una o más hojas A4 (grilla 2×2 o 2×1).
+ * Los pedidos de Mercado Libre no se incluyen: usan su PDF oficial aparte.
+ */
+router.post('/shipping-labels', authenticate, async (req: Request, res: Response) => {
+  const body = req.body as { orderIds?: unknown; layout?: unknown };
+  const rawIds = Array.isArray(body.orderIds) ? body.orderIds : [];
+  const orderIds = [
+    ...new Set(
+      rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0).map((id) => id.trim())
+    ),
+  ];
+
+  if (orderIds.length === 0) {
+    res.status(400).json({ error: 'Seleccioná al menos un pedido.' });
+    return;
+  }
+  if (orderIds.length > MAX_LABELS_PER_SHEET) {
+    res.status(400).json({
+      error: `Podés imprimir hasta ${MAX_LABELS_PER_SHEET} etiquetas a la vez.`,
+    });
+    return;
+  }
+
+  const layout = parseLabelSheetLayout(body.layout);
+  const orders: Order[] = [];
+  const skippedMl: string[] = [];
+  const missing: string[] = [];
+  const forbidden: string[] = [];
+
+  for (const id of orderIds) {
+    const order = await getOrderById(id);
+    if (!order) {
+      missing.push(id);
+      continue;
+    }
+    const sellerId = await getSellerIdForOrder(order.id);
+    if (!canViewOrder(req.user!, order, sellerId ?? undefined)) {
+      forbidden.push(id);
+      continue;
+    }
+    if (order.externalSource === 'mercadolibre' && order.externalOrderId) {
+      skippedMl.push(id);
+      continue;
+    }
+    orders.push(order);
+  }
+
+  if (forbidden.length > 0) {
+    res.status(403).json({ error: 'No tenés permiso para uno o más de los pedidos seleccionados.' });
+    return;
+  }
+  if (orders.length === 0) {
+    if (skippedMl.length > 0) {
+      res.status(400).json({
+        error:
+          'Los pedidos de Mercado Libre se imprimen uno por uno con la etiqueta oficial de ML. Seleccioná pedidos de Posta u otros canales.',
+        skippedMl,
+      });
+      return;
+    }
+    res.status(404).json({ error: 'No se encontraron pedidos para etiquetar.', missing });
+    return;
+  }
+
+  // Branding del primer pedido (típicamente todos del mismo vendedor).
+  const brandingSellerId = await getSellerIdForOrder(orders[0].id);
+  const branding = await getShippingLabelBranding(brandingSellerId);
+  const pdf = await generatePostaShippingLabelsSheetPdf(orders, branding, layout);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader(
+    'Content-Disposition',
+    `inline; filename="etiquetas-posta-${orders.length}.pdf"`
+  );
+  if (skippedMl.length > 0) {
+    res.setHeader('X-Skipped-Ml-Count', String(skippedMl.length));
+  }
+  if (missing.length > 0) {
+    res.setHeader('X-Missing-Count', String(missing.length));
+  }
+  res.send(pdf);
 });
 
 router.get('/:id', authenticate, async (req: Request, res: Response) => {

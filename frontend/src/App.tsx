@@ -1576,6 +1576,39 @@ export default function App() {
     [token, showAlert, mergeOrder]
   );
 
+  const handleOpenShippingLabels = useCallback(
+    async (orderIds: string[], layout: '2x2' | '2x1' = '2x2') => {
+      if (!token || orderIds.length === 0) return;
+      try {
+        const res = await fetch(apiUrl('/api/orders/shipping-labels'), {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ orderIds, layout }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const payload = body as { error?: string };
+          throw new Error(payload.error ?? 'No se pudieron generar las etiquetas.');
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener,noreferrer');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch (e) {
+        void showAlert({
+          title: 'Etiquetas no disponibles',
+          message: e instanceof Error ? e.message : 'Intentá de nuevo más tarde.',
+          variant: 'error',
+        });
+        throw e;
+      }
+    },
+    [token, showAlert]
+  );
+
   const fetchIntegrationStatus = useCallback(async () => {
     if (!token) return;
     setIntegrationStatusLoading(true);
@@ -2512,6 +2545,7 @@ export default function App() {
                       onScheduleOrderToday={handleScheduleOrderToday}
                       userRole={user.role}
                       onOpenShippingLabel={handleOpenShippingLabel}
+                      onOpenShippingLabels={handleOpenShippingLabels}
                       onViewSellerRegistry={(sellerId) => {
                         setRegistroSellerId(sellerId);
                         setMobileTab('registro');
