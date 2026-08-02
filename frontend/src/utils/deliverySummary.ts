@@ -135,7 +135,11 @@ export function previousBusinessOperationalDateKey(dateKey: string): string {
   return key;
 }
 
-/** Día operativo activo: domingo → sábado. */
+/**
+ * Día operativo activo para paneles / datos.
+ * Domingo no se trabaja → se usa el sábado anterior (misma lógica de negocio).
+ * Para etiquetas “Hoy/Ayer” usar getOperationalDateKey (calendario).
+ */
 export function getActiveOperationalDateKey(date: Date = new Date()): string {
   return previousBusinessOperationalDateKey(getOperationalDateKey(date));
 }
@@ -145,11 +149,15 @@ export function getNextOperationalDateKey(dateKey: string): string {
   return nextBusinessOperationalDateKey(shiftOperationalDateKey(dateKey, 1));
 }
 
+/**
+ * Etiqueta relativa al calendario Argentina (no al día operativo rolleteado).
+ * Así el domingo no muestra el sábado como “Hoy”.
+ */
 export function formatOperationalDateLabel(dateKey: string, now: Date = new Date()): string {
-  const todayKey = getActiveOperationalDateKey(now);
-  if (dateKey === todayKey) return 'Hoy';
-  if (dateKey === shiftOperationalDateKey(todayKey, -1)) return 'Ayer';
-  if (dateKey === getNextOperationalDateKey(todayKey)) return 'Mañana';
+  const calendarToday = getOperationalDateKey(now);
+  if (dateKey === calendarToday) return 'Hoy';
+  if (dateKey === shiftOperationalDateKey(calendarToday, -1)) return 'Ayer';
+  if (dateKey === getNextOperationalDateKey(getActiveOperationalDateKey(now))) return 'Mañana';
   const { year, month, day } = parseOperationalDateKey(dateKey);
   const label = new Intl.DateTimeFormat('es-AR', {
     timeZone: DELIVERY_TIMEZONE,
@@ -158,6 +166,16 @@ export function formatOperationalDateLabel(dateKey: string, now: Date = new Date
     month: 'short',
   }).format(arLocalToUtc(year, month, day, 12));
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** True si el calendario es domingo y el panel está en el sábado operativo. */
+export function isRolledBackWeekendOperationalDay(
+  dateKey: string,
+  now: Date = new Date()
+): boolean {
+  const calendarToday = getOperationalDateKey(now);
+  if (!isWeekendOperationalDate(calendarToday)) return false;
+  return dateKey === getActiveOperationalDateKey(now);
 }
 
 export function formatOperationalDateShort(dateKey: string): string {

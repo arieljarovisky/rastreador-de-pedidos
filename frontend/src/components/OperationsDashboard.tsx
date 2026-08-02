@@ -34,6 +34,8 @@ import {
   getNextOperationalDateKey,
   shiftOperationalDateKey,
   formatOperationalDateShort,
+  formatOperationalWeekday,
+  isRolledBackWeekendOperationalDay,
   DELIVERY_DEADLINE_HOUR,
   DELIVERY_SLA_HOUR,
   DELIVERY_TIMEZONE_LABEL,
@@ -224,11 +226,14 @@ export default function OperationsDashboard({
         : 'ok';
 
   const isAgency = isAgencyAdmin(userRole);
-  const dayScopeLabel = isToday
-    ? 'hoy'
-    : isTomorrow
-      ? 'mañana'
-      : formatOperationalDateShort(selectedDateKey);
+  const isWeekendRollback = isToday && isRolledBackWeekendOperationalDay(selectedDateKey);
+  const dayScopeLabel = isWeekendRollback
+    ? formatOperationalWeekday(selectedDateKey).toLowerCase()
+    : isToday
+      ? 'hoy'
+      : isTomorrow
+        ? 'mañana'
+        : formatOperationalDateShort(selectedDateKey);
 
   return (
     <div
@@ -412,15 +417,25 @@ export default function OperationsDashboard({
           }`}
         >
           <OrderListSection
-            title={isToday ? 'Sin entregar hoy' : isTomorrow ? 'Sin entregar mañana' : 'Sin entregar'}
+            title={
+              isWeekendRollback
+                ? `Sin entregar el ${dayScopeLabel}`
+                : isToday
+                  ? 'Sin entregar hoy'
+                  : isTomorrow
+                    ? 'Sin entregar mañana'
+                    : 'Sin entregar'
+            }
             count={undelivered.length}
             orders={undelivered}
             emptyMessage={
-              isToday
-                ? 'Todos los pedidos del día fueron entregados.'
-                : isTomorrow
-                  ? 'No hay pedidos programados para mañana.'
-                  : `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
+              isWeekendRollback
+                ? `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
+                : isToday
+                  ? 'Todos los pedidos del día fueron entregados.'
+                  : isTomorrow
+                    ? 'No hay pedidos programados para mañana.'
+                    : `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
             }
             tone="warn"
             onSelectOrder={onSelectOrder}
@@ -430,15 +445,25 @@ export default function OperationsDashboard({
             showSeller={isAgency}
           />
           <OrderListSection
-            title={isToday ? 'Entregados hoy' : isTomorrow ? 'Entregados mañana' : 'Entregados'}
+            title={
+              isWeekendRollback
+                ? `Entregados el ${dayScopeLabel}`
+                : isToday
+                  ? 'Entregados hoy'
+                  : isTomorrow
+                    ? 'Entregados mañana'
+                    : 'Entregados'
+            }
             count={delivered.length}
             orders={delivered}
             emptyMessage={
-              isToday
-                ? 'Todavía no hay entregas registradas hoy.'
-                : isTomorrow
-                  ? 'Todavía no hay entregas registradas para mañana.'
-                  : `No hubo entregas registradas el ${dayScopeLabel}.`
+              isWeekendRollback
+                ? `No hubo entregas registradas el ${dayScopeLabel}.`
+                : isToday
+                  ? 'Todavía no hay entregas registradas hoy.'
+                  : isTomorrow
+                    ? 'Todavía no hay entregas registradas para mañana.'
+                    : `No hubo entregas registradas el ${dayScopeLabel}.`
             }
             tone="ok"
             onSelectOrder={onSelectOrder}
@@ -449,11 +474,13 @@ export default function OperationsDashboard({
             count={deliveredLate.length}
             orders={deliveredLate}
             emptyMessage={
-              isToday
-                ? `Ningún pedido entregado después de las ${DELIVERY_SLA_HOUR}:00.`
-                : isTomorrow
-                  ? 'Ningún pedido de mañana entregado fuera de plazo.'
-                  : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
+              isWeekendRollback
+                ? `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
+                : isToday
+                  ? `Ningún pedido entregado después de las ${DELIVERY_SLA_HOUR}:00.`
+                  : isTomorrow
+                    ? 'Ningún pedido de mañana entregado fuera de plazo.'
+                    : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
             }
             tone="danger"
             onSelectOrder={onSelectOrder}
