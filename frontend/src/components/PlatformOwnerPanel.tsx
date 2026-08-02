@@ -1129,17 +1129,27 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                               OrderStatus.DELIVERING,
                               OrderStatus.DELIVERED,
                               OrderStatus.CANCELLED,
-                            ].map((st) => (
+                            ].map((st) => {
+                              const mlBlockDeliver =
+                                st === OrderStatus.DELIVERED &&
+                                o.externalSource === 'mercadolibre';
+                              return (
                               <button
                                 key={st}
                                 type="button"
-                                disabled={busy || o.status === st}
+                                disabled={busy || o.status === st || mlBlockDeliver}
+                                title={
+                                  mlBlockDeliver
+                                    ? 'ML se confirma solo por sync'
+                                    : undefined
+                                }
                                 onClick={() => void setOrderStatus(o.id, st)}
                                 className="text-[8px] font-mono uppercase px-1.5 py-0.5 rounded border border-[var(--surface-border)] disabled:opacity-40"
                               >
                                 {st}
                               </button>
-                            ))}
+                              );
+                            })}
                           </div>
                         </li>
                       ))}

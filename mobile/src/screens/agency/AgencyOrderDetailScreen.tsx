@@ -271,8 +271,7 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
         {isOpen && (
           <View style={styles.actions}>
             <Button label="Cómo llegar" variant="secondary" onPress={openInMaps} />
-            {(order.status === OrderStatus.DELIVERING ||
-              (order.externalSource !== 'mercadolibre' && isOpen)) && (
+            {order.externalSource !== 'mercadolibre' && isOpen && (
               <Button
                 label="Marcar entregado"
                 variant="success"

@@ -383,11 +383,11 @@ export default function SellerOrdersRegistry({
   }, [postaStats, includePersonal, personalEntries, marketplaceSource]);
 
   const markPostaDelivered = async (order: Order) => {
-    if (order.externalSource === 'mercadolibre' && !agency) {
+    if (order.externalSource === 'mercadolibre') {
       await showAlert({
         title: 'Mercado Libre',
         message:
-          'Los envíos de Mercado Libre se confirman solos. No se pueden marcar a mano desde el vendedor.',
+          'Los envíos de Mercado Libre se confirman solos. No se pueden marcar a mano desde Posta.',
         variant: 'warning',
       });
       return;
@@ -718,7 +718,7 @@ export default function SellerOrdersRegistry({
                     const canDeliver =
                       order.status !== OrderStatus.DELIVERED &&
                       order.status !== OrderStatus.CANCELLED &&
-                      (agency || order.externalSource !== 'mercadolibre');
+                      order.externalSource !== 'mercadolibre';
 
                     return (
                       <tr

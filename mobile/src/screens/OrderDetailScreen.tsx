@@ -263,13 +263,25 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             />
           )}
 
-          {order.status === OrderStatus.DELIVERING && isMine && (
+          {order.status === OrderStatus.DELIVERING &&
+            isMine &&
+            order.externalSource !== 'mercadolibre' && (
             <Button
               label="Marcar entregado"
               variant="success"
               onPress={handleDeliver}
               loading={busy}
             />
+          )}
+          {order.status === OrderStatus.DELIVERING &&
+            isMine &&
+            order.externalSource === 'mercadolibre' && (
+            <View style={styles.doneRow}>
+              <PostaIcon name="checkCircle" size={20} color={colors.amber} />
+              <Text style={styles.doneText}>
+                La entrega la confirma Mercado Libre
+              </Text>
+            </View>
           )}
 
           {order.status === OrderStatus.DELIVERED && (

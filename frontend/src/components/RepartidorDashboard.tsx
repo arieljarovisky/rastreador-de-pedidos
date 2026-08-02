@@ -160,6 +160,16 @@ export default function RepartidorDashboard({
   const handleAutoPilotSimulation = async () => {
     if (!selectedOrder) return;
 
+    if (selectedOrder.externalSource === 'mercadolibre') {
+      void showAlert({
+        title: 'Mercado Libre',
+        message:
+          'Los envíos de Mercado Libre no se pueden marcar como entregados a mano (ni por simulación).',
+        variant: 'warning',
+      });
+      return;
+    }
+
     if (selectedOrder.status === OrderStatus.ASSIGNED) {
       await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERING, undefined, 'Viaje iniciado (Simulación de ruta)');
     }
@@ -551,7 +561,8 @@ export default function RepartidorDashboard({
                       </button>
                     )}
 
-                    {selectedOrder.status === OrderStatus.DELIVERING && (
+                    {selectedOrder.status === OrderStatus.DELIVERING &&
+                      selectedOrder.externalSource !== 'mercadolibre' && (
                       <button
                         onClick={async () => {
                           try {

@@ -910,8 +910,10 @@ export default function AdminDashboard({
     const isMl = order.externalSource === 'mercadolibre';
     const canMarkDeliveredManual =
       isOpen &&
+      !isMl &&
       ((agency && (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)) ||
-        (!isMl && (agency || isSeller)));
+        agency ||
+        isSeller);
 
     if (canMarkDeliveredManual) {
       items.push({
@@ -2510,10 +2512,12 @@ export default function AdminDashboard({
                         const agencyUser = isAgencyAdmin(userRole);
                         const sellerUser = userRole === UserRole.STORE_ADMIN;
                         const canMarkDelivered =
-                          (agencyUser &&
+                          !isMl &&
+                          ((agencyUser &&
                             (selectedOrder.status === OrderStatus.ASSIGNED ||
                               selectedOrder.status === OrderStatus.DELIVERING)) ||
-                          (!isMl && (agencyUser || sellerUser));
+                            agencyUser ||
+                            sellerUser);
                         if (!canMarkDelivered) return null;
                         return (
                           <button

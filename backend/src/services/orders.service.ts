@@ -1689,6 +1689,11 @@ export async function updateOrderStatus(
   const order = await getOrderById(orderId);
   if (!order) throw new Error('NOT_FOUND');
 
+  // Mercado Libre se confirma solo por sync/webhook; nadie lo marca a mano en Posta.
+  if (status === OrderStatus.DELIVERED && order.externalSource === 'mercadolibre') {
+    throw new Error('MANUAL_DELIVER_ML_FORBIDDEN');
+  }
+
   const sellerId = await getSellerIdForOrder(orderId);
   const now = new Date();
   let assignedRepartidorId = order.repartidorId;
@@ -1711,8 +1716,7 @@ export async function updateOrderStatus(
     if (status === OrderStatus.CANCELLED) {
       if (order.status !== OrderStatus.PENDING) throw new Error('FORBIDDEN');
     } else if (status === OrderStatus.DELIVERED) {
-      // ML se sincroniza por webhook; el resto se confirma a mano.
-      if (order.externalSource === 'mercadolibre') throw new Error('MANUAL_DELIVER_ML_FORBIDDEN');
+      // permitido (no-ML; ML ya se bloqueó arriba)
     } else {
       throw new Error('FORBIDDEN');
     }
