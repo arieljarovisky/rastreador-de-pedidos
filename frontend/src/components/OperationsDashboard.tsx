@@ -30,7 +30,8 @@ import {
   getDeliveredTodayOrders,
   getDeliveredLateTodayOrders,
   getOrderDeliveredAt,
-  getOperationalDateKey,
+  getActiveOperationalDateKey,
+  getNextOperationalDateKey,
   shiftOperationalDateKey,
   formatOperationalDateShort,
   DELIVERY_DEADLINE_HOUR,
@@ -74,8 +75,8 @@ export default function OperationsDashboard({
   onGoToOperations,
   onViewSellerHistory,
 }: OperationsDashboardProps) {
-  const todayKey = getOperationalDateKey();
-  const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
+  const todayKey = getActiveOperationalDateKey();
+  const tomorrowKey = getNextOperationalDateKey(todayKey);
   const cutHour = deadlineHour;
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [sellerFilterId, setSellerFilterId] = useState('');

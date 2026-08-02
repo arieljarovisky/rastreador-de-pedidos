@@ -62,7 +62,7 @@ export function getOrderDateKeys(order: Order): string[] {
 
 /**
  * True si el pedido pertenece al día operativo de entrega.
- * No usa el día de alta: un pedido cargado el sábado con entrega el lunes
+ * No usa el día de alta: un pedido cargado el sábado post-corte con entrega el lunes
  * solo debe aparecer al filtrar por lunes.
  */
 export function orderBelongsToDateKey(order: Order, dateKey: string): boolean {

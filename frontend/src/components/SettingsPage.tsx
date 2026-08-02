@@ -503,7 +503,7 @@ export default function SettingsPage({
                     <>
                       Definí hasta qué hora se cargan pedidos para el día de hoy.
                       Después de tu corte, los nuevos envíos quedan para el día hábil siguiente
-                      (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
+                      (viernes post-corte → sábado; sábado post-corte y domingo → lunes). Horario Argentina (ART).
                       No puede ser más tarde que el máximo de tu agencia (
                       <span className="font-mono font-bold text-[var(--ink-soft)]">
                         {String(agencyCap).padStart(2, '0')}:00
@@ -514,7 +514,7 @@ export default function SettingsPage({
                     <>
                       Máximo de corte de ventas para la agencia y tope para cada vendedor.
                       Los pedidos cargados a partir del corte del vendedor quedan para el día hábil siguiente
-                      (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
+                      (viernes post-corte → sábado; sábado post-corte y domingo → lunes). Horario Argentina (ART).
                       Conviene igualarlo al corte Flex más tarde de tus vendedores (p. ej. 13:00).
                       Al guardar se reaplica a los pedidos aún sin entregar y se ajustan vendedores que
                       superen este máximo.

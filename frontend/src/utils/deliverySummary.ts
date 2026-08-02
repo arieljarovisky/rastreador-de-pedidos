@@ -94,11 +94,62 @@ export function shiftOperationalDateKey(dateKey: string, days: number): string {
   return getOperationalDateKey(new Date(noon.getTime() + days * 86_400_000));
 }
 
+/** 0 = domingo … 6 = sábado (calendario Argentina). */
+export function getOperationalWeekday(dateKey: string): number {
+  const { year, month, day } = parseOperationalDateKey(dateKey);
+  const noon = arLocalToUtc(year, month, day, 12);
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: DELIVERY_TIMEZONE,
+    weekday: 'short',
+  }).format(noon);
+  const map: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return map[wd] ?? 0;
+}
+
+/** Domingo = no laboral. El sábado sí se opera. */
+export function isWeekendOperationalDate(dateKey: string): boolean {
+  return getOperationalWeekday(dateKey) === 0;
+}
+
+export function nextBusinessOperationalDateKey(dateKey: string): string {
+  let key = dateKey;
+  while (isWeekendOperationalDate(key)) {
+    key = shiftOperationalDateKey(key, 1);
+  }
+  return key;
+}
+
+export function previousBusinessOperationalDateKey(dateKey: string): string {
+  let key = dateKey;
+  while (isWeekendOperationalDate(key)) {
+    key = shiftOperationalDateKey(key, -1);
+  }
+  return key;
+}
+
+/** Día operativo activo: domingo → sábado. */
+export function getActiveOperationalDateKey(date: Date = new Date()): string {
+  return previousBusinessOperationalDateKey(getOperationalDateKey(date));
+}
+
+/** Día hábil siguiente (salta domingo). */
+export function getNextOperationalDateKey(dateKey: string): string {
+  return nextBusinessOperationalDateKey(shiftOperationalDateKey(dateKey, 1));
+}
+
 export function formatOperationalDateLabel(dateKey: string, now: Date = new Date()): string {
-  const todayKey = getOperationalDateKey(now);
+  const todayKey = getActiveOperationalDateKey(now);
   if (dateKey === todayKey) return 'Hoy';
   if (dateKey === shiftOperationalDateKey(todayKey, -1)) return 'Ayer';
-  if (dateKey === shiftOperationalDateKey(todayKey, 1)) return 'Mañana';
+  if (dateKey === getNextOperationalDateKey(todayKey)) return 'Mañana';
   const { year, month, day } = parseOperationalDateKey(dateKey);
   const label = new Intl.DateTimeFormat('es-AR', {
     timeZone: DELIVERY_TIMEZONE,
@@ -197,7 +248,7 @@ export function getOperationalDateKey(date: Date = new Date()): string {
 
 function isTodayOrder(order: Order, dateKey: string): boolean {
   // Solo el día operativo de entrega (deliveryDeadline). No mezclar con createdAt:
-  // un pedido dado de alta el sábado con corte→lunes no debe aparecer en el sábado.
+  // un pedido dado de alta el sábado post-corte con corte→lunes no debe aparecer en el sábado.
   const operationalKey = order.deliveryDeadline
     ? getOperationalDateKey(new Date(order.deliveryDeadline))
     : getOperationalDateKey(new Date(order.createdAt));
@@ -206,14 +257,14 @@ function isTodayOrder(order: Order, dateKey: string): boolean {
 
 export function getTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return orders.filter((o) => !o.archived && isTodayOrder(o, dateKey));
 }
 
 export function getUndeliveredTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return getTodayOrders(orders, dateKey).filter(
     (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
@@ -222,7 +273,7 @@ export function getUndeliveredTodayOrders(
 
 export function getDeliveredTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return getTodayOrders(orders, dateKey).filter((o) => o.status === OrderStatus.DELIVERED);
 }
@@ -259,7 +310,7 @@ export function wasDeliveredAfterDeadline(order: Order, forDateKey?: string): bo
 
 export function getDeliveredLateTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return getDeliveredTodayOrders(orders, dateKey).filter((o) =>
     wasDeliveredAfterDeadline(o, dateKey)
@@ -268,7 +319,7 @@ export function getDeliveredLateTodayOrders(
 
 export function computeDeliverySummaryFromOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey(),
+  dateKey: string = getActiveOperationalDateKey(),
   deadlineHour: number = DELIVERY_DEADLINE_HOUR
 ): DeliveryDailySummary {
   const cutHour = normalizeDeadlineHour(deadlineHour);
@@ -282,7 +333,7 @@ export function computeDeliverySummaryFromOrders(
   ).length;
   const total = todayOrders.length;
 
-  const todayKey = getOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey();
   const salesCutoffAt = getDeadlineForOperationalDate(dateKey, cutHour);
   const deliverySlaAt = getDeadlineForOperationalDate(dateKey, DELIVERY_SLA_HOUR);
   const now = Date.now();

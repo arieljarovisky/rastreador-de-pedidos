@@ -89,7 +89,7 @@ const FLEX_SYNC_FORCE_COOLDOWN_MS = 15_000;
 const FLEX_SYNC_LOOKBACK_DAYS = 10;
 const FLEX_SYNC_SHIPMENT_LIMIT = 50;
 
-/** Fecha de venta del marketplace para el corte operativo (finde → lunes). */
+/** Fecha de venta del marketplace para el corte operativo (domingo → lunes). */
 function parseSoldAt(iso?: string | null): Date | undefined {
   return parseMarketplaceSoldAt(iso);
 }

@@ -11,7 +11,7 @@ import {
   deleteDriverScanEntry,
   type DriverScanEntryStatus,
 } from '../services/driver-scan.service.js';
-import { getOperationalDateKey } from '../utils/delivery-deadline.js';
+import { getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
 
 const router = Router();
 
@@ -66,7 +66,7 @@ router.get('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Res
     const date =
       typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
         ? req.query.date
-        : getOperationalDateKey();
+        : getActiveOperationalDateKey();
     const entries = await listDriverScanEntries(req.user!, { date });
     res.json({ date, entries });
   } catch (err: unknown) {

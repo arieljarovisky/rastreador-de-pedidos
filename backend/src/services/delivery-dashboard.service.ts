@@ -6,7 +6,7 @@ import {
   DELIVERY_DEADLINE_HOUR,
   DELIVERY_SLA_HOUR,
   formatDeadlineHourLabel,
-  getOperationalDateKey,
+  getActiveOperationalDateKey,
   getTodayDeadline,
   getOperationalDayBounds,
   deliveryDeadlineForOperationalDate,
@@ -53,7 +53,7 @@ function buildSummary(
   const undelivered = pending + assigned + delivering;
   const total = delivered + cancelled + undelivered;
 
-  const todayKey = getOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey();
   const isViewingToday = dateKey === todayKey;
   const isPastDeadline = isViewingToday
     ? now >= salesCutoffMs
@@ -108,7 +108,7 @@ async function queryOrderCounts(
 
 export async function getDeliverySummaryForUser(
   user: User,
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Promise<DeliveryDailySummary> {
   const deadlineHour =
     user.role === UserRole.STORE_ADMIN

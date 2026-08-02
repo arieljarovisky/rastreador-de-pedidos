@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Loader2, Trash2 } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
-import { getOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
+import { getActiveOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
 import { useModal } from '../context/ModalContext.tsx';
 
 export type AgencyDriverScanStatus = 'pending' | 'delivered' | 'cancelled';
@@ -89,7 +89,7 @@ export default function AgencyDriverScanPage({
   embedded = false,
 }: AgencyDriverScanPageProps) {
   const { confirm, alert: showAlert } = useModal();
-  const todayKey = getOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey();
   const [date, setDate] = useState(todayKey);
   const [repartidorId, setRepartidorId] = useState('');
   const [entries, setEntries] = useState<AgencyDriverScanEntry[]>([]);

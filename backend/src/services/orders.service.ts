@@ -16,10 +16,12 @@ import {
   computeDeliveryDeadline,
   DELIVERY_DEADLINE_HOUR,
   deliveryDeadlineForOperationalDate,
+  getActiveOperationalDateKey,
   getArHourMinute,
   getOperationalDateKey,
   getOperationalDayBounds,
   getTodayDeadline,
+  isWeekendOperationalDate,
 } from '../utils/delivery-deadline.js';
 import { getAgencyDeliveryDeadlineHour, listAgenciesDeadlineHours } from './agencies.service.js';
 import { ML_RESCHEDULE_SUBSTATUS_LIST } from '../utils/ml-reschedule.js';
@@ -518,7 +520,7 @@ export async function createOrder(
     historyLat?: number;
     historyLng?: number;
     deliveryDeadline?: Date;
-    /** Fecha de venta del marketplace (finde → lunes). Si falta, se usa el momento de alta en Posta. */
+    /** Fecha de venta del marketplace (domingo → lunes). Si falta, se usa el momento de alta en Posta. */
     soldAt?: Date;
   }
 ): Promise<Order> {
@@ -526,7 +528,7 @@ export async function createOrder(
   const now = new Date();
   const soldAt =
     data.soldAt && !Number.isNaN(data.soldAt.getTime()) ? data.soldAt : null;
-  // Para imports: el día operativo sigue la venta (sáb/dom → lunes), no la hora de importación.
+  // Para imports: el día operativo sigue la venta (domingo → lunes), no la hora de importación.
   const createdAt = soldAt ?? now;
 
   let sellerId: string | null = null;
@@ -562,7 +564,7 @@ export async function createOrder(
 
   const deadlineHour = await resolveSalesCutoffHour({ sellerId, agencyId });
   // Sin deliveryDeadline explícito (p. ej. lead_time ML): post-corte del vendedor → día hábil siguiente.
-  // Vie post-corte / sáb / dom → lunes (días hábiles).
+  // Vie post-corte → sábado; sáb post-corte / domingo → lunes.
   const deliveryDeadline =
     data.deliveryDeadline ?? computeDeliveryDeadline(createdAt, deadlineHour);
 
@@ -769,6 +771,7 @@ export async function appendOrderMarketplaceComment(
  * Mueve a HOY pedidos abiertos ausentes/reprogramados trabados en el pasado.
  * (ML: “Envío reprogramado… entregalo hoy”). Incluye PED-2023 por id.
  * Compara por clave operativa AR (igual que el frontend), no solo por DATETIME SQL.
+ * Domingo no laboral: “hoy” = sábado; deadlines en domingo se reasignan al día activo.
  */
 export async function forceRescheduledOrdersStuckInPastToToday(
   agencyId?: string
@@ -785,7 +788,7 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     ? `o.ml_shipment_substatus IN (${ML_RESCHEDULE_SUBSTATUS_LIST.map((s) => `'${s}'`).join(', ')})`
     : '0=1';
 
-  const todayKey = getOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey();
   const now = new Date();
   let total = 0;
 
@@ -826,7 +829,10 @@ export async function forceRescheduledOrdersStuckInPastToToday(
 
     const stuck = rows.filter((row) => {
       if (!row.delivery_deadline) return true;
-      return getOperationalDateKey(new Date(row.delivery_deadline)) < todayKey;
+      const key = getOperationalDateKey(new Date(row.delivery_deadline));
+      // Domingo no laboral: sacar del domingo hacia el día activo (sábado).
+      if (isWeekendOperationalDate(key)) return true;
+      return key < todayKey;
     });
     if (stuck.length === 0) continue;
 
@@ -872,10 +878,11 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     const currentKey = row.delivery_deadline
       ? getOperationalDateKey(new Date(row.delivery_deadline))
       : null;
+    const onNonWorking = currentKey != null && isWeekendOperationalDate(currentKey);
     const needsToday =
       row.id === 'PED-2075'
-        ? currentKey == null || currentKey !== todayKey
-        : currentKey == null || currentKey < todayKey;
+        ? currentKey == null || currentKey !== todayKey || onNonWorking
+        : currentKey == null || currentKey < todayKey || onNonWorking;
     const needsDemote = row.status === 'delivering';
     if (!needsToday && !needsDemote) continue;
     const hour = row.agency_id
@@ -924,7 +931,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
   const forced = await forceRescheduledOrdersStuckInPastToToday(agencyId);
 
   const now = new Date();
-  const todayKey = getOperationalDateKey(now);
+  const todayKey = getActiveOperationalDateKey(now);
   const { start: todayStart } = getOperationalDayBounds(todayKey);
 
   let agencyFilter = '';
@@ -1031,7 +1038,10 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
 
     let nextDeadline: Date | null = null;
 
-    if (isRescheduled && currentKey != null && currentKey < todayKey) {
+    if (currentKey != null && isWeekendOperationalDate(currentKey)) {
+      // Domingo no laboral → día operativo activo (sábado).
+      nextDeadline = getTodayDeadline(hour);
+    } else if (isRescheduled && currentKey != null && currentKey < todayKey) {
       // Ausente / reprogramado trabado en el pasado → hoy (ML: entregar hoy).
       nextDeadline = getTodayDeadline(hour);
     } else if (isPinnedToday && (currentKey === todayKey || (currentKey != null && currentKey > todayKey))) {
@@ -1070,11 +1080,13 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
 
     // No pisar si el pedido ya está en un día posterior al esperado (reprogramado a futuro).
     // Sí permitir corrección cuando nextDeadline viene del caso pre-corte de arriba.
+    // Sí permitir sacar un deadline del domingo no laboral.
     if (
       nextDeadline &&
       isRescheduled &&
       currentKey != null &&
-      currentKey > getOperationalDateKey(nextDeadline)
+      currentKey > getOperationalDateKey(nextDeadline) &&
+      !isWeekendOperationalDate(currentKey)
     ) {
       continue;
     }
@@ -1412,14 +1424,14 @@ export async function rescheduleOrderToNextOperationalDay(
     return order;
   }
 
-  const todayKey = getOperationalDateKey(new Date());
+  const todayKey = getActiveOperationalDateKey();
   const base = order.deliveryDeadline
     ? new Date(order.deliveryDeadline)
     : new Date(order.createdAt);
   const currentKey = getOperationalDateKey(base);
 
   // Ya en un día futuro → no seguir corriendo el deadline ni spamear bitácora
-  if (currentKey > todayKey) {
+  if (currentKey > todayKey && !isWeekendOperationalDate(currentKey)) {
     // Igual sacar de “en viaje” si ML ya lo marcó reprogramado.
     if (order.status === OrderStatus.DELIVERING) {
       const demoted = order.repartidorId ? OrderStatus.ASSIGNED : OrderStatus.PENDING;
@@ -1442,8 +1454,8 @@ export async function rescheduleOrderToNextOperationalDay(
 
   if (preferred) {
     const preferredKey = getOperationalDateKey(preferred);
-    // Solo respetar preferencia ML si apunta a un día posterior a hoy.
-    if (preferredKey > todayKey) {
+    // Solo respetar preferencia ML si apunta a un día hábil posterior a hoy.
+    if (preferredKey > todayKey && !isWeekendOperationalDate(preferredKey)) {
       target = preferred;
     }
   }
@@ -1461,8 +1473,8 @@ export async function rescheduleOrderToNextOperationalDay(
     }
     return null;
   }
-  // No retroceder
-  if (targetKey < currentKey) {
+  // No retroceder (salvo sacar un deadline del domingo no laboral).
+  if (targetKey < currentKey && !isWeekendOperationalDate(currentKey)) {
     return null;
   }
 

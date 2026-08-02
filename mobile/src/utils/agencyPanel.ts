@@ -1,7 +1,7 @@
 import { Order, OrderStatus } from '../types';
 import {
+  getActiveOperationalDateKey,
   getDeliveredTodayOrders,
-  getOperationalDateKey,
   getOrderDeliverySla,
   getTodayOrders,
   getUndeliveredTodayOrders,
@@ -115,7 +115,7 @@ export interface AgencyPanelCounts {
 }
 
 export function computeAgencyPanelCounts(orders: Order[]): AgencyPanelCounts {
-  const dateKey = getOperationalDateKey();
+  const dateKey = getActiveOperationalDateKey();
   const undelivered = getUndeliveredTodayOrders(orders, dateKey);
   const delivered = getDeliveredTodayOrders(orders, dateKey).length;
   const late = undelivered.filter((o) => isLateOrder(o)).length;

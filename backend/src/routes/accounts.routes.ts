@@ -35,7 +35,7 @@ import {
   updateAgencyDeliveryDeadlineHour,
 } from '../services/agencies.service.js';
 import { recalculateOpenOrdersDeliveryDeadlines } from '../services/orders.service.js';
-import { DELIVERY_DEADLINE_HOUR, getOperationalDateKey } from '../utils/delivery-deadline.js';
+import { DELIVERY_DEADLINE_HOUR, getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
 import {
   getSellerBrandingSummary,
   getSellerLogo,
@@ -60,7 +60,7 @@ const logoUpload = multer({
 });
 
 /** Evita recalcular en cada poll. Versión fuerza reintento tras redeploy. */
-const DEADLINE_RECALC_VERSION = 'v11';
+const DEADLINE_RECALC_VERSION = 'v12';
 const deadlineRecalcByAgencyDay = new Map<string, string>();
 
 function handleCreateUserError(res: Response, err: unknown): boolean {
@@ -418,7 +418,7 @@ router.get('/agency/delivery-deadline', authenticate, async (req: Request, res: 
     hour = await resolveSalesCutoffHour({ sellerId: user.id, agencyId });
   }
 
-  const dayKey = `${DEADLINE_RECALC_VERSION}:${getOperationalDateKey()}`;
+  const dayKey = `${DEADLINE_RECALC_VERSION}:${getActiveOperationalDateKey()}`;
   let recalculated = 0;
   if (deadlineRecalcByAgencyDay.get(agencyId) !== dayKey) {
     deadlineRecalcByAgencyDay.set(agencyId, dayKey);
@@ -444,7 +444,7 @@ router.post('/agency/delivery-deadline/recalculate', authenticate, async (req: R
       ? await getSellerConfiguredDeadlineHour(req.user!.id)
       : null;
   const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
-  deadlineRecalcByAgencyDay.set(agencyId, `${DEADLINE_RECALC_VERSION}:${getOperationalDateKey()}`);
+  deadlineRecalcByAgencyDay.set(agencyId, `${DEADLINE_RECALC_VERSION}:${getActiveOperationalDateKey()}`);
   res.json({ hour, agencyMaxHour, sellerHour, recalculated });
 });
 

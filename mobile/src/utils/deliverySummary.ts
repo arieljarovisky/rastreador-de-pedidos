@@ -67,6 +67,49 @@ export function getOperationalDateKey(date: Date = new Date()): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+function shiftOperationalDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const noon = arLocalToUtc(year, month, day, 12);
+  return getOperationalDateKey(new Date(noon.getTime() + days * 86_400_000));
+}
+
+function getOperationalWeekday(dateKey: string): number {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const noon = arLocalToUtc(year, month, day, 12);
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: DELIVERY_TIMEZONE,
+    weekday: 'short',
+  }).format(noon);
+  const map: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return map[wd] ?? 0;
+}
+
+/** Domingo = no laboral. */
+export function isWeekendOperationalDate(dateKey: string): boolean {
+  return getOperationalWeekday(dateKey) === 0;
+}
+
+export function previousBusinessOperationalDateKey(dateKey: string): string {
+  let key = dateKey;
+  while (isWeekendOperationalDate(key)) {
+    key = shiftOperationalDateKey(key, -1);
+  }
+  return key;
+}
+
+/** Día operativo activo: domingo → sábado. */
+export function getActiveOperationalDateKey(date: Date = new Date()): string {
+  return previousBusinessOperationalDateKey(getOperationalDateKey(date));
+}
+
 /** SLA de entrega (21 hs ART) del día operativo del pedido. No usar deliveryDeadline (corte 13 hs). */
 export function getOrderDeliverySla(order: Order): Date {
   const dateKey = order.deliveryDeadline
@@ -86,14 +129,14 @@ function isTodayOrder(order: Order, dateKey: string): boolean {
 
 export function getTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return orders.filter((o) => !o.archived && isTodayOrder(o, dateKey));
 }
 
 export function getUndeliveredTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return getTodayOrders(orders, dateKey).filter(
     (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
@@ -102,14 +145,14 @@ export function getUndeliveredTodayOrders(
 
 export function getDeliveredTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return getTodayOrders(orders, dateKey).filter((o) => o.status === OrderStatus.DELIVERED);
 }
 
 export function computeDeliverySummaryFromOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): DeliveryDailySummary {
   const todayOrders = orders.filter((o) => !o.archived && isTodayOrder(o, dateKey));
   const delivered = todayOrders.filter((o) => o.status === OrderStatus.DELIVERED).length;
@@ -119,10 +162,12 @@ export function computeDeliverySummaryFromOrders(
   ).length;
   const total = todayOrders.length;
 
-  const salesCutoffAt = getTodayDeadlineInArgentina();
-  const deliverySlaAt = getSlaForDate();
+  const activeKey = getActiveOperationalDateKey();
+  const [y, m, d] = activeKey.split('-').map(Number);
+  const salesCutoffAt = arLocalToUtc(y, m, d, DELIVERY_DEADLINE_HOUR);
+  const deliverySlaAt = arLocalToUtc(y, m, d, DELIVERY_SLA_HOUR);
   const now = Date.now();
-  const todayKey = getOperationalDateKey();
+  const todayKey = activeKey;
   const isViewingToday = dateKey === todayKey;
   const isPastDeadline = isViewingToday
     ? now >= salesCutoffAt.getTime()

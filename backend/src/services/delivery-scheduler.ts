@@ -1,6 +1,7 @@
 import {
   getArHourMinute,
   getOperationalDateKey,
+  isWeekendOperationalDate,
 } from '../utils/delivery-deadline.js';
 import {
   sendDeadlineMissedAlerts,
@@ -28,6 +29,8 @@ function pruneOldKeys(dateKey: string): void {
 
 async function tick(): Promise<void> {
   const dateKey = getOperationalDateKey();
+  // Domingo no laboral: no enviar avisos de corte.
+  if (isWeekendOperationalDate(dateKey)) return;
   const { hour, minute } = getArHourMinute();
   if (minute !== 0) return;
 

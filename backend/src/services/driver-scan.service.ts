@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { pool } from '../config/database.js';
 import { User, UserRole } from '../types/index.js';
-import { getOperationalDateKey } from '../utils/delivery-deadline.js';
+import { getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import {
   getIntegration,
@@ -362,7 +362,7 @@ export async function createDriverScanEntry(
 
   const scanCode = normalizeScanCode(data.code);
   const routeDate =
-    data.routeDate && isValidDateKey(data.routeDate) ? data.routeDate : getOperationalDateKey();
+    data.routeDate && isValidDateKey(data.routeDate) ? data.routeDate : getActiveOperationalDateKey();
   const note = data.note?.trim() ? data.note.trim().slice(0, 500) : null;
   const manualName = data.clientName?.trim() ? data.clientName.trim().slice(0, 255) : null;
   const manualAddress = data.address?.trim() ? data.address.trim().slice(0, 500) : null;
@@ -450,7 +450,7 @@ export async function listDriverScanEntries(
   await ensureDriverScanEntriesTable();
 
   const routeDate =
-    options?.date && isValidDateKey(options.date) ? options.date : getOperationalDateKey();
+    options?.date && isValidDateKey(options.date) ? options.date : getActiveOperationalDateKey();
 
   const [rows] = await pool.query<DbDriverScanRow[]>(
     `SELECT * FROM driver_scan_entries
@@ -476,7 +476,7 @@ export async function listAgencyDriverScanEntries(
 
   if (!options?.all) {
     routeDate =
-      options?.date && isValidDateKey(options.date) ? options.date : getOperationalDateKey();
+      options?.date && isValidDateKey(options.date) ? options.date : getActiveOperationalDateKey();
     dateFilter = ' AND e.route_date = ?';
     params.push(routeDate);
   }

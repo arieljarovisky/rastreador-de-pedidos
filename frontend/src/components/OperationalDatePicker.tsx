@@ -12,6 +12,7 @@ import {
   formatOperationalDateShort,
   formatOperationalMonthLabel,
   formatOperationalWeekday,
+  getActiveOperationalDateKey,
   getOperationalDateKey,
   getOperationalMonthKey,
   parseOperationalDateKey,
@@ -245,7 +246,7 @@ function useCalendarPopoverPosition(anchorRef: RefObject<HTMLElement | null>, op
 export default function OperationalDatePicker({
   value,
   onChange,
-  maxDateKey = getOperationalDateKey(),
+  maxDateKey = getActiveOperationalDateKey(),
   minDateKey,
   deadlineHour,
   layout = 'icon',
@@ -257,7 +258,7 @@ export default function OperationalDatePicker({
   onNextDay,
   canGoNextDay = false,
   onGoToday,
-  isToday = value === getOperationalDateKey(),
+  isToday = value === getActiveOperationalDateKey(),
   nextShipmentDateKey = null,
   shipmentDateKeys,
 }: OperationalDatePickerProps) {
@@ -265,7 +266,7 @@ export default function OperationalDatePicker({
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const popoverStyle = useCalendarPopoverPosition(anchorRef, open);
-  const todayKey = getOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey();
   const isFuture = value > todayKey;
   const shipmentDateKeySet = useMemo(
     () => (shipmentDateKeys && shipmentDateKeys.length > 0 ? new Set(shipmentDateKeys) : undefined),

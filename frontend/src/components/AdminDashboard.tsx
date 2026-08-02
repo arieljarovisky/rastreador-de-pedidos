@@ -28,7 +28,7 @@ import SellerFilterControl from './SellerFilterControl.tsx';
 import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
-import { getOperationalDateKey, shiftOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
+import { getOperationalDateKey, formatOperationalDateShort, getActiveOperationalDateKey, getNextOperationalDateKey } from '../utils/deliverySummary.js';
 
 const AdminOrderTableRow = memo(function AdminOrderTableRow({
   order,
@@ -300,8 +300,8 @@ export default function AdminDashboard({
   const [marketplaceSourceFilter, setMarketplaceSourceFilter] = useState<string>('');
   const [cordonFilterId, setCordonFilterId] = useState<string>('');
   const [repartidorFilterId, setRepartidorFilterId] = useState<string>('');
-  const todayKey = getOperationalDateKey();
-  const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
+  const todayKey = getActiveOperationalDateKey();
+  const tomorrowKey = getNextOperationalDateKey(todayKey);
   const [dateFilterKey, setDateFilterKey] = useState<string>(todayKey);
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
@@ -875,7 +875,7 @@ export default function AdminDashboard({
       });
     }
 
-    const todayKey = getOperationalDateKey();
+    const todayKey = getActiveOperationalDateKey();
     const orderDayKey = order.deliveryDeadline
       ? getOperationalDateKey(new Date(order.deliveryDeadline))
       : null;

@@ -80,7 +80,7 @@ export function getOperationalDayBounds(dateKey: string): { start: Date; end: Da
 }
 
 /** Calcula el corte de entrega para un pedido creado en `createdAt`.
- *  Vie post-corte / sáb / dom → lunes (días hábiles). Flex con lead_time ML no usa esta ruta.
+ *  Vie post-corte → sábado; sáb post-corte / domingo → lunes. Flex con lead_time ML no usa esta ruta.
  */
 export function computeDeliveryDeadline(
   createdAt: Date = new Date(),
@@ -96,10 +96,9 @@ export function computeDeliveryDeadline(
   return deliveryDeadlineForBusinessDate(dateKey, cutHour);
 }
 
+/** Corte del día operativo activo (domingo → sábado). */
 export function getTodayDeadline(deadlineHour: number = DELIVERY_DEADLINE_HOUR): Date {
-  const cutHour = normalizeDeadlineHour(deadlineHour);
-  const { year, month, day } = getArDateParts(new Date());
-  return arLocalToUtc(year, month, day, cutHour);
+  return deliveryDeadlineForOperationalDate(getActiveOperationalDateKey(), deadlineHour);
 }
 
 /** Corte operativo para un día YYYY-MM-DD. */
@@ -139,12 +138,12 @@ export function getOperationalWeekday(dateKey: string): number {
   return map[wd] ?? 0;
 }
 
+/** Domingo = no laboral. El sábado sí se opera. */
 export function isWeekendOperationalDate(dateKey: string): boolean {
-  const wd = getOperationalWeekday(dateKey);
-  return wd === 0 || wd === 6;
+  return getOperationalWeekday(dateKey) === 0;
 }
 
-/** Si cae sáb/dom, avanza al lunes. */
+/** Si cae domingo, avanza al lunes. */
 export function nextBusinessOperationalDateKey(dateKey: string): string {
   let key = dateKey;
   while (isWeekendOperationalDate(key)) {
@@ -153,7 +152,29 @@ export function nextBusinessOperationalDateKey(dateKey: string): string {
   return key;
 }
 
-/** Corte del día hábil (salta finde al lunes). */
+/** Si cae domingo, retrocede al sábado. */
+export function previousBusinessOperationalDateKey(dateKey: string): string {
+  let key = dateKey;
+  while (isWeekendOperationalDate(key)) {
+    key = shiftOperationalDateKey(key, -1);
+  }
+  return key;
+}
+
+/**
+ * Día operativo activo para paneles / “hoy”.
+ * Domingo no se trabaja → se usa el sábado anterior.
+ */
+export function getActiveOperationalDateKey(date: Date = new Date()): string {
+  return previousBusinessOperationalDateKey(getOperationalDateKey(date));
+}
+
+/** Día hábil siguiente al indicado (salta domingo). */
+export function getNextOperationalDateKey(dateKey: string): string {
+  return nextBusinessOperationalDateKey(shiftOperationalDateKey(dateKey, 1));
+}
+
+/** Corte del día hábil (domingo → lunes). */
 export function deliveryDeadlineForBusinessDate(
   dateKey: string,
   deadlineHour: number = DELIVERY_DEADLINE_HOUR
@@ -164,25 +185,25 @@ export function deliveryDeadlineForBusinessDate(
   );
 }
 
-/** Próximo corte operativo en día hábil (salta sáb/dom). */
+/** Próximo corte operativo en día hábil (salta domingo). */
 export function nextOperationalDeliveryDeadline(
   fromDeadlineOrNow: Date = new Date(),
   deadlineHour: number = DELIVERY_DEADLINE_HOUR
 ): Date {
-  const todayKey = getOperationalDateKey(new Date());
+  const todayKey = getActiveOperationalDateKey();
   const fromKey = getOperationalDateKey(fromDeadlineOrNow);
   const baseKey = fromKey >= todayKey ? fromKey : todayKey;
   return deliveryDeadlineForBusinessDate(shiftOperationalDateKey(baseKey, 1), deadlineHour);
 }
 
-/** Convierte una fecha ISO (p. ej. ML) al corte operativo de ese día calendario. */
+/** Convierte una fecha ISO (p. ej. ML) al corte del día hábil (domingo → lunes). */
 export function deliveryDeadlineFromIsoDate(
   isoDate: string,
   deadlineHour: number = DELIVERY_DEADLINE_HOUR
 ): Date | null {
   const parsed = new Date(isoDate);
   if (Number.isNaN(parsed.getTime())) return null;
-  return deliveryDeadlineForOperationalDate(getOperationalDateKey(parsed), deadlineHour);
+  return deliveryDeadlineForBusinessDate(getOperationalDateKey(parsed), deadlineHour);
 }
 
 export function getArHourMinute(date: Date = new Date()): { hour: number; minute: number } {

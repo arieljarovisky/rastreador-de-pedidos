@@ -15,7 +15,7 @@ import { BillingLedgerEntry, BillingSummary, User, UserRole, isAgencyAdmin } fro
 import { apiUrl } from '../api.ts';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import {
-  getOperationalDateKey,
+  getActiveOperationalDateKey,
   formatOperationalDateShort,
 } from '../utils/deliverySummary.js';
 
@@ -84,7 +84,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportingSellerId, setExportingSellerId] = useState<string | null>(null);
-  const todayKey = getOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey();
 
   const applyMonthPreset = (offset: number) => {
     const range = monthRangeForOffset(offset);
