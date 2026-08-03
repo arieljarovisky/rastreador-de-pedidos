@@ -128,6 +128,9 @@ interface SettingsPageProps {
   /** Preferencia propia del vendedor; null = hereda. */
   ownSellerWorksOnHolidays?: boolean | null;
   onUpdateWorksOnHolidays?: (worksOnHolidays: boolean | null) => Promise<void>;
+  closedDays?: Array<{ dateKey: string; note: string | null }>;
+  onAddClosedDay?: (dateKey: string, note?: string | null) => Promise<void>;
+  onRemoveClosedDay?: (dateKey: string) => Promise<void>;
   /** Branding de la etiqueta de envío del vendedor logueado. */
   hasSellerLogo?: boolean;
   sellerLogoPreviewUrl?: string | null;
@@ -223,6 +226,9 @@ export default function SettingsPage({
   agencyWorksOnHolidays = false,
   ownSellerWorksOnHolidays = null,
   onUpdateWorksOnHolidays,
+  closedDays = [],
+  onAddClosedDay,
+  onRemoveClosedDay,
   hasSellerLogo = false,
   sellerLogoPreviewUrl = null,
   sellerLabelFont = 'helvetica',
@@ -287,6 +293,10 @@ export default function SettingsPage({
   );
   const [holidaysLoading, setHolidaysLoading] = useState(false);
   const [holidaysMessage, setHolidaysMessage] = useState<string | null>(null);
+  const [closedDayDraft, setClosedDayDraft] = useState('');
+  const [closedDayNote, setClosedDayNote] = useState('');
+  const [closedDayLoading, setClosedDayLoading] = useState(false);
+  const [closedDayMessage, setClosedDayMessage] = useState<string | null>(null);
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoLocalPreview, setLogoLocalPreview] = useState<string | null>(null);
@@ -754,6 +764,129 @@ export default function SettingsPage({
                     {worksOnHolidays ? 'trabaja en feriados' : 'respeta feriados'}
                   </span>
                 </p>
+              )}
+
+              {(onAddClosedDay || onRemoveClosedDay) && (
+                <div className="pt-2 border-t border-[var(--surface-border)]/70 space-y-2">
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                    Días sin operación
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+                    {isSeller
+                      ? 'Marcá un día puntual en el que no vas a operar (vacaciones, cierre, etc.). Ese día se salta como no hábil.'
+                      : 'Marcá un día puntual en el que la agencia no opera. Aplica a todos los vendedores ese día.'}
+                  </p>
+                  {onAddClosedDay && (
+                    <form
+                      className="flex flex-wrap items-end gap-2"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!closedDayDraft) return;
+                        setClosedDayLoading(true);
+                        setClosedDayMessage(null);
+                        try {
+                          await onAddClosedDay(closedDayDraft, closedDayNote || null);
+                          setClosedDayDraft('');
+                          setClosedDayNote('');
+                          setClosedDayMessage('Día marcado como cerrado.');
+                        } catch (err: unknown) {
+                          setClosedDayMessage(
+                            err instanceof Error ? err.message : 'Error al guardar.'
+                          );
+                        } finally {
+                          setClosedDayLoading(false);
+                        }
+                      }}
+                    >
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                          Fecha
+                        </span>
+                        <input
+                          type="date"
+                          value={closedDayDraft}
+                          onChange={(e) => setClosedDayDraft(e.target.value)}
+                          className={inputClass}
+                          required
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 min-w-[10rem] flex-1">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                          Nota (opcional)
+                        </span>
+                        <input
+                          type="text"
+                          value={closedDayNote}
+                          onChange={(e) => setClosedDayNote(e.target.value)}
+                          placeholder="Ej. vacaciones"
+                          maxLength={255}
+                          className={inputClass}
+                        />
+                      </label>
+                      <button type="submit" disabled={closedDayLoading} className={btnGhost}>
+                        {closedDayLoading ? 'Guardando...' : 'Agregar'}
+                      </button>
+                    </form>
+                  )}
+                  {closedDayMessage && (
+                    <p
+                      className={`text-[10px] ${
+                        closedDayMessage.includes('cerrado')
+                          ? 'text-[var(--color-ok)]'
+                          : 'text-[var(--color-danger)]'
+                      }`}
+                    >
+                      {closedDayMessage}
+                    </p>
+                  )}
+                  {closedDays.length === 0 ? (
+                    <p className="text-[10px] text-[var(--color-text-faint)]">
+                      No hay días cerrados cargados.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                      {closedDays.map((day) => (
+                        <li
+                          key={day.dateKey}
+                          className="flex items-center justify-between gap-2 text-[11px] px-2 py-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50"
+                        >
+                          <span className="min-w-0 truncate">
+                            <span className="font-mono font-bold text-[var(--ink-soft)]">
+                              {day.dateKey}
+                            </span>
+                            {day.note ? (
+                              <span className="text-[var(--color-text-muted)]"> · {day.note}</span>
+                            ) : null}
+                          </span>
+                          {onRemoveClosedDay && (
+                            <button
+                              type="button"
+                              className="shrink-0 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-danger)] hover:underline"
+                              onClick={() => {
+                                void (async () => {
+                                  setClosedDayLoading(true);
+                                  setClosedDayMessage(null);
+                                  try {
+                                    await onRemoveClosedDay(day.dateKey);
+                                    setClosedDayMessage('Día cerrado eliminado.');
+                                  } catch (err: unknown) {
+                                    setClosedDayMessage(
+                                      err instanceof Error ? err.message : 'Error al eliminar.'
+                                    );
+                                  } finally {
+                                    setClosedDayLoading(false);
+                                  }
+                                })();
+                              }}
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
           </div>

@@ -155,14 +155,28 @@ export function isWeekendOperationalDate(dateKey: string): boolean {
 export interface BusinessDayOptions {
   /** Si true, feriados nacionales / puentes cuentan como hábiles. Domingos siguen sin operar. */
   worksOnHolidays?: boolean;
+  /** Fechas YYYY-MM-DD cerradas por la agencia o el vendedor. */
+  closedDateKeys?: ReadonlySet<string> | readonly string[];
 }
 
-/** Domingo, o feriado si la agencia/vendedor no trabaja feriados. */
+function hasClosedDate(
+  dateKey: string,
+  closed?: ReadonlySet<string> | readonly string[]
+): boolean {
+  if (!closed) return false;
+  if ('has' in closed && typeof closed.has === 'function') {
+    return (closed as ReadonlySet<string>).has(dateKey);
+  }
+  return (closed as readonly string[]).includes(dateKey);
+}
+
+/** Domingo, feriado (si aplica) o día cerrado configurado. */
 export function isNonWorkingOperationalDate(
   dateKey: string,
   opts?: BusinessDayOptions
 ): boolean {
   if (isWeekendOperationalDate(dateKey)) return true;
+  if (hasClosedDate(dateKey, opts?.closedDateKeys)) return true;
   if (opts?.worksOnHolidays) return false;
   return isArgentinaHoliday(dateKey);
 }

@@ -32,6 +32,7 @@ import {
 } from '../utils/delivery-deadline.js';
 import { getAgencyDeliveryDeadlineHour, listAgenciesDeadlineHours } from './agencies.service.js';
 import { ML_RESCHEDULE_SUBSTATUS_LIST } from '../utils/ml-reschedule.js';
+import { resolveClosedDateKeys } from './closed-days.service.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -571,10 +572,10 @@ export async function createOrder(
 
   const deadlineHour = await resolveSalesCutoffHour({ sellerId, agencyId });
   const worksOnHolidays = await resolveWorksOnHolidays({ sellerId, agencyId });
-  // Sin deliveryDeadline explicito (p. ej. lead_time ML): post-corte del vendedor → dia habil siguiente.
+  const closedDateKeys = await resolveClosedDateKeys({ sellerId, agencyId });
   const deliveryDeadline =
     data.deliveryDeadline ??
-    computeDeliveryDeadline(createdAt, deadlineHour, { worksOnHolidays });
+    computeDeliveryDeadline(createdAt, deadlineHour, { worksOnHolidays, closedDateKeys });
 
   if (data.externalSource && data.externalOrderId) {
     if (sellerId) {
@@ -1012,6 +1013,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
 
   const hourCache = new Map<string, number>();
   const holidayCache = new Map<string, boolean>();
+  const closedCache = new Map<string, string[]>();
   let updated = 0;
 
   for (const row of rows) {
@@ -1032,9 +1034,20 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       });
       holidayCache.set(cacheKey, worksOnHolidays);
     }
+    let closedDateKeys = closedCache.get(cacheKey);
+    if (closedDateKeys == null) {
+      closedDateKeys = await resolveClosedDateKeys({
+        sellerId: row.seller_id,
+        agencyId: row.agency_id ?? agencyId ?? null,
+      });
+      closedCache.set(cacheKey, closedDateKeys);
+    }
 
     const created = new Date(row.created_at);
-    const expected = computeDeliveryDeadline(created, hour, { worksOnHolidays });
+    const expected = computeDeliveryDeadline(created, hour, {
+      worksOnHolidays,
+      closedDateKeys,
+    });
     const expectedKey = getOperationalDateKey(expected);
     const current = row.delivery_deadline ? new Date(row.delivery_deadline) : null;
     const currentKey = current ? getOperationalDateKey(current) : null;
@@ -1218,7 +1231,11 @@ export async function syncMarketplaceOrderOperationalDay(
     sellerId: order.sellerId,
     agencyId: order.agencyId,
   });
-  const calOpts = { worksOnHolidays };
+  const closedDateKeys = await resolveClosedDateKeys({
+    sellerId: order.sellerId,
+    agencyId: order.agencyId,
+  });
+  const calOpts = { worksOnHolidays, closedDateKeys };
   const todayKey = getOperationalDateKey(new Date());
   const { start: todayStart } = getOperationalDayBounds(todayKey);
   const currentKey = order.deliveryDeadline

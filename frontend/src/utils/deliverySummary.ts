@@ -122,6 +122,18 @@ export function isWeekendOperationalDate(dateKey: string): boolean {
 
 export interface BusinessDayOptions {
   worksOnHolidays?: boolean;
+  closedDateKeys?: ReadonlySet<string> | readonly string[];
+}
+
+function hasClosedDate(
+  dateKey: string,
+  closed?: ReadonlySet<string> | readonly string[]
+): boolean {
+  if (!closed) return false;
+  if ('has' in closed && typeof closed.has === 'function') {
+    return (closed as ReadonlySet<string>).has(dateKey);
+  }
+  return (closed as readonly string[]).includes(dateKey);
 }
 
 export function isNonWorkingOperationalDate(
@@ -129,6 +141,7 @@ export function isNonWorkingOperationalDate(
   opts?: BusinessDayOptions
 ): boolean {
   if (isWeekendOperationalDate(dateKey)) return true;
+  if (hasClosedDate(dateKey, opts?.closedDateKeys)) return true;
   if (opts?.worksOnHolidays) return false;
   return isArgentinaHoliday(dateKey);
 }

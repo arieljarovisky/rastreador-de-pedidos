@@ -58,6 +58,7 @@ interface OperationsDashboardProps {
   userRole?: UserRole;
   deadlineHour?: number;
   worksOnHolidays?: boolean;
+  closedDateKeys?: string[];
   onSelectOrder?: (orderId: string) => void;
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   onGoToOperations?: () => void;
@@ -74,12 +75,16 @@ export default function OperationsDashboard({
   userRole,
   deadlineHour = DELIVERY_DEADLINE_HOUR,
   worksOnHolidays = false,
+  closedDateKeys = [],
   onSelectOrder,
   onScheduleOrderToday,
   onGoToOperations,
   onViewSellerHistory,
 }: OperationsDashboardProps) {
-  const calOpts = useMemo(() => ({ worksOnHolidays }), [worksOnHolidays]);
+  const calOpts = useMemo(
+    () => ({ worksOnHolidays, closedDateKeys }),
+    [worksOnHolidays, closedDateKeys]
+  );
   const todayKey = getActiveOperationalDateKey(new Date(), calOpts);
   const tomorrowKey = getNextOperationalDateKey(todayKey, calOpts);
   const cutHour = deadlineHour;

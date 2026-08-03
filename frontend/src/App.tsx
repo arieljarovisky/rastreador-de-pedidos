@@ -101,6 +101,8 @@ export default function App() {
   const [worksOnHolidays, setWorksOnHolidays] = useState(false);
   const [agencyWorksOnHolidays, setAgencyWorksOnHolidays] = useState(false);
   const [ownSellerWorksOnHolidays, setOwnSellerWorksOnHolidays] = useState<boolean | null>(null);
+  const [closedDays, setClosedDays] = useState<Array<{ dateKey: string; note: string | null }>>([]);
+  const [closedDateKeys, setClosedDateKeys] = useState<string[]>([]);
   const [sellerBranding, setSellerBranding] = useState<{
     hasLogo: boolean;
     labelFont: string;
@@ -334,6 +336,21 @@ export default function App() {
                   typeof data.sellerWorksOnHolidays === 'boolean'
                     ? data.sellerWorksOnHolidays
                     : null
+                );
+              }
+              if (Array.isArray(data?.closedDays)) {
+                setClosedDays(
+                  data.closedDays
+                    .filter((d: { dateKey?: string }) => typeof d?.dateKey === 'string')
+                    .map((d: { dateKey: string; note?: string | null }) => ({
+                      dateKey: d.dateKey,
+                      note: d.note ?? null,
+                    }))
+                );
+              }
+              if (Array.isArray(data?.closedDateKeys)) {
+                setClosedDateKeys(
+                  data.closedDateKeys.filter((k: unknown): k is string => typeof k === 'string')
                 );
               }
 
@@ -1386,6 +1403,36 @@ export default function App() {
       setOwnSellerWorksOnHolidays(
         typeof data.sellerWorksOnHolidays === 'boolean' ? data.sellerWorksOnHolidays : null
       );
+    }
+    await fetchData();
+  };
+
+  const handleAddClosedDay = async (dateKey: string, note?: string | null) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/closed-days'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ dateKey, note: note ?? null }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo marcar el día como cerrado');
+    }
+    await fetchData();
+  };
+
+  const handleRemoveClosedDay = async (dateKey: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/closed-days/${encodeURIComponent(dateKey)}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo quitar el día cerrado');
     }
     await fetchData();
   };
@@ -2562,6 +2609,7 @@ export default function App() {
                     userRole={user.role}
                     deadlineHour={deliveryDeadlineHour}
                     worksOnHolidays={worksOnHolidays}
+                    closedDateKeys={closedDateKeys}
                     onSelectOrder={(orderId) => {
                       setActiveOrderId(orderId);
                       setMobileTab('dashboard');
@@ -2717,6 +2765,17 @@ export default function App() {
                   onUpdateWorksOnHolidays={
                     isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
                       ? handleUpdateWorksOnHolidays
+                      : undefined
+                  }
+                  closedDays={closedDays}
+                  onAddClosedDay={
+                    isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
+                      ? handleAddClosedDay
+                      : undefined
+                  }
+                  onRemoveClosedDay={
+                    isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
+                      ? handleRemoveClosedDay
                       : undefined
                   }
                   hasSellerLogo={sellerBranding?.hasLogo ?? false}
