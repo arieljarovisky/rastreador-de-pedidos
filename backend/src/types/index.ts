@@ -51,6 +51,11 @@ export interface User {
   deliveryZone?: string | null;
   /** Corte de ventas del vendedor (0–23). null = hereda el de la agencia. */
   deliveryDeadlineHour?: number | null;
+  /**
+   * Si trabaja en feriados. null = hereda agencia.
+   * Solo puede ser true si la agencia también trabaja feriados.
+   */
+  worksOnHolidays?: boolean | null;
   /** Baja lógica: si está seteado, la cuenta no puede autenticarse. */
   disabledAt?: string | null;
 }
@@ -143,6 +148,7 @@ export interface DbUserRow {
   departure_lng: number | null;
   delivery_zone: string | null;
   delivery_deadline_hour: number | null;
+  works_on_holidays?: number | null;
   session_token: string | null;
 }
 

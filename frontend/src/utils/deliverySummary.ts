@@ -1,4 +1,5 @@
 import { Order, OrderStatus, DeliveryDailySummary } from '../types.js';
+import { getArgentinaHolidayName, isArgentinaHoliday } from './argentina-holidays.js';
 
 export const DELIVERY_DEADLINE_HOUR = 13;
 /** Límite de entrega del día (no confundir con el corte de ventas). */
@@ -119,17 +120,36 @@ export function isWeekendOperationalDate(dateKey: string): boolean {
   return getOperationalWeekday(dateKey) === 0;
 }
 
-export function nextBusinessOperationalDateKey(dateKey: string): string {
+export interface BusinessDayOptions {
+  worksOnHolidays?: boolean;
+}
+
+export function isNonWorkingOperationalDate(
+  dateKey: string,
+  opts?: BusinessDayOptions
+): boolean {
+  if (isWeekendOperationalDate(dateKey)) return true;
+  if (opts?.worksOnHolidays) return false;
+  return isArgentinaHoliday(dateKey);
+}
+
+export function nextBusinessOperationalDateKey(
+  dateKey: string,
+  opts?: BusinessDayOptions
+): string {
   let key = dateKey;
-  while (isWeekendOperationalDate(key)) {
+  for (let i = 0; i < 21 && isNonWorkingOperationalDate(key, opts); i += 1) {
     key = shiftOperationalDateKey(key, 1);
   }
   return key;
 }
 
-export function previousBusinessOperationalDateKey(dateKey: string): string {
+export function previousBusinessOperationalDateKey(
+  dateKey: string,
+  opts?: BusinessDayOptions
+): string {
   let key = dateKey;
-  while (isWeekendOperationalDate(key)) {
+  for (let i = 0; i < 21 && isNonWorkingOperationalDate(key, opts); i += 1) {
     key = shiftOperationalDateKey(key, -1);
   }
   return key;
@@ -137,16 +157,21 @@ export function previousBusinessOperationalDateKey(dateKey: string): string {
 
 /**
  * Día operativo activo para paneles / datos.
- * Domingo no se trabaja → se usa el lunes (próximo hábil).
- * Para etiquetas “Hoy/Ayer” usar getOperationalDateKey (calendario).
+ * Domingo o feriado (si no trabaja) → próximo día hábil.
  */
-export function getActiveOperationalDateKey(date: Date = new Date()): string {
-  return nextBusinessOperationalDateKey(getOperationalDateKey(date));
+export function getActiveOperationalDateKey(
+  date: Date = new Date(),
+  opts?: BusinessDayOptions
+): string {
+  return nextBusinessOperationalDateKey(getOperationalDateKey(date), opts);
 }
 
-/** Día hábil siguiente (salta domingo). */
-export function getNextOperationalDateKey(dateKey: string): string {
-  return nextBusinessOperationalDateKey(shiftOperationalDateKey(dateKey, 1));
+/** Día hábil siguiente (salta domingo y feriados según opts). */
+export function getNextOperationalDateKey(
+  dateKey: string,
+  opts?: BusinessDayOptions
+): string {
+  return nextBusinessOperationalDateKey(shiftOperationalDateKey(dateKey, 1), opts);
 }
 
 /**
@@ -169,14 +194,22 @@ export function formatOperationalDateLabel(dateKey: string, now: Date = new Date
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-/** True si el calendario es domingo y el panel está en el lunes (próximo hábil). */
+/** True si el calendario es no laborable y el panel está en el próximo hábil. */
 export function isRolledForwardWeekendOperationalDay(
   dateKey: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  opts?: BusinessDayOptions
 ): boolean {
   const calendarToday = getOperationalDateKey(now);
-  if (!isWeekendOperationalDate(calendarToday)) return false;
-  return dateKey === getActiveOperationalDateKey(now);
+  if (!isNonWorkingOperationalDate(calendarToday, opts)) return false;
+  return dateKey === getActiveOperationalDateKey(now, opts);
+}
+
+export function getNonWorkingOperationalLabel(dateKey: string): string | null {
+  if (isWeekendOperationalDate(dateKey)) return 'Domingo sin operación';
+  const holiday = getArgentinaHolidayName(dateKey);
+  if (holiday) return `Feriado · ${holiday}`;
+  return null;
 }
 
 export function formatOperationalDateShort(dateKey: string): string {

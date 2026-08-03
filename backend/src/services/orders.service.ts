@@ -1,4 +1,4 @@
-import { RowDataPacket, ResultSetHeader } from 'mysql2';
+﻿import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { pool } from '../config/database.js';
 import {
   AppNotification,
@@ -10,7 +10,14 @@ import {
   User,
   UserRole,
 } from '../types/index.js';
-import { getRepartidorById, getUserById, updateUserLocation, assertSellerInAgency, resolveSalesCutoffHour } from './users.service.js';
+import {
+  getRepartidorById,
+  getUserById,
+  updateUserLocation,
+  assertSellerInAgency,
+  resolveSalesCutoffHour,
+  resolveWorksOnHolidays,
+} from './users.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import {
   computeDeliveryDeadline,
@@ -21,7 +28,7 @@ import {
   getOperationalDateKey,
   getOperationalDayBounds,
   getTodayDeadline,
-  isWeekendOperationalDate,
+  isNonWorkingOperationalDate,
 } from '../utils/delivery-deadline.js';
 import { getAgencyDeliveryDeadlineHour, listAgenciesDeadlineHours } from './agencies.service.js';
 import { ML_RESCHEDULE_SUBSTATUS_LIST } from '../utils/ml-reschedule.js';
@@ -77,7 +84,7 @@ async function loadHistoryForOrders(orderIds: string[]): Promise<Map<string, Ord
   return map;
 }
 
-/** Tope de puntos GPS por pedido en listados (el mapa solo usa el último; el detalle pide full). */
+/** Tope de puntos GPS por pedido en listados (el mapa solo usa el Ãºltimo; el detalle pide full). */
 const LIST_LOCATION_POINTS_PER_ORDER = 60;
 
 async function loadLocationsForOrders(
@@ -92,7 +99,7 @@ async function loadLocationsForOrders(
 
   let rows: LocationRow[];
   if (maxPerOrder != null && maxPerOrder > 0) {
-    // Solo los últimos N puntos por pedido (evita payload de miles de GPS).
+    // Solo los Ãºltimos N puntos por pedido (evita payload de miles de GPS).
     try {
       const [ranked] = await pool.query<LocationRow[]>(
         `SELECT order_id, lat, lng, created_at FROM (
@@ -107,7 +114,7 @@ async function loadLocationsForOrders(
       );
       rows = ranked;
     } catch {
-      // Fallback sin window functions: solo el último punto por pedido.
+      // Fallback sin window functions: solo el Ãºltimo punto por pedido.
       const [latest] = await pool.query<LocationRow[]>(
         `SELECT olh.order_id, olh.lat, olh.lng, olh.created_at
          FROM order_location_history olh
@@ -280,9 +287,9 @@ export type OrdersRegistryFilters = {
   externalSource?: string;
   /** pending | assigned | delivering | delivered | cancelled | archived | all */
   status?: string;
-  /** Día operativo YYYY-MM-DD inclusive (inicio del rango, por created_at ART). */
+  /** DÃ­a operativo YYYY-MM-DD inclusive (inicio del rango, por created_at ART). */
   dateFrom?: string;
-  /** Día operativo YYYY-MM-DD inclusive (fin del rango, por created_at ART). */
+  /** DÃ­a operativo YYYY-MM-DD inclusive (fin del rango, por created_at ART). */
   dateTo?: string;
   q?: string;
   limit?: number;
@@ -341,7 +348,7 @@ function buildRegistryScope(
   const fromOk = dateFrom && /^\d{4}-\d{2}-\d{2}$/.test(dateFrom);
   const toOk = dateTo && /^\d{4}-\d{2}-\d{2}$/.test(dateTo);
   if (fromOk || toOk) {
-    // Rango inclusive por día de alta/importación (columna Fecha del Registro).
+    // Rango inclusive por dÃ­a de alta/importaciÃ³n (columna Fecha del Registro).
     if (fromOk && toOk) {
       const startKey = dateFrom! <= dateTo! ? dateFrom! : dateTo!;
       const endKey = dateFrom! <= dateTo! ? dateTo! : dateFrom!;
@@ -520,7 +527,7 @@ export async function createOrder(
     historyLat?: number;
     historyLng?: number;
     deliveryDeadline?: Date;
-    /** Fecha de venta del marketplace (domingo → lunes). Si falta, se usa el momento de alta en Posta. */
+    /** Fecha de venta del marketplace (domingo â†’ lunes). Si falta, se usa el momento de alta en Posta. */
     soldAt?: Date;
   }
 ): Promise<Order> {
@@ -528,7 +535,7 @@ export async function createOrder(
   const now = new Date();
   const soldAt =
     data.soldAt && !Number.isNaN(data.soldAt.getTime()) ? data.soldAt : null;
-  // Para imports: el día operativo sigue la venta (domingo → lunes), no la hora de importación.
+  // Para imports: el dÃ­a operativo sigue la venta (domingo â†’ lunes), no la hora de importaciÃ³n.
   const createdAt = soldAt ?? now;
 
   let sellerId: string | null = null;
@@ -563,10 +570,11 @@ export async function createOrder(
   }
 
   const deadlineHour = await resolveSalesCutoffHour({ sellerId, agencyId });
-  // Sin deliveryDeadline explícito (p. ej. lead_time ML): post-corte del vendedor → día hábil siguiente.
-  // Vie post-corte → sábado; sáb post-corte / domingo → lunes.
+  const worksOnHolidays = await resolveWorksOnHolidays({ sellerId, agencyId });
+  // Sin deliveryDeadline explicito (p. ej. lead_time ML): post-corte del vendedor → dia habil siguiente.
   const deliveryDeadline =
-    data.deliveryDeadline ?? computeDeliveryDeadline(createdAt, deadlineHour);
+    data.deliveryDeadline ??
+    computeDeliveryDeadline(createdAt, deadlineHour, { worksOnHolidays });
 
   if (data.externalSource && data.externalOrderId) {
     if (sellerId) {
@@ -612,7 +620,7 @@ export async function createOrder(
       newId,
       OrderStatus.PENDING,
       user.name,
-      data.historyComment ?? (sellerId ? '' : 'Envío registrado sin vendedor asignado'),
+      data.historyComment ?? (sellerId ? '' : 'EnvÃ­o registrado sin vendedor asignado'),
       data.historyLat ?? null,
       data.historyLng ?? null,
       now,
@@ -651,7 +659,7 @@ export async function findOrderByExternalGlobal(
   return orders[0] ?? null;
 }
 
-/** Busca un pedido ML por ID de envío o número de venta (en notas). */
+/** Busca un pedido ML por ID de envÃ­o o nÃºmero de venta (en notas). */
 export async function findMercadoLibreOrderByPublicRef(ref: string): Promise<Order | null> {
   const trimmed = ref.trim();
   if (!trimmed) return null;
@@ -717,7 +725,7 @@ export function assertOrderAccessibleForLabelScan(user: User, order: Order): voi
   throw new Error('FORBIDDEN');
 }
 
-/** Registra un escaneo de etiqueta ML en la bitácora del pedido (primer alta o re-escaneo). */
+/** Registra un escaneo de etiqueta ML en la bitÃ¡cora del pedido (primer alta o re-escaneo). */
 export async function recordMercadoLibreLabelScan(
   user: User,
   orderId: string,
@@ -733,7 +741,7 @@ export async function recordMercadoLibreLabelScan(
   const comment = options?.isFirstImport
     ? options.sellerName
       ? `Etiqueta ML #${externalOrderId} escaneada en colecta (${options.sellerName})`
-      : `Etiqueta ML #${externalOrderId} escaneada — pedido registrado`
+      : `Etiqueta ML #${externalOrderId} escaneada â€” pedido registrado`
     : `Etiqueta ML #${externalOrderId} re-escaneada`;
 
   const lat = options?.lat ?? null;
@@ -750,7 +758,7 @@ export async function recordMercadoLibreLabelScan(
   return refreshed;
 }
 
-/** Registra un evento de ML en la bitácora sin cambiar el estado del pedido. */
+/** Registra un evento de ML en la bitÃ¡cora sin cambiar el estado del pedido. */
 export async function appendOrderMarketplaceComment(
   orderId: string,
   comment: string
@@ -769,9 +777,9 @@ export async function appendOrderMarketplaceComment(
 
 /**
  * Mueve a HOY pedidos abiertos ausentes/reprogramados trabados en el pasado.
- * (ML: “Envío reprogramado… entregalo hoy”). Incluye PED-2023 por id.
+ * (ML: â€œEnvÃ­o reprogramadoâ€¦ entregalo hoyâ€). Incluye PED-2023 por id.
  * Compara por clave operativa AR (igual que el frontend), no solo por DATETIME SQL.
- * Domingo no laboral: “hoy” = sábado; deadlines en domingo se reasignan al día activo.
+ * Domingo no laboral: â€œhoyâ€ = sÃ¡bado; deadlines en domingo se reasignan al dÃ­a activo.
  */
 export async function forceRescheduledOrdersStuckInPastToToday(
   agencyId?: string
@@ -830,8 +838,8 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     const stuck = rows.filter((row) => {
       if (!row.delivery_deadline) return true;
       const key = getOperationalDateKey(new Date(row.delivery_deadline));
-      // Domingo no laboral: sacar del domingo hacia el día activo (sábado).
-      if (isWeekendOperationalDate(key)) return true;
+      // Domingo no laboral: sacar del domingo hacia el dÃ­a activo (sÃ¡bado).
+      if (isNonWorkingOperationalDate(key)) return true;
       return key < todayKey;
     });
     if (stuck.length === 0) continue;
@@ -850,14 +858,14 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     );
     total += stuck.length;
     console.log(
-      `[deadlines] → hoy (${agency.deliveryDeadlineHour}:00) agencia ${agency.id}: ${stuck
+      `[deadlines] â†’ hoy (${agency.deliveryDeadlineHour}:00) agencia ${agency.id}: ${stuck
         .map((r) => r.id)
         .join(', ')}`
     );
   }
 
-  // Cinturón: pedidos conocidos trabados + reprogramados del comprador en el pasado.
-  // PED-2075: Flex same-day mal programado en mañana.
+  // CinturÃ³n: pedidos conocidos trabados + reprogramados del comprador en el pasado.
+  // PED-2075: Flex same-day mal programado en maÃ±ana.
   const [ped] = await pool.query<
     Array<
       {
@@ -878,7 +886,7 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     const currentKey = row.delivery_deadline
       ? getOperationalDateKey(new Date(row.delivery_deadline))
       : null;
-    const onNonWorking = currentKey != null && isWeekendOperationalDate(currentKey);
+    const onNonWorking = currentKey != null && isNonWorkingOperationalDate(currentKey);
     const needsToday =
       row.id === 'PED-2075'
         ? currentKey == null || currentKey !== todayKey || onNonWorking
@@ -904,8 +912,8 @@ export async function forceRescheduledOrdersStuckInPastToToday(
     );
     if (needsToday) total += 1;
     console.log(
-      `[deadlines] Forzado ${row.id} → ${needsToday ? `hoy (${hour}:00)` : 'mismo día'}` +
-        (needsDemote ? ` · status ${row.status}→${nextStatus}` : '') +
+      `[deadlines] Forzado ${row.id} â†’ ${needsToday ? `hoy (${hour}:00)` : 'mismo dÃ­a'}` +
+        (needsDemote ? ` Â· status ${row.status}â†’${nextStatus}` : '') +
         ` desde ${currentKey ?? 'null'}`
     );
   }
@@ -917,13 +925,13 @@ export async function forceRescheduledOrdersStuckInPastToToday(
 }
 
 /**
- * Recalcula delivery_deadline de pedidos abiertos según createdAt + corte del vendedor (tope agencia).
- * - Corrige ventas nocturnas quedadas en el día anterior (corte viejo 21:00).
+ * Recalcula delivery_deadline de pedidos abiertos segÃºn createdAt + corte del vendedor (tope agencia).
+ * - Corrige ventas nocturnas quedadas en el dÃ­a anterior (corte viejo 21:00).
  * - Mueve a hoy los ausentes/reprogramables trabados en el pasado.
- * - Corrige ventas pre-corte con deadline adelantado (bug histórico corte 00:00).
- * - No avanza pedidos ya en HOY hacia mañana (respeta "Programado para hoy").
- * - No mueve al día siguiente un pedido con override manual "Programado para hoy".
- * - No retrocede pedidos reprogramados que ya están en un día futuro.
+ * - Corrige ventas pre-corte con deadline adelantado (bug histÃ³rico corte 00:00).
+ * - No avanza pedidos ya en HOY hacia maÃ±ana (respeta "Programado para hoy").
+ * - No mueve al dÃ­a siguiente un pedido con override manual "Programado para hoy".
+ * - No retrocede pedidos reprogramados que ya estÃ¡n en un dÃ­a futuro.
  */
 export async function recalculateOpenOrdersDeliveryDeadlines(
   agencyId?: string
@@ -935,7 +943,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
   const { start: todayStart } = getOperationalDayBounds(todayKey);
 
   let agencyFilter = '';
-  // Orden de `?` en el SQL: scheduled_today_comment, NOT IN (2), agencyFilter (0–2)
+  // Orden de `?` en el SQL: scheduled_today_comment, NOT IN (2), agencyFilter (0â€“2)
   const queryParams: (string | OrderStatus | Date)[] = [
     todayStart,
     OrderStatus.DELIVERED,
@@ -1003,6 +1011,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
   );
 
   const hourCache = new Map<string, number>();
+  const holidayCache = new Map<string, boolean>();
   let updated = 0;
 
   for (const row of rows) {
@@ -1015,9 +1024,17 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       });
       hourCache.set(cacheKey, hour);
     }
+    let worksOnHolidays = holidayCache.get(cacheKey);
+    if (worksOnHolidays == null) {
+      worksOnHolidays = await resolveWorksOnHolidays({
+        sellerId: row.seller_id,
+        agencyId: row.agency_id ?? agencyId ?? null,
+      });
+      holidayCache.set(cacheKey, worksOnHolidays);
+    }
 
     const created = new Date(row.created_at);
-    const expected = computeDeliveryDeadline(created, hour);
+    const expected = computeDeliveryDeadline(created, hour, { worksOnHolidays });
     const expectedKey = getOperationalDateKey(expected);
     const current = row.delivery_deadline ? new Date(row.delivery_deadline) : null;
     const currentKey = current ? getOperationalDateKey(current) : null;
@@ -1038,14 +1055,14 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
 
     let nextDeadline: Date | null = null;
 
-    if (currentKey != null && isWeekendOperationalDate(currentKey)) {
-      // Domingo no laboral → día operativo activo (sábado).
+    if (currentKey != null && isNonWorkingOperationalDate(currentKey)) {
+      // Domingo no laboral â†’ dÃ­a operativo activo (sÃ¡bado).
       nextDeadline = getTodayDeadline(hour);
     } else if (isRescheduled && currentKey != null && currentKey < todayKey) {
-      // Ausente / reprogramado trabado en el pasado → hoy (ML: entregar hoy).
+      // Ausente / reprogramado trabado en el pasado â†’ hoy (ML: entregar hoy).
       nextDeadline = getTodayDeadline(hour);
     } else if (isPinnedToday && (currentKey === todayKey || (currentKey != null && currentKey > todayKey))) {
-      // Override manual "Programado para hoy": fijar en hoy (también si el recalc lo había empujado a mañana).
+      // Override manual "Programado para hoy": fijar en hoy (tambiÃ©n si el recalc lo habÃ­a empujado a maÃ±ana).
       nextDeadline = getTodayDeadline(hour);
     } else if (
       hasManualProgramado &&
@@ -1053,15 +1070,15 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       currentKey != null &&
       currentKey > manualProgramadoKey
     ) {
-      // Empujado al día siguiente tras un "Programado para hoy" (p. ej. PED-2358): volver al día programado.
+      // Empujado al dÃ­a siguiente tras un "Programado para hoy" (p. ej. PED-2358): volver al dÃ­a programado.
       nextDeadline = deliveryDeadlineForOperationalDate(manualProgramadoKey, hour);
     } else if (hasManualProgramado && currentKey != null && currentKey < todayKey) {
-      // Ya programado manualmente para un día pasado: no enrollar al día siguiente.
+      // Ya programado manualmente para un dÃ­a pasado: no enrollar al dÃ­a siguiente.
       nextDeadline = null;
     } else if (!current) {
       nextDeadline = expected;
     } else if (currentKey != null && currentKey < todayKey) {
-      // Trabado en un día pasado (venta nocturna / corte viejo) → esperado (o hoy si el esperado ya pasó).
+      // Trabado en un dÃ­a pasado (venta nocturna / corte viejo) â†’ esperado (o hoy si el esperado ya pasÃ³).
       nextDeadline = expectedKey >= todayKey ? expected : getTodayDeadline(hour);
     } else if (
       !isRescheduled &&
@@ -1070,28 +1087,28 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       expectedKey < currentKey &&
       createdHour < hour
     ) {
-      // Venta pre-corte con deadline adelantado (p. ej. bug histórico corte 00:00 → PED-2358).
+      // Venta pre-corte con deadline adelantado (p. ej. bug histÃ³rico corte 00:00 â†’ PED-2358).
       nextDeadline = expected;
     } else if (currentKey === expectedKey && current!.getTime() !== expected.getTime()) {
-      // Mismo día operativo: alinear hora del corte.
+      // Mismo dÃ­a operativo: alinear hora del corte.
       nextDeadline = expected;
     }
-    // No empujar HOY → mañana por el corte (rompe "Programado para hoy" y la operación del día).
+    // No empujar HOY â†’ maÃ±ana por el corte (rompe "Programado para hoy" y la operaciÃ³n del dÃ­a).
 
-    // No pisar si el pedido ya está en un día posterior al esperado (reprogramado a futuro).
-    // Sí permitir corrección cuando nextDeadline viene del caso pre-corte de arriba.
-    // Sí permitir sacar un deadline del domingo no laboral.
+    // No pisar si el pedido ya estÃ¡ en un dÃ­a posterior al esperado (reprogramado a futuro).
+    // SÃ­ permitir correcciÃ³n cuando nextDeadline viene del caso pre-corte de arriba.
+    // SÃ­ permitir sacar un deadline del domingo no laboral.
     if (
       nextDeadline &&
       isRescheduled &&
       currentKey != null &&
       currentKey > getOperationalDateKey(nextDeadline) &&
-      !isWeekendOperationalDate(currentKey)
+      !isNonWorkingOperationalDate(currentKey)
     ) {
       continue;
     }
 
-    // Cinturón: nunca avanzar un pedido que ya está en el día operativo de hoy.
+    // CinturÃ³n: nunca avanzar un pedido que ya estÃ¡ en el dÃ­a operativo de hoy.
     if (
       nextDeadline &&
       currentKey === todayKey &&
@@ -1100,7 +1117,7 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
       continue;
     }
 
-    // Cinturón: no adelantar un override manual "Programado para hoy".
+    // CinturÃ³n: no adelantar un override manual "Programado para hoy".
     if (
       nextDeadline &&
       hasManualProgramado &&
@@ -1125,15 +1142,15 @@ export async function recalculateOpenOrdersDeliveryDeadlines(
   console.log(
     `[deadlines] Recalculados ${updated}/${rows.length} pedidos abiertos` +
       (agencyId ? ` (agencia ${agencyId})` : '') +
-      (forced > 0 ? ` + ${forced} reprogramados→hoy` : '')
+      (forced > 0 ? ` + ${forced} reprogramadosâ†’hoy` : '')
   );
   return updated + forced;
 }
 
 /**
- * Actualiza el corte de entrega si ML promete otro día operativo.
- * Puede bajar el día hasta hoy (p. ej. Flex mal puesto en “mañana”), pero nunca a un día pasado
- * (evita ping-pong: reprogramado→hoy y luego lead_time viejo → ayer).
+ * Actualiza el corte de entrega si ML promete otro dÃ­a operativo.
+ * Puede bajar el dÃ­a hasta hoy (p. ej. Flex mal puesto en â€œmaÃ±anaâ€), pero nunca a un dÃ­a pasado
+ * (evita ping-pong: reprogramadoâ†’hoy y luego lead_time viejo â†’ ayer).
  */
 export async function updateOrderDeliveryDeadlineIfNeeded(
   orderId: string,
@@ -1178,9 +1195,9 @@ export async function updateOrderDeliveryDeadlineIfNeeded(
   return getOrderById(orderId);
 }
 
-/** Corrige día operativo de un import si la fecha de venta del marketplace difiere del deadline guardado.
- *  Solo permite TRAER el día hacia atrás (p. ej. bug corte 00:00 → quedó en mañana).
- *  Nunca adelanta el día: eso pisaba "Programado para hoy" en cada auto-import TN/Shopify.
+/** Corrige dÃ­a operativo de un import si la fecha de venta del marketplace difiere del deadline guardado.
+ *  Solo permite TRAER el dÃ­a hacia atrÃ¡s (p. ej. bug corte 00:00 â†’ quedÃ³ en maÃ±ana).
+ *  Nunca adelanta el dÃ­a: eso pisaba "Programado para hoy" en cada auto-import TN/Shopify.
  */
 export async function syncMarketplaceOrderOperationalDay(
   orderId: string,
@@ -1197,6 +1214,11 @@ export async function syncMarketplaceOrderOperationalDay(
     sellerId: order.sellerId,
     agencyId: order.agencyId,
   });
+  const worksOnHolidays = await resolveWorksOnHolidays({
+    sellerId: order.sellerId,
+    agencyId: order.agencyId,
+  });
+  const calOpts = { worksOnHolidays };
   const todayKey = getOperationalDateKey(new Date());
   const { start: todayStart } = getOperationalDayBounds(todayKey);
   const currentKey = order.deliveryDeadline
@@ -1210,9 +1232,9 @@ export async function syncMarketplaceOrderOperationalDay(
   );
   const isPinnedToday = Number(pinRows[0]?.n) > 0;
 
-  // Override manual: fijar en hoy aunque el corte / auto-import digan mañana.
+  // Override manual: fijar en hoy aunque el corte / auto-import digan manana.
   if (isPinnedToday && currentKey !== todayKey) {
-    const target = getTodayDeadline(deadlineHour);
+    const target = getTodayDeadline(deadlineHour, calOpts);
     const now = new Date();
     await pool.query(
       'UPDATE orders SET created_at = ?, delivery_deadline = ?, updated_at = ? WHERE id = ?',
@@ -1221,7 +1243,7 @@ export async function syncMarketplaceOrderOperationalDay(
     return getOrderById(orderId);
   }
 
-  const expectedDeadline = computeDeliveryDeadline(soldAt, deadlineHour);
+  const expectedDeadline = computeDeliveryDeadline(soldAt, deadlineHour, calOpts);
   const expectedKey = getOperationalDateKey(expectedDeadline);
 
   if (expectedKey === currentKey) {
@@ -1236,17 +1258,17 @@ export async function syncMarketplaceOrderOperationalDay(
     return null;
   }
 
-  // No adelantar (rompe programación manual / operación del día).
+  // No adelantar (rompe programaciÃ³n manual / operaciÃ³n del dÃ­a).
   if (currentKey != null && expectedKey > currentKey) {
     return null;
   }
 
-  // Pedido ya en hoy: no mover a otro día.
+  // Pedido ya en hoy: no mover a otro dÃ­a.
   if (currentKey === todayKey) {
     return null;
   }
 
-  // Solo corrección hacia atrás (deadline adelantado respecto de la venta).
+  // Solo correcciÃ³n hacia atrÃ¡s (deadline adelantado respecto de la venta).
   const now = new Date();
   const nextDeadline =
     expectedKey < todayKey ? getTodayDeadline(deadlineHour) : expectedDeadline;
@@ -1258,7 +1280,7 @@ export async function syncMarketplaceOrderOperationalDay(
 }
 
 /**
- * Fuerza el día operativo del pedido a hoy (p. ej. Flex “enviar hoy” quedado en mañana).
+ * Fuerza el dÃ­a operativo del pedido a hoy (p. ej. Flex â€œenviar hoyâ€ quedado en maÃ±ana).
  */
 export async function scheduleOrderForToday(
   user: User,
@@ -1302,7 +1324,7 @@ export async function scheduleOrderForToday(
   return getOrderById(orderId);
 }
 
-/** Persiste el último status/substatus de envío ML Flex en el pedido. */
+/** Persiste el Ãºltimo status/substatus de envÃ­o ML Flex en el pedido. */
 export async function updateOrderMlShipmentMeta(
   orderId: string,
   mlStatus: string | null | undefined,
@@ -1329,8 +1351,8 @@ export async function updateOrderMlShipmentMeta(
 }
 
 /**
- * Actualiza nombre/teléfono/dirección cuando ML deja de ocultarlos (XXXXXXX → datos reales).
- * Solo completa campos enmascarados o vacíos; no pisa datos ya buenos.
+ * Actualiza nombre/telÃ©fono/direcciÃ³n cuando ML deja de ocultarlos (XXXXXXX â†’ datos reales).
+ * Solo completa campos enmascarados o vacÃ­os; no pisa datos ya buenos.
  */
 export async function updateOrderContactFromMercadoLibre(
   orderId: string,
@@ -1407,11 +1429,11 @@ export async function updateOrderContactFromMercadoLibre(
 }
 
 /**
- * Reprograma un pedido ausente / con excepción ML para reintento.
- * ML pide entregar “hoy”: el deadline operativo pasa al corte de hoy
- * (o al día futuro que indique ML si es posterior a hoy).
- * No empuja más si el pedido ya está en un día futuro.
- * Si estaba “en viaje”, vuelve a asignado/pendiente para el nuevo día.
+ * Reprograma un pedido ausente / con excepciÃ³n ML para reintento.
+ * ML pide entregar â€œhoyâ€: el deadline operativo pasa al corte de hoy
+ * (o al dÃ­a futuro que indique ML si es posterior a hoy).
+ * No empuja mÃ¡s si el pedido ya estÃ¡ en un dÃ­a futuro.
+ * Si estaba â€œen viajeâ€, vuelve a asignado/pendiente para el nuevo dÃ­a.
  */
 export async function rescheduleOrderToNextOperationalDay(
   orderId: string,
@@ -1430,9 +1452,9 @@ export async function rescheduleOrderToNextOperationalDay(
     : new Date(order.createdAt);
   const currentKey = getOperationalDateKey(base);
 
-  // Ya en un día futuro → no seguir corriendo el deadline ni spamear bitácora
-  if (currentKey > todayKey && !isWeekendOperationalDate(currentKey)) {
-    // Igual sacar de “en viaje” si ML ya lo marcó reprogramado.
+  // Ya en un dÃ­a futuro â†’ no seguir corriendo el deadline ni spamear bitÃ¡cora
+  if (currentKey > todayKey && !isNonWorkingOperationalDate(currentKey)) {
+    // Igual sacar de â€œen viajeâ€ si ML ya lo marcÃ³ reprogramado.
     if (order.status === OrderStatus.DELIVERING) {
       const demoted = order.repartidorId ? OrderStatus.ASSIGNED : OrderStatus.PENDING;
       return updateOrderStatusFromMarketplace(
@@ -1447,21 +1469,21 @@ export async function rescheduleOrderToNextOperationalDay(
   const deadlineHour = order.agencyId
     ? await getAgencyDeliveryDeadlineHour(order.agencyId)
     : undefined;
-  // Por defecto: hoy (mensaje ML “entregalo hoy”).
+  // Por defecto: hoy (mensaje ML â€œentregalo hoyâ€).
   let target = getTodayDeadline(deadlineHour);
   const preferred =
     preferredDeadline && !Number.isNaN(preferredDeadline.getTime()) ? preferredDeadline : null;
 
   if (preferred) {
     const preferredKey = getOperationalDateKey(preferred);
-    // Solo respetar preferencia ML si apunta a un día hábil posterior a hoy.
-    if (preferredKey > todayKey && !isWeekendOperationalDate(preferredKey)) {
+    // Solo respetar preferencia ML si apunta a un dÃ­a hÃ¡bil posterior a hoy.
+    if (preferredKey > todayKey && !isNonWorkingOperationalDate(preferredKey)) {
       target = preferred;
     }
   }
 
   const targetKey = getOperationalDateKey(target);
-  // Ya está en el día objetivo
+  // Ya estÃ¡ en el dÃ­a objetivo
   if (targetKey === currentKey) {
     if (order.status === OrderStatus.DELIVERING) {
       const demoted = order.repartidorId ? OrderStatus.ASSIGNED : OrderStatus.PENDING;
@@ -1474,7 +1496,7 @@ export async function rescheduleOrderToNextOperationalDay(
     return null;
   }
   // No retroceder (salvo sacar un deadline del domingo no laboral).
-  if (targetKey < currentKey && !isWeekendOperationalDate(currentKey)) {
+  if (targetKey < currentKey && !isNonWorkingOperationalDate(currentKey)) {
     return null;
   }
 
@@ -1530,7 +1552,7 @@ export async function updateOrderStatusFromMarketplace(
   return getOrderById(orderId);
 }
 
-/** Asigna un pedido pendiente al repartidor que escaneó en Flex (webhook ML). */
+/** Asigna un pedido pendiente al repartidor que escaneÃ³ en Flex (webhook ML). */
 export async function assignOrderToRepartidorFromMarketplace(
   orderId: string,
   repartidorId: string,
@@ -1546,8 +1568,8 @@ export async function assignOrderToRepartidorFromMarketplace(
 }
 
 /**
- * Asigna (o reasigna) un pedido al repartidor que escaneó en Mercado Envíos Flex.
- * Varios repartidores pueden escanear la misma etiqueta; gana el último escaneo.
+ * Asigna (o reasigna) un pedido al repartidor que escaneÃ³ en Mercado EnvÃ­os Flex.
+ * Varios repartidores pueden escanear la misma etiqueta; gana el Ãºltimo escaneo.
  */
 export async function assignOrderToScanningRepartidor(
   repartidor: User,
@@ -1595,7 +1617,7 @@ export async function assignOrderToScanningRepartidor(
   return updated;
 }
 
-/** Aplica estado y repartidor sincronizados desde Mercado Libre (importación / webhook). */
+/** Aplica estado y repartidor sincronizados desde Mercado Libre (importaciÃ³n / webhook). */
 export async function applyMercadoLibreSyncState(
   orderId: string,
   options: {
@@ -1642,7 +1664,7 @@ export async function applyMercadoLibreSyncState(
   ) {
     const { chargeOrderOnDelivery } = await import('./billing.service.js');
     await chargeOrderOnDelivery(updated).catch((err) => {
-      console.warn('[billing] No se pudo facturar envío ML entregado:', err);
+      console.warn('[billing] No se pudo facturar envÃ­o ML entregado:', err);
     });
     const { accrueDriverPayOnDelivery } = await import('./driver-settlement.service.js');
     await accrueDriverPayOnDelivery(updated).catch((err) => {
@@ -1728,7 +1750,7 @@ export async function updateOrderStatus(
     if (status === OrderStatus.CANCELLED) {
       if (order.status !== OrderStatus.PENDING) throw new Error('FORBIDDEN');
     } else if (status === OrderStatus.DELIVERED) {
-      // permitido (no-ML; ML ya se bloqueó arriba)
+      // permitido (no-ML; ML ya se bloqueÃ³ arriba)
     } else {
       throw new Error('FORBIDDEN');
     }
@@ -1799,7 +1821,7 @@ export async function updateOrderStatus(
   if (status === OrderStatus.DELIVERED) {
     const { chargeOrderOnDelivery } = await import('./billing.service.js');
     await chargeOrderOnDelivery(updated).catch((err) => {
-      console.warn('[billing] No se pudo facturar envío entregado:', err);
+      console.warn('[billing] No se pudo facturar envÃ­o entregado:', err);
     });
     const { accrueDriverPayOnDelivery } = await import('./driver-settlement.service.js');
     await accrueDriverPayOnDelivery(updated).catch((err) => {
@@ -1821,7 +1843,7 @@ export async function updateOrderStatus(
   };
 }
 
-/** Registra una incidencia en la bitácora sin cambiar el estado del pedido. */
+/** Registra una incidencia en la bitÃ¡cora sin cambiar el estado del pedido. */
 export async function addOrderIncident(
   user: User,
   orderId: string,
@@ -1997,7 +2019,7 @@ export async function simulatorTick(): Promise<number> {
       ]);
       await pool.query(
         `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
-        [order.id, OrderStatus.DELIVERED, order.repartidorName ?? 'Sistema Simulador', 'Entregado (Simulación automatizada)', now]
+        [order.id, OrderStatus.DELIVERED, order.repartidorName ?? 'Sistema Simulador', 'Entregado (SimulaciÃ³n automatizada)', now]
       );
       updatedCount++;
     } else {

@@ -15,6 +15,7 @@ import {
   getActiveOperationalDateKey,
   getOperationalDateKey,
   getOperationalMonthKey,
+  getNonWorkingOperationalLabel,
   isRolledForwardWeekendOperationalDay,
   parseOperationalDateKey,
   shiftOperationalMonthKey,
@@ -368,6 +369,7 @@ export default function OperationalDatePicker({
     const dayNum = parseOperationalDateKey(value).day;
     const isWeekendForward = isRolledForwardWeekendOperationalDay(value);
     const highlightAsCurrent = isToday || isWeekendForward;
+    const nonWorkingNote = getNonWorkingOperationalLabel(getOperationalDateKey());
 
     return (
       <div ref={rootRef} className="relative w-full">
@@ -427,8 +429,8 @@ export default function OperationalDatePicker({
                 )}
               </div>
               <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate">
-                {isWeekendForward
-                  ? `Domingo sin operación · ${weekday}, ${shortDate}`
+                {isWeekendForward && nonWorkingNote
+                  ? `${nonWorkingNote} · ${weekday}, ${shortDate}`
                   : `${weekday}, ${shortDate}`}
               </p>
             </div>

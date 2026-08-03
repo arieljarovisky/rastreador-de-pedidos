@@ -1,4 +1,5 @@
 import { Order, OrderStatus, DeliveryDailySummary } from '../types';
+import { getArgentinaHolidayName, isArgentinaHoliday } from './argentina-holidays';
 
 export const DELIVERY_DEADLINE_HOUR = 13;
 /** Límite de entrega del día (no confundir con el corte de ventas). */
@@ -97,9 +98,14 @@ export function isWeekendOperationalDate(dateKey: string): boolean {
   return getOperationalWeekday(dateKey) === 0;
 }
 
+/** Domingo o feriado nacional / puente turístico AR. */
+export function isNonWorkingOperationalDate(dateKey: string): boolean {
+  return isWeekendOperationalDate(dateKey) || isArgentinaHoliday(dateKey);
+}
+
 export function previousBusinessOperationalDateKey(dateKey: string): string {
   let key = dateKey;
-  while (isWeekendOperationalDate(key)) {
+  for (let i = 0; i < 21 && isNonWorkingOperationalDate(key); i += 1) {
     key = shiftOperationalDateKey(key, -1);
   }
   return key;
@@ -107,15 +113,22 @@ export function previousBusinessOperationalDateKey(dateKey: string): string {
 
 export function nextBusinessOperationalDateKey(dateKey: string): string {
   let key = dateKey;
-  while (isWeekendOperationalDate(key)) {
+  for (let i = 0; i < 21 && isNonWorkingOperationalDate(key); i += 1) {
     key = shiftOperationalDateKey(key, 1);
   }
   return key;
 }
 
-/** Día operativo activo: domingo → lunes (próximo hábil). */
+/** Día operativo activo: domingo/feriado → próximo hábil. */
 export function getActiveOperationalDateKey(date: Date = new Date()): string {
   return nextBusinessOperationalDateKey(getOperationalDateKey(date));
+}
+
+export function getNonWorkingOperationalLabel(dateKey: string): string | null {
+  if (isWeekendOperationalDate(dateKey)) return 'Domingo sin operación';
+  const holiday = getArgentinaHolidayName(dateKey);
+  if (holiday) return `Feriado · ${holiday}`;
+  return null;
 }
 
 /** SLA de entrega (21 hs ART) del día operativo del pedido. No usar deliveryDeadline (corte 13 hs). */

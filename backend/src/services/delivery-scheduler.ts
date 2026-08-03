@@ -29,7 +29,7 @@ function pruneOldKeys(dateKey: string): void {
 
 async function tick(): Promise<void> {
   const dateKey = getOperationalDateKey();
-  // Domingo no laboral: no enviar avisos de corte.
+  // Domingo: no enviar avisos de corte. Los feriados se respetan por agencia/vendedor abajo.
   if (isWeekendOperationalDate(dateKey)) return;
   const { hour, minute } = getArHourMinute();
   if (minute !== 0) return;

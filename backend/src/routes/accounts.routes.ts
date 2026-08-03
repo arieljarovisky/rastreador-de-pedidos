@@ -17,8 +17,11 @@ import {
   clearRepartidorSessionForAgency,
   assertSellerInAgency,
   resolveSalesCutoffHour,
+  resolveWorksOnHolidays,
   getSellerConfiguredDeadlineHour,
+  getSellerConfiguredWorksOnHolidays,
   updateOwnSellerDeliveryDeadlineHour,
+  updateOwnSellerWorksOnHolidays,
 } from '../services/users.service.js';
 import {
   listPickupPointsForUser,
@@ -32,7 +35,9 @@ import {
 import { isAgencyAdmin } from '../utils/roles.js';
 import {
   getAgencyDeliveryDeadlineHour,
+  getAgencyWorksOnHolidays,
   updateAgencyDeliveryDeadlineHour,
+  updateAgencyWorksOnHolidays,
 } from '../services/agencies.service.js';
 import { recalculateOpenOrdersDeliveryDeadlines } from '../services/orders.service.js';
 import { DELIVERY_DEADLINE_HOUR, getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
@@ -404,28 +409,44 @@ router.get('/agency/delivery-deadline', authenticate, async (req: Request, res: 
       hour: DELIVERY_DEADLINE_HOUR,
       agencyMaxHour: DELIVERY_DEADLINE_HOUR,
       sellerHour: null,
+      worksOnHolidays: false,
+      agencyWorksOnHolidays: false,
+      sellerWorksOnHolidays: null,
       recalculated: 0,
     });
     return;
   }
 
   const agencyMaxHour = await getAgencyDeliveryDeadlineHour(agencyId);
+  const agencyWorksOnHolidays = await getAgencyWorksOnHolidays(agencyId);
   let sellerHour: number | null = null;
+  let sellerWorksOnHolidays: boolean | null = null;
   let hour = agencyMaxHour;
+  let worksOnHolidays = agencyWorksOnHolidays;
 
   if (user.role === UserRole.STORE_ADMIN) {
     sellerHour = await getSellerConfiguredDeadlineHour(user.id);
+    sellerWorksOnHolidays = await getSellerConfiguredWorksOnHolidays(user.id);
     hour = await resolveSalesCutoffHour({ sellerId: user.id, agencyId });
+    worksOnHolidays = await resolveWorksOnHolidays({ sellerId: user.id, agencyId });
   }
 
-  const dayKey = `${DEADLINE_RECALC_VERSION}:${getActiveOperationalDateKey()}`;
+  const dayKey = `${DEADLINE_RECALC_VERSION}:${getActiveOperationalDateKey(undefined, { worksOnHolidays })}`;
   let recalculated = 0;
   if (deadlineRecalcByAgencyDay.get(agencyId) !== dayKey) {
     deadlineRecalcByAgencyDay.set(agencyId, dayKey);
     recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
   }
 
-  res.json({ hour, agencyMaxHour, sellerHour, recalculated });
+  res.json({
+    hour,
+    agencyMaxHour,
+    sellerHour,
+    worksOnHolidays,
+    agencyWorksOnHolidays,
+    sellerWorksOnHolidays,
+    recalculated,
+  });
 });
 
 router.post('/agency/delivery-deadline/recalculate', authenticate, async (req: Request, res: Response) => {
@@ -473,6 +494,37 @@ router.put('/agency/delivery-deadline', authenticate, requireAgencyAdmin(), asyn
   }
 });
 
+/** Agencia: opera o no en feriados nacionales / puentes. */
+router.put('/agency/works-on-holidays', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const agencyId = req.user!.agencyId;
+  if (!agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+  const raw = req.body?.worksOnHolidays;
+  if (typeof raw !== 'boolean') {
+    res.status(400).json({ error: 'Indicá si la agencia trabaja en feriados (true/false).' });
+    return;
+  }
+  try {
+    const agencyWorksOnHolidays = await updateAgencyWorksOnHolidays(agencyId, raw);
+    const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
+    res.json({
+      worksOnHolidays: agencyWorksOnHolidays,
+      agencyWorksOnHolidays,
+      sellerWorksOnHolidays: null,
+      recalculated,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Agencia no encontrada.' });
+      return;
+    }
+    throw err;
+  }
+});
+
 /** Vendedor: actualiza su propio corte (≤ máximo de la agencia). null = heredar agencia. */
 router.put(
   '/seller/delivery-deadline',
@@ -511,6 +563,48 @@ router.put(
       if (message === 'DEADLINE_ABOVE_AGENCY') {
         res.status(400).json({
           error: 'El corte del vendedor no puede ser posterior al corte de la agencia.',
+        });
+        return;
+      }
+      throw err;
+    }
+  }
+);
+
+/** Vendedor: trabaja feriados (null = heredar; true solo si la agencia también). */
+router.put(
+  '/seller/works-on-holidays',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    const raw = req.body?.worksOnHolidays;
+    const worksOnHolidays =
+      raw === null || raw === undefined || raw === ''
+        ? null
+        : Boolean(raw);
+
+    try {
+      const result = await updateOwnSellerWorksOnHolidays(req.user!, worksOnHolidays);
+      const recalculated = req.user!.agencyId
+        ? await recalculateOpenOrdersDeliveryDeadlines(req.user!.agencyId)
+        : 0;
+      res.json({ ...result, recalculated });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'FORBIDDEN') {
+        res.status(403).json({ error: 'Solo un vendedor puede cambiar esta preferencia.' });
+        return;
+      }
+      if (message === 'SELLER_NO_AGENCY') {
+        res.status(400).json({
+          error:
+            'Tu cuenta no está asociada a una agencia. Pedile a tu agencia que verifique tu usuario.',
+        });
+        return;
+      }
+      if (message === 'HOLIDAYS_ABOVE_AGENCY') {
+        res.status(400).json({
+          error: 'Tu agencia no opera en feriados. No podés activarlo por tu cuenta.',
         });
         return;
       }

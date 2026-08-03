@@ -1,3 +1,5 @@
+import { getArgentinaHolidayName, isArgentinaHoliday } from './argentina-holidays.js';
+
 /** Default / fallback si la agencia no tiene corte configurado (alineado al corte Flex ML típico 13:00). */
 export const DELIVERY_DEADLINE_HOUR = 13;
 /** Hora límite de entrega del día operativo (Flex “antes de las 21 hs”). Distinta del corte de ventas. */
@@ -84,7 +86,8 @@ export function getOperationalDayBounds(dateKey: string): { start: Date; end: Da
  */
 export function computeDeliveryDeadline(
   createdAt: Date = new Date(),
-  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR,
+  opts?: BusinessDayOptions
 ): Date {
   const cutHour = normalizeDeadlineHour(deadlineHour);
   const { year, month, day, hour } = getArDateParts(createdAt);
@@ -93,12 +96,18 @@ export function computeDeliveryDeadline(
   if (cutHour > 0 && hour >= cutHour) {
     dateKey = shiftOperationalDateKey(dateKey, 1);
   }
-  return deliveryDeadlineForBusinessDate(dateKey, cutHour);
+  return deliveryDeadlineForBusinessDate(dateKey, cutHour, opts);
 }
 
-/** Corte del día operativo activo (domingo → lunes). */
-export function getTodayDeadline(deadlineHour: number = DELIVERY_DEADLINE_HOUR): Date {
-  return deliveryDeadlineForOperationalDate(getActiveOperationalDateKey(), deadlineHour);
+/** Corte del día operativo activo. */
+export function getTodayDeadline(
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR,
+  opts?: BusinessDayOptions
+): Date {
+  return deliveryDeadlineForOperationalDate(
+    getActiveOperationalDateKey(new Date(), opts),
+    deadlineHour
+  );
 }
 
 /** Corte operativo para un día YYYY-MM-DD. */
@@ -143,19 +152,40 @@ export function isWeekendOperationalDate(dateKey: string): boolean {
   return getOperationalWeekday(dateKey) === 0;
 }
 
-/** Si cae domingo, avanza al lunes. */
-export function nextBusinessOperationalDateKey(dateKey: string): string {
+export interface BusinessDayOptions {
+  /** Si true, feriados nacionales / puentes cuentan como hábiles. Domingos siguen sin operar. */
+  worksOnHolidays?: boolean;
+}
+
+/** Domingo, o feriado si la agencia/vendedor no trabaja feriados. */
+export function isNonWorkingOperationalDate(
+  dateKey: string,
+  opts?: BusinessDayOptions
+): boolean {
+  if (isWeekendOperationalDate(dateKey)) return true;
+  if (opts?.worksOnHolidays) return false;
+  return isArgentinaHoliday(dateKey);
+}
+
+/** Si cae domingo o feriado (según opts), avanza al próximo hábil. */
+export function nextBusinessOperationalDateKey(
+  dateKey: string,
+  opts?: BusinessDayOptions
+): string {
   let key = dateKey;
-  while (isWeekendOperationalDate(key)) {
+  for (let i = 0; i < 21 && isNonWorkingOperationalDate(key, opts); i += 1) {
     key = shiftOperationalDateKey(key, 1);
   }
   return key;
 }
 
-/** Si cae domingo, retrocede al sábado. */
-export function previousBusinessOperationalDateKey(dateKey: string): string {
+/** Si cae domingo o feriado (según opts), retrocede al hábil anterior. */
+export function previousBusinessOperationalDateKey(
+  dateKey: string,
+  opts?: BusinessDayOptions
+): string {
   let key = dateKey;
-  while (isWeekendOperationalDate(key)) {
+  for (let i = 0; i < 21 && isNonWorkingOperationalDate(key, opts); i += 1) {
     key = shiftOperationalDateKey(key, -1);
   }
   return key;
@@ -163,47 +193,72 @@ export function previousBusinessOperationalDateKey(dateKey: string): string {
 
 /**
  * Día operativo activo para paneles / “hoy”.
- * Domingo no se trabaja → se usa el lunes (próximo hábil).
+ * Domingo o feriado (si no trabaja) → próximo día hábil.
  */
-export function getActiveOperationalDateKey(date: Date = new Date()): string {
-  return nextBusinessOperationalDateKey(getOperationalDateKey(date));
+export function getActiveOperationalDateKey(
+  date: Date = new Date(),
+  opts?: BusinessDayOptions
+): string {
+  return nextBusinessOperationalDateKey(getOperationalDateKey(date), opts);
 }
 
-/** Día hábil siguiente al indicado (salta domingo). */
-export function getNextOperationalDateKey(dateKey: string): string {
-  return nextBusinessOperationalDateKey(shiftOperationalDateKey(dateKey, 1));
+/** Día hábil siguiente al indicado (salta domingo y feriados según opts). */
+export function getNextOperationalDateKey(
+  dateKey: string,
+  opts?: BusinessDayOptions
+): string {
+  return nextBusinessOperationalDateKey(shiftOperationalDateKey(dateKey, 1), opts);
 }
 
-/** Corte del día hábil (domingo → lunes). */
+/** Corte del día hábil (salta domingo y feriados según opts). */
 export function deliveryDeadlineForBusinessDate(
   dateKey: string,
-  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR,
+  opts?: BusinessDayOptions
 ): Date {
   return deliveryDeadlineForOperationalDate(
-    nextBusinessOperationalDateKey(dateKey),
+    nextBusinessOperationalDateKey(dateKey, opts),
     deadlineHour
   );
 }
 
-/** Próximo corte operativo en día hábil (salta domingo). */
+/** Próximo corte operativo en día hábil. */
 export function nextOperationalDeliveryDeadline(
   fromDeadlineOrNow: Date = new Date(),
-  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR,
+  opts?: BusinessDayOptions
 ): Date {
-  const todayKey = getActiveOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey(new Date(), opts);
   const fromKey = getOperationalDateKey(fromDeadlineOrNow);
   const baseKey = fromKey >= todayKey ? fromKey : todayKey;
-  return deliveryDeadlineForBusinessDate(shiftOperationalDateKey(baseKey, 1), deadlineHour);
+  return deliveryDeadlineForBusinessDate(
+    shiftOperationalDateKey(baseKey, 1),
+    deadlineHour,
+    opts
+  );
 }
 
-/** Convierte una fecha ISO (p. ej. ML) al corte del día hábil (domingo → lunes). */
+/** Convierte una fecha ISO (p. ej. ML) al corte del día hábil. */
 export function deliveryDeadlineFromIsoDate(
   isoDate: string,
-  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR,
+  opts?: BusinessDayOptions
 ): Date | null {
   const parsed = new Date(isoDate);
   if (Number.isNaN(parsed.getTime())) return null;
-  return deliveryDeadlineForBusinessDate(getOperationalDateKey(parsed), deadlineHour);
+  return deliveryDeadlineForBusinessDate(
+    getOperationalDateKey(parsed),
+    deadlineHour,
+    opts
+  );
+}
+
+/** Etiqueta corta si el día calendario no es laborable. */
+export function getNonWorkingOperationalLabel(dateKey: string): string | null {
+  if (isWeekendOperationalDate(dateKey)) return 'Domingo sin operación';
+  const holiday = getArgentinaHolidayName(dateKey);
+  if (holiday) return `Feriado · ${holiday}`;
+  return null;
 }
 
 export function getArHourMinute(date: Date = new Date()): { hour: number; minute: number } {

@@ -57,6 +57,7 @@ interface OperationsDashboardProps {
   barrios?: Barrio[];
   userRole?: UserRole;
   deadlineHour?: number;
+  worksOnHolidays?: boolean;
   onSelectOrder?: (orderId: string) => void;
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   onGoToOperations?: () => void;
@@ -72,13 +73,15 @@ export default function OperationsDashboard({
   barrios = [],
   userRole,
   deadlineHour = DELIVERY_DEADLINE_HOUR,
+  worksOnHolidays = false,
   onSelectOrder,
   onScheduleOrderToday,
   onGoToOperations,
   onViewSellerHistory,
 }: OperationsDashboardProps) {
-  const todayKey = getActiveOperationalDateKey();
-  const tomorrowKey = getNextOperationalDateKey(todayKey);
+  const calOpts = useMemo(() => ({ worksOnHolidays }), [worksOnHolidays]);
+  const todayKey = getActiveOperationalDateKey(new Date(), calOpts);
+  const tomorrowKey = getNextOperationalDateKey(todayKey, calOpts);
   const cutHour = deadlineHour;
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [sellerFilterId, setSellerFilterId] = useState('');
@@ -226,7 +229,7 @@ export default function OperationsDashboard({
         : 'ok';
 
   const isAgency = isAgencyAdmin(userRole);
-  const isWeekendForward = isToday && isRolledForwardWeekendOperationalDay(selectedDateKey);
+  const isWeekendForward = isToday && isRolledForwardWeekendOperationalDay(selectedDateKey, new Date(), calOpts);
   const dayScopeLabel = isWeekendForward
     ? formatOperationalWeekday(selectedDateKey).toLowerCase()
     : isToday

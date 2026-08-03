@@ -98,6 +98,9 @@ export default function App() {
   const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(13);
   const [agencyMaxDeadlineHour, setAgencyMaxDeadlineHour] = useState(13);
   const [ownSellerDeadlineHour, setOwnSellerDeadlineHour] = useState<number | null>(null);
+  const [worksOnHolidays, setWorksOnHolidays] = useState(false);
+  const [agencyWorksOnHolidays, setAgencyWorksOnHolidays] = useState(false);
+  const [ownSellerWorksOnHolidays, setOwnSellerWorksOnHolidays] = useState<boolean | null>(null);
   const [sellerBranding, setSellerBranding] = useState<{
     hasLogo: boolean;
     labelFont: string;
@@ -318,6 +321,19 @@ export default function App() {
               if ('sellerHour' in data) {
                 setOwnSellerDeadlineHour(
                   typeof data.sellerHour === 'number' ? data.sellerHour : null
+                );
+              }
+              if (typeof data?.worksOnHolidays === 'boolean') {
+                setWorksOnHolidays(data.worksOnHolidays);
+              }
+              if (typeof data?.agencyWorksOnHolidays === 'boolean') {
+                setAgencyWorksOnHolidays(data.agencyWorksOnHolidays);
+              }
+              if ('sellerWorksOnHolidays' in data) {
+                setOwnSellerWorksOnHolidays(
+                  typeof data.sellerWorksOnHolidays === 'boolean'
+                    ? data.sellerWorksOnHolidays
+                    : null
                 );
               }
 
@@ -1333,6 +1349,43 @@ export default function App() {
     }
     if ('sellerHour' in data) {
       setOwnSellerDeadlineHour(typeof data.sellerHour === 'number' ? data.sellerHour : null);
+    }
+    await fetchData();
+  };
+
+  const handleUpdateWorksOnHolidays = async (value: boolean | null) => {
+    if (!token) return;
+    const isSeller = userRef.current?.role === UserRole.STORE_ADMIN;
+    const res = await fetch(
+      apiUrl(
+        isSeller
+          ? '/api/accounts/seller/works-on-holidays'
+          : '/api/accounts/agency/works-on-holidays'
+      ),
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ worksOnHolidays: value }),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo guardar la preferencia de feriados');
+    }
+    const data = await res.json();
+    if (typeof data?.worksOnHolidays === 'boolean') {
+      setWorksOnHolidays(data.worksOnHolidays);
+    }
+    if (typeof data?.agencyWorksOnHolidays === 'boolean') {
+      setAgencyWorksOnHolidays(data.agencyWorksOnHolidays);
+    }
+    if ('sellerWorksOnHolidays' in data) {
+      setOwnSellerWorksOnHolidays(
+        typeof data.sellerWorksOnHolidays === 'boolean' ? data.sellerWorksOnHolidays : null
+      );
     }
     await fetchData();
   };
@@ -2508,6 +2561,7 @@ export default function App() {
                     barrios={barrios}
                     userRole={user.role}
                     deadlineHour={deliveryDeadlineHour}
+                    worksOnHolidays={worksOnHolidays}
                     onSelectOrder={(orderId) => {
                       setActiveOrderId(orderId);
                       setMobileTab('dashboard');
@@ -2652,9 +2706,17 @@ export default function App() {
                   deliveryDeadlineHour={deliveryDeadlineHour}
                   agencyMaxDeadlineHour={agencyMaxDeadlineHour}
                   ownSellerDeadlineHour={ownSellerDeadlineHour}
+                  worksOnHolidays={worksOnHolidays}
+                  agencyWorksOnHolidays={agencyWorksOnHolidays}
+                  ownSellerWorksOnHolidays={ownSellerWorksOnHolidays}
                   onUpdateDeliveryDeadlineHour={
                     isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
                       ? handleUpdateDeliveryDeadlineHour
+                      : undefined
+                  }
+                  onUpdateWorksOnHolidays={
+                    isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
+                      ? handleUpdateWorksOnHolidays
                       : undefined
                   }
                   hasSellerLogo={sellerBranding?.hasLogo ?? false}

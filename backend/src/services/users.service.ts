@@ -8,6 +8,7 @@ import {
   getAgencyDeparture,
   getAgencyById,
   getAgencyDeliveryDeadlineHour,
+  getAgencyWorksOnHolidays,
   updateAgencyDeparture as updateAgencyDepartureRecord,
 } from './agencies.service.js';
 import { isAgencyAdmin } from '../utils/roles.js';
@@ -18,9 +19,10 @@ import { DELIVERY_DEADLINE_HOUR } from '../utils/delivery-deadline.js';
 
 const USER_COLUMNS = `id, username, name, role, agency_id, password_hash, google_id, email_verified_at, disabled_at,
   current_lat, current_lng, location_updated_at,
-  departure_address, departure_lat, departure_lng, delivery_zone, delivery_deadline_hour`;
+  departure_address, departure_lat, departure_lng, delivery_zone, delivery_deadline_hour, works_on_holidays`;
 
 let sellerDeadlineHourColumnReady: Promise<void> | null = null;
+let sellerWorksOnHolidaysColumnReady: Promise<void> | null = null;
 let userDisabledAtColumnReady: Promise<void> | null = null;
 let googleAuthColumnsReady: Promise<void> | null = null;
 
@@ -44,6 +46,27 @@ export async function ensureSellerDeliveryDeadlineHourColumn(): Promise<void> {
     });
   }
   await sellerDeadlineHourColumnReady;
+}
+
+export async function ensureSellerWorksOnHolidaysColumn(): Promise<void> {
+  if (!sellerWorksOnHolidaysColumnReady) {
+    sellerWorksOnHolidaysColumnReady = (async () => {
+      const [cols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'works_on_holidays'`
+      );
+      if (cols.length === 0) {
+        await pool.query(
+          'ALTER TABLE users ADD COLUMN works_on_holidays TINYINT(1) NULL AFTER delivery_deadline_hour'
+        );
+        console.log('[users] Columna works_on_holidays creada');
+      }
+    })().catch((err) => {
+      sellerWorksOnHolidaysColumnReady = null;
+      throw err;
+    });
+  }
+  await sellerWorksOnHolidaysColumnReady;
 }
 
 export async function ensureUserDisabledAtColumn(): Promise<void> {
@@ -146,6 +169,8 @@ function rowToUser(row: DbUserRow): User {
   if (row.role === UserRole.STORE_ADMIN) {
     user.deliveryDeadlineHour =
       row.delivery_deadline_hour == null ? null : Number(row.delivery_deadline_hour);
+    user.worksOnHolidays =
+      row.works_on_holidays == null ? null : Boolean(row.works_on_holidays);
   }
   return user;
 }
@@ -185,6 +210,92 @@ export async function resolveSalesCutoffHour(opts: {
   return Math.min(sellerHour, agencyHour);
 }
 
+/** Preferencia propia del vendedor (null = hereda agencia). */
+export async function getSellerConfiguredWorksOnHolidays(
+  sellerId: string
+): Promise<boolean | null> {
+  await ensureSellerWorksOnHolidaysColumn();
+  const [rows] = await pool.query<
+    Array<{ works_on_holidays: number | null } & RowDataPacket>
+  >('SELECT works_on_holidays FROM users WHERE id = ? AND role = ? LIMIT 1', [
+    sellerId,
+    UserRole.STORE_ADMIN,
+  ]);
+  const raw = rows[0]?.works_on_holidays;
+  if (raw == null) return null;
+  return Boolean(raw);
+}
+
+/**
+ * Efectivo: si la agencia no trabaja feriados, nadie trabaja.
+ * Si la agencia sí, el vendedor hereda o puede optar por no trabajar.
+ */
+export async function resolveWorksOnHolidays(opts: {
+  sellerId?: string | null;
+  agencyId?: string | null;
+}): Promise<boolean> {
+  const agencyWorks = opts.agencyId ? await getAgencyWorksOnHolidays(opts.agencyId) : false;
+  if (!agencyWorks) return false;
+  if (!opts.sellerId) return true;
+  const sellerWorks = await getSellerConfiguredWorksOnHolidays(opts.sellerId);
+  if (sellerWorks == null) return true;
+  return sellerWorks;
+}
+
+/** Cuando la agencia deja de operar feriados, los vendedores vuelven a heredar. */
+export async function clearSellerWorksOnHolidaysWhenAgencyDisables(
+  agencyId: string
+): Promise<number> {
+  await ensureSellerWorksOnHolidaysColumn();
+  const [result] = await pool.query<ResultSetHeader>(
+    `UPDATE users
+     SET works_on_holidays = NULL
+     WHERE agency_id = ? AND role = ? AND works_on_holidays IS NOT NULL`,
+    [agencyId, UserRole.STORE_ADMIN]
+  );
+  return result.affectedRows;
+}
+
+export async function updateOwnSellerWorksOnHolidays(
+  seller: User,
+  worksOnHolidays: boolean | null
+): Promise<{
+  worksOnHolidays: boolean;
+  agencyWorksOnHolidays: boolean;
+  sellerWorksOnHolidays: boolean | null;
+}> {
+  if (seller.role !== UserRole.STORE_ADMIN) throw new Error('FORBIDDEN');
+  if (!seller.agencyId) throw new Error('SELLER_NO_AGENCY');
+
+  await ensureSellerWorksOnHolidaysColumn();
+  const agencyWorksOnHolidays = await getAgencyWorksOnHolidays(seller.agencyId);
+
+  let sellerWorksOnHolidays: boolean | null;
+  if (worksOnHolidays === null) {
+    sellerWorksOnHolidays = null;
+  } else if (worksOnHolidays === true && !agencyWorksOnHolidays) {
+    throw new Error('HOLIDAYS_ABOVE_AGENCY');
+  } else {
+    sellerWorksOnHolidays = worksOnHolidays;
+  }
+
+  await pool.query('UPDATE users SET works_on_holidays = ? WHERE id = ? AND role = ?', [
+    sellerWorksOnHolidays == null ? null : sellerWorksOnHolidays ? 1 : 0,
+    seller.id,
+    UserRole.STORE_ADMIN,
+  ]);
+
+  const effective = await resolveWorksOnHolidays({
+    sellerId: seller.id,
+    agencyId: seller.agencyId,
+  });
+  return {
+    worksOnHolidays: effective,
+    agencyWorksOnHolidays,
+    sellerWorksOnHolidays,
+  };
+}
+
 /** Baja cortes de vendedores que superan el nuevo máximo de la agencia. */
 export async function clampSellerDeadlineHoursToAgencyMax(
   agencyId: string,
@@ -215,6 +326,7 @@ async function enrichUser(user: User): Promise<User> {
 
 export async function findUserByUsername(username: string): Promise<(DbUserRow & RowDataPacket) | null> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureSellerWorksOnHolidaysColumn();
   await ensureGoogleAuthColumns();
   await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
@@ -241,6 +353,7 @@ export function isEmailVerified(row: Pick<DbUserRow, 'email_verified_at'>): bool
 
 export async function getUserById(id: string): Promise<User | null> {
   await ensureSellerDeliveryDeadlineHourColumn();
+  await ensureSellerWorksOnHolidaysColumn();
   await ensureGoogleAuthColumns();
   await ensureUserDisabledAtColumn();
   const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
