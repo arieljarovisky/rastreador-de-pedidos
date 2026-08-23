@@ -168,7 +168,7 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.headerRow}>
           <Text style={styles.orderId}>{order.id}</Text>
-          <StatusBadge status={order.status} />
+          <StatusBadge order={order} />
         </View>
 
         <Text style={styles.client}>{order.clientName}</Text>

@@ -153,7 +153,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.headerRow}>
           <MonoLabel color={colors.textFaint}>ID: {order.id}</MonoLabel>
-          <StatusBadge status={order.status} />
+          <StatusBadge order={order} />
         </View>
 
         <Text style={typography.displayTitle(22)}>{order.clientName}</Text>

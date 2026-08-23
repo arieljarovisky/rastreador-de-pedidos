@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Order } from '../types';
-import { colors, fonts, radius, spacing, statusStyle, typography } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
+import { orderStatusPresentation } from '../utils/orderBadge';
 import PostaIcon from './icons/PostaIcons';
 import StatusBadge from './StatusBadge';
 import IconLabelRow from './ui/IconLabelRow';
@@ -16,7 +17,7 @@ interface Props {
 }
 
 export default function OrderCard({ order, onPress, showRepartidor, showSeller }: Props) {
-  const status = statusStyle(order.status);
+  const status = orderStatusPresentation(order);
 
   return (
     <Pressable
@@ -31,7 +32,7 @@ export default function OrderCard({ order, onPress, showRepartidor, showSeller }
             <MonoLabel color={colors.textFaint}>#{order.id.slice(-6)}</MonoLabel>
             <MarketplaceSourceLogo source={order.externalSource} />
           </View>
-          <StatusBadge status={order.status} />
+          <StatusBadge order={order} />
         </View>
 
         <Text style={styles.client} numberOfLines={1}>

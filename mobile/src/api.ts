@@ -506,7 +506,7 @@ export const api = {
   },
 
   getBillingLedger(token: string, dateFrom: string, dateTo: string): Promise<BillingLedgerEntry[]> {
-    const params = new URLSearchParams({ dateFrom, dateTo, limit: '40' });
+    const params = new URLSearchParams({ dateFrom, dateTo, limit: '5000' });
     return request<BillingLedgerEntry[]>(`/api/billing/ledger?${params}`, { token });
   },
 

@@ -1,10 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { OrderStatus } from '../types';
-import { fonts, radius, statusStyle } from '../theme';
+import { Order } from '../types';
+import { fonts, radius } from '../theme';
+import { orderStatusPresentation } from '../utils/orderBadge';
 
-export default function StatusBadge({ status }: { status: OrderStatus }) {
-  const s = statusStyle(status);
+export default function StatusBadge({ order }: { order: Order }) {
+  const s = orderStatusPresentation(order);
   return (
     <View
       style={[

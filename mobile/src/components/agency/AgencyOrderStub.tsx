@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Order } from '../../types';
-import { colors, fonts, radius, spacing, statusStyle } from '../../theme';
+import { colors, fonts, radius, spacing } from '../../theme';
+import { orderStatusPresentation } from '../../utils/orderBadge';
 import StatusBadge from '../StatusBadge';
 import IconLabelRow from '../ui/IconLabelRow';
 import MarketplaceSourceLogo from '../MarketplaceSourceLogo';
@@ -22,7 +23,7 @@ const plazoTone: Record<AgencyUrgency, { fg: string; bg: string }> = {
 };
 
 export default function AgencyOrderStub({ order, onPress }: Props) {
-  const status = statusStyle(order.status);
+  const status = orderStatusPresentation(order);
   const urgency = urgencyForOrder(order);
   const plazo = plazoTone[urgency];
 
@@ -39,7 +40,7 @@ export default function AgencyOrderStub({ order, onPress }: Props) {
             <MonoLabel color={colors.textFaint}>{order.id}</MonoLabel>
             <MarketplaceSourceLogo source={order.externalSource} />
           </View>
-          <StatusBadge status={order.status} />
+          <StatusBadge order={order} />
         </View>
 
         <Text style={styles.client} numberOfLines={1}>

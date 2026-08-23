@@ -108,7 +108,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       const headers = { Authorization: `Bearer ${token}` };
       const [summaryRes, ledgerRes, paymentOptsRes] = await Promise.all([
         fetch(apiUrl(`/api/billing/summary?${params}`), { headers }),
-        fetch(apiUrl(`/api/billing/ledger?${params}&limit=80`), { headers }),
+        fetch(apiUrl(`/api/billing/ledger?${params}&limit=5000`), { headers }),
         !isAgency
           ? fetch(apiUrl('/api/billing/payment-options'), { headers })
           : Promise.resolve(null),
