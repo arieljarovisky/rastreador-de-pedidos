@@ -3,6 +3,7 @@ import { RowDataPacket } from 'mysql2';
 import { pool } from '../config/database.js';
 import { Order, OrderStatus, User, UserRole } from '../types/index.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import { getOperationalDayBounds } from '../utils/delivery-deadline.js';
 import { getOrderById } from './orders.service.js';
 import { findPricingZoneForPoint, listPricingZonesForAgency } from './delivery-zones.service.js';
 
@@ -77,6 +78,19 @@ function toMoney(value: string | number | null | undefined): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
+
+/** Rango inclusive de días calendario Argentina (el `end` es exclusivo). */
+function periodBounds(dateFrom: string, dateTo: string): { start: Date; end: Date } {
+  const startKey = dateFrom <= dateTo ? dateFrom : dateTo;
+  const endKey = dateFrom <= dateTo ? dateTo : dateFrom;
+  return {
+    start: getOperationalDayBounds(startKey).start,
+    end: getOperationalDayBounds(endKey).end,
+  };
+}
+
+/** Cargos: día operativo del envío. Pagos: alta del asiento. */
+const ENTRY_PERIOD_AT = 'COALESCE(o.delivery_deadline, b.created_at)';
 
 function resolveRateForOrder(rates: AgencyShippingRates, shippingType: string | null | undefined): number {
   if (shippingType === 'flex') return rates.flex;
@@ -358,12 +372,13 @@ export async function getBillingSummary(
   const zoneRates = await listAgencyZoneShippingRates(scope.agencyId);
   const defaultRates = await getAgencyDefaultShippingRates(scope.agencyId);
   const sellerName = await getSellerName(scope.sellerId);
+  const { start, end } = periodBounds(options.dateFrom, options.dateTo);
 
-  const params: Array<string> = [scope.agencyId, `${options.dateFrom} 00:00:00`, `${options.dateTo} 23:59:59.999`];
+  const params: Array<string | Date> = [scope.agencyId, start, end];
   let sellerFilter = '';
   let sellerFilterB = '';
   if (scope.sellerId) {
-    sellerFilter = ' AND seller_id = ?';
+    sellerFilter = ' AND b.seller_id = ?';
     sellerFilterB = ' AND b.seller_id = ?';
     params.push(scope.sellerId);
   }
@@ -371,18 +386,20 @@ export async function getBillingSummary(
   const [spentRows] = await pool.query<
     Array<{ total: string | null; count: string | null } & RowDataPacket>
   >(
-    `SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count
-     FROM billing_ledger_entries
-     WHERE agency_id = ? AND entry_type = 'charge'
-       AND created_at >= ? AND created_at <= ?${sellerFilter}`,
+    `SELECT COALESCE(SUM(b.amount), 0) AS total, COUNT(*) AS count
+     FROM billing_ledger_entries b
+     LEFT JOIN orders o ON o.id = b.order_id
+     WHERE b.agency_id = ? AND b.entry_type = 'charge'
+       AND ${ENTRY_PERIOD_AT} >= ? AND ${ENTRY_PERIOD_AT} < ?${sellerFilter}`,
     params
   );
 
   const [paidRows] = await pool.query<Array<{ total: string | null } & RowDataPacket>>(
-    `SELECT COALESCE(SUM(amount), 0) AS total
-     FROM billing_ledger_entries
-     WHERE agency_id = ? AND entry_type = 'payment'
-       AND created_at >= ? AND created_at <= ?${sellerFilter}`,
+    `SELECT COALESCE(SUM(b.amount), 0) AS total
+     FROM billing_ledger_entries b
+     LEFT JOIN orders o ON o.id = b.order_id
+     WHERE b.agency_id = ? AND b.entry_type = 'payment'
+       AND ${ENTRY_PERIOD_AT} >= ? AND ${ENTRY_PERIOD_AT} < ?${sellerFilter}`,
     params
   );
 
@@ -412,7 +429,7 @@ export async function getBillingSummary(
      FROM billing_ledger_entries b
      INNER JOIN orders o ON o.id = b.order_id
      WHERE b.agency_id = ? AND b.entry_type = 'charge'
-       AND b.created_at >= ? AND b.created_at <= ?${sellerFilterB}
+       AND ${ENTRY_PERIOD_AT} >= ? AND ${ENTRY_PERIOD_AT} < ?${sellerFilterB}
      GROUP BY COALESCE(o.shipping_type, 'standard')
      ORDER BY amount DESC`,
     params
@@ -425,16 +442,17 @@ export async function getBillingSummary(
     >(
       `SELECT b.seller_id,
               u.name AS seller_name,
-              COALESCE(SUM(CASE WHEN b.entry_type = 'charge' AND b.created_at >= ? AND b.created_at <= ? THEN b.amount ELSE 0 END), 0) AS total_spent,
+              COALESCE(SUM(CASE WHEN b.entry_type = 'charge' AND ${ENTRY_PERIOD_AT} >= ? AND ${ENTRY_PERIOD_AT} < ? THEN b.amount ELSE 0 END), 0) AS total_spent,
               COALESCE(SUM(CASE b.entry_type WHEN 'charge' THEN b.amount WHEN 'payment' THEN -b.amount WHEN 'adjustment' THEN b.amount ELSE 0 END), 0) AS balance,
-              COALESCE(SUM(CASE WHEN b.entry_type = 'charge' AND b.created_at >= ? AND b.created_at <= ? THEN 1 ELSE 0 END), 0) AS shipments
+              COALESCE(SUM(CASE WHEN b.entry_type = 'charge' AND ${ENTRY_PERIOD_AT} >= ? AND ${ENTRY_PERIOD_AT} < ? THEN 1 ELSE 0 END), 0) AS shipments
        FROM billing_ledger_entries b
        INNER JOIN users u ON u.id = b.seller_id
+       LEFT JOIN orders o ON o.id = b.order_id
        WHERE b.agency_id = ?
        GROUP BY b.seller_id, u.name
        HAVING total_spent > 0 OR balance > 0
        ORDER BY total_spent DESC, balance DESC`,
-      [`${options.dateFrom} 00:00:00`, `${options.dateTo} 23:59:59.999`, `${options.dateFrom} 00:00:00`, `${options.dateTo} 23:59:59.999`, scope.agencyId]
+      [start, end, start, end, scope.agencyId]
     );
     sellers = sellerRows.map((row) => ({
       sellerId: row.seller_id,
@@ -474,11 +492,8 @@ export async function listBillingLedger(
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 5000);
   const offset = Math.max(options.offset ?? 0, 0);
 
-  const params: Array<string | number> = [
-    scope.agencyId,
-    `${options.dateFrom} 00:00:00`,
-    `${options.dateTo} 23:59:59.999`,
-  ];
+  const { start, end } = periodBounds(options.dateFrom, options.dateTo);
+  const params: Array<string | number | Date> = [scope.agencyId, start, end];
   let sellerFilter = '';
   if (scope.sellerId) {
     sellerFilter = ' AND b.seller_id = ?';
@@ -501,17 +516,19 @@ export async function listBillingLedger(
       description: string;
       created_by: string | null;
       created_at: Date;
+      delivery_deadline: Date | null;
     } & RowDataPacket>
   >(
     `SELECT b.id, b.agency_id, b.seller_id, u.name AS seller_name, b.order_id,
             o.address AS order_address, o.lat AS order_lat, o.lng AS order_lng,
-            b.entry_type, b.amount, b.description, b.created_by, b.created_at
+            b.entry_type, b.amount, b.description, b.created_by, b.created_at,
+            o.delivery_deadline
      FROM billing_ledger_entries b
      LEFT JOIN users u ON u.id = b.seller_id
      LEFT JOIN orders o ON o.id = b.order_id
      WHERE b.agency_id = ?
-       AND b.created_at >= ? AND b.created_at <= ?${sellerFilter}
-     ORDER BY b.created_at DESC
+       AND ${ENTRY_PERIOD_AT} >= ? AND ${ENTRY_PERIOD_AT} < ?${sellerFilter}
+     ORDER BY ${ENTRY_PERIOD_AT} DESC, b.created_at DESC
      LIMIT ? OFFSET ?`,
     params
   );
@@ -572,7 +589,7 @@ export async function listBillingLedger(
       amount: toMoney(row.amount),
       description: row.description,
       createdBy: row.created_by,
-      createdAt: new Date(row.created_at).toISOString(),
+      createdAt: new Date(row.delivery_deadline ?? row.created_at).toISOString(),
     });
   }
   return result;

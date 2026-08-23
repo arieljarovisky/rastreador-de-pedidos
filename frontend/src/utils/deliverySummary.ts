@@ -445,3 +445,17 @@ export function formatArTime(date: Date = new Date()): string {
     hour12: false,
   }).format(date);
 }
+
+export function formatArDateTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: DELIVERY_TIMEZONE,
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date);
+}

@@ -17,6 +17,7 @@ import OperationalDatePicker from './OperationalDatePicker.tsx';
 import {
   getActiveOperationalDateKey,
   formatOperationalDateShort,
+  formatArDateTime,
 } from '../utils/deliverySummary.js';
 
 interface ShippingAccountPageProps {
@@ -508,7 +509,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-[var(--ink-soft)]">{entry.description}</p>
                           <p className="text-[10px] font-mono text-[var(--color-text-muted)] mt-0.5">
-                            {new Date(entry.createdAt).toLocaleString('es-AR')}
+                            {formatArDateTime(entry.createdAt)}
                             {entry.orderId ? ` · ${entry.orderId}` : ''}
                             {isAgency && entry.sellerName ? ` · ${entry.sellerName}` : ''}
                           </p>

@@ -5,7 +5,7 @@
 
 import ExcelJS from 'exceljs';
 import type { BillingLedgerEntry, BillingSummary } from '../types.js';
-import { formatOperationalDateShort } from './deliverySummary.js';
+import { formatOperationalDateShort, formatArDateTime } from './deliverySummary.js';
 
 /** Paleta light de la landing Posta */
 const POSTA = {
@@ -363,7 +363,7 @@ function addMovimientosSheet(
     const zoneLabel = entry.entryType === 'charge' ? entry.pricingZoneName ?? '' : '';
     const row = sheet.getRow(6 + index);
     const values: Array<string | number> = [
-      new Date(entry.createdAt).toLocaleString('es-AR'),
+      formatArDateTime(entry.createdAt),
       entryTypeLabel(entry.entryType),
       entry.description,
       entry.orderId ?? '',
