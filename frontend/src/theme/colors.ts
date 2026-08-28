@@ -48,7 +48,14 @@ export function getPostaStatusColors(theme: PostaTheme) {
   return theme === 'paper' ? POSTA_STATUS_PAPER : POSTA_STATUS_DARK;
 }
 
+function withCartoKey(url: string): string {
+  const key = import.meta.env.VITE_CARTO_API_KEY?.trim();
+  return key ? `${url}?key=${encodeURIComponent(key)}` : url;
+}
+
 export const MAP_TILE_URLS: Record<PostaTheme, string> = {
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  paper: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  dark: withCartoKey('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'),
+  paper: withCartoKey(
+    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  ),
 };

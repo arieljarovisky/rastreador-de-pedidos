@@ -11,7 +11,10 @@ import {
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { colors, typography } from '../theme';
 
-const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const CARTO_KEY = process.env.EXPO_PUBLIC_CARTO_API_KEY?.trim() ?? '';
+const TILE_URL = CARTO_KEY
+  ? `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`
+  : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const OSM_FALLBACK = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 export interface MapPoint {
