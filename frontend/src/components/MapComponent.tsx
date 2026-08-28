@@ -13,7 +13,7 @@ import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
 import { dedupeRepartidores, repartidorIdentityMatches, repartidorMarkerKey } from '../utils/repartidorLocation.js';
 import { spreadOverlappingMarkers } from '../utils/markerSpread.js';
-import { getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
+import { CARTO_TILE_OPTIONS, getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 import * as L from 'leaflet';
 
@@ -122,7 +122,14 @@ function upsertPolyline(
   }
 }
 
-const MARKER_ANIM_MS = 1800;
+const MARKER_ANIM_MS = 700;
+const markerVisualKey = new WeakMap<L.Marker, string>();
+
+function applyIconIfChanged(marker: L.Marker, key: string, icon: L.DivIcon) {
+  if (markerVisualKey.get(marker) === key) return;
+  markerVisualKey.set(marker, key);
+  marker.setIcon(icon);
+}
 
 function animateMarkerTo(
   marker: L.Marker,
@@ -364,18 +371,10 @@ export default function MapComponent({
     // Leaflet suele quedar con _size viejo en layouts flex; fijar px y forzar redibujado.
     el.style.width = `${w}px`;
     el.style.height = `${h}px`;
-    map.invalidateSize({ animate: false, pan: false });
-
     const prev = lastSizeRef.current;
-    if (Math.abs(prev.w - w) > 2 || Math.abs(prev.h - h) > 2) {
-      lastSizeRef.current = { w, h };
-      // Tras un cambio grande de tamaño, recalcular tiles del viewport.
-      map.eachLayer((layer) => {
-        if (layer instanceof L.TileLayer) {
-          layer.redraw();
-        }
-      });
-    }
+    if (Math.abs(prev.w - w) < 2 && Math.abs(prev.h - h) < 2) return;
+    lastSizeRef.current = { w, h };
+    map.invalidateSize({ animate: false, pan: false });
   }, []);
 
   // Inicializar mapa cuando el contenedor ya tiene tamaño real (flex layout).
@@ -384,6 +383,7 @@ export default function MapComponent({
     let rafId = 0;
     const timers: number[] = [];
     let resizeObserver: ResizeObserver | null = null;
+    let resizeTimer = 0;
 
     const teardownMap = () => {
       for (const marker of Object.values(markersRef.current) as L.Marker[]) {
@@ -441,6 +441,9 @@ export default function MapComponent({
         dragging: interactive,
         touchZoom: interactive,
         attributionControl: false,
+        preferCanvas: true,
+        fadeAnimation: false,
+        markerZoomAnimation: false,
       });
 
       map.on('zoomstart', () => {
@@ -451,13 +454,7 @@ export default function MapComponent({
       });
 
       tileLayerRef.current = L.tileLayer(MAP_TILE_URLS[readPostaTheme()], {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 19,
-        updateWhenIdle: false,
-        updateWhenZooming: true,
-        keepBuffer: 2,
+        ...CARTO_TILE_OPTIONS,
       }).addTo(map);
 
       mapInstanceRef.current = map;
@@ -465,7 +462,7 @@ export default function MapComponent({
       setMapEpoch((n) => n + 1);
 
       // Tras el layout flex (sidebar + panel), el ancho suele asentar más tarde.
-      for (const ms of [0, 50, 120, 300, 600, 1200]) {
+      for (const ms of [0, 150, 500]) {
         timers.push(
           window.setTimeout(() => {
             if (!cancelled) refreshMapSize();
@@ -474,7 +471,10 @@ export default function MapComponent({
       }
 
       resizeObserver = new ResizeObserver(() => {
-        refreshMapSize();
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+          if (!cancelled) refreshMapSize();
+        }, 80);
       });
       resizeObserver.observe(root);
     };
@@ -485,6 +485,7 @@ export default function MapComponent({
       cancelled = true;
       cancelAnimationFrame(rafId);
       timers.forEach((id) => clearTimeout(id));
+      window.clearTimeout(resizeTimer);
       resizeObserver?.disconnect();
       teardownMap();
     };
@@ -494,7 +495,7 @@ export default function MapComponent({
 
   // Cada vez que cambia el pedido activo o modo compact, recalcular tamaño.
   useEffect(() => {
-    const timers = [0, 80, 200, 450].map((ms) =>
+    const timers = [0, 160].map((ms) =>
       window.setTimeout(() => refreshMapSize(), ms)
     );
     return () => timers.forEach((id) => clearTimeout(id));
@@ -575,18 +576,21 @@ export default function MapComponent({
           )
         : allZones;
 
+      const zoneRenderer = L.canvas({ padding: 0.4, tolerance: 0 });
+
       for (const zone of paintZones) {
         const features = collectZoneGeoFeatures(zone, barrios);
         if (features.length === 0) continue;
 
         const layer = L.geoJSON(features, {
           interactive: false,
+          renderer: zoneRenderer,
           style: {
             color: zone.color,
             weight: 1,
             fillColor: zone.color,
-            fillOpacity: 0.38,
-            opacity: 0.85,
+            fillOpacity: 0.32,
+            opacity: 0.75,
           },
         }).addTo(map);
 
@@ -647,7 +651,7 @@ export default function MapComponent({
       if (markersRef.current[order.id]) {
         const marker = markersRef.current[order.id];
         marker.setLatLng([order.lat, order.lng]);
-        marker.setIcon(icon);
+        applyIconIfChanged(marker, `${color}|${label}|${glow}`, icon);
         if (compact) {
           marker.closePopup();
           marker.unbindPopup();
@@ -690,7 +694,7 @@ export default function MapComponent({
       if (markersRef.current[markerId]) {
         const marker = markersRef.current[markerId];
         marker.setLatLng([point.lat, point.lng]);
-        marker.setIcon(icon);
+        applyIconIfChanged(marker, `pickup|${point.id}|${mapColors.pickup}`, icon);
         marker.bindPopup(popupHtml, getMapPopupOptions('pickup'));
       } else {
         const marker = L.marker([point.lat, point.lng], { icon })
@@ -779,7 +783,11 @@ export default function MapComponent({
           markerAnimRef.current,
           markerId
         );
-        markersRef.current[markerId].setIcon(icon);
+        applyIconIfChanged(
+          markersRef.current[markerId],
+          `rep|${rep.name}|${stale}|${mapColors.route}`,
+          icon
+        );
         markersRef.current[markerId].setPopupContent(repPopup);
       } else {
         const marker = L.marker(displayPos, { icon })
@@ -827,7 +835,7 @@ export default function MapComponent({
         ? Infinity
         : Math.hypot(repPos[0] - last.lat, repPos[1] - last.lng) * 111;
     const shouldRefetch =
-      !last || now - last.at > 15000 || movedKm > 0.08;
+      !last || now - last.at > 20000 || movedKm > 0.12;
 
     if (!shouldRefetch) return;
 

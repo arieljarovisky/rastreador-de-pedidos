@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import * as L from 'leaflet';
-import { MAP_TILE_URLS } from '../theme/colors.ts';
+import { CARTO_TILE_OPTIONS, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 
 interface LocationPreviewMapProps {
@@ -41,12 +41,7 @@ export default function LocationPreviewMap({
       touchZoom: true,
     });
 
-    tileRef.current = L.tileLayer(MAP_TILE_URLS[readPostaTheme()], {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(map);
+    tileRef.current = L.tileLayer(MAP_TILE_URLS[readPostaTheme()], CARTO_TILE_OPTIONS).addTo(map);
 
     const icon = L.divIcon({
       html: `<div style="width:26px;height:26px;border-radius:50% 50% 50% 0;background:var(--color-accent,#f97316);border:2px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.45);transform:rotate(-45deg)"></div>`,
