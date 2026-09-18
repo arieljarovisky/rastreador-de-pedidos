@@ -14,6 +14,8 @@ interface AppVersionConfig {
   versionCode?: number;
   minVersionCode?: number;
   message?: string;
+  /** Si está definido, se usa en lugar de /downloads/posta-repartidor.apk */
+  downloadUrl?: string;
 }
 
 function readVersionConfig(): AppVersionConfig {
@@ -31,6 +33,7 @@ function readVersionConfig(): AppVersionConfig {
         versionCode: raw.versionCode,
         minVersionCode: raw.minVersionCode,
         message: raw.message,
+        downloadUrl: typeof raw.downloadUrl === 'string' ? raw.downloadUrl : undefined,
       };
     }
   } catch {
@@ -48,7 +51,7 @@ router.get('/version', (_req, res) => {
     versionCode: cfg.versionCode,
     minVersionCode: cfg.minVersionCode,
     message: cfg.message,
-    downloadUrl: `${env.publicUrl}/downloads/posta-repartidor.apk`,
+    downloadUrl: cfg.downloadUrl ?? `${env.publicUrl}/downloads/posta-repartidor.apk`,
   });
 });
 

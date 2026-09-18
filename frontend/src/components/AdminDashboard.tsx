@@ -74,10 +74,10 @@ function loadOrdersHeaderCollapsed(): boolean {
 
 function loadShowMapPanel(): boolean {
   try {
-    // Por defecto cerrado: la lista de envíos ocupa todo el ancho.
-    return localStorage.getItem(SHOW_MAP_PANEL_KEY) === '1';
+    // Por defecto abierto: el mapa no queda oculto detrás de la lista.
+    return localStorage.getItem(SHOW_MAP_PANEL_KEY) !== '0';
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -1824,7 +1824,7 @@ export default function AdminDashboard({
 
       {/* SECCIÓN DERECHA: MAPA E HISTORIAL */}
       <div
-        className={`lg:col-span-6 2xl:col-span-7 flex flex-col h-full gap-2 sm:gap-3 overflow-hidden ${
+        className={`lg:col-span-6 2xl:col-span-7 flex flex-col flex-1 min-h-0 h-full gap-2 sm:gap-3 overflow-hidden relative ${
           !showMapPanel
             ? 'hidden'
             : adminMobileTab !== 'map'
@@ -2048,9 +2048,9 @@ export default function AdminDashboard({
           <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
         </div>
 
-        {/* Panel Inferior: solo visible con un pedido seleccionado */}
+        {/* Panel inferior sobre el mapa: no reduce el área del mapa */}
         {selectedOrder && (
-        <div className="shrink-0 posta-surface overflow-hidden flex flex-col h-[min(38dvh,220px)] sm:h-[min(42dvh,260px)] lg:h-[260px] xl:h-[280px] 2xl:h-[300px] p-3 sm:p-4">
+        <div className="absolute bottom-0 left-0 right-0 z-[500] posta-surface overflow-hidden flex flex-col max-h-[min(38dvh,220px)] sm:max-h-[min(42dvh,260px)] lg:max-h-[240px] xl:max-h-[260px] p-3 sm:p-4 border-t border-[var(--surface-border)] shadow-[0_-8px_24px_rgba(0,0,0,0.35)]">
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-left scrollbar-thin">
               <div className="flex items-start justify-between border-b border-[var(--surface-border)] pb-2">
                 <div>

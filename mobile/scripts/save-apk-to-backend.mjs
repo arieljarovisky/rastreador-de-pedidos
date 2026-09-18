@@ -90,6 +90,8 @@ const versionPayload = {
   message:
     messageArg ??
     'Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras.',
+  // EAS CDN: el .apk no se sube a git; Railway sirve esta URL vía /api/app/version
+  ...(isLocalFile ? {} : { downloadUrl: url }),
 };
 fs.writeFileSync(versionPath, `${JSON.stringify(versionPayload, null, 2)}\n`);
 
