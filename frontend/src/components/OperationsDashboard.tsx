@@ -14,6 +14,9 @@ import {
   ChevronRight,
   Bike,
   Layers,
+  Filter,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
@@ -27,15 +30,19 @@ import {
   getDeliveredTodayOrders,
   getDeliveredLateTodayOrders,
   getOrderDeliveredAt,
-  getOperationalDateKey,
+  getActiveOperationalDateKey,
+  getNextOperationalDateKey,
   shiftOperationalDateKey,
   formatOperationalDateShort,
+  formatOperationalWeekday,
+  isRolledForwardWeekendOperationalDay,
   DELIVERY_DEADLINE_HOUR,
   DELIVERY_SLA_HOUR,
   DELIVERY_TIMEZONE_LABEL,
   formatArTime,
 } from '../utils/deliverySummary.js';
 import SellerFilterControl from './SellerFilterControl.tsx';
+import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
 import { getOrderOperationalDateKey, matchesOrderFilters } from '../utils/orderFilters.js';
@@ -50,9 +57,13 @@ interface OperationsDashboardProps {
   barrios?: Barrio[];
   userRole?: UserRole;
   deadlineHour?: number;
+  worksOnHolidays?: boolean;
+  closedDateKeys?: string[];
   onSelectOrder?: (orderId: string) => void;
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   onGoToOperations?: () => void;
+  /** Abre el historial completo del vendedor en el mapa/lista de envíos. */
+  onViewSellerHistory?: (sellerId: string) => void;
 }
 
 export default function OperationsDashboard({
@@ -63,21 +74,43 @@ export default function OperationsDashboard({
   barrios = [],
   userRole,
   deadlineHour = DELIVERY_DEADLINE_HOUR,
+  worksOnHolidays = false,
+  closedDateKeys = [],
   onSelectOrder,
   onScheduleOrderToday,
   onGoToOperations,
+  onViewSellerHistory,
 }: OperationsDashboardProps) {
-  const todayKey = getOperationalDateKey();
-  const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
+  const calOpts = useMemo(
+    () => ({ worksOnHolidays, closedDateKeys }),
+    [worksOnHolidays, closedDateKeys]
+  );
+  const todayKey = getActiveOperationalDateKey(new Date(), calOpts);
+  const tomorrowKey = getNextOperationalDateKey(todayKey, calOpts);
   const cutHour = deadlineHour;
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const [sellerFilterId, setSellerFilterId] = useState('');
+  const [marketplaceSourceFilter, setMarketplaceSourceFilter] = useState('');
   const [cordonFilterId, setCordonFilterId] = useState('');
   const [repartidorFilterId, setRepartidorFilterId] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [ambaGeoReady, setAmbaGeoReady] = useState(() => isAmbaGeoLoaded());
   const isToday = selectedDateKey === todayKey;
   const isTomorrow = selectedDateKey === tomorrowKey;
   const isFuture = selectedDateKey > todayKey;
+
+  const activeFiltersCount =
+    (sellerFilterId ? 1 : 0) +
+    (marketplaceSourceFilter ? 1 : 0) +
+    (cordonFilterId ? 1 : 0) +
+    (repartidorFilterId ? 1 : 0);
+
+  const clearFilters = () => {
+    setSellerFilterId('');
+    setMarketplaceSourceFilter('');
+    setCordonFilterId('');
+    setRepartidorFilterId('');
+  };
 
   useEffect(() => {
     if (ambaGeoReady) return;
@@ -101,11 +134,20 @@ export default function OperationsDashboard({
       sellerId: sellerFilterId || undefined,
       cordonId: cordonFilterId || undefined,
       repartidorId: repartidorFilterId || undefined,
+      externalSource: marketplaceSourceFilter || undefined,
       deliveryZones,
       barrios,
       ambaGeoReady,
     }),
-    [sellerFilterId, cordonFilterId, repartidorFilterId, deliveryZones, barrios, ambaGeoReady]
+    [
+      sellerFilterId,
+      cordonFilterId,
+      repartidorFilterId,
+      marketplaceSourceFilter,
+      deliveryZones,
+      barrios,
+      ambaGeoReady,
+    ]
   );
 
   const scopedOrders = useMemo(
@@ -113,7 +155,7 @@ export default function OperationsDashboard({
     [orders, orderFilterContext]
   );
 
-  /** Fechas operativas con al menos un envío (según filtros activos). */
+  /** Fechas con envíos: solo día operativo de entrega (según filtros activos). */
   const datesWithShipments = useMemo(() => {
     const keys = new Set<string>();
     for (const order of scopedOrders) {
@@ -192,11 +234,14 @@ export default function OperationsDashboard({
         : 'ok';
 
   const isAgency = isAgencyAdmin(userRole);
-  const dayScopeLabel = isToday
-    ? 'hoy'
-    : isTomorrow
-      ? 'mañana'
-      : formatOperationalDateShort(selectedDateKey);
+  const isWeekendForward = isToday && isRolledForwardWeekendOperationalDay(selectedDateKey, new Date(), calOpts);
+  const dayScopeLabel = isWeekendForward
+    ? formatOperationalWeekday(selectedDateKey).toLowerCase()
+    : isToday
+      ? 'hoy'
+      : isTomorrow
+        ? 'mañana'
+        : formatOperationalDateShort(selectedDateKey);
 
   return (
     <div
@@ -233,6 +278,7 @@ export default function OperationsDashboard({
           isToday={isToday}
           canGoNextDay={canGoForward}
           nextShipmentDateKey={nextShipmentDateKey}
+          shipmentDateKeys={datesWithShipments}
           onChange={setSelectedDateKey}
           onPreviousDay={() =>
             setSelectedDateKey((d) => {
@@ -249,27 +295,68 @@ export default function OperationsDashboard({
           onGoToday={() => setSelectedDateKey(todayKey)}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-2">
-          {isAgency && sellers.length > 0 && (
-            <SellerFilterControl
-              sellers={sellers}
-              value={sellerFilterId}
-              onChange={setSellerFilterId}
-            />
-          )}
-          <CordonFilterControl
-            zones={cordonZones}
-            value={cordonFilterId}
-            onChange={setCordonFilterId}
-          />
-          {isAgency && (
-            <RepartidorFilterControl
-              repartidores={repartidores}
-              value={repartidorFilterId}
-              onChange={setRepartidorFilterId}
-            />
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+              filtersOpen || activeFiltersCount > 0
+                ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--ink-soft)] hover:border-[var(--color-accent)]/30'
+            }`}
+          >
+            <Filter className="w-3.5 h-3.5 shrink-0" />
+            Filtros
+            {activeFiltersCount > 0 && (
+              <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-accent)] text-white text-[9px] flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
+            {filtersOpen ? (
+              <ChevronUp className="w-3.5 h-3.5 shrink-0 opacity-70" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-70" />
+            )}
+          </button>
+          {activeFiltersCount > 0 && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
+            >
+              Limpiar
+            </button>
           )}
         </div>
+
+        {filtersOpen && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-2">
+            {isAgency && sellers.length > 0 && (
+              <SellerFilterControl
+                sellers={sellers}
+                value={sellerFilterId}
+                onChange={setSellerFilterId}
+              />
+            )}
+            <MarketplaceSourceFilter
+              value={marketplaceSourceFilter}
+              onChange={setMarketplaceSourceFilter}
+            />
+            <CordonFilterControl
+              zones={cordonZones}
+              value={cordonFilterId}
+              onChange={setCordonFilterId}
+            />
+            {isAgency && (
+              <RepartidorFilterControl
+                repartidores={repartidores}
+                value={repartidorFilterId}
+                onChange={setRepartidorFilterId}
+              />
+            )}
+          </div>
+        )}
 
         <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 flex-wrap">
           <Clock className="w-3.5 h-3.5 shrink-0" />
@@ -338,15 +425,25 @@ export default function OperationsDashboard({
           }`}
         >
           <OrderListSection
-            title={isToday ? 'Sin entregar hoy' : isTomorrow ? 'Sin entregar mañana' : 'Sin entregar'}
+            title={
+              isWeekendForward
+                ? `Sin entregar el ${dayScopeLabel}`
+                : isToday
+                  ? 'Sin entregar hoy'
+                  : isTomorrow
+                    ? 'Sin entregar mañana'
+                    : 'Sin entregar'
+            }
             count={undelivered.length}
             orders={undelivered}
             emptyMessage={
-              isToday
-                ? 'Todos los pedidos del día fueron entregados.'
-                : isTomorrow
-                  ? 'No hay pedidos programados para mañana.'
-                  : `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
+              isWeekendForward
+                ? `No hay pedidos sin entregar el ${dayScopeLabel}.`
+                : isToday
+                  ? 'Todos los pedidos del día fueron entregados.'
+                  : isTomorrow
+                    ? 'No hay pedidos programados para mañana.'
+                    : `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
             }
             tone="warn"
             onSelectOrder={onSelectOrder}
@@ -356,15 +453,25 @@ export default function OperationsDashboard({
             showSeller={isAgency}
           />
           <OrderListSection
-            title={isToday ? 'Entregados hoy' : isTomorrow ? 'Entregados mañana' : 'Entregados'}
+            title={
+              isWeekendForward
+                ? `Entregados el ${dayScopeLabel}`
+                : isToday
+                  ? 'Entregados hoy'
+                  : isTomorrow
+                    ? 'Entregados mañana'
+                    : 'Entregados'
+            }
             count={delivered.length}
             orders={delivered}
             emptyMessage={
-              isToday
-                ? 'Todavía no hay entregas registradas hoy.'
-                : isTomorrow
-                  ? 'Todavía no hay entregas registradas para mañana.'
-                  : `No hubo entregas registradas el ${dayScopeLabel}.`
+              isWeekendForward
+                ? `Todavía no hay entregas registradas el ${dayScopeLabel}.`
+                : isToday
+                  ? 'Todavía no hay entregas registradas hoy.'
+                  : isTomorrow
+                    ? 'Todavía no hay entregas registradas para mañana.'
+                    : `No hubo entregas registradas el ${dayScopeLabel}.`
             }
             tone="ok"
             onSelectOrder={onSelectOrder}
@@ -375,11 +482,13 @@ export default function OperationsDashboard({
             count={deliveredLate.length}
             orders={deliveredLate}
             emptyMessage={
-              isToday
-                ? `Ningún pedido entregado después de las ${DELIVERY_SLA_HOUR}:00.`
-                : isTomorrow
-                  ? 'Ningún pedido de mañana entregado fuera de plazo.'
-                  : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
+              isWeekendForward
+                ? `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
+                : isToday
+                  ? `Ningún pedido entregado después de las ${DELIVERY_SLA_HOUR}:00.`
+                  : isTomorrow
+                    ? 'Ningún pedido de mañana entregado fuera de plazo.'
+                    : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
             }
             tone="danger"
             onSelectOrder={onSelectOrder}
@@ -394,6 +503,7 @@ export default function OperationsDashboard({
               rows={sellerBreakdown}
               selectedSellerId={sellerFilterId}
               onSelectSeller={setSellerFilterId}
+              onViewSellerHistory={onViewSellerHistory}
               className="hidden 2xl:flex"
             />
           )}
@@ -404,6 +514,7 @@ export default function OperationsDashboard({
             rows={sellerBreakdown}
             selectedSellerId={sellerFilterId}
             onSelectSeller={setSellerFilterId}
+            onViewSellerHistory={onViewSellerHistory}
             className="mt-3 2xl:hidden"
           />
         )}
@@ -585,11 +696,13 @@ function SellerBreakdownSection({
   rows,
   selectedSellerId = '',
   onSelectSeller,
+  onViewSellerHistory,
   className = '',
 }: {
   rows: Array<{ id: string; name: string; undelivered: number; delivered: number }>;
   selectedSellerId?: string;
   onSelectSeller?: (sellerId: string) => void;
+  onViewSellerHistory?: (sellerId: string) => void;
   className?: string;
 }) {
   return (
@@ -602,7 +715,9 @@ function SellerBreakdownSection({
           Por vendedor
         </h2>
         {onSelectSeller && (
-          <p className="text-[10px] sm:text-[9px] text-[var(--color-text-faint)] mt-1">Tocá un vendedor para filtrar</p>
+          <p className="text-[10px] sm:text-[9px] text-[var(--color-text-faint)] mt-1">
+            Tocá para filtrar el día · Historial abre Registro completo
+          </p>
         )}
       </div>
       <div className="xl:flex-1 xl:min-h-0 max-h-[16rem] xl:max-h-none overflow-y-auto divide-y divide-[var(--surface-border)]/60 scrollbar-thin">
@@ -610,7 +725,9 @@ function SellerBreakdownSection({
           const isActive = selectedSellerId === row.id;
           const inner = (
             <>
-              <span className="font-medium text-[var(--ink-soft)] truncate text-[15px] sm:text-sm">{row.name}</span>
+              <span className="font-medium text-[var(--ink-soft)] truncate text-[15px] sm:text-sm min-w-0">
+                {row.name}
+              </span>
               <div className="flex items-center gap-2 shrink-0 font-mono text-[11px] sm:text-[10px]">
                 <span className="text-[var(--color-ok)]">{row.delivered} ok</span>
                 <span className={row.undelivered > 0 ? 'text-[var(--color-warn)] font-bold' : 'text-[var(--color-text-muted)]'}>
@@ -627,18 +744,32 @@ function SellerBreakdownSection({
             );
           }
           return (
-            <button
+            <div
               key={row.id}
-              type="button"
-              onClick={() => onSelectSeller(isActive ? '' : row.id)}
-              className={`w-full flex items-center justify-between px-3 py-3.5 sm:py-2.5 text-sm text-left transition min-h-12 sm:min-h-0 ${
-                isActive
-                  ? 'bg-[var(--color-accent)]/10 border-l-2 border-[var(--color-accent)]'
-                  : 'hover:bg-[var(--surface-panel-2)]/60 active:bg-[var(--surface-panel-2)]'
+              className={`flex items-stretch ${
+                isActive ? 'bg-[var(--color-accent)]/10 border-l-2 border-[var(--color-accent)]' : ''
               }`}
             >
-              {inner}
-            </button>
+              <button
+                type="button"
+                onClick={() => onSelectSeller(isActive ? '' : row.id)}
+                className={`flex-1 min-w-0 flex items-center justify-between px-3 py-3.5 sm:py-2.5 text-sm text-left transition min-h-12 sm:min-h-0 ${
+                  isActive ? '' : 'hover:bg-[var(--surface-panel-2)]/60 active:bg-[var(--surface-panel-2)]'
+                }`}
+              >
+                {inner}
+              </button>
+              {onViewSellerHistory && (
+                <button
+                  type="button"
+                  title={`Ver todos los envíos de ${row.name}`}
+                  onClick={() => onViewSellerHistory(row.id)}
+                  className="shrink-0 px-2.5 self-stretch flex items-center text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 border-l border-[var(--surface-border)]/60"
+                >
+                  Historial
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

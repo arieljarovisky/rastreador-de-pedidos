@@ -47,6 +47,28 @@ export function getOrderOperationalDateKey(order: Order): string {
   return getOperationalDateKey(new Date(order.createdAt));
 }
 
+/** Día en que el pedido se importó / creó en Posta. */
+export function getOrderImportedDateKey(order: Order): string {
+  return getOperationalDateKey(new Date(order.createdAt));
+}
+
+/** Fechas relevantes del pedido: importación y día operativo de entrega. */
+export function getOrderDateKeys(order: Order): string[] {
+  const keys = new Set<string>();
+  keys.add(getOrderImportedDateKey(order));
+  keys.add(getOrderOperationalDateKey(order));
+  return [...keys];
+}
+
+/**
+ * True si el pedido pertenece al día operativo de entrega.
+ * No usa el día de alta: un pedido cargado el sábado post-corte con entrega el lunes
+ * solo debe aparecer al filtrar por lunes.
+ */
+export function orderBelongsToDateKey(order: Order, dateKey: string): boolean {
+  return getOrderOperationalDateKey(order) === dateKey;
+}
+
 export function matchesOrderFilters(
   order: Order,
   filters: {
@@ -54,6 +76,8 @@ export function matchesOrderFilters(
     cordonId?: string;
     repartidorId?: string;
     dateKey?: string;
+    /** Marketplace: mercadolibre | tiendanube | shopify | woocommerce | manual */
+    externalSource?: string;
     deliveryZones?: DeliveryZone[];
     barrios?: Barrio[];
   }
@@ -76,8 +100,16 @@ export function matchesOrderFilters(
     if (!orderCordon || orderCordon !== filterCordon) return false;
   }
 
-  if (filters.dateKey && getOrderOperationalDateKey(order) !== filters.dateKey) {
+  if (filters.dateKey && !orderBelongsToDateKey(order, filters.dateKey)) {
     return false;
+  }
+
+  if (filters.externalSource) {
+    if (filters.externalSource === 'manual') {
+      if (order.externalSource) return false;
+    } else if (order.externalSource !== filters.externalSource) {
+      return false;
+    }
   }
 
   return true;

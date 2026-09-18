@@ -101,6 +101,25 @@ function pickRate(rates: RateTrio, shippingType: string | null | undefined): num
   return rates.standard;
 }
 
+/** Si el punto no cae en AMBA, se usa la tarifa del cordón más exterior (ya no hay “fuera de zona”). */
+const FALLBACK_ZONE_KEYS = ['zona_cordon_3', 'zona_cordon_2', 'zona_cordon_1', 'zona_caba'] as const;
+
+function ratesFromZoneOrFallback(
+  list: PriceList,
+  zoneKey: string | null,
+  kind: 'shipping' | 'driverPay'
+): RateTrio {
+  if (zoneKey) {
+    const zr = list.zoneRates.find((z) => z.zoneKey === zoneKey);
+    if (zr) return kind === 'shipping' ? zr.shipping : zr.driverPay;
+  }
+  for (const key of FALLBACK_ZONE_KEYS) {
+    const zr = list.zoneRates.find((z) => z.zoneKey === key);
+    if (zr) return kind === 'shipping' ? zr.shipping : zr.driverPay;
+  }
+  return kind === 'shipping' ? { ...DEFAULT_SHIPPING } : { ...DEFAULT_DRIVER };
+}
+
 async function countSellersOnList(priceListId: string): Promise<number> {
   const [rows] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
     `SELECT COUNT(*) AS cnt FROM users
@@ -231,11 +250,7 @@ export async function resolveShippingAmountForOrder(input: {
 
   const zone = await findPricingZoneForPoint(input.agencyId, input.lat, input.lng);
   const zoneKey = zone ? canonicalizePricingZoneKey(zone.id) : null;
-  if (zoneKey) {
-    const zr = list.zoneRates.find((z) => z.zoneKey === zoneKey);
-    if (zr) return pickRate(zr.shipping, input.shippingType);
-  }
-  return pickRate(list.outsideShipping, input.shippingType);
+  return pickRate(ratesFromZoneOrFallback(list, zoneKey, 'shipping'), input.shippingType);
 }
 
 export async function resolveDriverPayAmountForOrder(input: {
@@ -250,11 +265,7 @@ export async function resolveDriverPayAmountForOrder(input: {
 
   const zone = await findPricingZoneForPoint(input.agencyId, input.lat, input.lng);
   const zoneKey = zone ? canonicalizePricingZoneKey(zone.id) : null;
-  if (zoneKey) {
-    const zr = list.zoneRates.find((z) => z.zoneKey === zoneKey);
-    if (zr) return pickRate(zr.driverPay, input.shippingType);
-  }
-  return pickRate(list.outsideDriverPay, input.shippingType);
+  return pickRate(ratesFromZoneOrFallback(list, zoneKey, 'driverPay'), input.shippingType);
 }
 
 async function upsertZoneRates(
@@ -521,6 +532,30 @@ export async function updatePriceList(
       }
     }
     await upsertZoneRates(listId, merged);
+
+    // Compat: columnas “outside” del listado = tarifa del 3° cordón (ya no hay precio aparte).
+    const edge =
+      merged.find((z) => z.zoneKey === 'zona_cordon_3') ??
+      merged.find((z) => z.zoneKey === 'zona_cordon_2') ??
+      merged.find((z) => z.zoneKey === 'zona_caba');
+    if (edge) {
+      await pool.query(
+        `UPDATE price_lists SET
+           shipping_rate_flex = ?, shipping_rate_express = ?, shipping_rate_standard = ?,
+           driver_pay_flex = ?, driver_pay_express = ?, driver_pay_standard = ?
+         WHERE id = ? AND agency_id = ?`,
+        [
+          edge.shipping.flex,
+          edge.shipping.express,
+          edge.shipping.standard,
+          edge.driverPay.flex,
+          edge.driverPay.express,
+          edge.driverPay.standard,
+          listId,
+          user.agencyId,
+        ]
+      );
+    }
   }
 
   // Mantener agencies.* y delivery_zones en sync si es la lista default (compat lectura vieja)

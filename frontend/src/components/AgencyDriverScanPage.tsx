@@ -7,7 +7,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Loader2, Trash2 } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
-import { getOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
+import { getActiveOperationalDateKey, formatOperationalDateShort } from '../utils/deliverySummary.js';
+import { useModal } from '../context/ModalContext.tsx';
 
 export type AgencyDriverScanStatus = 'pending' | 'delivered' | 'cancelled';
 
@@ -30,6 +31,8 @@ export interface AgencyDriverScanEntry {
 interface AgencyDriverScanPageProps {
   token: string;
   repartidores?: Array<{ id: string; name: string }>;
+  /** Sin título propio: se embebe dentro de Registro. */
+  embedded?: boolean;
 }
 
 function statusLabel(status: AgencyDriverScanStatus): string {
@@ -83,8 +86,10 @@ function stripAddressReference(address: string): string {
 export default function AgencyDriverScanPage({
   token,
   repartidores = [],
+  embedded = false,
 }: AgencyDriverScanPageProps) {
-  const todayKey = getOperationalDateKey();
+  const { confirm, alert: showAlert } = useModal();
+  const todayKey = getActiveOperationalDateKey();
   const [date, setDate] = useState(todayKey);
   const [repartidorId, setRepartidorId] = useState('');
   const [entries, setEntries] = useState<AgencyDriverScanEntry[]>([]);
@@ -119,7 +124,14 @@ export default function AgencyDriverScanPage({
   const handleDelete = useCallback(
     async (entry: AgencyDriverScanEntry) => {
       const label = entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode);
-      if (!window.confirm(`¿Eliminar "${label}" del registro?`)) return;
+      const ok = await confirm({
+        title: 'Eliminar del registro',
+        message: `¿Eliminar "${label}" del registro? Esta acción no se puede deshacer.`,
+        variant: 'danger',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+      });
+      if (!ok) return;
       setDeletingId(entry.id);
       setError(null);
       try {
@@ -133,12 +145,14 @@ export default function AgencyDriverScanPage({
         }
         setEntries((prev) => prev.filter((e) => e.id !== entry.id));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'No se pudo eliminar el registro.');
+        const message = err instanceof Error ? err.message : 'No se pudo eliminar el registro.';
+        setError(message);
+        void showAlert({ title: 'No se pudo eliminar', message, variant: 'error' });
       } finally {
         setDeletingId(null);
       }
     },
-    [token]
+    [token, confirm, showAlert]
   );
 
   const counts = useMemo(() => {
@@ -154,19 +168,29 @@ export default function AgencyDriverScanPage({
   }, [entries]);
 
   return (
-    <div className="h-full flex flex-col min-h-0 overflow-hidden posta-surface">
-      <div className="shrink-0 border-b border-[var(--surface-border)] px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[var(--color-accent)]">
-            <ClipboardList size={16} />
-            <h2 className="text-sm font-display font-bold tracking-[-0.02em] text-[var(--color-text)]">
-              Registro de paquetes
-            </h2>
+    <div className={`h-full flex flex-col min-h-0 overflow-hidden ${embedded ? '' : 'posta-surface'}`}>
+      <div
+        className={`shrink-0 border-b border-[var(--surface-border)] px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${
+          embedded ? 'bg-[var(--surface-panel-2)]/20' : ''
+        }`}
+      >
+        {!embedded ? (
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[var(--color-accent)]">
+              <ClipboardList size={16} />
+              <h2 className="text-sm font-display font-bold tracking-[-0.02em] text-[var(--color-text)]">
+                Registro de paquetes
+              </h2>
+            </div>
+            <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
+              Lo que cada repartidor escaneó para su bitácora personal (paquetes no vinculados).
+            </p>
           </div>
-          <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
-            Lo que cada repartidor escaneó para su bitácora personal (paquetes no vinculados).
+        ) : (
+          <p className="text-[11px] text-[var(--color-text-muted)] min-w-0">
+            Bitácora del día · paquetes no vinculados a un pedido Posta
           </p>
-        </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <OperationalDatePicker
             value={date}

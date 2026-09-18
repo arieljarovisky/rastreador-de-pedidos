@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import * as L from 'leaflet';
-import { MAP_TILE_URLS } from '../theme/colors.ts';
+import { CARTO_TILE_OPTIONS, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 
 interface MapPoint {
@@ -55,6 +55,7 @@ export default function PublicTrackingMap({
   const destMarkerRef = useRef<L.Marker | null>(null);
   const driverMarkerRef = useRef<L.Marker | null>(null);
   const trailRef = useRef<L.Polyline | null>(null);
+  const lastFitKeyRef = useRef('');
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -66,12 +67,7 @@ export default function PublicTrackingMap({
       scrollWheelZoom: true,
     });
 
-    tileRef.current = L.tileLayer(MAP_TILE_URLS[readPostaTheme()], {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(map);
+    tileRef.current = L.tileLayer(MAP_TILE_URLS[readPostaTheme()], CARTO_TILE_OPTIONS).addTo(map);
 
     destMarkerRef.current = L.marker([destination.lat, destination.lng], {
       icon: pinIcon(COLORS.destination, 'D'),
@@ -101,28 +97,43 @@ export default function PublicTrackingMap({
 
     destMarkerRef.current.setLatLng([destination.lat, destination.lng]);
 
-    if (driverMarkerRef.current) {
+    if (driver) {
+      if (driverMarkerRef.current) {
+        driverMarkerRef.current.setLatLng([driver.lat, driver.lng]);
+      } else {
+        driverMarkerRef.current = L.marker([driver.lat, driver.lng], {
+          icon: pinIcon(COLORS.driver, 'R'),
+        }).addTo(map);
+      }
+    } else if (driverMarkerRef.current) {
       driverMarkerRef.current.remove();
       driverMarkerRef.current = null;
     }
 
-    if (driver) {
-      driverMarkerRef.current = L.marker([driver.lat, driver.lng], {
-        icon: pinIcon(COLORS.driver, 'R'),
-      }).addTo(map);
-    }
-
-    if (trailRef.current) {
+    const trailLatLngs = trail.map((p) => [p.lat, p.lng] as [number, number]);
+    if (trailLatLngs.length > 1) {
+      if (trailRef.current) {
+        trailRef.current.setLatLngs(trailLatLngs);
+      } else {
+        trailRef.current = L.polyline(trailLatLngs, {
+          color: COLORS.route,
+          weight: 4,
+          opacity: 0.85,
+          dashArray: '6, 8',
+        }).addTo(map);
+      }
+    } else if (trailRef.current) {
       trailRef.current.remove();
       trailRef.current = null;
     }
 
-    if (trail.length > 1) {
-      trailRef.current = L.polyline(
-        trail.map((p) => [p.lat, p.lng] as [number, number]),
-        { color: COLORS.route, weight: 4, opacity: 0.85, dashArray: '6, 8' }
-      ).addTo(map);
-    }
+    const fitKey = [
+      destination.lat.toFixed(4),
+      destination.lng.toFixed(4),
+      driver ? `${driver.lat.toFixed(3)},${driver.lng.toFixed(3)}` : '',
+    ].join('|');
+    if (fitKey === lastFitKeyRef.current) return;
+    lastFitKeyRef.current = fitKey;
 
     const boundsPoints: [number, number][] = [[destination.lat, destination.lng]];
     if (driver) boundsPoints.push([driver.lat, driver.lng]);
@@ -131,9 +142,9 @@ export default function PublicTrackingMap({
     }
 
     if (boundsPoints.length > 1) {
-      map.fitBounds(L.latLngBounds(boundsPoints), { padding: [36, 36], animate: true });
+      map.fitBounds(L.latLngBounds(boundsPoints), { padding: [36, 36], animate: false });
     } else {
-      map.setView([destination.lat, destination.lng], 15, { animate: true });
+      map.setView([destination.lat, destination.lng], 15, { animate: false });
     }
   }, [destination.lat, destination.lng, driver?.lat, driver?.lng, trail]);
 

@@ -105,32 +105,28 @@ function actorAgencyAdmin(actor: User, agencyId: string): User {
   };
 }
 
-async function countUsersByRole(agencyId: string, role: UserRole): Promise<number> {
-  const [rows] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
-    'SELECT COUNT(*) AS cnt FROM users WHERE agency_id = ? AND role = ?',
-    [agencyId, role]
-  );
-  return Number(rows[0]?.cnt ?? 0);
-}
-
-async function countOpenOrders(agencyId: string): Promise<number> {
-  const [rows] = await pool.query<Array<{ cnt: number } & RowDataPacket>>(
-    `SELECT COUNT(*) AS cnt FROM orders
-     WHERE agency_id = ? AND archived = 0 AND status IN (?, ?, ?)`,
-    [agencyId, OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.DELIVERING]
-  );
-  return Number(rows[0]?.cnt ?? 0);
-}
-
-async function getAgencyOwner(agencyId: string): Promise<User | null> {
-  const [rows] = await pool.query<Array<{ id: string } & RowDataPacket>>(
-    `SELECT id FROM users
-     WHERE agency_id = ? AND role = ?
-     ORDER BY id ASC LIMIT 1`,
-    [agencyId, UserRole.SUPER_ADMIN]
-  );
-  if (!rows[0]) return null;
-  return getUserById(rows[0].id);
+function listItemSubscriptionFlags(row: {
+  sub_status: AgencySubscriptionStatus['status'] | null;
+  trial_ends_at: Date | null;
+  current_period_end: Date | null;
+}): { subscriptionActive: boolean; daysRemaining: number | null } {
+  if (!row.sub_status) return { subscriptionActive: false, daysRemaining: null };
+  const now = Date.now();
+  if (row.sub_status === 'active') {
+    const end = row.current_period_end ? new Date(row.current_period_end).getTime() : null;
+    return {
+      subscriptionActive: end === null || end >= now,
+      daysRemaining: end === null ? null : Math.max(0, Math.ceil((end - now) / 86400000)),
+    };
+  }
+  if (row.sub_status === 'trial' && row.trial_ends_at) {
+    const end = new Date(row.trial_ends_at).getTime();
+    return {
+      subscriptionActive: end >= now,
+      daysRemaining: Math.max(0, Math.ceil((end - now) / 86400000)),
+    };
+  }
+  return { subscriptionActive: false, daysRemaining: null };
 }
 
 export async function getPlatformMetrics(): Promise<PlatformMetrics> {
@@ -252,19 +248,72 @@ export async function listPlatformAgencies(params: {
     [...values, limit, offset]
   );
 
-  const items: PlatformAgencyListItem[] = [];
-  for (const row of rows) {
-    const owner = await getAgencyOwner(row.id);
-    let subscriptionActive = false;
-    let daysRemaining: number | null = null;
-    try {
-      const sub = await getAgencySubscriptionStatus(row.id);
-      subscriptionActive = sub.isActive;
-      daysRemaining = sub.daysRemaining;
-    } catch {
-      /* ignore */
+  const agencyIds = rows.map((row) => row.id);
+  const ownersByAgency = new Map<string, { name: string; username: string }>();
+  const sellersByAgency = new Map<string, number>();
+  const repartidoresByAgency = new Map<string, number>();
+  const openOrdersByAgency = new Map<string, number>();
+
+  if (agencyIds.length > 0) {
+    const placeholders = agencyIds.map(() => '?').join(', ');
+
+    const [ownerRows] = await pool.query<
+      Array<{ agency_id: string; name: string; username: string } & RowDataPacket>
+    >(
+      `SELECT u.agency_id, u.name, u.username
+       FROM users u
+       INNER JOIN (
+         SELECT agency_id, MIN(id) AS id
+         FROM users
+         WHERE agency_id IN (${placeholders}) AND role = ?
+         GROUP BY agency_id
+       ) first_owner ON first_owner.id = u.id`,
+      [...agencyIds, UserRole.SUPER_ADMIN]
+    );
+    for (const owner of ownerRows) {
+      ownersByAgency.set(owner.agency_id, { name: owner.name, username: owner.username });
     }
-    items.push({
+
+    const [roleCountRows] = await pool.query<
+      Array<{ agency_id: string; role: UserRole; cnt: number } & RowDataPacket>
+    >(
+      `SELECT agency_id, role, COUNT(*) AS cnt
+       FROM users
+       WHERE agency_id IN (${placeholders}) AND role IN (?, ?)
+       GROUP BY agency_id, role`,
+      [...agencyIds, UserRole.STORE_ADMIN, UserRole.REPARTIDOR]
+    );
+    for (const row of roleCountRows) {
+      const n = Number(row.cnt);
+      if (row.role === UserRole.STORE_ADMIN) sellersByAgency.set(row.agency_id, n);
+      else if (row.role === UserRole.REPARTIDOR) repartidoresByAgency.set(row.agency_id, n);
+    }
+
+    const [openOrderRows] = await pool.query<
+      Array<{ agency_id: string; cnt: number } & RowDataPacket>
+    >(
+      `SELECT agency_id, COUNT(*) AS cnt
+       FROM orders
+       WHERE agency_id IN (${placeholders})
+         AND archived = 0
+         AND status IN (?, ?, ?)
+       GROUP BY agency_id`,
+      [
+        ...agencyIds,
+        OrderStatus.PENDING,
+        OrderStatus.ASSIGNED,
+        OrderStatus.DELIVERING,
+      ]
+    );
+    for (const row of openOrderRows) {
+      openOrdersByAgency.set(row.agency_id, Number(row.cnt));
+    }
+  }
+
+  const items: PlatformAgencyListItem[] = rows.map((row) => {
+    const owner = ownersByAgency.get(row.id);
+    const { subscriptionActive, daysRemaining } = listItemSubscriptionFlags(row);
+    return {
       id: row.id,
       name: row.name,
       city: row.city,
@@ -273,14 +322,14 @@ export async function listPlatformAgencies(params: {
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
       ownerName: owner?.name ?? null,
       ownerEmail: owner?.username ?? null,
-      sellers: await countUsersByRole(row.id, UserRole.STORE_ADMIN),
-      repartidores: await countUsersByRole(row.id, UserRole.REPARTIDOR),
-      openOrders: await countOpenOrders(row.id),
+      sellers: sellersByAgency.get(row.id) ?? 0,
+      repartidores: repartidoresByAgency.get(row.id) ?? 0,
+      openOrders: openOrdersByAgency.get(row.id) ?? 0,
       subscriptionStatus: row.sub_status,
       subscriptionActive,
       daysRemaining,
-    });
-  }
+    };
+  });
 
   return { total: Number(countRows[0]?.cnt ?? 0), items };
 }
@@ -293,15 +342,61 @@ export async function getPlatformAgencyDetail(agencyId: string): Promise<Platfor
   const sellers = await listSellers(agencyId);
   const repartidores = await getRepartidores(agencyId);
 
-  const [adminRows] = await pool.query<Array<{ id: string; role: UserRole } & RowDataPacket>>(
-    `SELECT id, role FROM users WHERE agency_id = ? AND role IN (?, ?) ORDER BY role, name`,
+  const [adminRows] = await pool.query<
+    Array<{
+      id: string;
+      username: string;
+      name: string;
+      role: UserRole;
+      agency_id: string | null;
+      disabled_at: Date | null;
+      current_lat: number | null;
+      current_lng: number | null;
+      location_updated_at: Date | null;
+      departure_address: string | null;
+      departure_lat: number | null;
+      departure_lng: number | null;
+      delivery_zone: string | null;
+      delivery_deadline_hour: number | null;
+    } & RowDataPacket>
+  >(
+    `SELECT id, username, name, role, agency_id, disabled_at,
+            current_lat, current_lng, location_updated_at,
+            departure_address, departure_lat, departure_lng,
+            delivery_zone, delivery_deadline_hour
+     FROM users
+     WHERE agency_id = ? AND role IN (?, ?)
+     ORDER BY role, name`,
     [agencyId, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN]
   );
   const owners: User[] = [];
   const logisticsAdmins: User[] = [];
   for (const row of adminRows) {
-    const user = await getUserById(row.id);
-    if (!user) continue;
+    const user: User = {
+      id: row.id,
+      username: row.username,
+      name: row.name,
+      role: row.role,
+      agencyId: row.agency_id ?? null,
+      agencyName: agency.name,
+      disabledAt: row.disabled_at ? new Date(row.disabled_at).toISOString() : null,
+      deliveryZone: row.delivery_zone,
+      deliveryDeadlineHour: row.delivery_deadline_hour,
+    };
+    if (row.current_lat != null && row.current_lng != null && row.location_updated_at) {
+      user.currentLocation = {
+        lat: Number(row.current_lat),
+        lng: Number(row.current_lng),
+        timestamp: new Date(row.location_updated_at).toISOString(),
+      };
+    }
+    if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
+      user.departurePoint = {
+        address: row.departure_address,
+        lat: Number(row.departure_lat),
+        lng: Number(row.departure_lng),
+      };
+    }
     if (user.role === UserRole.SUPER_ADMIN) owners.push(user);
     else logisticsAdmins.push(user);
   }

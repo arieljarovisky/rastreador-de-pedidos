@@ -7,6 +7,7 @@ import { DELIVERY_DEADLINE_HOUR, normalizeDeadlineHour } from '../utils/delivery
 
 let deadlineHourColumnReady: Promise<void> | null = null;
 let agencyStatusColumnReady: Promise<void> | null = null;
+let worksOnHolidaysColumnReady: Promise<void> | null = null;
 
 /** Garantiza la columna delivery_deadline_hour (por si el migrate no corrió aún). */
 export async function ensureAgencyDeliveryDeadlineHourColumn(): Promise<void> {
@@ -53,6 +54,28 @@ export async function ensureAgencyStatusColumn(): Promise<void> {
   await agencyStatusColumnReady;
 }
 
+/** Garantiza agencies.works_on_holidays (0 = respeta feriados nacionales). */
+export async function ensureAgencyWorksOnHolidaysColumn(): Promise<void> {
+  if (!worksOnHolidaysColumnReady) {
+    worksOnHolidaysColumnReady = (async () => {
+      const [rows] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'agencies' AND COLUMN_NAME = 'works_on_holidays'`
+      );
+      if (rows.length === 0) {
+        await pool.query(
+          'ALTER TABLE agencies ADD COLUMN works_on_holidays TINYINT(1) NOT NULL DEFAULT 0 AFTER delivery_deadline_hour'
+        );
+        console.log('[agencies] Columna works_on_holidays creada (default 0)');
+      }
+    })().catch((err) => {
+      worksOnHolidaysColumnReady = null;
+      throw err;
+    });
+  }
+  await worksOnHolidaysColumnReady;
+}
+
 export interface Agency {
   id: string;
   name: string;
@@ -62,6 +85,8 @@ export interface Agency {
   city?: string | null;
   status: 'active' | 'suspended';
   deliveryDeadlineHour: number;
+  /** Si true, opera en feriados nacionales / puentes. Domingos siguen sin operar. */
+  worksOnHolidays: boolean;
   departurePoint?: LocationPoint;
   createdAt?: string | null;
 }
@@ -75,6 +100,7 @@ interface AgencyRow extends RowDataPacket {
   city: string | null;
   status?: 'active' | 'suspended' | null;
   delivery_deadline_hour: number | null;
+  works_on_holidays?: number | null;
   departure_address: string | null;
   departure_lat: number | null;
   departure_lng: number | null;
@@ -91,6 +117,7 @@ function rowToAgency(row: AgencyRow): Agency {
     city: row.city,
     status: row.status === 'suspended' ? 'suspended' : 'active',
     deliveryDeadlineHour: normalizeDeadlineHour(row.delivery_deadline_hour),
+    worksOnHolidays: Boolean(row.works_on_holidays),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
   };
   if (row.departure_address && row.departure_lat != null && row.departure_lng != null) {
@@ -140,9 +167,10 @@ export async function createAgency(data: {
 export async function getAgencyById(id: string): Promise<Agency | null> {
   await ensureAgencyDeliveryDeadlineHourColumn();
   await ensureAgencyStatusColumn();
+  await ensureAgencyWorksOnHolidaysColumn();
   const [rows] = await pool.query<AgencyRow[]>(
     `SELECT id, name, contact_email, contact_phone, cuit, city, status, delivery_deadline_hour,
-            departure_address, departure_lat, departure_lng, created_at
+            works_on_holidays, departure_address, departure_lat, departure_lng, created_at
      FROM agencies WHERE id = ?`,
     [id]
   );
@@ -169,6 +197,30 @@ export async function getAgencyDeliveryDeadlineHour(agencyId: string): Promise<n
     Array<{ delivery_deadline_hour: number | null } & RowDataPacket>
   >('SELECT delivery_deadline_hour FROM agencies WHERE id = ? LIMIT 1', [agencyId]);
   return normalizeDeadlineHour(rows[0]?.delivery_deadline_hour ?? DELIVERY_DEADLINE_HOUR);
+}
+
+export async function getAgencyWorksOnHolidays(agencyId: string): Promise<boolean> {
+  await ensureAgencyWorksOnHolidaysColumn();
+  const [rows] = await pool.query<
+    Array<{ works_on_holidays: number | null } & RowDataPacket>
+  >('SELECT works_on_holidays FROM agencies WHERE id = ? LIMIT 1', [agencyId]);
+  return Boolean(rows[0]?.works_on_holidays);
+}
+
+export async function updateAgencyWorksOnHolidays(
+  agencyId: string,
+  worksOnHolidays: boolean
+): Promise<boolean> {
+  await ensureAgencyWorksOnHolidaysColumn();
+  const agency = await getAgencyById(agencyId);
+  if (!agency) throw new Error('NOT_FOUND');
+  const value = worksOnHolidays ? 1 : 0;
+  await pool.query('UPDATE agencies SET works_on_holidays = ? WHERE id = ?', [value, agencyId]);
+  if (!worksOnHolidays) {
+    const { clearSellerWorksOnHolidaysWhenAgencyDisables } = await import('./users.service.js');
+    await clearSellerWorksOnHolidaysWhenAgencyDisables(agencyId);
+  }
+  return Boolean(value);
 }
 
 export async function updateAgencyDeliveryDeadlineHour(

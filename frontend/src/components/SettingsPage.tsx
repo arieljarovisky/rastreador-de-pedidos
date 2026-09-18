@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, memo, type ReactNode } from 'react';
 import { User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail } from '../types.js';
 import { geocodeAddress } from '../utils/geocode.js';
 import { useModal } from '../context/ModalContext.tsx';
@@ -27,6 +27,7 @@ import {
   Save,
   Loader2,
   Clock,
+  CalendarDays,
   Image as ImageIcon,
 } from 'lucide-react';
 import MarketplaceIntegrations, { type MarketplacePlatform } from './MarketplaceIntegrations.tsx';
@@ -37,7 +38,7 @@ import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '.
 
 const REPARTIDORES_PAGE_SIZE = 8;
 
-function SettingsSectionHeader({
+const SettingsSectionHeader = memo(function SettingsSectionHeader({
   icon,
   emoji,
   title,
@@ -66,9 +67,9 @@ function SettingsSectionHeader({
       {action}
     </div>
   );
-}
+});
 
-function SettingsFleetColumn({
+const SettingsFleetColumn = memo(function SettingsFleetColumn({
   children,
   className = '',
 }: {
@@ -78,7 +79,7 @@ function SettingsFleetColumn({
   return (
     <div className={`flex flex-col min-w-0 w-full p-3 ${className}`}>{children}</div>
   );
-}
+});
 
 const DIRECTORY_PRESETS = [
   { name: 'Palermo Chico (Av. del Libertador 2400)', lat: -34.5802, lng: -58.4035 },
@@ -120,6 +121,16 @@ interface SettingsPageProps {
   /** Corte propio del vendedor logueado; null = hereda agencia. */
   ownSellerDeadlineHour?: number | null;
   onUpdateDeliveryDeadlineHour?: (hour: number | null) => Promise<void>;
+  /** Efectivo: opera en feriados. */
+  worksOnHolidays?: boolean;
+  /** Preferencia de la agencia. */
+  agencyWorksOnHolidays?: boolean;
+  /** Preferencia propia del vendedor; null = hereda. */
+  ownSellerWorksOnHolidays?: boolean | null;
+  onUpdateWorksOnHolidays?: (worksOnHolidays: boolean | null) => Promise<void>;
+  closedDays?: Array<{ dateKey: string; note: string | null }>;
+  onAddClosedDay?: (dateKey: string, note?: string | null) => Promise<void>;
+  onRemoveClosedDay?: (dateKey: string) => Promise<void>;
   /** Branding de la etiqueta de envío del vendedor logueado. */
   hasSellerLogo?: boolean;
   sellerLogoPreviewUrl?: string | null;
@@ -211,6 +222,13 @@ export default function SettingsPage({
   agencyMaxDeadlineHour,
   ownSellerDeadlineHour = null,
   onUpdateDeliveryDeadlineHour,
+  worksOnHolidays = false,
+  agencyWorksOnHolidays = false,
+  ownSellerWorksOnHolidays = null,
+  onUpdateWorksOnHolidays,
+  closedDays = [],
+  onAddClosedDay,
+  onRemoveClosedDay,
   hasSellerLogo = false,
   sellerLogoPreviewUrl = null,
   sellerLabelFont = 'helvetica',
@@ -261,6 +279,24 @@ export default function SettingsPage({
   );
   const [deadlineLoading, setDeadlineLoading] = useState(false);
   const [deadlineMessage, setDeadlineMessage] = useState<string | null>(null);
+  /** '' = heredar (vendedor); '1' / '0' */
+  const [holidaysDraft, setHolidaysDraft] = useState(
+    isSeller
+      ? ownSellerWorksOnHolidays == null
+        ? ''
+        : ownSellerWorksOnHolidays
+          ? '1'
+          : '0'
+      : worksOnHolidays
+        ? '1'
+        : '0'
+  );
+  const [holidaysLoading, setHolidaysLoading] = useState(false);
+  const [holidaysMessage, setHolidaysMessage] = useState<string | null>(null);
+  const [closedDayDraft, setClosedDayDraft] = useState('');
+  const [closedDayNote, setClosedDayNote] = useState('');
+  const [closedDayLoading, setClosedDayLoading] = useState(false);
+  const [closedDayMessage, setClosedDayMessage] = useState<string | null>(null);
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoLocalPreview, setLogoLocalPreview] = useState<string | null>(null);
@@ -357,6 +393,16 @@ export default function SettingsPage({
       setDeadlineHourDraft(deliveryDeadlineHour);
     }
   }, [deliveryDeadlineHour, ownSellerDeadlineHour, isSeller]);
+
+  useEffect(() => {
+    if (isSeller) {
+      setHolidaysDraft(
+        ownSellerWorksOnHolidays == null ? '' : ownSellerWorksOnHolidays ? '1' : '0'
+      );
+    } else {
+      setHolidaysDraft(worksOnHolidays ? '1' : '0');
+    }
+  }, [worksOnHolidays, ownSellerWorksOnHolidays, agencyWorksOnHolidays, isSeller]);
 
   const applyDeparturePreset = (preset: (typeof DIRECTORY_PRESETS)[0]) => {
     setDepartureAddress(preset.name);
@@ -503,7 +549,7 @@ export default function SettingsPage({
                     <>
                       Definí hasta qué hora se cargan pedidos para el día de hoy.
                       Después de tu corte, los nuevos envíos quedan para el día hábil siguiente
-                      (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
+                      (viernes post-corte → sábado; sábado post-corte y domingo → lunes). Horario Argentina (ART).
                       No puede ser más tarde que el máximo de tu agencia (
                       <span className="font-mono font-bold text-[var(--ink-soft)]">
                         {String(agencyCap).padStart(2, '0')}:00
@@ -514,7 +560,7 @@ export default function SettingsPage({
                     <>
                       Máximo de corte de ventas para la agencia y tope para cada vendedor.
                       Los pedidos cargados a partir del corte del vendedor quedan para el día hábil siguiente
-                      (viernes post-corte, sábado y domingo → lunes). Horario Argentina (ART).
+                      (viernes post-corte → sábado; sábado post-corte y domingo → lunes). Horario Argentina (ART).
                       Conviene igualarlo al corte Flex más tarde de tus vendedores (p. ej. 13:00).
                       Al guardar se reaplica a los pedidos aún sin entregar y se ajustan vendedores que
                       superen este máximo.
@@ -601,6 +647,246 @@ export default function SettingsPage({
                     </p>
                   )}
                 </>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {(agency || userRole === UserRole.STORE_ADMIN) && (
+        <section className={`${sectionClass} !p-2.5 mt-3`}>
+          <div className="flex items-start gap-2.5">
+            <div className="w-7 h-7 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
+              <CalendarDays className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+            </div>
+            <div className="flex-1 min-w-0 space-y-2">
+              <div>
+                <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">
+                  Feriados nacionales
+                </p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                  {isSeller ? (
+                    <>
+                      Si tu agencia opera en feriados, podés heredar esa regla o elegir no trabajar
+                      esos días. Los domingos siguen sin operación. Al guardar se reaplica a pedidos
+                      abiertos.
+                      {!agencyWorksOnHolidays && (
+                        <>
+                          {' '}
+                          Hoy tu agencia <span className="font-semibold">no</span> opera en feriados.
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      Si desactivás, los feriados nacionales y puentes turísticos se saltan (igual que
+                      el domingo) y los plazos van al próximo día hábil. Si activás, esos días cuentan
+                      como hábiles. Los vendedores pueden heredar o ser más restrictivos.
+                    </>
+                  )}
+                </p>
+              </div>
+              {onUpdateWorksOnHolidays && (
+                <>
+                  <form
+                    className="flex flex-wrap items-end gap-2"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setHolidaysLoading(true);
+                      setHolidaysMessage(null);
+                      try {
+                        if (isSeller) {
+                          const value =
+                            holidaysDraft === ''
+                              ? null
+                              : holidaysDraft === '1';
+                          if (value === true && !agencyWorksOnHolidays) {
+                            throw new Error(
+                              'Tu agencia no opera en feriados. No podés activarlo por tu cuenta.'
+                            );
+                          }
+                          await onUpdateWorksOnHolidays(value);
+                        } else {
+                          await onUpdateWorksOnHolidays(holidaysDraft === '1');
+                        }
+                        setHolidaysMessage(
+                          'Preferencia de feriados actualizada y aplicada a pedidos abiertos.'
+                        );
+                      } catch (err: unknown) {
+                        const message = err instanceof Error ? err.message : 'Error al guardar.';
+                        setHolidaysMessage(message);
+                      } finally {
+                        setHolidaysLoading(false);
+                      }
+                    }}
+                  >
+                    <label className="flex flex-col gap-1 min-w-[12rem]">
+                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                        Opera en feriados
+                      </span>
+                      <select
+                        value={holidaysDraft}
+                        onChange={(e) => setHolidaysDraft(e.target.value)}
+                        className={inputClass}
+                      >
+                        {isSeller && (
+                          <option value="">
+                            Igual a la agencia ({agencyWorksOnHolidays ? 'sí' : 'no'})
+                          </option>
+                        )}
+                        <option value="1" disabled={isSeller && !agencyWorksOnHolidays}>
+                          Sí, trabaja
+                        </option>
+                        <option value="0">No, respeta feriados</option>
+                      </select>
+                    </label>
+                    <button type="submit" disabled={holidaysLoading} className={btnGhost}>
+                      {holidaysLoading ? 'Guardando...' : 'Guardar y reaplicar'}
+                    </button>
+                  </form>
+                  {holidaysMessage && (
+                    <p
+                      className={`text-[10px] ${
+                        holidaysMessage.includes('actualizada')
+                          ? 'text-[var(--color-ok)]'
+                          : 'text-[var(--color-danger)]'
+                      }`}
+                    >
+                      {holidaysMessage}
+                    </p>
+                  )}
+                </>
+              )}
+              {!onUpdateWorksOnHolidays && (
+                <p className="text-[10px] text-[var(--color-text-muted)]">
+                  Actual:{' '}
+                  <span className="font-mono font-bold text-[var(--ink-soft)]">
+                    {worksOnHolidays ? 'trabaja en feriados' : 'respeta feriados'}
+                  </span>
+                </p>
+              )}
+
+              {(onAddClosedDay || onRemoveClosedDay) && (
+                <div className="pt-2 border-t border-[var(--surface-border)]/70 space-y-2">
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                    Días sin operación
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+                    {isSeller
+                      ? 'Marcá un día puntual en el que no vas a operar (vacaciones, cierre, etc.). Ese día se salta como no hábil.'
+                      : 'Marcá un día puntual en el que la agencia no opera. Aplica a todos los vendedores ese día.'}
+                  </p>
+                  {onAddClosedDay && (
+                    <form
+                      className="flex flex-wrap items-end gap-2"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!closedDayDraft) return;
+                        setClosedDayLoading(true);
+                        setClosedDayMessage(null);
+                        try {
+                          await onAddClosedDay(closedDayDraft, closedDayNote || null);
+                          setClosedDayDraft('');
+                          setClosedDayNote('');
+                          setClosedDayMessage('Día marcado como cerrado.');
+                        } catch (err: unknown) {
+                          setClosedDayMessage(
+                            err instanceof Error ? err.message : 'Error al guardar.'
+                          );
+                        } finally {
+                          setClosedDayLoading(false);
+                        }
+                      }}
+                    >
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                          Fecha
+                        </span>
+                        <input
+                          type="date"
+                          value={closedDayDraft}
+                          onChange={(e) => setClosedDayDraft(e.target.value)}
+                          className={inputClass}
+                          required
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 min-w-[10rem] flex-1">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                          Nota (opcional)
+                        </span>
+                        <input
+                          type="text"
+                          value={closedDayNote}
+                          onChange={(e) => setClosedDayNote(e.target.value)}
+                          placeholder="Ej. vacaciones"
+                          maxLength={255}
+                          className={inputClass}
+                        />
+                      </label>
+                      <button type="submit" disabled={closedDayLoading} className={btnGhost}>
+                        {closedDayLoading ? 'Guardando...' : 'Agregar'}
+                      </button>
+                    </form>
+                  )}
+                  {closedDayMessage && (
+                    <p
+                      className={`text-[10px] ${
+                        closedDayMessage.includes('cerrado')
+                          ? 'text-[var(--color-ok)]'
+                          : 'text-[var(--color-danger)]'
+                      }`}
+                    >
+                      {closedDayMessage}
+                    </p>
+                  )}
+                  {closedDays.length === 0 ? (
+                    <p className="text-[10px] text-[var(--color-text-faint)]">
+                      No hay días cerrados cargados.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                      {closedDays.map((day) => (
+                        <li
+                          key={day.dateKey}
+                          className="flex items-center justify-between gap-2 text-[11px] px-2 py-1.5 rounded border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50"
+                        >
+                          <span className="min-w-0 truncate">
+                            <span className="font-mono font-bold text-[var(--ink-soft)]">
+                              {day.dateKey}
+                            </span>
+                            {day.note ? (
+                              <span className="text-[var(--color-text-muted)]"> · {day.note}</span>
+                            ) : null}
+                          </span>
+                          {onRemoveClosedDay && (
+                            <button
+                              type="button"
+                              className="shrink-0 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-danger)] hover:underline"
+                              onClick={() => {
+                                void (async () => {
+                                  setClosedDayLoading(true);
+                                  setClosedDayMessage(null);
+                                  try {
+                                    await onRemoveClosedDay(day.dateKey);
+                                    setClosedDayMessage('Día cerrado eliminado.');
+                                  } catch (err: unknown) {
+                                    setClosedDayMessage(
+                                      err instanceof Error ? err.message : 'Error al eliminar.'
+                                    );
+                                  } finally {
+                                    setClosedDayLoading(false);
+                                  }
+                                })();
+                              }}
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -1373,7 +1659,7 @@ export default function SettingsPage({
                   meta="Cobro al vendedor y pago al repartidor por zona"
                 />
                 <p className="text-[9px] text-[var(--color-text-muted)] leading-relaxed">
-                  Las tarifas de CABA, cordones AMBA y fuera de zona se editan en una pantalla aparte,
+                  Las tarifas de CABA y cordones AMBA se editan en una pantalla aparte,
                   más clara.
                 </p>
                 <button

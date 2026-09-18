@@ -12,7 +12,8 @@ export interface GeocodeResult {
   displayName: string;
 }
 
-const GBA_VIEWBOX = '-58.65,-34.75,-58.30,-34.45';
+/** AMBA completo (CABA + 3 cordones). Formato Nominatim: minLon,maxLat,maxLon,minLat */
+const AMBA_VIEWBOX = '-59.20,-34.00,-57.85,-35.10';
 /** Nominatim exige ~1 solicitud por segundo. */
 const NOMINATIM_MIN_INTERVAL_MS = 1100;
 
@@ -69,7 +70,7 @@ async function nominatimSearch(query: string, bounded: boolean): Promise<Geocode
       countrycodes: 'ar',
     });
     if (bounded) {
-      params.set('viewbox', GBA_VIEWBOX);
+      params.set('viewbox', AMBA_VIEWBOX);
       params.set('bounded', '1');
     }
 

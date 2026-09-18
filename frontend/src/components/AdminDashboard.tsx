@@ -3,32 +3,155 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Order, OrderStatus, User, UserRole, LocationPoint, PickupPoint, isAgencyAdmin } from '../types.js';
 import {
   Plus, Clock, MapPin, Search, Phone, FileText, CheckCircle2, Users,
   ChevronDown, ChevronUp, Package, Crown, Settings, ClipboardList, Map,
-  Store, Bike, AlertTriangle, Check, X, Filter, EyeOff, Eye,
+  Store, Bike, AlertTriangle, Check, X, Filter, EyeOff, Eye, GripVertical,
+  Printer,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geocode.js';
 import { findAssignmentZoneForPoint, zoneLabel, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import { matchesOrderFilters, getOrderOperationalDateKey } from '../utils/orderFilters.js';
+import { matchesOrderFilters, getOrderOperationalDateKey, getOrderImportedDateKey } from '../utils/orderFilters.js';
 import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import OrderContextMenu, { ContextMenuItem } from './OrderContextMenu.tsx';
 import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
-import MapComponent from './MapComponent.tsx';
+const MapComponent = lazy(() => import('./MapComponent.tsx'));
 import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
+import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
-import { getOperationalDateKey, shiftOperationalDateKey } from '../utils/deliverySummary.js';
+import { getOperationalDateKey, formatOperationalDateShort, getActiveOperationalDateKey, getNextOperationalDateKey } from '../utils/deliverySummary.js';
 
+const AdminOrderTableRow = memo(function AdminOrderTableRow({
+  order,
+  isSelected,
+  isChecked,
+  showSeller,
+  onSelect,
+  onToggleCheck,
+  onContextMenu,
+  onAssign,
+}: {
+  order: Order;
+  isSelected: boolean;
+  isChecked: boolean;
+  showSeller: boolean;
+  onSelect: (orderId: string) => void;
+  onToggleCheck: (orderId: string) => void;
+  onContextMenu: (order: Order, x: number, y: number) => void;
+  onAssign: (orderId: string) => void;
+}) {
+  const exception = getOrderExceptionBadge(order);
+  const importedKey = getOrderImportedDateKey(order);
+  const importedLabel = formatOperationalDateShort(importedKey);
+  const [, monthStr, dayStr] = importedKey.split('-');
+  const dateCompact =
+    monthStr && dayStr ? `${dayStr}/${monthStr}` : importedLabel;
+  const timeCompact = new Date(order.createdAt).toLocaleTimeString('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+    timeZone: 'America/Argentina/Buenos_Aires',
+  });
+  const canBatchLabel = !(order.externalSource === 'mercadolibre' && order.externalOrderId);
+
+  return (
+    <tr
+      onClick={() => onSelect(order.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(order, e.clientX, e.clientY);
+      }}
+      className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] transition ${
+        isSelected
+          ? 'bg-[var(--color-accent)]/10'
+          : isChecked
+            ? 'bg-[var(--color-accent)]/5'
+            : 'hover:bg-[var(--surface-panel-2)]/80'
+      }`}
+    >
+      <td className="px-1.5 py-2 w-8">
+        {canBatchLabel ? (
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={() => onToggleCheck(order.id)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Seleccionar ${order.id}`}
+            title="Seleccionar para imprimir etiquetas"
+            className="accent-[var(--color-accent)] cursor-pointer"
+          />
+        ) : (
+          <span
+            className="block w-3.5 h-3.5"
+            title="Mercado Libre: imprimí la etiqueta desde el detalle del pedido"
+            aria-hidden
+          />
+        )}
+      </td>
+      <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] overflow-hidden">
+        <span className="inline-flex items-center gap-1 max-w-full truncate">
+          {order.id}
+          <MarketplaceSourceIcon source={order.externalSource} />
+        </span>
+      </td>
+      <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] truncate overflow-hidden">
+        {order.clientName}
+      </td>
+      <td className="px-2 py-2 text-[var(--color-text-muted)] truncate overflow-hidden">
+        {order.address}
+      </td>
+      <td className="px-2 py-2 overflow-hidden">
+        <StatusBadge
+          status={order.status}
+          label={exception?.label}
+          tone={exception?.tone}
+        />
+      </td>
+      {showSeller && (
+        <td className="px-2 py-2 text-[var(--color-text-muted)] truncate overflow-hidden">
+          {order.sellerName ?? '—'}
+        </td>
+      )}
+      <td className="px-2 py-2 overflow-hidden">
+        {order.status === OrderStatus.PENDING && showSeller ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAssign(order.id);
+            }}
+            className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
+          >
+            Gestionar
+          </button>
+        ) : (
+          <span className="text-[var(--color-text-muted)] truncate max-w-full inline-block">
+            {order.repartidorName?.split(' ')[0] ?? 'Sin asignar'}
+          </span>
+        )}
+      </td>
+      <td
+        className="px-1.5 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap"
+        title={`Importado ${importedLabel} ${timeCompact}`}
+      >
+        <span className="block text-[var(--ink-soft)] tabular-nums">{dateCompact}</span>
+        <span className="block tabular-nums">{timeCompact}</span>
+      </td>
+    </tr>
+  );
+});
 interface AdminDashboardProps {
   orders: Order[];
   repartidores: User[];
@@ -48,6 +171,13 @@ interface AdminDashboardProps {
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
   onOpenShippingLabel?: (orderId: string) => Promise<void>;
+  /** Imprime varias etiquetas Posta en hojas A4 (grilla). */
+  onOpenShippingLabels?: (
+    orderIds: string[],
+    layout?: '2x2' | '2x1'
+  ) => Promise<void>;
+  /** Abre el registro completo de envíos del vendedor (pestaña Registro). */
+  onViewSellerRegistry?: (sellerId: string) => void;
 }
 
 // Direcciones preestablecidas de Buenos Aires para hacer rápida la creación de pruebas sin coordenadas difíciles
@@ -63,6 +193,10 @@ const MAP_REPS_STORAGE_KEY = 'lupo_map_repartidor_ids';
 const MAP_DELIVERED_STORAGE_KEY = 'lupo_map_show_delivered';
 const ORDERS_HEADER_COLLAPSED_KEY = 'posta_orders_header_collapsed';
 const SHOW_MAP_PANEL_KEY = 'posta_show_map_panel';
+const MAP_SPLIT_PCT_KEY = 'posta_envios_map_split_pct';
+const MAP_SPLIT_DEFAULT = 58;
+const MAP_SPLIT_MIN = 35;
+const MAP_SPLIT_MAX = 75;
 
 function loadOrdersHeaderCollapsed(): boolean {
   try {
@@ -78,6 +212,16 @@ function loadShowMapPanel(): boolean {
     return localStorage.getItem(SHOW_MAP_PANEL_KEY) !== '0';
   } catch {
     return true;
+  }
+}
+
+function loadMapSplitPct(): number {
+  try {
+    const raw = Number(localStorage.getItem(MAP_SPLIT_PCT_KEY));
+    if (!Number.isFinite(raw)) return MAP_SPLIT_DEFAULT;
+    return Math.min(MAP_SPLIT_MAX, Math.max(MAP_SPLIT_MIN, raw));
+  } catch {
+    return MAP_SPLIT_DEFAULT;
   }
 }
 
@@ -156,14 +300,22 @@ export default function AdminDashboard({
   onScheduleOrderToday,
   userRole = UserRole.STORE_ADMIN,
   onOpenShippingLabel,
+  onOpenShippingLabels,
+  onViewSellerRegistry,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
   const [showMapPanel, setShowMapPanel] = useState(loadShowMapPanel);
+  const [mapSplitPct, setMapSplitPct] = useState(loadMapSplitPct);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const splitDraggingRef = useRef(false);
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
   const { confirm, alert: showAlert } = useModal();
   const [incidentDraft, setIncidentDraft] = useState('');
   const [savingIncident, setSavingIncident] = useState(false);
+  const [checkedOrderIds, setCheckedOrderIds] = useState<Set<string>>(() => new Set());
+  const [printingLabels, setPrintingLabels] = useState(false);
+  const [labelSheetLayout, setLabelSheetLayout] = useState<'2x2' | '2x1'>('2x2');
 
   const selectedOrder = orders.find((o) => o.id === activeOrderId) ?? null;
 
@@ -181,10 +333,11 @@ export default function AdminDashboard({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sellerFilterId, setSellerFilterId] = useState<string>('');
+  const [marketplaceSourceFilter, setMarketplaceSourceFilter] = useState<string>('');
   const [cordonFilterId, setCordonFilterId] = useState<string>('');
   const [repartidorFilterId, setRepartidorFilterId] = useState<string>('');
-  const todayKey = getOperationalDateKey();
-  const tomorrowKey = shiftOperationalDateKey(todayKey, 1);
+  const todayKey = getActiveOperationalDateKey();
+  const tomorrowKey = getNextOperationalDateKey(todayKey);
   const [dateFilterKey, setDateFilterKey] = useState<string>(todayKey);
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
@@ -234,6 +387,55 @@ export default function AdminDashboard({
     }
   }, [showMapPanel]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(MAP_SPLIT_PCT_KEY, String(Math.round(mapSplitPct)));
+    } catch {
+      // ignore storage errors
+    }
+  }, [mapSplitPct]);
+
+  const updateSplitFromClientX = useCallback((clientX: number) => {
+    const el = splitContainerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const pct = ((clientX - rect.left) / rect.width) * 100;
+    setMapSplitPct(Math.min(MAP_SPLIT_MAX, Math.max(MAP_SPLIT_MIN, pct)));
+  }, []);
+
+  const onSplitPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      splitDraggingRef.current = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      updateSplitFromClientX(e.clientX);
+    },
+    [updateSplitFromClientX]
+  );
+
+  const onSplitPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!splitDraggingRef.current) return;
+      updateSplitFromClientX(e.clientX);
+    },
+    [updateSplitFromClientX]
+  );
+
+  const onSplitPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!splitDraggingRef.current) return;
+    splitDraggingRef.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
   const toggleOrdersHeader = useCallback(() => {
     setOrdersHeaderCollapsed((collapsed) => !collapsed);
   }, []);
@@ -249,15 +451,6 @@ export default function AdminDashboard({
       setShowMapPanel(true);
     }
   }, [activeOrderId]);
-
-  /** Al abrir el mapa, subir el scroll del main para ver el panel completo. */
-  useEffect(() => {
-    if (!showMapPanel) return;
-    const main = document.querySelector('main');
-    if (main instanceof HTMLElement) {
-      main.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [showMapPanel]);
 
   const handleSelectOrder = useCallback(
     (orderId: string | null) => {
@@ -384,6 +577,10 @@ export default function AdminDashboard({
     [handleSelectOrder]
   );
 
+  const openOrderContextMenu = useCallback((order: Order, x: number, y: number) => {
+    setContextMenu({ order, x, y });
+  }, []);
+
   // Aplicar preset de dirección
   const applyPreset = (preset: typeof DIRECTORY_PRESETS[0]) => {
     setAddress(preset.name);
@@ -475,7 +672,7 @@ export default function AdminDashboard({
     [deliveryZones, barrios]
   );
 
-  /** Fechas operativas con al menos un envío (incluye archivados). */
+  /** Fechas con envíos: solo día operativo de entrega. */
   const datesWithShipments = useMemo(() => {
     const keys = new Set<string>();
     for (const order of orders) {
@@ -496,12 +693,22 @@ export default function AdminDashboard({
       cordonId: cordonFilterId || undefined,
       repartidorId: repartidorFilterId || undefined,
       dateKey: dateFilterKey || undefined,
+      externalSource: marketplaceSourceFilter || undefined,
       deliveryZones,
       barrios,
       // Fuerza recalcular cordón cuando cargan los polígonos IGN.
       ambaGeoReady,
     }),
-    [sellerFilterId, cordonFilterId, repartidorFilterId, dateFilterKey, deliveryZones, barrios, ambaGeoReady]
+    [
+      sellerFilterId,
+      cordonFilterId,
+      repartidorFilterId,
+      dateFilterKey,
+      marketplaceSourceFilter,
+      deliveryZones,
+      barrios,
+      ambaGeoReady,
+    ]
   );
 
   /** Con fecha activa, los archivados de ese día entran en lista/mapa/stats. */
@@ -535,6 +742,78 @@ export default function AdminDashboard({
 
     return matchesFilters && matchesStatus && matchesSearch;
   });
+
+  const isPrintableLabelOrder = useCallback((order: Order) => {
+    return !(order.externalSource === 'mercadolibre' && order.externalOrderId);
+  }, []);
+
+  const selectableFilteredOrders = useMemo(
+    () => filteredOrders.filter(isPrintableLabelOrder),
+    [filteredOrders, isPrintableLabelOrder]
+  );
+
+  const printableCheckedIds = useMemo(() => {
+    return selectableFilteredOrders
+      .filter((o) => checkedOrderIds.has(o.id))
+      .map((o) => o.id);
+  }, [selectableFilteredOrders, checkedOrderIds]);
+
+  const checkedInViewCount = printableCheckedIds.length;
+
+  const allFilteredChecked =
+    selectableFilteredOrders.length > 0 &&
+    selectableFilteredOrders.every((o) => checkedOrderIds.has(o.id));
+
+  const toggleOrderCheck = useCallback(
+    (orderId: string) => {
+      const order = filteredOrders.find((o) => o.id === orderId);
+      if (order && !isPrintableLabelOrder(order)) return;
+      setCheckedOrderIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(orderId)) next.delete(orderId);
+        else next.add(orderId);
+        return next;
+      });
+    },
+    [filteredOrders, isPrintableLabelOrder]
+  );
+
+  const toggleSelectAllFiltered = useCallback(() => {
+    setCheckedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredChecked) {
+        for (const o of selectableFilteredOrders) next.delete(o.id);
+      } else {
+        for (const o of selectableFilteredOrders) next.add(o.id);
+      }
+      return next;
+    });
+  }, [allFilteredChecked, selectableFilteredOrders]);
+
+  const handlePrintSelectedLabels = useCallback(async () => {
+    if (!onOpenShippingLabels) return;
+    if (printableCheckedIds.length === 0) {
+      void showAlert({
+        title: 'Sin etiquetas',
+        message: 'Seleccioná al menos un pedido (no Mercado Libre) para imprimir etiquetas.',
+        variant: 'error',
+      });
+      return;
+    }
+    setPrintingLabels(true);
+    try {
+      await onOpenShippingLabels(printableCheckedIds, labelSheetLayout);
+      setCheckedOrderIds((prev) => {
+        const next = new Set(prev);
+        for (const id of printableCheckedIds) next.delete(id);
+        return next;
+      });
+    } catch {
+      // El error ya se mostró en App.handleOpenShippingLabels
+    } finally {
+      setPrintingLabels(false);
+    }
+  }, [onOpenShippingLabels, printableCheckedIds, labelSheetLayout, showAlert]);
 
   const allRepartidoresOnMap = useMemo(
     () =>
@@ -591,6 +870,7 @@ export default function AdminDashboard({
   const activeMapFiltersCount = useMemo(() => {
     let count = 0;
     if (sellerFilterId) count += 1;
+    if (marketplaceSourceFilter) count += 1;
     if (cordonFilterId) count += 1;
     if (repartidorFilterId) count += 1;
     if (dateFilterKey && dateFilterKey !== todayKey) count += 1;
@@ -600,6 +880,7 @@ export default function AdminDashboard({
     return count;
   }, [
     sellerFilterId,
+    marketplaceSourceFilter,
     cordonFilterId,
     repartidorFilterId,
     dateFilterKey,
@@ -612,10 +893,19 @@ export default function AdminDashboard({
 
   const clearMapFilters = () => {
     setSellerFilterId('');
+    setMarketplaceSourceFilter('');
     setCordonFilterId('');
     setRepartidorFilterId('');
     setDateFilterKey(todayKey);
     setMapRepartidorIds(new Set(repartidores.map((r) => r.id)));
+  };
+
+  const handleSellerFilterChange = (nextId: string) => {
+    setSellerFilterId(nextId);
+  };
+
+  const handleDateFilterChange = (nextKey: string) => {
+    setDateFilterKey(nextKey);
   };
 
   const toggleMapRepartidor = (id: string) => {
@@ -658,6 +948,28 @@ export default function AdminDashboard({
       },
     ];
 
+    if (onOpenShippingLabel) {
+      items.push({
+        id: 'shipping-label',
+        label:
+          order.externalSource === 'mercadolibre' && order.externalOrderId
+            ? 'Ver etiqueta ML'
+            : 'Ver etiqueta de envío',
+        onClick: () => void onOpenShippingLabel(order.id),
+      });
+    }
+
+    if (
+      onOpenShippingLabels &&
+      !(order.externalSource === 'mercadolibre' && order.externalOrderId)
+    ) {
+      items.push({
+        id: 'shipping-label-sheet',
+        label: 'Imprimir en hoja A4',
+        onClick: () => void onOpenShippingLabels([order.id], labelSheetLayout),
+      });
+    }
+
     if (agency && order.status === OrderStatus.PENDING && onAssignOrderSeller) {
       items.push({
         id: 'assign-seller',
@@ -693,7 +1005,7 @@ export default function AdminDashboard({
       });
     }
 
-    const todayKey = getOperationalDateKey();
+    const todayKey = getActiveOperationalDateKey();
     const orderDayKey = order.deliveryDeadline
       ? getOperationalDateKey(new Date(order.deliveryDeadline))
       : null;
@@ -723,12 +1035,41 @@ export default function AdminDashboard({
       });
     }
 
-    if (agency && (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)) {
+    const isOpen =
+      order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED;
+    const isMl = order.externalSource === 'mercadolibre';
+    const canMarkDeliveredManual =
+      isOpen &&
+      !isMl &&
+      ((agency && (order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING)) ||
+        agency ||
+        isSeller);
+
+    if (canMarkDeliveredManual) {
       items.push({
         id: 'mark-delivered',
         label: 'Marcar como entregado',
-        onClick: () =>
-          void onUpdateOrderStatus(order.id, OrderStatus.DELIVERED, undefined, 'Marcado como entregado desde menú'),
+        onClick: () => {
+          void confirm({
+            title: 'Marcar como entregado',
+            message: `¿Confirmar que el envío ${order.id} ya fue entregado?`,
+            variant: 'warning',
+            confirmText: 'Sí, entregado',
+            cancelText: 'Cancelar',
+          }).then(async (ok) => {
+            if (!ok) return;
+            try {
+              await onUpdateOrderStatus(
+                order.id,
+                OrderStatus.DELIVERED,
+                undefined,
+                'Marcado como entregado desde menú'
+              );
+            } catch {
+              // El error ya se muestra en handleUpdateOrderStatus
+            }
+          });
+        },
       });
     }
 
@@ -1259,11 +1600,8 @@ export default function AdminDashboard({
   return (
     <>
     <div
-      className={`flex flex-col lg:grid lg:grid-cols-12 2xl:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 min-h-0 ${
-        showMapPanel
-          ? 'h-[calc(100dvh-7.25rem)] sm:h-[calc(100dvh-7.5rem)] xl:h-[calc(100dvh-5.75rem)] overflow-hidden'
-          : ''
-      }`}
+      ref={splitContainerRef}
+      className="flex flex-col lg:flex-row min-h-0 h-full overflow-hidden gap-2 sm:gap-3 lg:gap-0"
       id="admin-dashboard"
     >      {contextMenu && (
         <OrderContextMenu
@@ -1301,13 +1639,18 @@ export default function AdminDashboard({
       </div>
 
       {/* SECCIÓN IZQUIERDA: LISTADOS Y CREACIÓN */}
-      <div className={`${
-        showMapPanel ? 'lg:col-span-6 2xl:col-span-5' : 'lg:col-span-12'
-      } flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 ${
-        showMapPanel ? 'flex-1 min-h-0 overflow-hidden' : ''
-      } ${
-        adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'
-      }`}>
+      <div
+        className={`flex flex-col posta-surface p-2 sm:p-2.5 lg:p-3 min-h-0 overflow-hidden h-full ${
+          showMapPanel
+            ? 'lg:shrink-0 lg:basis-[var(--posta-split)] lg:w-[var(--posta-split)] lg:max-w-[var(--posta-split)]'
+            : 'flex-1'
+        } ${adminMobileTab !== 'orders' ? 'hidden lg:flex' : 'flex'}`}
+        style={
+          showMapPanel
+            ? ({ ['--posta-split' as string]: `${mapSplitPct}%` } as React.CSSProperties)
+            : undefined
+        }
+      >
         
         {/* Cabecera compacta, búsqueda y filtros */}
         <div className="shrink-0 space-y-1.5">
@@ -1359,6 +1702,35 @@ export default function AdminDashboard({
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
+              {onOpenShippingLabels && checkedInViewCount > 0 && (
+                <div className="flex items-center gap-1">
+                  <select
+                    value={labelSheetLayout}
+                    onChange={(e) =>
+                      setLabelSheetLayout(e.target.value === '2x1' ? '2x1' : '2x2')
+                    }
+                    title="Etiquetas por hoja"
+                    className="hidden sm:block text-[10px] font-mono font-bold uppercase tracking-wider bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded px-1.5 py-1.5 text-[var(--color-text-muted)]"
+                  >
+                    <option value="2x2">4 / hoja</option>
+                    <option value="2x1">2 / hoja</option>
+                  </select>
+                  <button
+                    type="button"
+                    disabled={printingLabels}
+                    onClick={() => void handlePrintSelectedLabels()}
+                    title="Imprimir etiquetas seleccionadas en hoja A4"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition disabled:opacity-50"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>
+                      {printingLabels
+                        ? 'Generando…'
+                        : `Etiquetas (${printableCheckedIds.length || checkedInViewCount})`}
+                    </span>
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1410,14 +1782,26 @@ export default function AdminDashboard({
           </div>
 
           {isAgencyAdmin(userRole) && (
-            <SellerPickupPanel
-              collapsible
-              sellers={sellers}
-              pickupPoints={pickupPoints}
-              selectedSellerId={sellerFilterId}
-              onSellerChange={setSellerFilterId}
-              allSellersOptionLabel="Todos los vendedores"
-            />
+            <div className="space-y-2">
+              <SellerPickupPanel
+                collapsible
+                sellers={sellers}
+                pickupPoints={pickupPoints}
+                selectedSellerId={sellerFilterId}
+                onSellerChange={handleSellerFilterChange}
+                allSellersOptionLabel="Todos los vendedores"
+              />
+              {sellerFilterId && onViewSellerRegistry && (
+                <button
+                  type="button"
+                  onClick={() => onViewSellerRegistry(sellerFilterId)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-[5px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/15 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] transition"
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Ver todos en Registro
+                </button>
+              )}
+            </div>
           )}
 
           {/* Filtros: fecha + cordón/repartidor, luego búsqueda y estados */}
@@ -1429,7 +1813,8 @@ export default function AdminDashboard({
                 value={dateFilterKey || todayKey}
                 maxDateKey={datePickerMaxKey}
                 nextShipmentDateKey={nextShipmentDateKey}
-                onChange={setDateFilterKey}
+                shipmentDateKeys={datesWithShipments}
+                onChange={handleDateFilterChange}
               />
               <CordonFilterControl
                 zones={cordonZones}
@@ -1441,7 +1826,7 @@ export default function AdminDashboard({
               {dateFilterKey && dateFilterKey !== todayKey ? (
                 <button
                   type="button"
-                  onClick={() => setDateFilterKey(todayKey)}
+                  onClick={() => handleDateFilterChange(todayKey)}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
                   Hoy
@@ -1450,7 +1835,7 @@ export default function AdminDashboard({
               {dateFilterKey !== tomorrowKey ? (
                 <button
                   type="button"
-                  onClick={() => setDateFilterKey(tomorrowKey)}
+                  onClick={() => handleDateFilterChange(tomorrowKey)}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
                   Mañana
@@ -1459,7 +1844,7 @@ export default function AdminDashboard({
               {nextShipmentDateKey ? (
                 <button
                   type="button"
-                  onClick={() => setDateFilterKey(nextShipmentDateKey)}
+                  onClick={() => handleDateFilterChange(nextShipmentDateKey)}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
                   Próximos envíos
@@ -1468,7 +1853,7 @@ export default function AdminDashboard({
               {dateFilterKey ? (
                 <button
                   type="button"
-                  onClick={() => setDateFilterKey('')}
+                  onClick={() => handleDateFilterChange('')}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
                 >
                   Todas las fechas
@@ -1479,10 +1864,23 @@ export default function AdminDashboard({
             </div>
 
             {isAgencyAdmin(userRole) && (
-              <RepartidorFilterControl
-                repartidores={repartidores}
-                value={repartidorFilterId}
-                onChange={setRepartidorFilterId}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <MarketplaceSourceFilter
+                  value={marketplaceSourceFilter}
+                  onChange={setMarketplaceSourceFilter}
+                />
+                <RepartidorFilterControl
+                  repartidores={repartidores}
+                  value={repartidorFilterId}
+                  onChange={setRepartidorFilterId}
+                />
+              </div>
+            )}
+
+            {!isAgencyAdmin(userRole) && (
+              <MarketplaceSourceFilter
+                value={marketplaceSourceFilter}
+                onChange={setMarketplaceSourceFilter}
               />
             )}
 
@@ -1560,28 +1958,25 @@ export default function AdminDashboard({
                   value={dateFilterKey || todayKey}
                   maxDateKey={datePickerMaxKey}
                   nextShipmentDateKey={nextShipmentDateKey}
-                  onChange={setDateFilterKey}
+                  shipmentDateKeys={datesWithShipments}
+                  onChange={handleDateFilterChange}
                 />
-                <div className="min-w-0 flex flex-col gap-1.5">
-                  <span
-                    className="h-[1.125rem] shrink-0 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
-                    aria-hidden
-                  >
-                    &nbsp;
-                  </span>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-[var(--color-text-muted)]">
-                      <Search className="w-3.5 h-3.5" />
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Buscar..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full posta-input h-[2.375rem] px-2 py-2 pl-7 text-xs font-sans"
-                    />
-                  </div>
-                </div>
+                <MarketplaceSourceFilter
+                  value={marketplaceSourceFilter}
+                  onChange={setMarketplaceSourceFilter}
+                />
+              </div>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-[var(--color-text-muted)]">
+                  <Search className="w-3.5 h-3.5" />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Buscar..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full posta-input h-[2.375rem] px-2 py-2 pl-7 text-xs font-sans"
+                />
               </div>
               <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0">
                 <button
@@ -1629,14 +2024,8 @@ export default function AdminDashboard({
           )}
         </div>
 
-        {/* LISTADO DE PEDIDOS: con mapa abierto scroll interno; sin mapa crece y scrollea el main */}
-        <div
-          className={`mt-1.5 pr-1 ${
-            showMapPanel
-              ? 'flex-1 min-h-0 overflow-y-auto scrollbar-thin'
-              : ''
-          }`}
-        >
+        {/* LISTADO: scroll vertical; columnas fijas evitan scroll X */}
+        <div className="mt-1.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin rounded border border-[var(--surface-border)]">
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
               <span className="mono-label block mb-2">Sin resultados</span>
@@ -1647,92 +2036,52 @@ export default function AdminDashboard({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded border border-[var(--surface-border)]">
-              <table className="w-full min-w-[36rem] text-left border-collapse">
-                <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
-                  <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                    <th className="px-2 py-2 font-bold">ID</th>
-                    <th className="px-2 py-2 font-bold">Cliente</th>
-                    <th className="px-2 py-2 font-bold">Dirección</th>
-                    <th className="px-2 py-2 font-bold">Estado</th>
-                    {isAgencyAdmin(userRole) && <th className="px-2 py-2 font-bold">Vendedor</th>}
-                    <th className="px-2 py-2 font-bold">Repartidor</th>
-                    <th className="px-2 py-2 font-bold">Hora</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((order) => {
-                    const isSelected = order.id === activeOrderId;
-                    const exception = getOrderExceptionBadge(order);
-                    return (
-                      <tr
-                        key={order.id}
-                        onClick={() => handleSelectOrder(order.id)}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setContextMenu({ order, x: e.clientX, y: e.clientY });
-                        }}
-                        className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] transition ${
-                          isSelected
-                            ? 'bg-[var(--color-accent)]/10'
-                            : 'hover:bg-[var(--surface-panel-2)]/80'
-                        }`}
-                      >
-                        <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1">
-                            {order.id}
-                            <MarketplaceSourceIcon source={order.externalSource} />
-                          </span>
-                        </td>
-                        <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] max-w-[8rem] truncate">
-                          {order.clientName}
-                        </td>
-                        <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[12rem] truncate">
-                          {order.address}
-                        </td>
-                        <td className="px-2 py-2 whitespace-nowrap">
-                          <StatusBadge
-                            status={order.status}
-                            label={exception?.label}
-                            tone={exception?.tone}
-                          />
-                        </td>
-                        {isAgencyAdmin(userRole) && (
-                          <td className="px-2 py-2 text-[var(--color-text-muted)] max-w-[7rem] truncate">
-                            {order.sellerName ?? '—'}
-                          </td>
-                        )}
-                        <td className="px-2 py-2 whitespace-nowrap">
-                          {order.status === OrderStatus.PENDING && isAgencyAdmin(userRole) ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openAssignModal(order.id);
-                              }}
-                              className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
-                            >
-                              Gestionar
-                            </button>
-                          ) : (
-                            <span className="text-[var(--color-text-muted)] truncate max-w-[6rem] inline-block">
-                              {order.repartidorName?.split(' ')[0] ?? 'Sin asignar'}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">
-                          {new Date(order.createdAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <table className="w-full min-w-0 text-left border-collapse table-fixed">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
+                <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                  <th className="px-1.5 py-2 w-8">
+                    {selectableFilteredOrders.length > 0 ? (
+                      <input
+                        type="checkbox"
+                        checked={allFilteredChecked}
+                        onChange={toggleSelectAllFiltered}
+                        title={
+                          allFilteredChecked
+                            ? 'Deseleccionar todos'
+                            : 'Seleccionar todos (excepto Mercado Libre)'
+                        }
+                        aria-label="Seleccionar todos los pedidos imprimibles"
+                        className="accent-[var(--color-accent)] cursor-pointer"
+                      />
+                    ) : null}
+                  </th>
+                  <th className="px-2 py-2 font-bold w-[6.25rem]">ID</th>
+                  <th className="px-2 py-2 font-bold w-[16%]">Cliente</th>
+                  <th className="px-2 py-2 font-bold">Dirección</th>
+                  <th className="px-2 py-2 font-bold w-[6.5rem]">Estado</th>
+                  {isAgencyAdmin(userRole) && (
+                    <th className="px-2 py-2 font-bold w-[12%]">Vendedor</th>
+                  )}
+                  <th className="px-2 py-2 font-bold w-[5.75rem]">Repartidor</th>
+                  <th className="px-1.5 py-2 font-bold w-[4rem]">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order) => (
+                  <AdminOrderTableRow
+                    key={order.id}
+                    order={order}
+                    isSelected={order.id === activeOrderId}
+                    isChecked={checkedOrderIds.has(order.id)}
+                    showSeller={isAgencyAdmin(userRole)}
+                    onSelect={handleSelectOrder}
+                    onToggleCheck={toggleOrderCheck}
+                    onContextMenu={openOrderContextMenu}
+                    onAssign={openAssignModal}
+                  />
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
 
@@ -1822,9 +2171,32 @@ export default function AdminDashboard({
         )}
       </div>
 
+      {/* Divisor arrastrable lista ↔ mapa (solo desktop con mapa visible) */}
+      {showMapPanel && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Redimensionar lista y mapa"
+          aria-valuemin={MAP_SPLIT_MIN}
+          aria-valuemax={MAP_SPLIT_MAX}
+          aria-valuenow={Math.round(mapSplitPct)}
+          title="Arrastrá para cambiar el tamaño"
+          onPointerDown={onSplitPointerDown}
+          onPointerMove={onSplitPointerMove}
+          onPointerUp={onSplitPointerUp}
+          onPointerCancel={onSplitPointerUp}
+          className="relative hidden lg:flex shrink-0 w-3 cursor-col-resize items-center justify-center group touch-none select-none z-20"
+        >
+          <div className="h-full w-px bg-[var(--surface-border)] group-hover:bg-[var(--color-accent)] group-active:bg-[var(--color-accent)] transition-colors" />
+          <div className="absolute flex items-center justify-center w-4 h-8 rounded-full border border-[var(--surface-border)] bg-[var(--surface-panel)] text-[var(--color-text-muted)] group-hover:border-[var(--color-accent)]/50 group-hover:text-[var(--color-accent)] shadow-sm pointer-events-none">
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
+        </div>
+      )}
+
       {/* SECCIÓN DERECHA: MAPA E HISTORIAL */}
       <div
-        className={`lg:col-span-6 2xl:col-span-7 flex flex-col flex-1 min-h-0 h-full gap-2 sm:gap-3 overflow-hidden relative ${
+        className={`flex flex-col h-full min-h-0 min-w-0 gap-2 sm:gap-3 overflow-hidden flex-1 relative ${
           !showMapPanel
             ? 'hidden'
             : adminMobileTab !== 'map'
@@ -1834,7 +2206,7 @@ export default function AdminDashboard({
       >
         
         {/* Mapa Interactivo */}
-        <div className="flex-1 min-h-[140px] sm:min-h-[180px] md:min-h-[220px] lg:min-h-[250px] xl:min-h-[320px] 2xl:min-h-[380px] rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
+        <div className="flex-1 min-h-0 rounded-[var(--radius-posta)] border border-[var(--surface-border)] overflow-hidden relative">
           <div ref={mapFilterRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 z-[1100] flex flex-col gap-2 w-[min(11rem,calc(100%-1rem))] sm:w-44 md:w-48">
             <button
               type="button"
@@ -1901,13 +2273,14 @@ export default function AdminDashboard({
                         value={dateFilterKey || todayKey}
                         maxDateKey={datePickerMaxKey}
                         nextShipmentDateKey={nextShipmentDateKey}
-                        onChange={setDateFilterKey}
+                        shipmentDateKeys={datesWithShipments}
+                        onChange={handleDateFilterChange}
                       />
                       <div className="flex items-center gap-2 px-0.5 flex-wrap">
                         {dateFilterKey && dateFilterKey !== todayKey && (
                           <button
                             type="button"
-                            onClick={() => setDateFilterKey(todayKey)}
+                            onClick={() => handleDateFilterChange(todayKey)}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
                             Hoy
@@ -1916,7 +2289,7 @@ export default function AdminDashboard({
                         {dateFilterKey !== tomorrowKey && (
                           <button
                             type="button"
-                            onClick={() => setDateFilterKey(tomorrowKey)}
+                            onClick={() => handleDateFilterChange(tomorrowKey)}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
                             Mañana
@@ -1925,7 +2298,7 @@ export default function AdminDashboard({
                         {nextShipmentDateKey && (
                           <button
                             type="button"
-                            onClick={() => setDateFilterKey(nextShipmentDateKey)}
+                            onClick={() => handleDateFilterChange(nextShipmentDateKey)}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
                             Próximos envíos
@@ -1934,7 +2307,7 @@ export default function AdminDashboard({
                         {dateFilterKey ? (
                           <button
                             type="button"
-                            onClick={() => setDateFilterKey('')}
+                            onClick={() => handleDateFilterChange('')}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]"
                           >
                             Todas
@@ -1949,9 +2322,14 @@ export default function AdminDashboard({
                       <SellerFilterControl
                         sellers={sellers}
                         value={sellerFilterId}
-                        onChange={setSellerFilterId}
+                        onChange={handleSellerFilterChange}
                       />
                     )}
+
+                    <MarketplaceSourceFilter
+                      value={marketplaceSourceFilter}
+                      onChange={setMarketplaceSourceFilter}
+                    />
 
                     <CordonFilterControl
                       zones={cordonZones}
@@ -2032,18 +2410,20 @@ export default function AdminDashboard({
               )}
             </div>
           </div>
-          <MapComponent
-            orders={mapOrders}
-            repartidores={mapRepartidores}
-            departurePoint={departurePoint}
-            pickupPoints={pickupPoints}
-            deliveryZones={deliveryZones}
-            barrios={barrios}
-            activeOrderId={activeOrderId}
-            onSelectOrder={handleSelectOrder}
-            showDeliveryZones={false}
-            focusZoneId={cordonFilterId || null}
-          />
+          <Suspense fallback={<div className="absolute inset-0 bg-[var(--surface-bg)]" />}>
+            <MapComponent
+              orders={mapOrders}
+              repartidores={mapRepartidores}
+              departurePoint={departurePoint}
+              pickupPoints={pickupPoints}
+              deliveryZones={deliveryZones}
+              barrios={barrios}
+              activeOrderId={activeOrderId}
+              onSelectOrder={handleSelectOrder}
+              showDeliveryZones={false}
+              focusZoneId={cordonFilterId || null}
+            />
+          </Suspense>
           {/* Overlay Map Grid design like in the spec */}
           <div className="absolute inset-0 opacity-5 pointer-events-none map-grid-overlay"></div>
         </div>
@@ -2301,15 +2681,69 @@ export default function AdminDashboard({
                     )
                   )}
 
-                  {/* Estado del pedido y canceladores */}
+                  {/* Estado del pedido: entregar (no-ML) y cancelar */}
                   {selectedOrder.status !== OrderStatus.DELIVERED && selectedOrder.status !== OrderStatus.CANCELLED && (
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => onUpdateOrderStatus(selectedOrder.id, OrderStatus.CANCELLED, undefined, 'Cancelado manualmente por el administrador')}
-                        className="flex-1 text-center py-1 border border-[var(--color-danger)]/20 hover:border-[var(--color-danger)] bg-[var(--color-danger)]/5 text-[var(--color-danger)] font-bold text-[10px] uppercase tracking-wider rounded transition"
-                      >
-                        Cancelar Envío
-                      </button>
+                      {(() => {
+                        const isMl = selectedOrder.externalSource === 'mercadolibre';
+                        const agencyUser = isAgencyAdmin(userRole);
+                        const sellerUser = userRole === UserRole.STORE_ADMIN;
+                        const canMarkDelivered =
+                          !isMl &&
+                          ((agencyUser &&
+                            (selectedOrder.status === OrderStatus.ASSIGNED ||
+                              selectedOrder.status === OrderStatus.DELIVERING)) ||
+                            agencyUser ||
+                            sellerUser);
+                        if (!canMarkDelivered) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void confirm({
+                                title: 'Marcar como entregado',
+                                message: `¿Confirmar que el envío ${selectedOrder.id} ya fue entregado?`,
+                                variant: 'warning',
+                                confirmText: 'Sí, entregado',
+                                cancelText: 'Cancelar',
+                              }).then(async (ok) => {
+                                if (!ok) return;
+                                try {
+                                  await onUpdateOrderStatus(
+                                    selectedOrder.id,
+                                    OrderStatus.DELIVERED,
+                                    undefined,
+                                    'Marcado como entregado manualmente'
+                                  );
+                                } catch {
+                                  // El error ya se muestra en handleUpdateOrderStatus
+                                }
+                              });
+                            }}
+                            className="flex-1 text-center py-1 border border-[var(--color-ok)]/30 hover:border-[var(--color-ok)] bg-[var(--color-ok)]/10 text-[var(--color-ok)] font-bold text-[10px] uppercase tracking-wider rounded transition"
+                          >
+                            Marcar entregado
+                          </button>
+                        );
+                      })()}
+                      {(isAgencyAdmin(userRole) ||
+                        (userRole === UserRole.STORE_ADMIN &&
+                          selectedOrder.status === OrderStatus.PENDING)) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateOrderStatus(
+                              selectedOrder.id,
+                              OrderStatus.CANCELLED,
+                              undefined,
+                              'Cancelado manualmente por el administrador'
+                            )
+                          }
+                          className="flex-1 text-center py-1 border border-[var(--color-danger)]/20 hover:border-[var(--color-danger)] bg-[var(--color-danger)]/5 text-[var(--color-danger)] font-bold text-[10px] uppercase tracking-wider rounded transition"
+                        >
+                          Cancelar Envío
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

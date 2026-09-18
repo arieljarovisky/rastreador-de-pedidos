@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS orders (
   INDEX idx_orders_status (status),
   INDEX idx_orders_archived (archived),
   INDEX idx_orders_agency (agency_id),
+  INDEX idx_orders_agency_archived_status (agency_id, archived, status),
   INDEX idx_orders_seller (seller_id),
   INDEX idx_orders_external (seller_id, external_source, external_order_id),
   INDEX idx_orders_repartidor (repartidor_id),

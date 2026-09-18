@@ -248,7 +248,7 @@ export function collectZoneGeoFeatures(
 
   const barrioIds = zone.barrios ?? [];
 
-  if (zone.id === 'zona_caba' && comunaFeatures.length > 0) {
+  if (canonicalPaintZoneId(zone.id) === 'zona_caba' && comunaFeatures.length > 0) {
     for (const feature of comunaFeatures) {
       unique.set(featureKey(feature), feature);
     }

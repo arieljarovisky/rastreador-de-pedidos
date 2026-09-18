@@ -303,7 +303,8 @@ async function upsertLogisticaAdmin(passwordHash: string): Promise<void> {
   if (existingId) {
     await pool.query(
       `UPDATE users SET password_hash = ?, name = ?, role = ?, agency_id = ?,
-        departure_address = ?, departure_lat = ?, departure_lng = ?
+        departure_address = ?, departure_lat = ?, departure_lng = ?,
+        email_verified_at = COALESCE(email_verified_at, NOW(3))
        WHERE id = ?`,
       [
         passwordHash,
@@ -319,10 +320,25 @@ async function upsertLogisticaAdmin(passwordHash: string): Promise<void> {
     return;
   }
   await pool.query(
-    `INSERT INTO users (id, username, password_hash, name, role, agency_id, departure_address, departure_lat, departure_lng)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO users (id, username, password_hash, name, role, agency_id, departure_address, departure_lat, departure_lng, email_verified_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`,
     ['u5', 'logistica', passwordHash, 'Lupo Logística (Envíos)', UserRole.SUPER_ADMIN, agencyId, departureAddress, DEPOT.lat, DEPOT.lng]
   );
+}
+
+/** Las cuentas demo no requieren activación por correo. */
+async function markDemoUsersEmailVerified(): Promise<void> {
+  const placeholders = DEMO_USERNAMES.map(() => '?').join(', ');
+  const [result] = await pool.query(
+    `UPDATE users
+     SET email_verified_at = COALESCE(email_verified_at, NOW(3))
+     WHERE LOWER(username) IN (${placeholders}) OR agency_id = ?`,
+    [...DEMO_USERNAMES, agencyId]
+  );
+  const affected = (result as { affectedRows?: number }).affectedRows ?? 0;
+  if (affected > 0) {
+    console.log(`[seed] ${affected} usuario(s) demo marcados como email verificado.`);
+  }
 }
 
 async function clearDemoAgencyOrders(): Promise<void> {
@@ -371,10 +387,11 @@ export async function seedDatabase(): Promise<void> {
     const passwordHash = await hash(v.password);
     await pool.query(
       `INSERT INTO users (id, username, password_hash, name, role, agency_id, current_lat, current_lng, location_updated_at,
-        departure_address, departure_lat, departure_lng, delivery_zone)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+        departure_address, departure_lat, departure_lng, delivery_zone, email_verified_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NOW(3))
        ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name),
-         role = VALUES(role), agency_id = VALUES(agency_id)`,
+         role = VALUES(role), agency_id = VALUES(agency_id),
+         email_verified_at = COALESCE(users.email_verified_at, NOW(3))`,
       [v.id, v.username, passwordHash, v.name, UserRole.STORE_ADMIN, agencyId]
     );
   }
@@ -384,10 +401,11 @@ export async function seedDatabase(): Promise<void> {
     const locTime = u.lat != null ? new Date(now) : null;
     await pool.query(
       `INSERT INTO users (id, username, password_hash, name, role, agency_id, current_lat, current_lng, location_updated_at,
-        departure_address, departure_lat, departure_lng, delivery_zone)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?)
+        departure_address, departure_lat, departure_lng, delivery_zone, email_verified_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, NOW(3))
        ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name), role = VALUES(role),
-         agency_id = VALUES(agency_id), delivery_zone = VALUES(delivery_zone)`,
+         agency_id = VALUES(agency_id), delivery_zone = VALUES(delivery_zone),
+         email_verified_at = COALESCE(users.email_verified_at, NOW(3))`,
       [
         u.id, u.username, passwordHash, u.name, u.role, agencyId,
         u.lat, u.lng, locTime,
@@ -397,6 +415,7 @@ export async function seedDatabase(): Promise<void> {
   }
 
   await bindDemoUsersToAgency();
+  await markDemoUsersEmailVerified();
   await ensureAgencySubscription(agencyId);
 
   const pickupPoints = [

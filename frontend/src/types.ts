@@ -61,6 +61,8 @@ export interface User {
   deliveryZone?: string | null;
   /** Corte de ventas del vendedor (0–23). null/undefined = hereda el de la agencia. */
   deliveryDeadlineHour?: number | null;
+  /** Feriados: null = hereda agencia. */
+  worksOnHolidays?: boolean | null;
   disabledAt?: string | null;
 }
 
@@ -253,6 +255,9 @@ export interface BillingLedgerEntry {
   sellerId: string;
   sellerName: string | null;
   orderId: string | null;
+  orderAddress?: string | null;
+  pricingZoneId?: string | null;
+  pricingZoneName?: string | null;
   entryType: 'charge' | 'payment' | 'adjustment';
   amount: number;
   description: string;

@@ -17,6 +17,7 @@ import {
   getMercadoLibreAuthUrl,
   getValidMercadoLibreIntegration,
   isMercadoLibreConfigured,
+  revokeMercadoLibreForUser,
 } from '../services/mercadolibre.service.js';
 import {
   exchangeTiendaNubeCode,
@@ -281,7 +282,7 @@ router.get('/repartidor/status', authenticate, requireRoles(UserRole.REPARTIDOR)
   });
 });
 
-router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.REPARTIDOR), (req: Request, res: Response) => {
+router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   if (!isMercadoLibreConfigured()) {
     res.status(503).json({ error: 'Mercado Libre no está configurado en el servidor (ML_APP_ID, ML_APP_SECRET).' });
     return;
@@ -292,6 +293,13 @@ router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_AD
       ? req.query.redirect_uri.trim()
       : undefined;
   const returnOrigin = resolveReturnOrigin(req);
+  // Siempre forzar re-login + revocar grant local si existe, para que ML muestre "Autorizar".
+  const existing = await getIntegration(req.user!.id, 'mercadolibre');
+  if (existing) {
+    await revokeMercadoLibreForUser(req.user!.id);
+    await deleteIntegration(req.user!.id, 'mercadolibre');
+  }
+
   const pkce = createMercadoLibrePkcePair();
   const state = signOAuthState(
     req.user!.id,
@@ -301,7 +309,9 @@ router.get('/mercadolibre/connect', authenticate, requireRoles(UserRole.STORE_AD
     returnOrigin,
     pkce.codeVerifier
   );
-  res.json({ url: getMercadoLibreAuthUrl(state, pkce.codeChallenge) });
+  res.json({
+    url: getMercadoLibreAuthUrl(state, pkce.codeChallenge, { forceLogin: true }),
+  });
 });
 
 // Devuelve el access token ML vigente (refrescado si hace falta) para pruebas manuales.
@@ -1104,6 +1114,10 @@ router.delete('/:platform', authenticate, requireRoles(UserRole.STORE_ADMIN, ...
     } catch (err) {
       console.warn('[woo-disconnect] no se pudieron borrar webhooks remotos', err);
     }
+  }
+  if (platform === 'mercadolibre') {
+    // Revocar grant en ML para que la próxima conexión vuelva a pedir "Autorizar".
+    await revokeMercadoLibreForUser(req.user!.id);
   }
   await deleteIntegration(req.user!.id, platform);
   res.status(204).send();

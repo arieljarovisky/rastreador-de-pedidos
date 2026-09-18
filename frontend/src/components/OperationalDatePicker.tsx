@@ -12,8 +12,11 @@ import {
   formatOperationalDateShort,
   formatOperationalMonthLabel,
   formatOperationalWeekday,
+  getActiveOperationalDateKey,
   getOperationalDateKey,
   getOperationalMonthKey,
+  getNonWorkingOperationalLabel,
+  isRolledForwardWeekendOperationalDay,
   parseOperationalDateKey,
   shiftOperationalMonthKey,
 } from '../utils/deliverySummary.js';
@@ -29,6 +32,9 @@ interface OperationalDatePickerProps {
   layout?: 'icon' | 'navigator' | 'field';
   label?: string;
   className?: string;
+  /** Si true, muestra `placeholder` en lugar de la fecha (filtro aún no elegido). */
+  empty?: boolean;
+  placeholder?: string;
   onPreviousDay?: () => void;
   onNextDay?: () => void;
   canGoNextDay?: boolean;
@@ -36,6 +42,8 @@ interface OperationalDatePickerProps {
   isToday?: boolean;
   /** Próxima fecha operativa con envíos (después de `value`). */
   nextShipmentDateKey?: string | null;
+  /** Días con envíos (importación o entrega) — se marcan en el calendario. */
+  shipmentDateKeys?: string[];
 }
 
 function CalendarPopover({
@@ -45,6 +53,7 @@ function CalendarPopover({
   todayKey,
   deadlineHour,
   nextShipmentDateKey,
+  shipmentDateKeys,
   onPick,
   style,
 }: {
@@ -54,6 +63,7 @@ function CalendarPopover({
   todayKey: string;
   deadlineHour?: number;
   nextShipmentDateKey?: string | null;
+  shipmentDateKeys?: ReadonlySet<string>;
   onPick: (dateKey: string) => void;
   style: CSSProperties;
 }) {
@@ -123,6 +133,7 @@ function CalendarPopover({
           const isBeyondMax = dateKey > maxDateKey;
           const isBeforeMin = minDateKey ? dateKey < minDateKey : false;
           const isDisabled = isBeyondMax || isBeforeMin;
+          const hasShipments = shipmentDateKeys?.has(dateKey) ?? false;
           const day = parseOperationalDateKey(dateKey).day;
 
           return (
@@ -131,17 +142,28 @@ function CalendarPopover({
               type="button"
               disabled={isDisabled}
               onClick={() => onPick(dateKey)}
+              title={hasShipments ? 'Hay envíos este día' : undefined}
               className={[
-                'h-9 w-full rounded-lg text-[12px] font-mono font-bold transition flex items-center justify-center',
+                'relative h-9 w-full rounded-lg text-[12px] font-mono font-bold transition flex flex-col items-center justify-center gap-0.5',
                 isSelected
                   ? 'bg-[var(--color-accent)] text-white shadow-md'
                   : isToday
                     ? 'border border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10'
-                    : 'text-[var(--color-text)] hover:bg-[var(--surface-panel-2)] border border-transparent',
+                    : hasShipments
+                      ? 'text-[var(--ink-soft)] bg-[var(--color-accent)]/8 border border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/15'
+                      : 'text-[var(--color-text)] hover:bg-[var(--surface-panel-2)] border border-transparent',
                 isDisabled ? 'opacity-25 pointer-events-none' : '',
               ].join(' ')}
             >
-              {day}
+              <span className="leading-none">{day}</span>
+              {hasShipments && (
+                <span
+                  className={`h-1 w-1 rounded-full ${
+                    isSelected ? 'bg-white/90' : 'bg-[var(--color-accent)]'
+                  }`}
+                  aria-hidden
+                />
+              )}
             </button>
           );
         })}
@@ -152,6 +174,7 @@ function CalendarPopover({
           {deadlineHour != null
             ? `Corte operativo ${deadlineHour}:00 ART`
             : 'Corte operativo ART'}
+          {shipmentDateKeys && shipmentDateKeys.size > 0 ? ' · días con envíos marcados' : ''}
         </p>
         <div className="flex items-center gap-1.5 shrink-0">
           {canGoNextShipment && (
@@ -225,25 +248,32 @@ function useCalendarPopoverPosition(anchorRef: RefObject<HTMLElement | null>, op
 export default function OperationalDatePicker({
   value,
   onChange,
-  maxDateKey = getOperationalDateKey(),
+  maxDateKey = getActiveOperationalDateKey(),
   minDateKey,
   deadlineHour,
   layout = 'icon',
   label = 'Fecha',
   className = '',
+  empty = false,
+  placeholder = 'Elegir fecha',
   onPreviousDay,
   onNextDay,
   canGoNextDay = false,
   onGoToday,
-  isToday = value === getOperationalDateKey(),
+  isToday = value === getActiveOperationalDateKey(),
   nextShipmentDateKey = null,
+  shipmentDateKeys,
 }: OperationalDatePickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const popoverStyle = useCalendarPopoverPosition(anchorRef, open);
-  const todayKey = getOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey();
   const isFuture = value > todayKey;
+  const shipmentDateKeySet = useMemo(
+    () => (shipmentDateKeys && shipmentDateKeys.length > 0 ? new Set(shipmentDateKeys) : undefined),
+    [shipmentDateKeys]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -286,6 +316,7 @@ export default function OperationalDatePicker({
           todayKey={todayKey}
           deadlineHour={deadlineHour}
           nextShipmentDateKey={nextShipmentDateKey}
+          shipmentDateKeys={shipmentDateKeySet}
           onPick={pickDate}
           style={popoverStyle}
         />
@@ -305,12 +336,20 @@ export default function OperationalDatePicker({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
-          className={`w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-xs flex items-center justify-between gap-2 text-left transition focus:outline-none ${
-            open ? 'border-[var(--color-accent)]' : 'hover:border-[var(--color-accent)]/50'
+          className={`w-full min-w-0 h-[2.375rem] bg-[var(--surface-panel-2)] border rounded-[5px] px-3 text-xs flex items-center justify-between gap-2 text-left transition focus:outline-none ${
+            open
+              ? 'border-[var(--color-accent)]'
+              : empty
+                ? 'border-dashed border-[var(--surface-border)] hover:border-[var(--color-accent)]/50'
+                : 'border-[var(--surface-border)] hover:border-[var(--color-accent)]/50'
           }`}
         >
-          <span className="font-mono text-[var(--color-text)] truncate">
-            {formatOperationalDateShort(value)}
+          <span
+            className={`font-mono truncate ${
+              empty ? 'text-[var(--color-text-faint)]' : 'text-[var(--color-text)]'
+            }`}
+          >
+            {empty ? placeholder : formatOperationalDateShort(value)}
           </span>
           <ChevronDown
             className={`w-4 h-4 shrink-0 text-[var(--color-text-muted)] transition-transform duration-200 ${
@@ -328,12 +367,15 @@ export default function OperationalDatePicker({
     const weekday = formatOperationalWeekday(value);
     const shortDate = formatOperationalDateShort(value);
     const dayNum = parseOperationalDateKey(value).day;
+    const isWeekendForward = isRolledForwardWeekendOperationalDay(value);
+    const highlightAsCurrent = isToday || isWeekendForward;
+    const nonWorkingNote = getNonWorkingOperationalLabel(getOperationalDateKey());
 
     return (
       <div ref={rootRef} className="relative w-full">
         <div
           className={`flex items-stretch w-full rounded-[var(--radius-posta)] border overflow-hidden ${
-            isToday || isFuture
+            highlightAsCurrent || isFuture
               ? 'border-[var(--color-accent)]/35 bg-[var(--color-accent)]/5'
               : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)]/80'
           }`}
@@ -350,7 +392,7 @@ export default function OperationalDatePicker({
           <div className="flex-1 min-w-0 flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 sm:py-2">
             <div
               className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border ${
-                isToday
+                highlightAsCurrent
                   ? 'bg-[var(--color-accent)] text-[#F6F0E4] border-[var(--color-accent)]'
                   : 'bg-[var(--surface-panel)] border-[var(--surface-border)] text-[var(--ink-soft)]'
               }`}
@@ -368,7 +410,11 @@ export default function OperationalDatePicker({
                 <span className="text-sm sm:text-base font-display font-bold text-[var(--ink-soft)] truncate">
                   {dateLabel}
                 </span>
-                {isToday ? (
+                {isWeekendForward ? (
+                  <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 text-[var(--color-accent)] text-[8px] font-mono font-bold uppercase tracking-wider">
+                    Próximo hábil
+                  </span>
+                ) : isToday ? (
                   <span className="shrink-0 inline-flex px-1.5 py-0.5 rounded-md bg-[var(--color-accent)]/15 border border-[var(--color-accent)]/25 text-[var(--color-accent)] text-[8px] font-mono font-bold uppercase tracking-wider">
                     En curso
                   </span>
@@ -383,7 +429,9 @@ export default function OperationalDatePicker({
                 )}
               </div>
               <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate">
-                {weekday}, {shortDate}
+                {isWeekendForward && nonWorkingNote
+                  ? `${nonWorkingNote} · ${weekday}, ${shortDate}`
+                  : `${weekday}, ${shortDate}`}
               </p>
             </div>
 
@@ -415,7 +463,7 @@ export default function OperationalDatePicker({
           </button>
         </div>
 
-        {!isToday && onGoToday && (
+        {!isToday && !isWeekendForward && onGoToday && (
           <div className="mt-1.5 flex justify-end">
             <button
               type="button"

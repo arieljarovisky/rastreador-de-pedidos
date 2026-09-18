@@ -343,6 +343,11 @@ function IntegrationRow({
             <Pressable style={styles.linkBtn} onPress={onImport}>
               <Text style={styles.linkBtnText}>Importar envíos</Text>
             </Pressable>
+            {platform === 'mercadolibre' ? (
+              <Pressable style={styles.linkBtn} onPress={onConnect} disabled={busy}>
+                <Text style={styles.linkBtnText}>{busy ? '…' : 'Autorizar de nuevo'}</Text>
+              </Pressable>
+            ) : null}
             <Pressable style={styles.linkBtnDanger} onPress={onDisconnect} disabled={busy}>
               <Text style={styles.linkBtnDangerText}>{busy ? '…' : 'Desconectar'}</Text>
             </Pressable>

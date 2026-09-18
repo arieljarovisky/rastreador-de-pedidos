@@ -17,8 +17,11 @@ import {
   clearRepartidorSessionForAgency,
   assertSellerInAgency,
   resolveSalesCutoffHour,
+  resolveWorksOnHolidays,
   getSellerConfiguredDeadlineHour,
+  getSellerConfiguredWorksOnHolidays,
   updateOwnSellerDeliveryDeadlineHour,
+  updateOwnSellerWorksOnHolidays,
 } from '../services/users.service.js';
 import {
   listPickupPointsForUser,
@@ -32,10 +35,23 @@ import {
 import { isAgencyAdmin } from '../utils/roles.js';
 import {
   getAgencyDeliveryDeadlineHour,
+  getAgencyWorksOnHolidays,
   updateAgencyDeliveryDeadlineHour,
+  updateAgencyWorksOnHolidays,
 } from '../services/agencies.service.js';
+import {
+  addClosedDay,
+  listClosedDaysForUser,
+  listEffectiveClosedDateKeys,
+  removeClosedDay,
+} from '../services/closed-days.service.js';
 import { recalculateOpenOrdersDeliveryDeadlines } from '../services/orders.service.js';
-import { DELIVERY_DEADLINE_HOUR, getOperationalDateKey } from '../utils/delivery-deadline.js';
+import {
+  DELIVERY_DEADLINE_HOUR,
+  getActiveOperationalDateKey,
+  getOperationalDateKey,
+  shiftOperationalDateKey,
+} from '../utils/delivery-deadline.js';
 import {
   getSellerBrandingSummary,
   getSellerLogo,
@@ -60,7 +76,7 @@ const logoUpload = multer({
 });
 
 /** Evita recalcular en cada poll. Versión fuerza reintento tras redeploy. */
-const DEADLINE_RECALC_VERSION = 'v11';
+const DEADLINE_RECALC_VERSION = 'v12';
 const deadlineRecalcByAgencyDay = new Map<string, string>();
 
 function handleCreateUserError(res: Response, err: unknown): boolean {
@@ -404,28 +420,60 @@ router.get('/agency/delivery-deadline', authenticate, async (req: Request, res: 
       hour: DELIVERY_DEADLINE_HOUR,
       agencyMaxHour: DELIVERY_DEADLINE_HOUR,
       sellerHour: null,
+      worksOnHolidays: false,
+      agencyWorksOnHolidays: false,
+      sellerWorksOnHolidays: null,
       recalculated: 0,
     });
     return;
   }
 
   const agencyMaxHour = await getAgencyDeliveryDeadlineHour(agencyId);
+  const agencyWorksOnHolidays = await getAgencyWorksOnHolidays(agencyId);
   let sellerHour: number | null = null;
+  let sellerWorksOnHolidays: boolean | null = null;
   let hour = agencyMaxHour;
+  let worksOnHolidays = agencyWorksOnHolidays;
 
   if (user.role === UserRole.STORE_ADMIN) {
     sellerHour = await getSellerConfiguredDeadlineHour(user.id);
+    sellerWorksOnHolidays = await getSellerConfiguredWorksOnHolidays(user.id);
     hour = await resolveSalesCutoffHour({ sellerId: user.id, agencyId });
+    worksOnHolidays = await resolveWorksOnHolidays({ sellerId: user.id, agencyId });
   }
 
-  const dayKey = `${DEADLINE_RECALC_VERSION}:${getOperationalDateKey()}`;
+  const closedDateKeys = await listEffectiveClosedDateKeys({
+    agencyId,
+    sellerId: user.role === UserRole.STORE_ADMIN ? user.id : null,
+    fromKey: getOperationalDateKey(),
+    toKey: shiftOperationalDateKey(getOperationalDateKey(), 120),
+  });
+  const editableClosedDays = await listClosedDaysForUser(user, {
+    fromKey: shiftOperationalDateKey(getOperationalDateKey(), -30),
+    toKey: shiftOperationalDateKey(getOperationalDateKey(), 180),
+  });
+
+  const dayKey = `${DEADLINE_RECALC_VERSION}:${getActiveOperationalDateKey(undefined, {
+    worksOnHolidays,
+    closedDateKeys,
+  })}`;
   let recalculated = 0;
   if (deadlineRecalcByAgencyDay.get(agencyId) !== dayKey) {
     deadlineRecalcByAgencyDay.set(agencyId, dayKey);
     recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
   }
 
-  res.json({ hour, agencyMaxHour, sellerHour, recalculated });
+  res.json({
+    hour,
+    agencyMaxHour,
+    sellerHour,
+    worksOnHolidays,
+    agencyWorksOnHolidays,
+    sellerWorksOnHolidays,
+    closedDateKeys,
+    closedDays: editableClosedDays,
+    recalculated,
+  });
 });
 
 router.post('/agency/delivery-deadline/recalculate', authenticate, async (req: Request, res: Response) => {
@@ -444,7 +492,7 @@ router.post('/agency/delivery-deadline/recalculate', authenticate, async (req: R
       ? await getSellerConfiguredDeadlineHour(req.user!.id)
       : null;
   const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
-  deadlineRecalcByAgencyDay.set(agencyId, `${DEADLINE_RECALC_VERSION}:${getOperationalDateKey()}`);
+  deadlineRecalcByAgencyDay.set(agencyId, `${DEADLINE_RECALC_VERSION}:${getActiveOperationalDateKey()}`);
   res.json({ hour, agencyMaxHour, sellerHour, recalculated });
 });
 
@@ -465,6 +513,37 @@ router.put('/agency/delivery-deadline', authenticate, requireAgencyAdmin(), asyn
       res.status(400).json({ error: 'La hora de corte debe ser un número entre 0 y 23.' });
       return;
     }
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Agencia no encontrada.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+/** Agencia: opera o no en feriados nacionales / puentes. */
+router.put('/agency/works-on-holidays', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  const agencyId = req.user!.agencyId;
+  if (!agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+  const raw = req.body?.worksOnHolidays;
+  if (typeof raw !== 'boolean') {
+    res.status(400).json({ error: 'Indicá si la agencia trabaja en feriados (true/false).' });
+    return;
+  }
+  try {
+    const agencyWorksOnHolidays = await updateAgencyWorksOnHolidays(agencyId, raw);
+    const recalculated = await recalculateOpenOrdersDeliveryDeadlines(agencyId);
+    res.json({
+      worksOnHolidays: agencyWorksOnHolidays,
+      agencyWorksOnHolidays,
+      sellerWorksOnHolidays: null,
+      recalculated,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
     if (message === 'NOT_FOUND') {
       res.status(404).json({ error: 'Agencia no encontrada.' });
       return;
@@ -518,6 +597,126 @@ router.put(
     }
   }
 );
+
+/** Vendedor: trabaja feriados (null = heredar; true solo si la agencia también). */
+router.put(
+  '/seller/works-on-holidays',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    const raw = req.body?.worksOnHolidays;
+    const worksOnHolidays =
+      raw === null || raw === undefined || raw === ''
+        ? null
+        : Boolean(raw);
+
+    try {
+      const result = await updateOwnSellerWorksOnHolidays(req.user!, worksOnHolidays);
+      const recalculated = req.user!.agencyId
+        ? await recalculateOpenOrdersDeliveryDeadlines(req.user!.agencyId)
+        : 0;
+      res.json({ ...result, recalculated });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'FORBIDDEN') {
+        res.status(403).json({ error: 'Solo un vendedor puede cambiar esta preferencia.' });
+        return;
+      }
+      if (message === 'SELLER_NO_AGENCY') {
+        res.status(400).json({
+          error:
+            'Tu cuenta no está asociada a una agencia. Pedile a tu agencia que verifique tu usuario.',
+        });
+        return;
+      }
+      if (message === 'HOLIDAYS_ABOVE_AGENCY') {
+        res.status(400).json({
+          error: 'Tu agencia no opera en feriados. No podés activarlo por tu cuenta.',
+        });
+        return;
+      }
+      throw err;
+    }
+  }
+);
+
+/** Días cerrados propios (agencia o vendedor logueado). */
+router.get('/closed-days', authenticate, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (!user.agencyId) {
+    res.json([]);
+    return;
+  }
+  if (user.role !== UserRole.STORE_ADMIN && !isAgencyAdmin(user.role)) {
+    res.status(403).json({ error: 'No tenés permiso para ver días cerrados.' });
+    return;
+  }
+  const fromKey = typeof req.query.from === 'string' ? req.query.from : undefined;
+  const toKey = typeof req.query.to === 'string' ? req.query.to : undefined;
+  res.json(await listClosedDaysForUser(user, { fromKey, toKey }));
+});
+
+router.post('/closed-days', authenticate, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== UserRole.STORE_ADMIN && !isAgencyAdmin(user.role)) {
+    res.status(403).json({ error: 'No tenés permiso para marcar días cerrados.' });
+    return;
+  }
+  const dateKey = typeof req.body?.dateKey === 'string' ? req.body.dateKey.trim() : '';
+  const note = typeof req.body?.note === 'string' ? req.body.note : null;
+  try {
+    const day = await addClosedDay(user, dateKey, note);
+    const recalculated = user.agencyId
+      ? await recalculateOpenOrdersDeliveryDeadlines(user.agencyId)
+      : 0;
+    res.status(201).json({ ...day, recalculated });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NO_AGENCY') {
+      res.status(400).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+      return;
+    }
+    if (message === 'INVALID_DATE') {
+      res.status(400).json({ error: 'Fecha inválida. Usá formato YYYY-MM-DD.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para marcar días cerrados.' });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.delete('/closed-days/:dateKey', authenticate, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== UserRole.STORE_ADMIN && !isAgencyAdmin(user.role)) {
+    res.status(403).json({ error: 'No tenés permiso para quitar días cerrados.' });
+    return;
+  }
+  try {
+    await removeClosedDay(user, req.params.dateKey);
+    const recalculated = user.agencyId
+      ? await recalculateOpenOrdersDeliveryDeadlines(user.agencyId)
+      : 0;
+    res.json({ ok: true, recalculated });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NO_AGENCY') {
+      res.status(400).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+      return;
+    }
+    if (message === 'INVALID_DATE') {
+      res.status(400).json({ error: 'Fecha inválida.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para quitar días cerrados.' });
+      return;
+    }
+    throw err;
+  }
+});
 
 /** Vendedor: config actual de branding de etiqueta (sin el blob). */
 router.get('/seller/branding', authenticate, requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {

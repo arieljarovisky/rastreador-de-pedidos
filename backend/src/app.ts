@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors, { CorsOptions } from 'cors';
+import compression from 'compression';
 import { env } from './config/env.js';
 import { applyCorsHeaders, corsMethods, isAllowedCorsOrigin } from './config/cors.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -68,6 +69,7 @@ const corsOptions: CorsOptions = {
 app.use(corsPreflight);
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+app.use(compression());
 app.use(
   express.json({
     verify(req, _res, buf) {

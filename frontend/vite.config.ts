@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, type Plugin} from 'vite';
+import {visualizer} from 'rollup-plugin-visualizer';
 
 function appRoutePlugin(): Plugin {
   return {
@@ -26,7 +27,17 @@ function appRoutePlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), appRoutePlugin()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      appRoutePlugin(),
+      visualizer({
+        filename: 'dist/stats.html',
+        gzipSize: true,
+        brotliSize: true,
+        open: false,
+      }),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

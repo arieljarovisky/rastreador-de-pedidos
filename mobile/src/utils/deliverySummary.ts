@@ -1,4 +1,5 @@
 import { Order, OrderStatus, DeliveryDailySummary } from '../types';
+import { getArgentinaHolidayName, isArgentinaHoliday } from './argentina-holidays';
 
 export const DELIVERY_DEADLINE_HOUR = 13;
 /** Límite de entrega del día (no confundir con el corte de ventas). */
@@ -67,6 +68,69 @@ export function getOperationalDateKey(date: Date = new Date()): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+function shiftOperationalDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const noon = arLocalToUtc(year, month, day, 12);
+  return getOperationalDateKey(new Date(noon.getTime() + days * 86_400_000));
+}
+
+function getOperationalWeekday(dateKey: string): number {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const noon = arLocalToUtc(year, month, day, 12);
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: DELIVERY_TIMEZONE,
+    weekday: 'short',
+  }).format(noon);
+  const map: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return map[wd] ?? 0;
+}
+
+/** Domingo = no laboral. */
+export function isWeekendOperationalDate(dateKey: string): boolean {
+  return getOperationalWeekday(dateKey) === 0;
+}
+
+/** Domingo o feriado nacional / puente turístico AR. */
+export function isNonWorkingOperationalDate(dateKey: string): boolean {
+  return isWeekendOperationalDate(dateKey) || isArgentinaHoliday(dateKey);
+}
+
+export function previousBusinessOperationalDateKey(dateKey: string): string {
+  let key = dateKey;
+  for (let i = 0; i < 21 && isNonWorkingOperationalDate(key); i += 1) {
+    key = shiftOperationalDateKey(key, -1);
+  }
+  return key;
+}
+
+export function nextBusinessOperationalDateKey(dateKey: string): string {
+  let key = dateKey;
+  for (let i = 0; i < 21 && isNonWorkingOperationalDate(key); i += 1) {
+    key = shiftOperationalDateKey(key, 1);
+  }
+  return key;
+}
+
+/** Día operativo activo: domingo/feriado → próximo hábil. */
+export function getActiveOperationalDateKey(date: Date = new Date()): string {
+  return nextBusinessOperationalDateKey(getOperationalDateKey(date));
+}
+
+export function getNonWorkingOperationalLabel(dateKey: string): string | null {
+  if (isWeekendOperationalDate(dateKey)) return 'Domingo sin operación';
+  const holiday = getArgentinaHolidayName(dateKey);
+  if (holiday) return `Feriado · ${holiday}`;
+  return null;
+}
+
 /** SLA de entrega (21 hs ART) del día operativo del pedido. No usar deliveryDeadline (corte 13 hs). */
 export function getOrderDeliverySla(order: Order): Date {
   const dateKey = order.deliveryDeadline
@@ -77,23 +141,23 @@ export function getOrderDeliverySla(order: Order): Date {
 }
 
 function isTodayOrder(order: Order, dateKey: string): boolean {
-  if (order.deliveryDeadline) {
-    const deadlineKey = getOperationalDateKey(new Date(order.deliveryDeadline));
-    return deadlineKey === dateKey;
-  }
-  return getOperationalDateKey(new Date(order.createdAt)) === dateKey;
+  // Solo día operativo de entrega (deliveryDeadline), no el día de alta/importación.
+  const operationalKey = order.deliveryDeadline
+    ? getOperationalDateKey(new Date(order.deliveryDeadline))
+    : getOperationalDateKey(new Date(order.createdAt));
+  return operationalKey === dateKey;
 }
 
 export function getTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return orders.filter((o) => !o.archived && isTodayOrder(o, dateKey));
 }
 
 export function getUndeliveredTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return getTodayOrders(orders, dateKey).filter(
     (o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED
@@ -102,14 +166,14 @@ export function getUndeliveredTodayOrders(
 
 export function getDeliveredTodayOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): Order[] {
   return getTodayOrders(orders, dateKey).filter((o) => o.status === OrderStatus.DELIVERED);
 }
 
 export function computeDeliverySummaryFromOrders(
   orders: Order[],
-  dateKey: string = getOperationalDateKey()
+  dateKey: string = getActiveOperationalDateKey()
 ): DeliveryDailySummary {
   const todayOrders = orders.filter((o) => !o.archived && isTodayOrder(o, dateKey));
   const delivered = todayOrders.filter((o) => o.status === OrderStatus.DELIVERED).length;
@@ -119,10 +183,12 @@ export function computeDeliverySummaryFromOrders(
   ).length;
   const total = todayOrders.length;
 
-  const salesCutoffAt = getTodayDeadlineInArgentina();
-  const deliverySlaAt = getSlaForDate();
+  const activeKey = getActiveOperationalDateKey();
+  const [y, m, d] = activeKey.split('-').map(Number);
+  const salesCutoffAt = arLocalToUtc(y, m, d, DELIVERY_DEADLINE_HOUR);
+  const deliverySlaAt = arLocalToUtc(y, m, d, DELIVERY_SLA_HOUR);
   const now = Date.now();
-  const todayKey = getOperationalDateKey();
+  const todayKey = activeKey;
   const isViewingToday = dateKey === todayKey;
   const isPastDeadline = isViewingToday
     ? now >= salesCutoffAt.getTime()
@@ -160,6 +226,20 @@ export function formatArTime(date: Date = new Date()): string {
     timeZone: DELIVERY_TIMEZONE,
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
+export function formatArDateTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: DELIVERY_TIMEZONE,
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
     hour12: false,
   }).format(date);
 }

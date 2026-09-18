@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "build": "node ./node_modules/typescript/lib/tsc.js && node -e \"require('fs').mkdirSync('dist/db',{recursive:true});require('fs').copyFileSync('src/db/schema.sql','dist/db/schema.sql')\"",
+    "build": "node ./node_modules/typescript/lib/tsc.js && node -e \"const fs=require('fs');fs.mkdirSync('dist/db',{recursive:true});fs.copyFileSync('src/db/schema.sql','dist/db/schema.sql');fs.mkdirSync('dist/data',{recursive:true});fs.copyFileSync('src/data/departamentos-ar.geojson','dist/data/departamentos-ar.geojson')\"",
     "db:setup": "tsx src/db/setup.ts",
     "db:reset": "tsx src/db/reset.ts",
     "db:seed": "tsx src/db/seed-only.ts",
@@ -20,11 +20,14 @@
     "db:clear-orders": "tsx src/db/clear-orders.ts",
     "db:purge-legacy-zones": "tsx src/db/purge-legacy-zones.ts",
     "db:reset-password": "tsx src/db/reset-password.ts",
+    "db:migrate-equal-prices": "node ./node_modules/tsx/dist/cli.mjs scripts/migrate-equal-prices-and-delete-payment.ts --flex=3000 --express=3000 --standard=2500",
+
     "google:token": "tsx scripts/get-google-calendar-token.ts",
     "lint": "node ./node_modules/typescript/lib/tsc.js --noEmit"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
@@ -39,6 +42,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.9",

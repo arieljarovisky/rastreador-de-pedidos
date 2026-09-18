@@ -265,11 +265,26 @@ function PlatformCard({
               </span>
             </button>
           ) : connected ? (
-            <button type="button" className={btnGhost} onClick={onDisconnect}>
-              <span className="inline-flex items-center gap-1">
-                <Unlink className="w-3 h-3" /> Desconectar
-              </span>
-            </button>
+            <div className="flex flex-col gap-1">
+              {platform === 'mercadolibre' && onConnect ? (
+                <button
+                  type="button"
+                  className={btnPrimary}
+                  disabled={connectDisabled}
+                  onClick={onConnect}
+                  title="Vuelve a pedir autorización en Mercado Libre"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Link2 className="w-3 h-3" /> Autorizar de nuevo
+                  </span>
+                </button>
+              ) : null}
+              <button type="button" className={btnGhost} onClick={onDisconnect}>
+                <span className="inline-flex items-center gap-1">
+                  <Unlink className="w-3 h-3" /> Desconectar
+                </span>
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, RepartidorMercadoLibreStatus } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen, {
@@ -11,13 +11,13 @@ import LoginScreen, {
   type AgencyGoogleRegisterData,
   type RegisterAgencyResult,
 } from './components/LoginScreen.tsx';
-import AdminDashboard from './components/AdminDashboard.tsx';
+const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
 import OperationsDashboard from './components/OperationsDashboard.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
-import ShippingAccountPage from './components/ShippingAccountPage.tsx';
-import DriverSettlementPage from './components/DriverSettlementPage.tsx';
-import AgencyDriverScanPage from './components/AgencyDriverScanPage.tsx';
-import RepartidorDashboard from './components/RepartidorDashboard.tsx';
+const ShippingAccountPage = lazy(() => import('./components/ShippingAccountPage.tsx'));
+const DriverSettlementPage = lazy(() => import('./components/DriverSettlementPage.tsx'));
+import RegistroPage from './components/RegistroPage.tsx';
+const RepartidorDashboard = lazy(() => import('./components/RepartidorDashboard.tsx'));
 import NotificationHub from './components/NotificationHub.tsx';
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import type { MarketplacePlatform } from './components/MarketplaceIntegrations.tsx';
@@ -30,12 +30,19 @@ import PlatformOwnerPanel from './components/PlatformOwnerPanel.tsx';
 import SubscriptionExpiredOverlay from './components/SubscriptionExpiredOverlay.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
-import { apiUrl, oauthReturnOriginQuery } from './api.ts';
+import { apiUrl, oauthReturnOriginQuery, fetchAllOrders } from './api.ts';
 import { mergeRepartidorLocation, mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
 
+function LazyFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[12rem] text-[11px] font-mono uppercase tracking-wider text-[var(--color-text-muted)]">
+      Cargando…
+    </div>
+  );
+}
 type AppTab = 'panel' | 'dashboard' | 'account' | 'registro' | 'prices' | 'notifications' | 'settings' | 'platform';
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
@@ -91,6 +98,11 @@ export default function App() {
   const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(13);
   const [agencyMaxDeadlineHour, setAgencyMaxDeadlineHour] = useState(13);
   const [ownSellerDeadlineHour, setOwnSellerDeadlineHour] = useState<number | null>(null);
+  const [worksOnHolidays, setWorksOnHolidays] = useState(false);
+  const [agencyWorksOnHolidays, setAgencyWorksOnHolidays] = useState(false);
+  const [ownSellerWorksOnHolidays, setOwnSellerWorksOnHolidays] = useState<boolean | null>(null);
+  const [closedDays, setClosedDays] = useState<Array<{ dateKey: string; note: string | null }>>([]);
+  const [closedDateKeys, setClosedDateKeys] = useState<string[]>([]);
   const [sellerBranding, setSellerBranding] = useState<{
     hasLogo: boolean;
     labelFont: string;
@@ -102,6 +114,7 @@ export default function App() {
   const [barrios, setBarrios] = useState<Barrio[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [registroSellerId, setRegistroSellerId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
   const [accountSection, setAccountSection] = useState<'sellers' | 'drivers'>('sellers');
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
@@ -273,13 +286,18 @@ export default function App() {
       const useFlexSync =
         Boolean(opts?.forceFlexSync) && currentUser?.role === UserRole.REPARTIDOR;
 
-      const ordersPromise = fetch(
-        apiUrl(useFlexSync ? '/api/orders/flex-sync' : '/api/orders'),
-        { headers, method: useFlexSync ? 'POST' : 'GET' }
-      ).then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json();
-        setOrders(Array.isArray(data) ? data : data.orders);
+      const ordersPromise = (
+        useFlexSync
+          ? fetch(apiUrl('/api/orders/flex-sync'), { headers, method: 'POST' }).then(async (res) => {
+              if (!res.ok) return;
+              const data = await res.json();
+              setOrders(Array.isArray(data) ? data : data.orders);
+            })
+          : fetchAllOrders(token).then((data) => {
+              setOrders(data as Order[]);
+            })
+      ).catch(() => {
+        /* ignore: polling/WS reintentan */
       });
 
       const notifsPromise = fetch(apiUrl('/api/notifications'), { headers }).then(async (res) => {
@@ -305,6 +323,34 @@ export default function App() {
               if ('sellerHour' in data) {
                 setOwnSellerDeadlineHour(
                   typeof data.sellerHour === 'number' ? data.sellerHour : null
+                );
+              }
+              if (typeof data?.worksOnHolidays === 'boolean') {
+                setWorksOnHolidays(data.worksOnHolidays);
+              }
+              if (typeof data?.agencyWorksOnHolidays === 'boolean') {
+                setAgencyWorksOnHolidays(data.agencyWorksOnHolidays);
+              }
+              if ('sellerWorksOnHolidays' in data) {
+                setOwnSellerWorksOnHolidays(
+                  typeof data.sellerWorksOnHolidays === 'boolean'
+                    ? data.sellerWorksOnHolidays
+                    : null
+                );
+              }
+              if (Array.isArray(data?.closedDays)) {
+                setClosedDays(
+                  data.closedDays
+                    .filter((d: { dateKey?: string }) => typeof d?.dateKey === 'string')
+                    .map((d: { dateKey: string; note?: string | null }) => ({
+                      dateKey: d.dateKey,
+                      note: d.note ?? null,
+                    }))
+                );
+              }
+              if (Array.isArray(data?.closedDateKeys)) {
+                setClosedDateKeys(
+                  data.closedDateKeys.filter((k: unknown): k is string => typeof k === 'string')
                 );
               }
 
@@ -500,12 +546,9 @@ export default function App() {
         void (async () => {
           try {
             const headers = { Authorization: `Bearer ${token}` };
-            const ordersRes = await fetch(apiUrl('/api/orders'), { headers });
-            if (ordersRes.ok) {
-              const data = await ordersRes.json();
-              setOrders(data);
-              setLastSyncAt(new Date());
-            }
+            const data = await fetchAllOrders(token);
+            setOrders(data as Order[]);
+            setLastSyncAt(new Date());
           } catch {
             /* ignore */
           }
@@ -1327,6 +1370,73 @@ export default function App() {
     await fetchData();
   };
 
+  const handleUpdateWorksOnHolidays = async (value: boolean | null) => {
+    if (!token) return;
+    const isSeller = userRef.current?.role === UserRole.STORE_ADMIN;
+    const res = await fetch(
+      apiUrl(
+        isSeller
+          ? '/api/accounts/seller/works-on-holidays'
+          : '/api/accounts/agency/works-on-holidays'
+      ),
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ worksOnHolidays: value }),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo guardar la preferencia de feriados');
+    }
+    const data = await res.json();
+    if (typeof data?.worksOnHolidays === 'boolean') {
+      setWorksOnHolidays(data.worksOnHolidays);
+    }
+    if (typeof data?.agencyWorksOnHolidays === 'boolean') {
+      setAgencyWorksOnHolidays(data.agencyWorksOnHolidays);
+    }
+    if ('sellerWorksOnHolidays' in data) {
+      setOwnSellerWorksOnHolidays(
+        typeof data.sellerWorksOnHolidays === 'boolean' ? data.sellerWorksOnHolidays : null
+      );
+    }
+    await fetchData();
+  };
+
+  const handleAddClosedDay = async (dateKey: string, note?: string | null) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/closed-days'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ dateKey, note: note ?? null }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo marcar el día como cerrado');
+    }
+    await fetchData();
+  };
+
+  const handleRemoveClosedDay = async (dateKey: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/closed-days/${encodeURIComponent(dateKey)}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo quitar el día cerrado');
+    }
+    await fetchData();
+  };
+
   const handleUploadSellerLogo = async (file: File) => {
     if (!token) return;
     const formData = new FormData();
@@ -1566,6 +1676,39 @@ export default function App() {
     [token, showAlert, mergeOrder]
   );
 
+  const handleOpenShippingLabels = useCallback(
+    async (orderIds: string[], layout: '2x2' | '2x1' = '2x2') => {
+      if (!token || orderIds.length === 0) return;
+      try {
+        const res = await fetch(apiUrl('/api/orders/shipping-labels'), {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ orderIds, layout }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const payload = body as { error?: string };
+          throw new Error(payload.error ?? 'No se pudieron generar las etiquetas.');
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener,noreferrer');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch (e) {
+        void showAlert({
+          title: 'Etiquetas no disponibles',
+          message: e instanceof Error ? e.message : 'Intentá de nuevo más tarde.',
+          variant: 'error',
+        });
+        throw e;
+      }
+    },
+    [token, showAlert]
+  );
+
   const fetchIntegrationStatus = useCallback(async () => {
     if (!token) return;
     setIntegrationStatusLoading(true);
@@ -1784,9 +1927,13 @@ export default function App() {
         throw new Error(body.error || 'Error al actualizar pedido');
       }
 
-      fetchData();
+      const updated = (await res.json()) as Order;
+      mergeOrder(updated);
+      void fetchData();
     } catch (e) {
       console.error(e);
+      const message = e instanceof Error ? e.message : 'Error al actualizar pedido';
+      void showAlert({ title: 'No se pudo actualizar', message, variant: 'error' });
       throw e;
     }
   };
@@ -2202,7 +2349,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setMobileTab('registro')}
-                      title="Registro personal de paquetes de los repartidores"
+                      title="Registro de envíos por vendedor y paquetes personales"
                       className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
                         mobileTab === 'registro'
                           ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
@@ -2424,27 +2571,25 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
         className={`flex-1 min-h-0 relative ${
-          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'dashboard' || mobileTab === 'platform'
+          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'platform' || mobileTab === 'registro'
             ? 'overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch] px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
             : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
       >
         <div
           className={`app-shell ${
-            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'registro' || mobileTab === 'prices' || mobileTab === 'dashboard' || mobileTab === 'platform'
+            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'registro' || mobileTab === 'prices' || mobileTab === 'platform'
               ? ''
               : 'h-full'
           }`}
         >
         {(user.role === UserRole.STORE_ADMIN || isAgencyAdmin(user.role)) ? (
           <div
-            className={`flex flex-col ${
-              mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'registro' || mobileTab === 'prices' || mobileTab === 'platform'
-                ? 'w-full'
-                : mobileTab === 'dashboard'
-                  ? 'xl:flex-row w-full'
-                  : 'xl:flex-row h-full overflow-hidden'
-            } ${mobileTab !== 'settings' && mobileTab !== 'account' && mobileTab !== 'registro' && mobileTab !== 'prices' && mobileTab !== 'platform' && notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
+            className={`flex flex-col xl:flex-row w-full ${
+              mobileTab === 'panel' || mobileTab === 'dashboard' || mobileTab === 'notifications'
+                ? 'h-full overflow-hidden'
+                : ''
+            } ${notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
             {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
               <>
@@ -2463,39 +2608,52 @@ export default function App() {
                     barrios={barrios}
                     userRole={user.role}
                     deadlineHour={deliveryDeadlineHour}
+                    worksOnHolidays={worksOnHolidays}
+                    closedDateKeys={closedDateKeys}
                     onSelectOrder={(orderId) => {
                       setActiveOrderId(orderId);
                       setMobileTab('dashboard');
                     }}
                     onScheduleOrderToday={handleScheduleOrderToday}
                     onGoToOperations={() => setMobileTab('dashboard')}
+                    onViewSellerHistory={(sellerId) => {
+                      setRegistroSellerId(sellerId);
+                      setMobileTab('registro');
+                    }}
                   />
                 </div>
                 <div
-                  className={`flex-1 min-w-0 w-full transition-all duration-300 ease-out ${
-                    mobileTab !== 'dashboard' ? 'hidden' : 'flex flex-col'
+                  className={`flex-1 min-w-0 h-full min-h-0 transition-all duration-300 ease-out ${
+                    mobileTab !== 'dashboard' ? 'hidden' : 'flex flex-col overflow-hidden'
                   }`}
                 >
-                  <AdminDashboard
-                    orders={orders}
-                    repartidores={repartidores}
-                    sellers={sellers}
-                    departurePoint={departurePoint}
-                    pickupPoints={pickupPoints}
-                    deliveryZones={deliveryZones}
-                    barrios={barrios}
-                    activeOrderId={activeOrderId}
-                    onSelectOrder={setActiveOrderId}
-                    onCreateOrder={handleCreateOrder}
-                    onUpdateOrderStatus={handleUpdateOrderStatus}
-                    onAddOrderIncident={handleAddOrderIncident}
-                    onAssignOrderSeller={handleAssignOrderSeller}
-                    onDeleteOrder={handleDeleteOrder}
-                    onArchiveOrder={handleArchiveOrder}
-                    onScheduleOrderToday={handleScheduleOrderToday}
-                    userRole={user.role}
-                    onOpenShippingLabel={handleOpenShippingLabel}
-                  />
+                  <Suspense fallback={<LazyFallback />}>
+                    <AdminDashboard
+                      orders={orders}
+                      repartidores={repartidores}
+                      sellers={sellers}
+                      departurePoint={departurePoint}
+                      pickupPoints={pickupPoints}
+                      deliveryZones={deliveryZones}
+                      barrios={barrios}
+                      activeOrderId={activeOrderId}
+                      onSelectOrder={setActiveOrderId}
+                      onCreateOrder={handleCreateOrder}
+                      onUpdateOrderStatus={handleUpdateOrderStatus}
+                      onAddOrderIncident={handleAddOrderIncident}
+                      onAssignOrderSeller={handleAssignOrderSeller}
+                      onDeleteOrder={handleDeleteOrder}
+                      onArchiveOrder={handleArchiveOrder}
+                      onScheduleOrderToday={handleScheduleOrderToday}
+                      userRole={user.role}
+                      onOpenShippingLabel={handleOpenShippingLabel}
+                      onOpenShippingLabels={handleOpenShippingLabels}
+                      onViewSellerRegistry={(sellerId) => {
+                        setRegistroSellerId(sellerId);
+                        setMobileTab('registro');
+                      }}
+                    />
+                  </Suspense>
                 </div>
               </>
             )}
@@ -2529,28 +2687,38 @@ export default function App() {
                   </div>
                 )}
                 <div className="flex-1 min-h-0">
-                  {isAgencyAdmin(user.role) && accountSection === 'drivers' ? (
-                    <DriverSettlementPage
-                      token={token}
-                      user={user}
-                      repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
-                    />
-                  ) : (
-                    <ShippingAccountPage
-                      token={token}
-                      user={user}
-                      sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
-                    />
-                  )}
+                  <Suspense fallback={<LazyFallback />}>
+                    {isAgencyAdmin(user.role) && accountSection === 'drivers' ? (
+                      <DriverSettlementPage
+                        token={token}
+                        user={user}
+                        repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
+                      />
+                    ) : (
+                      <ShippingAccountPage
+                        token={token}
+                        user={user}
+                        sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+                      />
+                    )}
+                  </Suspense>
                 </div>
               </div>
             )}
 
             {mobileTab === 'registro' && token && isAgencyAdmin(user.role) && (
-              <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-                <AgencyDriverScanPage
+              <div className="flex-1 min-w-0 w-full flex flex-col rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-visible">
+                <RegistroPage
                   token={token}
-                  repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
+                  orders={orders}
+                  sellers={sellers}
+                  userRole={user.role}
+                  initialSellerId={registroSellerId}
+                  onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onSelectOrder={(orderId) => {
+                    setActiveOrderId(orderId);
+                    setMobileTab('dashboard');
+                  }}
                 />
               </div>
             )}
@@ -2586,9 +2754,28 @@ export default function App() {
                   deliveryDeadlineHour={deliveryDeadlineHour}
                   agencyMaxDeadlineHour={agencyMaxDeadlineHour}
                   ownSellerDeadlineHour={ownSellerDeadlineHour}
+                  worksOnHolidays={worksOnHolidays}
+                  agencyWorksOnHolidays={agencyWorksOnHolidays}
+                  ownSellerWorksOnHolidays={ownSellerWorksOnHolidays}
                   onUpdateDeliveryDeadlineHour={
                     isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
                       ? handleUpdateDeliveryDeadlineHour
+                      : undefined
+                  }
+                  onUpdateWorksOnHolidays={
+                    isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
+                      ? handleUpdateWorksOnHolidays
+                      : undefined
+                  }
+                  closedDays={closedDays}
+                  onAddClosedDay={
+                    isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
+                      ? handleAddClosedDay
+                      : undefined
+                  }
+                  onRemoveClosedDay={
+                    isAgencyAdmin(user.role) || user.role === UserRole.STORE_ADMIN
+                      ? handleRemoveClosedDay
                       : undefined
                   }
                   hasSellerLogo={sellerBranding?.hasLogo ?? false}
@@ -2642,24 +2829,22 @@ export default function App() {
               </div>
             )}
 
-            {(mobileTab === 'panel' || mobileTab === 'dashboard' || mobileTab === 'notifications') && (
-              <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
-                <NotificationHub
-                  notifications={notifications}
-                  onMarkAllRead={handleMarkAllRead}
-                  onClearNotifications={handleClearNotifications}
-                  activeUserId={user.id}
-                  onToggleCollapse={toggleNotifsSidebar}
-                  showCollapseButton
-                  orders={orders}
-                  onOpenOrder={(orderId) => {
-                    setActiveOrderId(orderId);
-                    setMobileTab('dashboard');
-                  }}
-                  onOpenMap={() => setMobileTab('dashboard')}
-                />
-              </NotifsSidebar>
-            )}
+            <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+              <NotificationHub
+                notifications={notifications}
+                onMarkAllRead={handleMarkAllRead}
+                onClearNotifications={handleClearNotifications}
+                activeUserId={user.id}
+                onToggleCollapse={toggleNotifsSidebar}
+                showCollapseButton
+                orders={orders}
+                onOpenOrder={(orderId) => {
+                  setActiveOrderId(orderId);
+                  setMobileTab('dashboard');
+                }}
+                onOpenMap={() => setMobileTab('dashboard')}
+              />
+            </NotifsSidebar>
           </div>
         ) : (
           <div
@@ -2672,25 +2857,27 @@ export default function App() {
                 mobileTab !== 'dashboard' ? 'hidden xl:block' : ''
               }`}
             >
-              <RepartidorDashboard
-                orders={orders}
-                currentUser={user}
-                activeOrderId={activeOrderId}
-                departurePoint={departurePoint}
-                pickupPoints={pickupPoints}
-                onSelectOrder={setActiveOrderId}
-                onUpdateOrderStatus={handleUpdateOrderStatus}
-                onAddOrderIncident={handleAddOrderIncident}
-                onReportLocation={handleReportLocation}
-                onReportUserLocation={handleReportUserLocation}
-                onOpenShippingLabel={handleOpenShippingLabel}
-                repartidorMlStatus={repartidorMlStatus}
-                repartidorMlLoading={repartidorMlLoading}
-                onRefreshRepartidorMlStatus={fetchRepartidorMlStatus}
-                onConnectRepartidorMercadoLibre={connectRepartidorMercadoLibre}
-                onDisconnectRepartidorMercadoLibre={disconnectRepartidorMercadoLibre}
-                onRefreshOrders={fetchData}
-              />
+              <Suspense fallback={<LazyFallback />}>
+                <RepartidorDashboard
+                  orders={orders}
+                  currentUser={user}
+                  activeOrderId={activeOrderId}
+                  departurePoint={departurePoint}
+                  pickupPoints={pickupPoints}
+                  onSelectOrder={setActiveOrderId}
+                  onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onAddOrderIncident={handleAddOrderIncident}
+                  onReportLocation={handleReportLocation}
+                  onReportUserLocation={handleReportUserLocation}
+                  onOpenShippingLabel={handleOpenShippingLabel}
+                  repartidorMlStatus={repartidorMlStatus}
+                  repartidorMlLoading={repartidorMlLoading}
+                  onRefreshRepartidorMlStatus={fetchRepartidorMlStatus}
+                  onConnectRepartidorMercadoLibre={connectRepartidorMercadoLibre}
+                  onDisconnectRepartidorMercadoLibre={disconnectRepartidorMercadoLibre}
+                  onRefreshOrders={fetchData}
+                />
+              </Suspense>
             </div>
 
             <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>

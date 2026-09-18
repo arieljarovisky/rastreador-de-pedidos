@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Order, OrderStatus, User, LocationPoint, PickupPoint, RepartidorMercadoLibreStatus } from '../types.js';
 import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText } from 'lucide-react';
 import { useModal } from '../context/ModalContext.tsx';
-import MapComponent from './MapComponent.tsx';
+const MapComponent = lazy(() => import('./MapComponent.tsx'));
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 
 function getCollectLabel(
@@ -160,6 +160,16 @@ export default function RepartidorDashboard({
   const handleAutoPilotSimulation = async () => {
     if (!selectedOrder) return;
 
+    if (selectedOrder.externalSource === 'mercadolibre') {
+      void showAlert({
+        title: 'Mercado Libre',
+        message:
+          'Los envíos de Mercado Libre no se pueden marcar como entregados a mano (ni por simulación).',
+        variant: 'warning',
+      });
+      return;
+    }
+
     if (selectedOrder.status === OrderStatus.ASSIGNED) {
       await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERING, undefined, 'Viaje iniciado (Simulación de ruta)');
     }
@@ -253,6 +263,27 @@ export default function RepartidorDashboard({
                 <p className="text-[11px] text-[var(--color-ok)]">
                   Conectado como {repartidorMlStatus.mercadolibre.account?.nickname ?? 'ML'}
                 </p>
+                {onConnectRepartidorMercadoLibre && (
+                  <button
+                    type="button"
+                    className="text-[10px] font-mono font-bold uppercase px-2 py-1 rounded-[var(--radius-posta)] bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/30"
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          await onConnectRepartidorMercadoLibre();
+                        } catch (err: unknown) {
+                          void showAlert({
+                            title: 'Error',
+                            message: err instanceof Error ? err.message : 'No se pudo reconectar',
+                            variant: 'error',
+                          });
+                        }
+                      })();
+                    }}
+                  >
+                    Autorizar de nuevo
+                  </button>
+                )}
                 {onDisconnectRepartidorMercadoLibre && (
                   <button
                     type="button"
@@ -434,18 +465,20 @@ export default function RepartidorDashboard({
                     key={`courier-map-${selectedOrder.id}`}
                     className="absolute inset-0 w-full h-full"
                   >
-                    <MapComponent
-                      orders={[selectedOrder]}
-                      repartidores={repForMap}
-                      departurePoint={departurePoint}
-                      pickupPoints={[]}
-                      activeOrderId={selectedOrder.id}
-                      liveRepartidorLocation={currentCoords}
-                      showDepartureHub={false}
-                      showDeliveryZones={false}
-                      compact
-                      interactive={true}
-                    />
+                    <Suspense fallback={<div className="absolute inset-0 bg-[var(--surface-bg)]" />}>
+                      <MapComponent
+                        orders={[selectedOrder]}
+                        repartidores={repForMap}
+                        departurePoint={departurePoint}
+                        pickupPoints={[]}
+                        activeOrderId={selectedOrder.id}
+                        liveRepartidorLocation={currentCoords}
+                        showDepartureHub={false}
+                        showDeliveryZones={false}
+                        compact
+                        interactive={true}
+                      />
+                    </Suspense>
                   </div>
                 </div>
 
@@ -528,7 +561,8 @@ export default function RepartidorDashboard({
                       </button>
                     )}
 
-                    {selectedOrder.status === OrderStatus.DELIVERING && (
+                    {selectedOrder.status === OrderStatus.DELIVERING &&
+                      selectedOrder.externalSource !== 'mercadolibre' && (
                       <button
                         onClick={async () => {
                           try {

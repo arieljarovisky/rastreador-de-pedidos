@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -91,6 +92,8 @@ export default function OrdersScreen({ navigation }: Props) {
   const [personalRefreshing, setPersonalRefreshing] = useState(false);
   const [personalError, setPersonalError] = useState<string | null>(null);
   const [updatingEntryId, setUpdatingEntryId] = useState<string | null>(null);
+  const [pendingDeleteEntry, setPendingDeleteEntry] = useState<DriverScanEntry | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loadPersonal = useCallback(
     async (opts?: { soft?: boolean }) => {
@@ -207,32 +210,24 @@ export default function OrdersScreen({ navigation }: Props) {
   };
 
   const handlePersonalDelete = (entry: DriverScanEntry) => {
-    if (!token) return;
-    const label = entry.clientName?.trim() || formatScanCodeLabel(entry.scanCode);
-    Alert.alert('Eliminar', `¿Eliminar "${label}" del registro?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setUpdatingEntryId(entry.id);
-            try {
-              await api.deleteDriverScanEntry(token, entry.id);
-              setPersonalEntries((prev) => prev.filter((e) => e.id !== entry.id));
-            } catch (err) {
-              Alert.alert(
-                'Registro',
-                err instanceof Error ? err.message : 'No se pudo eliminar el paquete.'
-              );
-            } finally {
-              setUpdatingEntryId(null);
-            }
-          })();
-        },
-      },
-    ]);
+    setDeleteError(null);
+    setPendingDeleteEntry(entry);
   };
+
+  const confirmPersonalDelete = useCallback(async () => {
+    if (!token || !pendingDeleteEntry) return;
+    setUpdatingEntryId(pendingDeleteEntry.id);
+    setDeleteError(null);
+    try {
+      await api.deleteDriverScanEntry(token, pendingDeleteEntry.id);
+      setPersonalEntries((prev) => prev.filter((e) => e.id !== pendingDeleteEntry.id));
+      setPendingDeleteEntry(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'No se pudo eliminar el paquete.');
+    } finally {
+      setUpdatingEntryId(null);
+    }
+  }, [token, pendingDeleteEntry]);
 
   const promptPersonalAddress = (entry: DriverScanEntry) => {
     if (!token) return;
@@ -385,6 +380,55 @@ export default function OrdersScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Modal
+        visible={Boolean(pendingDeleteEntry)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (updatingEntryId) return;
+          setPendingDeleteEntry(null);
+          setDeleteError(null);
+        }}
+      >
+        <View style={styles.deleteModalBackdrop}>
+          <View style={styles.deleteModalCard}>
+            <Text style={styles.deleteModalTitle}>Eliminar del registro</Text>
+            <Text style={styles.deleteModalHint}>
+              ¿Eliminar "
+              {pendingDeleteEntry?.clientName?.trim() ||
+                (pendingDeleteEntry
+                  ? formatScanCodeLabel(pendingDeleteEntry.scanCode)
+                  : '')}
+              " del registro? Esta acción no se puede deshacer.
+            </Text>
+            {deleteError ? <Text style={styles.deleteModalError}>{deleteError}</Text> : null}
+            <View style={styles.deleteModalActions}>
+              <Pressable
+                style={styles.deleteCancelBtn}
+                disabled={Boolean(updatingEntryId)}
+                onPress={() => {
+                  setPendingDeleteEntry(null);
+                  setDeleteError(null);
+                }}
+              >
+                <Text style={styles.deleteCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.deleteConfirmBtn, updatingEntryId && { opacity: 0.6 }]}
+                disabled={Boolean(updatingEntryId)}
+                onPress={() => void confirmPersonalDelete()}
+              >
+                {updatingEntryId === pendingDeleteEntry?.id ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.deleteConfirmText}>Eliminar</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={[styles.avatar, { backgroundColor: `${accent}18`, borderColor: `${accent}44` }]}>
@@ -734,6 +778,57 @@ const styles = StyleSheet.create({
   },
   personalActionText: {
     fontSize: 13,
+    fontWeight: '700',
+  },
+  deleteModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  deleteModalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  deleteModalTitle: {
+    ...typography.displayTitle(18),
+    color: colors.text,
+  },
+  deleteModalHint: {
+    ...typography.body(13, colors.textFaint),
+    lineHeight: 18,
+  },
+  deleteModalError: {
+    ...typography.body(13, colors.red),
+  },
+  deleteModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  deleteCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  deleteCancelText: {
+    color: colors.textFaint,
+    fontWeight: '600',
+  },
+  deleteConfirmBtn: {
+    backgroundColor: colors.red,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    minWidth: 96,
+    alignItems: 'center',
+  },
+  deleteConfirmText: {
+    color: '#fff',
     fontWeight: '700',
   },
 });

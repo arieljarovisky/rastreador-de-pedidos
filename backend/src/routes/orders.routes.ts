@@ -3,6 +3,7 @@ import { authenticate, requireRoles, requireAgencyAdmin } from '../middleware/au
 import { UserRole, OrderStatus, Order, User } from '../types/index.js';
 import {
   listOrdersForUser,
+  listOrdersRegistry,
   getOrderById,
   createOrder,
   updateOrderStatus,
@@ -21,7 +22,12 @@ import {
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../services/mercadolibre.service.js';
-import { generatePostaShippingLabelPdf, POSTA_ORDER_QR_PREFIX } from '../services/shipping-label.service.js';
+import {
+  generatePostaShippingLabelPdf,
+  generatePostaShippingLabelsSheetPdf,
+  parseLabelSheetLayout,
+  POSTA_ORDER_QR_PREFIX,
+} from '../services/shipping-label.service.js';
 import { getShippingLabelBranding } from '../services/seller-branding.service.js';
 import {
   syncOpenMercadoLibreOrdersInList,
@@ -33,6 +39,20 @@ import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
 import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 import { pool } from '../config/database.js';
 import { RowDataPacket } from 'mysql2';
+
+function parseLimitOffset(req: Request): { limit: number; offset: number } {
+  const limit = Number(req.query.limit ?? 500);
+  const offset = Number(req.query.offset ?? 0);
+  return {
+    limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 5000) : 500,
+    offset: Number.isFinite(offset) ? Math.max(offset, 0) : 0,
+  };
+}
+
+function parseIncludeArchived(req: Request): boolean {
+  const raw = req.query.includeArchived;
+  return raw === '1' || raw === 'true';
+}
 
 function mercadoLibreLabelErrorMessage(code: string): string {
   switch (code) {
@@ -89,7 +109,9 @@ router.get('/delivery-summary', authenticate, requireRoles(
 
 router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   const synced = await syncFlexScansForRepartidor(req.user!, { force: true });
-  const orders = await listOrdersForUser(req.user!, { mode: 'list' });
+  const { limit, offset } = parseLimitOffset(req);
+  const includeArchived = parseIncludeArchived(req);
+  const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset, includeArchived });
   // ML live sync en background: el listado responde ya; updates llegan por WS.
   void syncOpenMercadoLibreOrdersInList(orders).catch((err) => {
     console.error('[orders/flex-sync] background ML sync failed', err);
@@ -98,10 +120,73 @@ router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async
 });
 
 router.get('/', authenticate, async (req: Request, res: Response) => {
-  const orders = await listOrdersForUser(req.user!, { mode: 'list' });
+  const { limit, offset } = parseLimitOffset(req);
+  const includeArchived = parseIncludeArchived(req);
+  const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset, includeArchived });
   res.json(orders);
   scheduleOrdersBackgroundSync(req.user!, orders);
 });
+
+/** Registro: página + COUNT + stats (sin traer todo el historial). */
+router.get(
+  '/registry',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN),
+  async (req: Request, res: Response) => {
+    const externalSource =
+      typeof req.query.externalSource === 'string' && req.query.externalSource.trim()
+        ? req.query.externalSource.trim()
+        : undefined;
+
+    if (externalSource === 'personal') {
+      res.json({
+        items: [],
+        total: 0,
+        stats: {
+          total: 0,
+          pending: 0,
+          delivering: 0,
+          delivered: 0,
+          cancelled: 0,
+          archived: 0,
+        },
+      });
+      return;
+    }
+
+    const limit = Number(req.query.limit ?? 25);
+    const offset = Number(req.query.offset ?? 0);
+    const sellerId =
+      typeof req.query.sellerId === 'string' && req.query.sellerId.trim()
+        ? req.query.sellerId.trim()
+        : undefined;
+    const status =
+      typeof req.query.status === 'string' && req.query.status.trim()
+        ? req.query.status.trim()
+        : 'all';
+    const dateFrom =
+      typeof req.query.dateFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dateFrom.trim())
+        ? req.query.dateFrom.trim()
+        : undefined;
+    const dateTo =
+      typeof req.query.dateTo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dateTo.trim())
+        ? req.query.dateTo.trim()
+        : undefined;
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+
+    const result = await listOrdersRegistry(req.user!, {
+      sellerId,
+      externalSource,
+      status,
+      dateFrom,
+      dateTo,
+      q,
+      limit: Number.isFinite(limit) ? limit : 25,
+      offset: Number.isFinite(offset) ? offset : 0,
+    });
+    res.json(result);
+  }
+);
 
 router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN, UserRole.LOGISTICS_ADMIN), async (req: Request, res: Response) => {
   const { clientName, clientPhone, address, lat, lng, notes, sellerId } = req.body;
@@ -163,6 +248,92 @@ router.post('/', authenticate, requireRoles(UserRole.STORE_ADMIN, UserRole.SUPER
     }
     throw err;
   }
+});
+
+const MAX_LABELS_PER_SHEET = 40;
+
+/**
+ * Varias etiquetas Posta en una o más hojas A4 (grilla 2×2 o 2×1).
+ * Los pedidos de Mercado Libre no se incluyen: usan su PDF oficial aparte.
+ */
+router.post('/shipping-labels', authenticate, async (req: Request, res: Response) => {
+  const body = req.body as { orderIds?: unknown; layout?: unknown };
+  const rawIds = Array.isArray(body.orderIds) ? body.orderIds : [];
+  const orderIds = [
+    ...new Set(
+      rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0).map((id) => id.trim())
+    ),
+  ];
+
+  if (orderIds.length === 0) {
+    res.status(400).json({ error: 'Seleccioná al menos un pedido.' });
+    return;
+  }
+  if (orderIds.length > MAX_LABELS_PER_SHEET) {
+    res.status(400).json({
+      error: `Podés imprimir hasta ${MAX_LABELS_PER_SHEET} etiquetas a la vez.`,
+    });
+    return;
+  }
+
+  const layout = parseLabelSheetLayout(body.layout);
+  const orders: Order[] = [];
+  const skippedMl: string[] = [];
+  const missing: string[] = [];
+  const forbidden: string[] = [];
+
+  for (const id of orderIds) {
+    const order = await getOrderById(id);
+    if (!order) {
+      missing.push(id);
+      continue;
+    }
+    const sellerId = await getSellerIdForOrder(order.id);
+    if (!canViewOrder(req.user!, order, sellerId ?? undefined)) {
+      forbidden.push(id);
+      continue;
+    }
+    if (order.externalSource === 'mercadolibre' && order.externalOrderId) {
+      skippedMl.push(id);
+      continue;
+    }
+    orders.push(order);
+  }
+
+  if (forbidden.length > 0) {
+    res.status(403).json({ error: 'No tenés permiso para uno o más de los pedidos seleccionados.' });
+    return;
+  }
+  if (orders.length === 0) {
+    if (skippedMl.length > 0) {
+      res.status(400).json({
+        error:
+          'Los pedidos de Mercado Libre se imprimen uno por uno con la etiqueta oficial de ML. Seleccioná pedidos de Posta u otros canales.',
+        skippedMl,
+      });
+      return;
+    }
+    res.status(404).json({ error: 'No se encontraron pedidos para etiquetar.', missing });
+    return;
+  }
+
+  // Branding del primer pedido (típicamente todos del mismo vendedor).
+  const brandingSellerId = await getSellerIdForOrder(orders[0].id);
+  const branding = await getShippingLabelBranding(brandingSellerId);
+  const pdf = await generatePostaShippingLabelsSheetPdf(orders, branding, layout);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader(
+    'Content-Disposition',
+    `inline; filename="etiquetas-posta-${orders.length}.pdf"`
+  );
+  if (skippedMl.length > 0) {
+    res.setHeader('X-Skipped-Ml-Count', String(skippedMl.length));
+  }
+  if (missing.length > 0) {
+    res.setHeader('X-Missing-Count', String(missing.length));
+  }
+  res.send(pdf);
 });
 
 router.get('/:id', authenticate, async (req: Request, res: Response) => {
@@ -397,27 +568,36 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
     const order = await updateOrderStatus(req.user!, req.params.id, status as OrderStatus, repartidorId, comment);
 
     if (status === OrderStatus.ASSIGNED && repartidorId && req.user!.role !== UserRole.REPARTIDOR) {
-      await createNotification({
-        id: `n_assign_${Date.now()}`,
-        userId: repartidorId,
-        title: 'Pedido Asignado',
-        body: `Se te ha asignado el pedido ${order.id} con entrega en ${order.address}.`,
-        type: 'order_assigned',
-        orderId: order.id,
-      });
+      try {
+        await createNotification({
+          id: `n_assign_${Date.now()}`,
+          userId: repartidorId,
+          title: 'Pedido Asignado',
+          body: `Se te ha asignado el pedido ${order.id} con entrega en ${order.address}.`,
+          type: 'order_assigned',
+          orderId: order.id,
+        });
+      } catch (notifErr) {
+        console.warn('[orders] No se pudo notificar asignación:', notifErr);
+      }
     }
 
     if (status === OrderStatus.DELIVERED) {
       const sellerId = await getSellerIdForOrder(order.id);
       if (sellerId) {
-        await createNotification({
-          id: `n_deliv_${Date.now()}`,
-          userId: sellerId,
-          title: 'Pedido Entregado',
-          body: `¡El pedido ${order.id} ha sido entregado exitosamente por ${order.repartidorName}!`,
-          type: 'order_delivered',
-          orderId: order.id,
-        });
+        try {
+          const byWhom = order.repartidorName?.trim() || req.user!.name;
+          await createNotification({
+            id: `n_deliv_${Date.now()}`,
+            userId: sellerId,
+            title: 'Pedido Entregado',
+            body: `¡El pedido ${order.id} ha sido entregado exitosamente por ${byWhom}!`,
+            type: 'order_delivered',
+            orderId: order.id,
+          });
+        } catch (notifErr) {
+          console.warn('[orders] No se pudo notificar entrega:', notifErr);
+        }
       }
     }
 
@@ -437,6 +617,13 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
     }
     if (message === 'FORBIDDEN') {
       res.status(403).json({ error: 'Este pedido no está asignado a ti.' });
+      return;
+    }
+    if (message === 'MANUAL_DELIVER_ML_FORBIDDEN') {
+      res.status(400).json({
+        error:
+          'Los envíos de Mercado Libre se marcan como entregados automáticamente. No se pueden confirmar a mano.',
+      });
       return;
     }
     if (message === 'REPARTIDOR_REQUIRED') {
@@ -543,7 +730,7 @@ router.put('/archive-finished', authenticate, async (req: Request, res: Response
 router.delete('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const result = await deleteOrder(req.user!, req.params.id);
-    emitOrderDeleted(req.params.id, result.sellerId);
+    emitOrderDeleted(req.params.id, result.sellerId, result.agencyId);
     res.status(204).send();
   } catch (err) {
     const message = err instanceof Error ? err.message : '';

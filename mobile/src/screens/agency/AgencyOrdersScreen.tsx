@@ -28,7 +28,7 @@ import {
   shortOrderCode,
 } from '../../utils/agencyPanel';
 import {
-  getOperationalDateKey,
+  getActiveOperationalDateKey,
   getTodayOrders,
 } from '../../utils/deliverySummary';
 import { AgencyOrdersStackParamList, AgencyStackParamList } from '../../navigation/types';
@@ -110,7 +110,7 @@ export default function AgencyOrdersScreen({ navigation }: Props) {
     }, [loadNotifs, route.params?.filter])
   );
 
-  const todayKey = getOperationalDateKey();
+  const todayKey = getActiveOperationalDateKey();
 
   const inPeriod = useMemo(() => {
     const open = orders.filter((o) => !o.archived);

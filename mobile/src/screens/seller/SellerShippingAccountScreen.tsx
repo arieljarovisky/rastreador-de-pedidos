@@ -19,6 +19,7 @@ import { colors, radius, spacing } from '../../theme';
 import Button from '../../components/Button';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { SellerStackParamList } from '../../navigation/types';
+import { formatArDateTime } from '../../utils/deliverySummary';
 
 type Props = NativeStackScreenProps<SellerStackParamList, 'SellerShippingAccount'>;
 
@@ -145,12 +146,12 @@ export default function SellerShippingAccountScreen(_props: Props) {
       {ledger.length === 0 ? (
         <Text style={styles.muted}>No hay movimientos este mes.</Text>
       ) : (
-        ledger.slice(0, 20).map((entry) => (
+        ledger.map((entry) => (
           <View key={entry.id} style={styles.ledgerRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.ledgerDesc}>{entry.description}</Text>
               <Text style={styles.ledgerDate}>
-                {new Date(entry.createdAt).toLocaleString('es-AR')}
+                {formatArDateTime(entry.createdAt)}
               </Text>
             </View>
             <Text

@@ -5,10 +5,9 @@ interface GpsLogUser {
 }
 
 function isEnabled(): boolean {
+  // Opt-in: el hot path GPS no debe loguear salvo debug explícito.
   const raw = process.env.REPARTIDOR_GPS_LOG?.trim().toLowerCase();
-  if (raw === 'true' || raw === '1') return true;
-  if (raw === 'false' || raw === '0') return false;
-  return process.env.NODE_ENV !== 'production';
+  return raw === 'true' || raw === '1';
 }
 
 function matchesFilter(user: GpsLogUser): boolean {
