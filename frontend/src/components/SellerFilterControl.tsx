@@ -13,6 +13,8 @@ interface SellerFilterControlProps {
   /** Estilo compacto para controles flotantes del mapa */
   variant?: 'map' | 'panel';
   className?: string;
+  /** Id del select. Hace falta cuando hay más de un filtro de vendedor en la página. */
+  id?: string;
 }
 
 export default function SellerFilterControl({
@@ -21,22 +23,24 @@ export default function SellerFilterControl({
   onChange,
   variant = 'panel',
   className = '',
+  id,
 }: SellerFilterControlProps) {
   if (sellers.length === 0) return null;
 
+  const fieldId = id ?? (variant === 'map' ? 'map-seller-filter' : 'ops-seller-filter');
   const selectedName = sellers.find((s) => s.id === value)?.name;
   const label = selectedName ?? 'Todos los vendedores';
 
   if (variant === 'map') {
     return (
       <div className={`relative ${className}`}>
-        <label className="sr-only" htmlFor="map-seller-filter">
+        <label className="sr-only" htmlFor={fieldId}>
           Filtrar por vendedor
         </label>
         <div className="relative">
           <Store className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-accent)] pointer-events-none" />
           <select
-            id="map-seller-filter"
+            id={fieldId}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             className="w-full appearance-none bg-[var(--surface-panel)]/95 backdrop-blur-md border border-[var(--surface-border)]/80 hover:border-[var(--color-accent)] rounded-[var(--radius-posta)] pl-8 pr-8 py-2 shadow-lg transition text-[11px] font-medium text-[var(--color-text)] truncate"
@@ -63,14 +67,14 @@ export default function SellerFilterControl({
   return (
     <div className={`flex flex-col gap-1.5 min-w-0 ${className}`}>
       <label
-        htmlFor="ops-seller-filter"
+        htmlFor={fieldId}
         className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5"
       >
         <Store className="w-3.5 h-3.5 text-[var(--color-accent)]" />
         Vendedor
       </label>
       <select
-        id="ops-seller-filter"
+        id={fieldId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full min-w-0 min-h-11 sm:min-h-0 sm:h-[2.375rem] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded-[5px] px-3 text-sm sm:text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-accent)]"

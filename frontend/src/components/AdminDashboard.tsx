@@ -24,7 +24,6 @@ import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
 const MapComponent = lazy(() => import('./MapComponent.tsx'));
 import LocationPreviewMap from './LocationPreviewMap.tsx';
-import SellerPickupPanel from './SellerPickupPanel.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
 import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
@@ -948,6 +947,11 @@ export default function AdminDashboard({
     includeArchivedForDate,
   ]);
 
+  const selectedSellerPickup = useMemo(() => {
+    if (!sellerFilterId) return null;
+    return pickupPoints.find((point) => point.userId === sellerFilterId) ?? null;
+  }, [pickupPoints, sellerFilterId]);
+
   const mapFilterLabel = useMemo(() => {
     if (repartidores.length === 0) return 'Sin repartidores';
     if (allRepartidoresOnMap) return 'Todos';
@@ -1744,8 +1748,8 @@ export default function AdminDashboard({
         }
       >
         
-        {/* Cabecera compacta, búsqueda y filtros */}
-        <div className="shrink-0 space-y-1.5">
+        {/* Título y acciones: siempre visibles, no le roban alto al listado */}
+        <div className="shrink-0">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
               <button
@@ -1850,55 +1854,38 @@ export default function AdminDashboard({
               )}
             </div>
           </div>
+        </div>
 
-          {!ordersHeaderCollapsed && (
-          <>
-          {/* Estadísticas en barra compacta */}
-          <div className="flex items-stretch gap-1 text-center">
-            <div className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 px-1.5 py-1 rounded">
-              <p className="text-[8px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Total</p>
-              <p className="text-sm font-bold text-[var(--ink-soft)] font-mono leading-tight">{stats.total}</p>
+        {!ordersHeaderCollapsed && (
+          <div className="mt-1.5 min-h-0 max-h-[min(22rem,40%)] flex-[0_1_auto] overflow-y-auto overscroll-contain scrollbar-thin space-y-1.5">
+            <div className="flex items-stretch gap-1 text-center">
+              <div className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 px-1.5 py-0.5 rounded">
+                <p className="text-[8px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Total</p>
+                <p className="text-sm font-bold text-[var(--ink-soft)] font-mono leading-tight">{stats.total}</p>
+              </div>
+              <div className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 px-1.5 py-0.5 rounded">
+                <p className="text-[8px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Pend.</p>
+                <p className="text-sm font-bold text-[var(--ink-soft)] font-mono leading-tight">{stats.pending}</p>
+              </div>
+              <div className="flex-1 bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/20 px-1.5 py-0.5 rounded">
+                <p className="text-[8px] text-[var(--color-warn)] font-mono font-bold uppercase tracking-tight">Ruta</p>
+                <p className="text-sm font-bold text-[var(--color-warn)] font-mono leading-tight">{stats.delivering}</p>
+              </div>
+              <div className="flex-1 bg-[var(--color-ok)]/5 border border-[var(--color-ok)]/20 px-1.5 py-0.5 rounded">
+                <p className="text-[8px] text-[var(--color-ok)] font-mono font-bold uppercase tracking-tight">Listos</p>
+                <p className="text-sm font-bold text-[var(--color-ok)] font-mono leading-tight">{stats.delivered}</p>
+              </div>
             </div>
-            <div className="flex-1 bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 px-1.5 py-1 rounded">
-              <p className="text-[8px] text-[var(--color-text-muted)] font-mono font-bold uppercase tracking-tight">Pend.</p>
-              <p className="text-sm font-bold text-[var(--ink-soft)] font-mono leading-tight">{stats.pending}</p>
-            </div>
-            <div className="flex-1 bg-[var(--color-warn)]/5 border border-[var(--color-warn)]/20 px-1.5 py-1 rounded">
-              <p className="text-[8px] text-[var(--color-warn)] font-mono font-bold uppercase tracking-tight">Ruta</p>
-              <p className="text-sm font-bold text-[var(--color-warn)] font-mono leading-tight">{stats.delivering}</p>
-            </div>
-            <div className="flex-1 bg-[var(--color-ok)]/5 border border-[var(--color-ok)]/20 px-1.5 py-1 rounded">
-              <p className="text-[8px] text-[var(--color-ok)] font-mono font-bold uppercase tracking-tight">Listos</p>
-              <p className="text-sm font-bold text-[var(--color-ok)] font-mono leading-tight">{stats.delivered}</p>
-            </div>
-          </div>
 
-          {isAgencyAdmin(userRole) && (
-            <div className="space-y-2">
-              <SellerPickupPanel
-                collapsible
-                sellers={sellers}
-                pickupPoints={pickupPoints}
-                selectedSellerId={sellerFilterId}
-                onSellerChange={handleSellerFilterChange}
-                allSellersOptionLabel="Todos los vendedores"
-              />
-              {sellerFilterId && onViewSellerRegistry && (
-                <button
-                  type="button"
-                  onClick={() => onViewSellerRegistry(sellerFilterId)}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-[5px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/15 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] transition"
-                >
-                  <ClipboardList className="w-3.5 h-3.5" />
-                  Ver todos en Registro
-                </button>
+            <div className="grid grid-cols-2 xl:grid-cols-3 gap-1.5 items-start">
+              {isAgencyAdmin(userRole) && sellers.length > 0 && (
+                <SellerFilterControl
+                  id="orders-seller-filter"
+                  sellers={sellers}
+                  value={sellerFilterId}
+                  onChange={handleSellerFilterChange}
+                />
               )}
-            </div>
-          )}
-
-          {/* Filtros: fecha + cordón/repartidor, luego búsqueda y estados */}
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2 items-start">
               <OperationalDatePicker
                 layout="field"
                 label="Fecha"
@@ -1913,8 +1900,20 @@ export default function AdminDashboard({
                 value={cordonFilterId}
                 onChange={setCordonFilterId}
               />
+              <MarketplaceSourceFilter
+                value={marketplaceSourceFilter}
+                onChange={setMarketplaceSourceFilter}
+              />
+              {isAgencyAdmin(userRole) && (
+                <RepartidorFilterControl
+                  repartidores={repartidores}
+                  value={repartidorFilterId}
+                  onChange={setRepartidorFilterId}
+                />
+              )}
             </div>
-            <div className="flex items-center gap-2 -mt-1 px-0.5 flex-wrap">
+
+            <div className="flex items-center gap-x-2 gap-y-0.5 px-0.5 flex-wrap">
               {dateFilterKey && dateFilterKey !== todayKey ? (
                 <button
                   type="button"
@@ -1953,27 +1952,30 @@ export default function AdminDashboard({
               ) : (
                 <span className="text-[9px] font-mono text-[var(--color-text-faint)]">Mostrando todas las fechas</span>
               )}
+              {sellerFilterId && onViewSellerRegistry && (
+                <button
+                  type="button"
+                  onClick={() => onViewSellerRegistry(sellerFilterId)}
+                  className="inline-flex items-center gap-1 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
+                >
+                  <ClipboardList className="w-3 h-3" />
+                  Registro
+                </button>
+              )}
             </div>
 
-            {isAgencyAdmin(userRole) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <MarketplaceSourceFilter
-                  value={marketplaceSourceFilter}
-                  onChange={setMarketplaceSourceFilter}
-                />
-                <RepartidorFilterControl
-                  repartidores={repartidores}
-                  value={repartidorFilterId}
-                  onChange={setRepartidorFilterId}
-                />
-              </div>
-            )}
-
-            {!isAgencyAdmin(userRole) && (
-              <MarketplaceSourceFilter
-                value={marketplaceSourceFilter}
-                onChange={setMarketplaceSourceFilter}
-              />
+            {selectedSellerPickup && (
+              <p
+                className="text-[10px] text-[var(--color-text-muted)] truncate flex items-center gap-1 px-0.5"
+                title={selectedSellerPickup.address}
+              >
+                <MapPin className="w-3 h-3 text-[var(--color-ok)] shrink-0" />
+                <span className="truncate">
+                  <span className="text-[var(--color-ok)]">{selectedSellerPickup.label}</span>
+                  {' · '}
+                  {selectedSellerPickup.address}
+                </span>
+              </p>
             )}
 
             {isAgencyAdmin(userRole) && sellers.length === 0 && (
@@ -1983,7 +1985,7 @@ export default function AdminDashboard({
             )}
 
             <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
                 <Search className="w-3.5 h-3.5" />
               </span>
               <input
@@ -1991,129 +1993,85 @@ export default function AdminDashboard({
                 placeholder="Buscar pedido, dirección o repartidor..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full posta-input px-2.5 py-2 pl-8 text-xs font-sans"
+                className="w-full posta-input h-[2.375rem] px-2.5 pl-8 text-xs font-sans"
               />
             </div>
+          </div>
+        )}
 
-            <div className="scroll-tabs flex w-full bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px]">
-              <button
-                onClick={() => setStatusFilter('all')}
-                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === 'all' ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                onClick={() => setStatusFilter(OrderStatus.PENDING)}
-                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                }`}
-              >
-                Pend.
-              </button>
-              <button
-                onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
-                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                }`}
-              >
-                Ruta
-              </button>
-              <button
-                onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
-                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                }`}
-              >
-                Listos
-              </button>
-              <button
-                onClick={() => setStatusFilter('archived')}
-                className={`flex-1 min-w-0 py-1.5 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
-                  statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                }`}
-              >
-                Arch.{stats.archived > 0 ? ` (${stats.archived})` : ''}
-              </button>
+        {ordersHeaderCollapsed && (
+          <div className="mt-1.5 shrink-0 flex flex-col gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
+              <OperationalDatePicker
+                layout="field"
+                label="Fecha"
+                value={dateFilterKey || todayKey}
+                maxDateKey={datePickerMaxKey}
+                nextShipmentDateKey={nextShipmentDateKey}
+                shipmentDateKeys={datesWithShipments}
+                onChange={handleDateFilterChange}
+              />
+              <MarketplaceSourceFilter
+                value={marketplaceSourceFilter}
+                onChange={setMarketplaceSourceFilter}
+              />
+            </div>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-[var(--color-text-muted)]">
+                <Search className="w-3.5 h-3.5" />
+              </span>
+              <input
+                type="text"
+                placeholder="Buscar..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full posta-input h-[2.375rem] px-2 py-2 pl-7 text-xs font-sans"
+              />
             </div>
           </div>
-          </>
-          )}
+        )}
 
-          {ordersHeaderCollapsed && (
-            <div className="flex flex-col gap-1.5">
-              <div className="grid grid-cols-2 gap-1.5">
-                <OperationalDatePicker
-                  layout="field"
-                  label="Fecha"
-                  value={dateFilterKey || todayKey}
-                  maxDateKey={datePickerMaxKey}
-                  nextShipmentDateKey={nextShipmentDateKey}
-                  shipmentDateKeys={datesWithShipments}
-                  onChange={handleDateFilterChange}
-                />
-                <MarketplaceSourceFilter
-                  value={marketplaceSourceFilter}
-                  onChange={setMarketplaceSourceFilter}
-                />
-              </div>
-              <div className="relative">
-                <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-[var(--color-text-muted)]">
-                  <Search className="w-3.5 h-3.5" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Buscar..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full posta-input h-[2.375rem] px-2 py-2 pl-7 text-xs font-sans"
-                />
-              </div>
-              <div className="scroll-tabs flex bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px] min-w-0">
-                <button
-                  onClick={() => setStatusFilter('all')}
-                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                    statusFilter === 'all' ? 'bg-[var(--surface-panel)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  onClick={() => setStatusFilter(OrderStatus.PENDING)}
-                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                    statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                  }`}
-                >
-                  Pend.
-                </button>
-                <button
-                  onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
-                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                    statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                  }`}
-                >
-                  Ruta
-                </button>
-                <button
-                  onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
-                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                    statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                  }`}
-                >
-                  Listos
-                </button>
-                <button
-                  onClick={() => setStatusFilter('archived')}
-                  className={`flex-1 min-w-[2.5rem] shrink-0 py-0.5 px-1 text-center font-bold uppercase tracking-wider rounded transition ${
-                    statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)]' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                  }`}
-                >
-                  Arch.
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="mt-1.5 shrink-0 scroll-tabs flex w-full bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px]">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+              statusFilter === 'all' ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+            }`}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setStatusFilter(OrderStatus.PENDING)}
+            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+              statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+            }`}
+          >
+            Pend.
+          </button>
+          <button
+            onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
+            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+              statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+            }`}
+          >
+            Ruta
+          </button>
+          <button
+            onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
+            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+              statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+            }`}
+          >
+            Listos
+          </button>
+          <button
+            onClick={() => setStatusFilter('archived')}
+            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+              statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+            }`}
+          >
+            Arch.{stats.archived > 0 ? ` (${stats.archived})` : ''}
+          </button>
         </div>
 
         {/* LISTADO: scroll vertical; columnas fijas evitan scroll X */}
@@ -2134,7 +2092,7 @@ export default function AdminDashboard({
           ) : (
             <table className="w-full min-w-0 text-left border-collapse table-fixed">
               <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
-                <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] [&>th]:min-w-0 [&>th]:overflow-hidden [&>th]:text-ellipsis [&>th]:whitespace-nowrap">
                   <th className="px-1.5 py-2 w-8">
                     {selectableFilteredOrders.length > 0 ? (
                       <input
