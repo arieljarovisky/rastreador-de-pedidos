@@ -31,7 +31,8 @@ import SubscriptionExpiredOverlay from './components/SubscriptionExpiredOverlay.
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl, oauthReturnOriginQuery, fetchAllOrders } from './api.ts';
-import { mergeRepartidorLocation, mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
+import { mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
+import { clearLiveFleet, publishLiveRepartidor } from './utils/liveFleet.ts';
 import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
@@ -44,6 +45,16 @@ function LazyFallback() {
   );
 }
 type AppTab = 'panel' | 'dashboard' | 'account' | 'registro' | 'prices' | 'notifications' | 'settings' | 'platform';
+
+/** Firma barata para no reemplazar la lista si el servidor no trajo cambios reales. */
+function ordersSnapshotKey(list: Order[]): string {
+  let key = String(list.length);
+  for (let i = 0; i < list.length; i += 1) {
+    const order = list[i];
+    key += `\n${order.id}\t${order.status}\t${order.updatedAt}\t${order.archived ? 1 : 0}\t${order.repartidorId ?? ''}`;
+  }
+  return key;
+}
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
 
@@ -93,6 +104,11 @@ export default function App() {
   // Estados de datos
   const [orders, setOrders] = useState<Order[]>([]);
   const [repartidores, setRepartidores] = useState<User[]>([]);
+  const ordersRef = useRef<Order[]>([]);
+  ordersRef.current = orders;
+  const repartidoresRef = useRef<User[]>([]);
+  repartidoresRef.current = repartidores;
+  const ordersKeyRef = useRef('');
   const [sellers, setSellers] = useState<User[]>([]);
   const [departurePoint, setDeparturePoint] = useState<LocationPoint | null>(null);
   const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(13);
@@ -262,6 +278,13 @@ export default function App() {
     };
   }, []);
 
+  const commitOrders = useCallback((data: Order[]) => {
+    const key = ordersSnapshotKey(data);
+    if (key === ordersKeyRef.current) return;
+    ordersKeyRef.current = key;
+    setOrders(data);
+  }, []);
+
   const fetchData = useCallback(async (opts?: { forceFlexSync?: boolean }) => {
     if (!token) return;
 
@@ -271,9 +294,13 @@ export default function App() {
       let currentUser = userRef.current;
       const meRes = await fetch(apiUrl('/api/auth/me'), { headers });
       if (meRes.ok) {
-        currentUser = await meRes.json();
-        setUser(currentUser);
-        localStorage.setItem('lupo_user', JSON.stringify(currentUser));
+        const nextUser = (await meRes.json()) as User;
+        currentUser = nextUser;
+        const prevUser = userRef.current;
+        if (!prevUser || JSON.stringify(prevUser) !== JSON.stringify(nextUser)) {
+          setUser(nextUser);
+          localStorage.setItem('lupo_user', JSON.stringify(nextUser));
+        }
       }
 
       const isOpsRole =
@@ -291,10 +318,10 @@ export default function App() {
           ? fetch(apiUrl('/api/orders/flex-sync'), { headers, method: 'POST' }).then(async (res) => {
               if (!res.ok) return;
               const data = await res.json();
-              setOrders(Array.isArray(data) ? data : data.orders);
+              commitOrders((Array.isArray(data) ? data : data.orders) as Order[]);
             })
           : fetchAllOrders(token).then((data) => {
-              setOrders(data as Order[]);
+              commitOrders(data as Order[]);
             })
       ).catch(() => {
         /* ignore: polling/WS reintentan */
@@ -445,7 +472,7 @@ export default function App() {
     } catch (e) {
       console.warn('Error syncing data from server.', e);
     }
-  }, [token]);
+  }, [token, commitOrders]);
 
   const mergeOrder = useCallback((order: Order) => {
     let deselectOrderId: string | null = null;
@@ -476,63 +503,27 @@ export default function App() {
     setLastSyncAt(new Date());
   }, []);
 
-  const applyOrderLocation = useCallback(
-    (payload: {
-      orderId: string;
-      repartidorId: string;
-      repartidorName?: string | null;
-      point: { lat: number; lng: number; timestamp: string };
-    }) => {
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== payload.orderId) return order;
-          const last = order.locationHistory[order.locationHistory.length - 1];
-          if (last?.timestamp === payload.point.timestamp) return order;
-          return {
-            ...order,
-            locationHistory: [...order.locationHistory, payload.point],
-            updatedAt: payload.point.timestamp,
-          };
-        })
-      );
-
-      setRepartidores((prev) =>
-        mergeRepartidorLocation(
-          prev,
-          payload.repartidorId,
-          payload.point,
-          payload.repartidorName
-        )
-      );
-      setLastSyncAt(new Date());
-    },
-    []
-  );
-
   useRealtimeSocket({
     token,
     activeOrderId,
     onOrderUpdated: mergeOrder,
     onOrderDeleted: removeOrder,
-    onOrderLocation: applyOrderLocation,
+    onOrderLocation: (payload) => {
+      // El pin se mueve solo. No tocamos la lista: eso re-renderizaba todo el panel.
+      publishLiveRepartidor(payload.repartidorId, payload.point);
+    },
     onRepartidorLocation: (payload) => {
-      setRepartidores((prev) => {
-        if (user?.role === UserRole.STORE_ADMIN) {
-          const onSellerOrder = orders.some(
-            (o) => !o.archived && o.repartidorId === payload.repartidorId
-          );
-          if (!onSellerOrder && !prev.some((r) => r.id === payload.repartidorId)) {
-            return prev;
-          }
-        }
-        return mergeRepartidorLocation(
-          prev,
-          payload.repartidorId,
-          payload.location,
-          payload.name
+      const current = userRef.current;
+      if (current?.role === UserRole.STORE_ADMIN) {
+        const onSellerOrder = ordersRef.current.some(
+          (o) => !o.archived && o.repartidorId === payload.repartidorId
         );
-      });
-      setLastSyncAt(new Date());
+        const known = repartidoresRef.current.some(
+          (r) => r.id === payload.repartidorId || r.username === payload.repartidorId
+        );
+        if (!onSellerOrder && !known) return;
+      }
+      publishLiveRepartidor(payload.repartidorId, payload.location);
     },
     onConnectionChange: setWsConnected,
     onNotificationCreated: (notification) => {
@@ -540,20 +531,7 @@ export default function App() {
         if (prev.some((n) => n.id === notification.id)) return prev;
         return [notification, ...prev];
       });
-      // El sonido/banner lo maneja NotificationHub (con dedupe por id).
-      // Solo refrescamos pedidos, sin re-setear notificaciones (evita re-disparar alertas).
-      if (notification.orderId && token) {
-        void (async () => {
-          try {
-            const headers = { Authorization: `Bearer ${token}` };
-            const data = await fetchAllOrders(token);
-            setOrders(data as Order[]);
-            setLastSyncAt(new Date());
-          } catch {
-            /* ignore */
-          }
-        })();
-      }
+      // El pedido llega por order:updated. No re-bajamos toda la lista por cada alerta.
     },
   });
 
@@ -564,11 +542,18 @@ export default function App() {
 
     void fetchData({ forceFlexSync: user?.role === UserRole.REPARTIDOR });
 
+    // Con el socket, un respaldo lento. Sin socket, polling para no quedar ciegos.
     const intervalMs =
-      user?.role === UserRole.REPARTIDOR ? 10_000 : wsConnected ? 45_000 : 8_000;
+      user?.role === UserRole.REPARTIDOR
+        ? wsConnected
+          ? 120_000
+          : 15_000
+        : wsConnected
+          ? 180_000
+          : 20_000;
     const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
       if (navigator.onLine) {
-        // Poll liviano: GET /orders (sync ML/Flex corre en background en el server).
         void fetchData();
       }
     }, intervalMs);
@@ -615,10 +600,11 @@ export default function App() {
     };
   }, [token, user?.role, sellerBranding?.hasLogo, sellerBranding?.logoUpdatedAt]);
 
-  // Refresco frecuente de la flota (posición de repartidores)
+  // Respaldo de flota solo si el WebSocket no está empujando posiciones.
   useEffect(() => {
     if (!token || !user) return;
     if (user.role !== UserRole.STORE_ADMIN && !isAgencyAdmin(user.role)) return;
+    if (wsConnected) return;
 
     const refreshFleet = async () => {
       try {
@@ -635,22 +621,25 @@ export default function App() {
     };
 
     void refreshFleet();
-    const interval = setInterval(refreshFleet, 10_000);
+    const interval = setInterval(refreshFleet, 30_000);
     return () => clearInterval(interval);
-  }, [token, user?.role]);
+  }, [token, user?.role, wsConnected]);
 
-  // Almacenar en caché local para soporte offline (sin GPS pesado)
+  // Caché offline diferida: no bloquea el hilo en cada cambio de pedidos.
   useEffect(() => {
     if (orders.length === 0) return;
-    try {
-      const slim = orders.map((o) => ({
-        ...o,
-        locationHistory: o.locationHistory?.slice(-3) ?? [],
-      }));
-      localStorage.setItem('cached_orders', JSON.stringify(slim));
-    } catch {
-      // quota / private mode
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const slim = orders.map((o) => ({
+          ...o,
+          locationHistory: o.locationHistory?.slice(-1) ?? [],
+        }));
+        localStorage.setItem('cached_orders', JSON.stringify(slim));
+      } catch {
+        // quota / private mode
+      }
+    }, 2000);
+    return () => window.clearTimeout(timer);
   }, [orders]);
   useEffect(() => {
     if (notifications.length > 0) {
@@ -1596,6 +1585,8 @@ export default function App() {
     localStorage.removeItem(ACTIVE_TAB_KEY);
     localStorage.removeItem('cached_orders');
     localStorage.removeItem('cached_notifications');
+    clearLiveFleet();
+    ordersKeyRef.current = '';
     setToken(null);
     setUser(null);
     setOrders([]);
@@ -2591,15 +2582,8 @@ export default function App() {
                 : ''
             } ${notifsSidebarOpen ? 'xl:gap-4' : 'xl:gap-0'}`}
           >
-            {(mobileTab === 'panel' || mobileTab === 'dashboard') && (
-              <>
-                <div
-                  className={`flex-1 min-w-0 h-full min-h-0 transition-all duration-300 ease-out ${
-                    mobileTab !== 'panel'
-                      ? 'hidden'
-                      : 'flex flex-col overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch]'
-                  }`}
-                >
+            {mobileTab === 'panel' && (
+              <div className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch]">
                   <OperationsDashboard
                     orders={orders}
                     repartidores={repartidores}
@@ -2621,12 +2605,10 @@ export default function App() {
                       setMobileTab('registro');
                     }}
                   />
-                </div>
-                <div
-                  className={`flex-1 min-w-0 h-full min-h-0 transition-all duration-300 ease-out ${
-                    mobileTab !== 'dashboard' ? 'hidden' : 'flex flex-col overflow-hidden'
-                  }`}
-                >
+              </div>
+            )}
+            {mobileTab === 'dashboard' && (
+                <div className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden">
                   <Suspense fallback={<LazyFallback />}>
                     <AdminDashboard
                       orders={orders}
@@ -2655,7 +2637,6 @@ export default function App() {
                     />
                   </Suspense>
                 </div>
-              </>
             )}
 
             {mobileTab === 'account' && token && (

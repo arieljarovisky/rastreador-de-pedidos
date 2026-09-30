@@ -30,6 +30,10 @@ import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import { getOperationalDateKey, formatOperationalDateShort, getActiveOperationalDateKey, getNextOperationalDateKey } from '../utils/deliverySummary.js';
+import { resolveRepartidorLocation, useLiveFleetVersion } from '../utils/liveFleet.ts';
+
+const ORDER_ROW_PX = 56;
+const ORDER_VIRTUAL_MIN = 40;
 
 const AdminOrderTableRow = memo(function AdminOrderTableRow({
   order,
@@ -73,7 +77,7 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
         e.stopPropagation();
         onContextMenu(order, e.clientX, e.clientY);
       }}
-      className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] transition ${
+      className={`cursor-pointer border-b border-[var(--surface-border)]/50 text-[11px] h-14 transition ${
         isSelected
           ? 'bg-[var(--color-accent)]/10'
           : isChecked
@@ -152,6 +156,25 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
     </tr>
   );
 });
+
+function FleetGpsDot({ rep }: { rep: User }) {
+  const tick = useLiveFleetVersion();
+  const live = tick >= 0 ? resolveRepartidorLocation(rep) : undefined;
+  if (live) {
+    return (
+      <span
+        className="shrink-0 w-2 h-2 rounded-full bg-[var(--color-ok)] ring-2 ring-[var(--color-ok)]/20"
+        title="GPS activo"
+      />
+    );
+  }
+  return (
+    <span className="shrink-0 text-[9px] text-[var(--color-text-faint)]" title="Sin GPS">
+      off
+    </span>
+  );
+}
+
 interface AdminDashboardProps {
   orders: Order[];
   repartidores: User[];
@@ -307,6 +330,9 @@ export default function AdminDashboard({
   const [ordersHeaderCollapsed, setOrdersHeaderCollapsed] = useState(loadOrdersHeaderCollapsed);
   const [showMapPanel, setShowMapPanel] = useState(loadShowMapPanel);
   const [mapSplitPct, setMapSplitPct] = useState(loadMapSplitPct);
+  const ordersScrollRef = useRef<HTMLDivElement>(null);
+  const ordersScrollRafRef = useRef(0);
+  const [ordersWindow, setOrdersWindow] = useState({ top: 0, height: 640 });
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const splitDraggingRef = useRef(false);
   const [contextMenu, setContextMenu] = useState<{ order: Order; x: number; y: number } | null>(null);
@@ -316,6 +342,32 @@ export default function AdminDashboard({
   const [checkedOrderIds, setCheckedOrderIds] = useState<Set<string>>(() => new Set());
   const [printingLabels, setPrintingLabels] = useState(false);
   const [labelSheetLayout, setLabelSheetLayout] = useState<'2x2' | '2x1'>('2x2');
+
+  const onOrdersScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    if (ordersScrollRafRef.current) return;
+    ordersScrollRafRef.current = requestAnimationFrame(() => {
+      ordersScrollRafRef.current = 0;
+      setOrdersWindow({ top: el.scrollTop, height: el.clientHeight });
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = ordersScrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      setOrdersWindow((prev) => {
+        const top = el.scrollTop;
+        const height = el.clientHeight;
+        if (prev.top === top && prev.height === height) return prev;
+        return { top, height };
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [showMapPanel, adminMobileTab]);
 
   const selectedOrder = orders.find((o) => o.id === activeOrderId) ?? null;
 
@@ -723,25 +775,65 @@ export default function AdminDashboard({
     [orders, orderFilterContext, includeArchivedForDate]
   );
 
-  const filteredOrders = orders.filter((order) => {
-    const isArchivedView = statusFilter === 'archived';
-    if (isArchivedView) {
-      if (!order.archived) return false;
-    } else if (order.archived && !includeArchivedForDate) {
-      return false;
-    }
+  const filteredOrders = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return orders.filter((order) => {
+      const isArchivedView = statusFilter === 'archived';
+      if (isArchivedView) {
+        if (!order.archived) return false;
+      } else if (order.archived && !includeArchivedForDate) {
+        return false;
+      }
 
-    const matchesFilters = matchesOrderFilters(order, orderFilterContext);
-    const matchesStatus = statusFilter === 'all' || statusFilter === 'archived' || order.status === statusFilter;
-    const matchesSearch =
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (order.repartidorName && order.repartidorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (order.sellerName && order.sellerName.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesFilters = matchesOrderFilters(order, orderFilterContext);
+      const matchesStatus = statusFilter === 'all' || statusFilter === 'archived' || order.status === statusFilter;
+      const matchesSearch =
+        order.id.toLowerCase().includes(query) ||
+        order.clientName.toLowerCase().includes(query) ||
+        order.address.toLowerCase().includes(query) ||
+        (order.repartidorName && order.repartidorName.toLowerCase().includes(query)) ||
+        (order.sellerName && order.sellerName.toLowerCase().includes(query));
 
-    return matchesFilters && matchesStatus && matchesSearch;
-  });
+      return matchesFilters && matchesStatus && matchesSearch;
+    });
+  }, [orders, statusFilter, includeArchivedForDate, orderFilterContext, searchQuery]);
+
+  const orderColSpan = isAgencyAdmin(userRole) ? 8 : 7;
+  const virtualizeOrders = filteredOrders.length > ORDER_VIRTUAL_MIN;
+  const orderWindow = virtualizeOrders
+    ? (() => {
+        const overscan = 8;
+        const height = Math.max(ordersWindow.height, 320);
+        const start = Math.min(
+          filteredOrders.length,
+          Math.max(0, Math.floor(ordersWindow.top / ORDER_ROW_PX) - overscan)
+        );
+        const end = Math.min(
+          filteredOrders.length,
+          Math.ceil((ordersWindow.top + height) / ORDER_ROW_PX) + overscan
+        );
+        return {
+          top: start * ORDER_ROW_PX,
+          bottom: Math.max(0, filteredOrders.length - end) * ORDER_ROW_PX,
+          rows: filteredOrders.slice(start, end),
+        };
+      })()
+    : { top: 0, bottom: 0, rows: filteredOrders };
+
+  useEffect(() => {
+    const el = ordersScrollRef.current;
+    if (!el || el.scrollTop === 0) return;
+    el.scrollTop = 0;
+    setOrdersWindow((prev) => (prev.top === 0 ? prev : { ...prev, top: 0 }));
+  }, [
+    statusFilter,
+    searchQuery,
+    sellerFilterId,
+    cordonFilterId,
+    repartidorFilterId,
+    dateFilterKey,
+    marketplaceSourceFilter,
+  ]);
 
   const isPrintableLabelOrder = useCallback((order: Order) => {
     return !(order.externalSource === 'mercadolibre' && order.externalOrderId);
@@ -2025,7 +2117,11 @@ export default function AdminDashboard({
         </div>
 
         {/* LISTADO: scroll vertical; columnas fijas evitan scroll X */}
-        <div className="mt-1.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin rounded border border-[var(--surface-border)]">
+        <div
+          ref={ordersScrollRef}
+          onScroll={onOrdersScroll}
+          className="mt-1.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin rounded border border-[var(--surface-border)]"
+        >
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
               <span className="mono-label block mb-2">Sin resultados</span>
@@ -2067,7 +2163,12 @@ export default function AdminDashboard({
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.map((order) => (
+                {orderWindow.top > 0 && (
+                  <tr aria-hidden>
+                    <td colSpan={orderColSpan} style={{ height: orderWindow.top, padding: 0, border: 0 }} />
+                  </tr>
+                )}
+                {orderWindow.rows.map((order) => (
                   <AdminOrderTableRow
                     key={order.id}
                     order={order}
@@ -2080,6 +2181,11 @@ export default function AdminDashboard({
                     onAssign={openAssignModal}
                   />
                 ))}
+                {orderWindow.bottom > 0 && (
+                  <tr aria-hidden>
+                    <td colSpan={orderColSpan} style={{ height: orderWindow.bottom, padding: 0, border: 0 }} />
+                  </tr>
+                )}
               </tbody>
             </table>
           )}
@@ -2388,16 +2494,7 @@ export default function AdminDashboard({
                                   <span className="flex-1 min-w-0 text-[11px] text-[var(--color-text)] truncate capitalize">
                                     {rep.name}
                                   </span>
-                                  {rep.currentLocation ? (
-                                    <span
-                                      className="shrink-0 w-2 h-2 rounded-full bg-[var(--color-ok)] ring-2 ring-[var(--color-ok)]/20"
-                                      title="GPS activo"
-                                    />
-                                  ) : (
-                                    <span className="shrink-0 text-[9px] text-[var(--color-text-faint)]" title="Sin GPS">
-                                      off
-                                    </span>
-                                  )}
+                                  <FleetGpsDot rep={rep} />
                                 </label>
                               </li>
                             ))

@@ -13,6 +13,7 @@ import { fetchDrivingRoute } from '../utils/route.js';
 import { formatLastReport, isStaleLocation } from '../utils/locationFreshness.js';
 import { dedupeRepartidores, repartidorIdentityMatches, repartidorMarkerKey } from '../utils/repartidorLocation.js';
 import { spreadOverlappingMarkers } from '../utils/markerSpread.js';
+import { resolveRepartidorLocation, useLiveFleetVersion } from '../utils/liveFleet.ts';
 import { CARTO_TILE_OPTIONS, getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
 import * as L from 'leaflet';
@@ -92,7 +93,8 @@ function getRepartidorPosition(
   if (liveLocation && isActiveDeliveryStatus(order.status)) {
     return [liveLocation.lat, liveLocation.lng];
   }
-  if (rep?.currentLocation) return [rep.currentLocation.lat, rep.currentLocation.lng];
+  const live = rep ? resolveRepartidorLocation(rep) : undefined;
+  if (live) return [live.lat, live.lng];
   if (order.status === OrderStatus.DELIVERING && order.locationHistory.length > 0) {
     const last = order.locationHistory[order.locationHistory.length - 1];
     return [last.lat, last.lng];
@@ -124,6 +126,8 @@ function upsertPolyline(
 
 const MARKER_ANIM_MS = 700;
 const markerVisualKey = new WeakMap<L.Marker, string>();
+const markerContentKey = new WeakMap<L.Marker, string>();
+const markerPopupKey = new WeakMap<L.Marker, string>();
 
 function applyIconIfChanged(marker: L.Marker, key: string, icon: L.DivIcon) {
   if (markerVisualKey.get(marker) === key) return;
@@ -253,7 +257,9 @@ function buildPickupPopupHtml(point: PickupPoint): string {
 }
 
 const createSvgIcon = (color: string, iconText: string, glow: boolean = false) => {
-  const shadowClass = glow ? 'filter drop-shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse' : 'filter drop-shadow-md';
+  const shadowClass = glow
+    ? 'filter drop-shadow-[0_0_6px_rgba(251,191,36,0.65)]'
+    : 'filter drop-shadow-md';
   return L.divIcon({
     html: `
       <div class="relative w-8 h-8 flex items-center justify-center ${shadowClass}">
@@ -296,11 +302,9 @@ const createRepartidorIcon = (
   stale = false
 ) => {
   const color = stale ? '#7A6F60' : mapColors.departure;
-  const ping = stale ? '' : `<div class="absolute w-full h-full rounded-full opacity-25 animate-ping" style="background:${color}"></div>`;
   return L.divIcon({
     html: `
       <div class="relative w-9 h-9 flex items-center justify-center filter drop-shadow-[0_2px_5px_rgba(0,0,0,0.25)]">
-        ${ping}
         <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-xs font-mono" style="background:var(--panel);border-color:${color};color:${color};${stale ? 'opacity:0.75;' : ''}">
           ${MAP_SVG.bike}
         </div>
@@ -344,6 +348,8 @@ export default function MapComponent({
   const polylinesRef = useRef<{ [key: string]: L.Polyline }>({});
   const markerAnimRef = useRef<Record<string, number>>({});
   const lastRouteFetchRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
+  const routeRequestRef = useRef(0);
+  const liveFleetVersion = useLiveFleetVersion();
   const zoneLayersRef = useRef<L.Layer[]>([]);
   const hubMarkerRef = useRef<L.Marker | null>(null);
   const initialFitDoneRef = useRef(false);
@@ -646,23 +652,41 @@ export default function MapComponent({
         glow = true;
       }
 
+      const markerSig = [
+        order.lat,
+        order.lng,
+        order.status,
+        order.updatedAt,
+        order.clientName,
+        order.address,
+        order.repartidorName ?? '',
+        color,
+        label,
+        glow ? 1 : 0,
+        compact ? 1 : 0,
+        isSelected ? 1 : 0,
+      ].join('|');
+
+      const existing = markersRef.current[order.id];
+      if (existing && markerContentKey.get(existing) === markerSig) return;
+
       const icon = createSvgIcon(color, label, glow);
 
-      if (markersRef.current[order.id]) {
-        const marker = markersRef.current[order.id];
-        marker.setLatLng([order.lat, order.lng]);
-        applyIconIfChanged(marker, `${color}|${label}|${glow}`, icon);
+      if (existing) {
+        existing.setLatLng([order.lat, order.lng]);
+        applyIconIfChanged(existing, `${color}|${label}|${glow}`, icon);
         if (compact) {
-          marker.closePopup();
-          marker.unbindPopup();
-          marker.off('click');
-          marker.off('popupopen');
-          marker.on('click', () => onSelectOrder?.(order.id));
+          existing.closePopup();
+          existing.unbindPopup();
+          existing.off('click');
+          existing.off('popupopen');
+          existing.on('click', () => onSelectOrder?.(order.id));
         } else {
           const popupHtml = buildOrderPopupHtml(order, badgeColor, mapColors.destination);
-          marker.bindPopup(popupHtml, getMapPopupOptions('order'));
-          bindOrderMarkerSelect(marker, order.id, onSelectOrder);
+          existing.bindPopup(popupHtml, getMapPopupOptions('order'));
+          bindOrderMarkerSelect(existing, order.id, onSelectOrder);
         }
+        markerContentKey.set(existing, markerSig);
       } else {
         const marker = L.marker([order.lat, order.lng], { icon }).addTo(map);
         if (compact) {
@@ -673,8 +697,8 @@ export default function MapComponent({
           bindOrderMarkerSelect(marker, order.id, onSelectOrder);
         }
         markersRef.current[order.id] = marker;
+        markerContentKey.set(marker, markerSig);
       }
-
     });
 
     // --- 2b. PUNTOS DE COLECTA ---
@@ -703,10 +727,15 @@ export default function MapComponent({
         markersRef.current[markerId] = marker;
       }
     });
+  }, [orders, pickupPoints, onSelectOrder, activeOrderId, theme, mapColors, statusColors, mapEpoch, compact]);
 
-    // --- 3. PROCESAR REPARTIDORES ---
+  // Marcadores de flota: corre con el GPS en vivo, sin rearmar los pines de pedidos.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
     const activeOrder = activeOrderId
-      ? orders.find((o) => o.id === activeOrderId)
+      ? ordersRef.current.find((o) => o.id === activeOrderId)
       : null;
 
     let fleetRepartidores = dedupeRepartidores(repartidores);
@@ -726,10 +755,16 @@ export default function MapComponent({
       );
     }
 
+    const repsWithLocation = fleetRepartidores.flatMap((rep) => {
+      const loc = resolveRepartidorLocation(rep);
+      if (!loc) return [];
+      return [{ rep: { ...rep, currentLocation: loc }, lat: loc.lat, lng: loc.lng, timestamp: loc.timestamp }];
+    });
+
     const activeRepartidorKeys = new Set(
-      fleetRepartidores
-        .filter((r) => r.currentLocation)
-        .flatMap((r) => [r.id, r.username].map((value) => value.trim().toLowerCase()))
+      repsWithLocation.flatMap(({ rep }) =>
+        [rep.id, rep.username].map((value) => value.trim().toLowerCase())
+      )
     );
 
     Object.keys(markersRef.current).forEach((id) => {
@@ -741,14 +776,6 @@ export default function MapComponent({
       }
     });
 
-    const repsWithLocation = fleetRepartidores
-      .filter((rep) => rep.currentLocation)
-      .map((rep) => ({
-        rep,
-        lat: rep.currentLocation!.lat,
-        lng: rep.currentLocation!.lng,
-      }));
-
     const spreadReps = spreadOverlappingMarkers(repsWithLocation);
 
     spreadReps.forEach(({ rep, displayLat, displayLng }) => {
@@ -756,8 +783,9 @@ export default function MapComponent({
       const markerId = `rep_${repartidorMarkerKey(rep)}`;
       const displayPos: [number, number] = [displayLat, displayLng];
       const stale = isStaleLocation(rep.currentLocation.timestamp);
-      const icon = createRepartidorIcon(rep.name, mapColors, stale);
+      const visualKey = `rep|${rep.name}|${stale}|${mapColors.route}`;
       const reportLabel = formatLastReport(rep.currentLocation.timestamp);
+      const popupSig = `${visualKey}|${reportLabel}`;
       const repPopup = `
             <div class="font-sans p-1 text-[11px]" style="color:var(--text)">
               <h4 class="font-bold uppercase tracking-wider font-mono flex items-center gap-1" style="color:${stale ? 'var(--text-muted)' : 'var(--accent)'}">${MAP_SVG.bike} ${rep.name}</h4>
@@ -766,7 +794,6 @@ export default function MapComponent({
             </div>
           `;
 
-      // Eliminar marcadores alias (p. ej. id viejo vs uuid) del mismo repartidor
       Object.keys(markersRef.current).forEach((id) => {
         if (!id.startsWith('rep_') || id === markerId) return;
         const suffix = id.slice(4);
@@ -776,27 +803,28 @@ export default function MapComponent({
         }
       });
 
-      if (markersRef.current[markerId]) {
-        animateMarkerTo(
-          markersRef.current[markerId],
-          displayPos,
-          markerAnimRef.current,
-          markerId
-        );
-        applyIconIfChanged(
-          markersRef.current[markerId],
-          `rep|${rep.name}|${stale}|${mapColors.route}`,
-          icon
-        );
-        markersRef.current[markerId].setPopupContent(repPopup);
+      const existing = markersRef.current[markerId];
+      if (existing) {
+        animateMarkerTo(existing, displayPos, markerAnimRef.current, markerId);
+        if (markerVisualKey.get(existing) !== visualKey) {
+          applyIconIfChanged(existing, visualKey, createRepartidorIcon(rep.name, mapColors, stale));
+        }
+        if (markerPopupKey.get(existing) !== popupSig) {
+          existing.setPopupContent(repPopup);
+          markerPopupKey.set(existing, popupSig);
+        }
       } else {
-        const marker = L.marker(displayPos, { icon })
+        const marker = L.marker(displayPos, {
+          icon: createRepartidorIcon(rep.name, mapColors, stale),
+        })
           .addTo(map)
           .bindPopup(repPopup);
+        markerVisualKey.set(marker, visualKey);
+        markerPopupKey.set(marker, popupSig);
         markersRef.current[markerId] = marker;
       }
     });
-  }, [orders, repartidores, pickupPoints, departurePoint, onSelectOrder, activeOrderId, liveRepartidorLocation, theme, mapColors, statusColors, mapEpoch, compact]);
+  }, [repartidores, liveFleetVersion, activeOrderId, liveRepartidorLocation, theme, mapColors, mapEpoch, compact]);
 
   // Ruta por calles hacia el próximo destino (OSRM)
   useEffect(() => {
@@ -810,6 +838,7 @@ export default function MapComponent({
       !order ||
       order.status !== OrderStatus.DELIVERING
     ) {
+      routeRequestRef.current += 1;
       if (routeKey && polylinesRef.current[routeKey]) {
         polylinesRef.current[routeKey].remove();
         delete polylinesRef.current[routeKey];
@@ -821,6 +850,7 @@ export default function MapComponent({
     const dest: [number, number] = [order.lat, order.lng];
 
     if (!repPos) {
+      routeRequestRef.current += 1;
       if (polylinesRef.current[`${order.id}__route`]) {
         polylinesRef.current[`${order.id}__route`].remove();
         delete polylinesRef.current[`${order.id}__route`];
@@ -840,22 +870,17 @@ export default function MapComponent({
     if (!shouldRefetch) return;
 
     lastRouteFetchRef.current = { at: now, lat: repPos[0], lng: repPos[1] };
-
-    let cancelled = false;
+    const requestId = ++routeRequestRef.current;
 
     void fetchDrivingRoute(repPos, dest).then((pathCoords) => {
-      if (cancelled || !mapInstanceRef.current) return;
+      if (requestId !== routeRequestRef.current || !mapInstanceRef.current) return;
       upsertPolyline(mapInstanceRef.current, polylinesRef.current, `${order.id}__route`, pathCoords, {
         color: mapColors.route,
         weight: 4,
         opacity: 0.88,
       });
     });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeOrderId, orders, repartidores, liveRepartidorLocation, theme, mapColors.route, mapEpoch]);
+  }, [activeOrderId, orders, repartidores, liveRepartidorLocation, liveFleetVersion, theme, mapColors.route, mapEpoch]);
 
   // Al seleccionar un pedido (lista o "Ver detalles"), cerrar popup preview:
   // el panel inferior ya muestra el detalle y evita solapar UI en el mapa.

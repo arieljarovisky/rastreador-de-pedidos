@@ -85,8 +85,8 @@ async function loadHistoryForOrders(orderIds: string[]): Promise<Map<string, Ord
   return map;
 }
 
-/** Tope de puntos GPS por pedido en listados (el mapa solo usa el Ãºltimo; el detalle pide full). */
-const LIST_LOCATION_POINTS_PER_ORDER = 60;
+/** En el listado operativo el mapa solo necesita el último punto; el detalle pide el historial completo. */
+const LIST_LOCATION_POINTS_PER_ORDER = 1;
 
 async function loadLocationsForOrders(
   orderIds: string[],
