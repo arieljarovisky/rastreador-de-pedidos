@@ -40,7 +40,22 @@ export function useLocationReporter(
   const subRef = useRef<Location.LocationSubscription | null>(null);
   const lastGpsSentAt = useRef(0);
   const lastHeartbeatAt = useRef(0);
+  const lastUiAt = useRef(0);
+  const uiCoordsRef = useRef<Coords | null>(null);
   const coordsRef = useRef<Coords | null>(null);
+
+  const publishCoords = (next: Coords) => {
+    coordsRef.current = next;
+    const prev = uiCoordsRef.current;
+    const now = Date.now();
+    const dLat = prev ? next.lat - prev.lat : 1;
+    const dLng = prev ? next.lng - prev.lng : 1;
+    const moved = dLat * dLat + dLng * dLng > 0.00000009;
+    if (!moved && now - lastUiAt.current < 10_000) return;
+    uiCoordsRef.current = next;
+    lastUiAt.current = now;
+    setCoords(next);
+  };
   const activeOrderIdRef = useRef(activeOrderId);
   activeOrderIdRef.current = activeOrderId;
 
@@ -98,8 +113,7 @@ export function useLocationReporter(
             accuracy: Location.Accuracy.Balanced,
           });
           point = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          coordsRef.current = point;
-          setCoords(point);
+          publishCoords(point);
         } catch {
           return;
         }
@@ -144,9 +158,7 @@ export function useLocationReporter(
           if (cancelled) return;
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-          const next = { lat, lng };
-          coordsRef.current = next;
-          setCoords(next);
+          publishCoords({ lat, lng });
           sendPoint(lat, lng, new Date(pos.timestamp).toISOString());
         });
         subRef.current = sub;

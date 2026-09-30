@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, ApiError } from '../api';
 import { clearQueue } from '../location/locationQueue';
 import { stopBackgroundLocation } from '../location/backgroundLocationTask';
+import { clearLiveFleet } from '../utils/liveFleet';
 import { User, MOBILE_APP_ROLES, UserRole } from '../types';
 
 const TOKEN_KEY = 'lupo_token';
@@ -151,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     await stopBackgroundLocation();
     await clearQueue();
+    clearLiveFleet();
     await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
     setToken(null);
     setUser(null);

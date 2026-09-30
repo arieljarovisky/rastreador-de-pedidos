@@ -9,9 +9,11 @@ import {
   StyleProp,
 } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
+import { CARTO_API_KEY } from '../config';
 import { colors, typography } from '../theme';
+import { readLiveLocation, useLiveFleetVersion } from '../utils/liveFleet';
 
-const CARTO_KEY = process.env.EXPO_PUBLIC_CARTO_API_KEY?.trim() ?? '';
+const CARTO_KEY = CARTO_API_KEY;
 const TILE_URL = CARTO_KEY
   ? `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=${encodeURIComponent(CARTO_KEY)}`
   : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
@@ -76,16 +78,6 @@ const MAP_SHELL_HTML = `<!DOCTYPE html>
     .leaflet-control-attribution { font-size: 9px; background: rgba(20,18,16,0.9) !important; color: ${colors.textMuted} !important; }
     .leaflet-bar a { background: ${colors.surface} !important; color: ${colors.text} !important; border-color: ${colors.border} !important; }
     .driver-pin { position: relative; }
-    .driver-pulse {
-      position: absolute; inset: -6px; border-radius: 50%;
-      animation: pulse 2s ease-out infinite;
-      opacity: 0.35;
-    }
-    @keyframes pulse {
-      0% { transform: scale(0.6); opacity: 0.5; }
-      70% { transform: scale(1.6); opacity: 0; }
-      100% { transform: scale(1.6); opacity: 0; }
-    }
   </style>
 </head>
 <body>
@@ -116,24 +108,30 @@ const MAP_SHELL_HTML = `<!DOCTYPE html>
       }
     }
 
-    function makePin(color, label, animated) {
-      const pulse = animated
-        ? '<div class="driver-pulse" style="background:' + color + ';"></div>'
-        : '';
+    function makePin(color) {
       return L.divIcon({
         className: '',
         html:
           '<div class="driver-pin" style="width:18px;height:18px;border-radius:50%;background:' +
           color +
-          ';border:2px solid #e9edf4;box-shadow:0 2px 8px rgba(0,0,0,0.5);">' +
-          pulse +
-          '</div>',
+          ';border:2px solid #e9edf4;box-shadow:0 2px 8px rgba(0,0,0,0.5);"></div>',
         iconSize: [18, 18],
         iconAnchor: [9, 9],
       });
     }
 
-    function animateMarker(id, marker, toLat, toLng, color, label, animated) {
+    function paintMarker(marker, color, label) {
+      const visual = color + '|' + (label || '');
+      if (marker._postaVisual === visual) return;
+      marker._postaVisual = visual;
+      marker.setIcon(makePin(color));
+      if (label) {
+        if (marker.getPopup()) marker.setPopupContent(label);
+        else marker.bindPopup(label);
+      }
+    }
+
+    function animateMarker(id, marker, toLat, toLng) {
       const from = marker.getLatLng();
       if (Math.abs(from.lat - toLat) < 0.000001 && Math.abs(from.lng - toLng) < 0.000001) return;
 
@@ -155,23 +153,17 @@ const MAP_SHELL_HTML = `<!DOCTYPE html>
         }
       }
       animations[id] = requestAnimationFrame(step);
-      marker.setIcon(makePin(color, label, animated));
-      if (label) marker.setPopupContent(label);
     }
 
     function upsertMarker(m) {
       const id = m.id;
-      const icon = makePin(m.color, m.label || '', m.animated);
       if (markers[id]) {
-        if (m.animated) {
-          animateMarker(id, markers[id], m.lat, m.lng, m.color, m.label || '', m.animated);
-        } else {
-          markers[id].setLatLng([m.lat, m.lng]);
-          markers[id].setIcon(icon);
-          if (m.label) markers[id].setPopupContent(m.label);
-        }
+        if (m.animated) animateMarker(id, markers[id], m.lat, m.lng);
+        else markers[id].setLatLng([m.lat, m.lng]);
+        paintMarker(markers[id], m.color, m.label || '');
       } else {
-        const marker = L.marker([m.lat, m.lng], { icon }).addTo(map);
+        const marker = L.marker([m.lat, m.lng], { icon: makePin(m.color) }).addTo(map);
+        marker._postaVisual = m.color + '|' + (m.label || '');
         if (m.label) marker.bindPopup(m.label);
         markers[id] = marker;
       }
@@ -234,10 +226,6 @@ const MAP_SHELL_HTML = `<!DOCTYPE html>
           fitAll(payload);
           initialFitDone = true;
         }
-
-        setTimeout(function() {
-          map.invalidateSize(true);
-        }, 50);
       },
     };
 
@@ -277,6 +265,7 @@ export default function PostaMap({
   const webRef = useRef<WebView>(null);
   const [mapReady, setMapReady] = useState(false);
   const lastPayloadRef = useRef<string>('');
+  const liveVersion = useLiveFleetVersion();
 
   const validMarkers = useMemo(
     () =>
@@ -298,17 +287,28 @@ export default function PostaMap({
     [polylines]
   );
 
+  const liveMarkers = useMemo(
+    () =>
+      validMarkers.map((marker) => {
+        if (!marker.id?.startsWith('rep_')) return marker;
+        const live = readLiveLocation(marker.id.slice(4));
+        if (!live) return marker;
+        return { ...marker, lat: live.lat, lng: live.lng };
+      }),
+    [validMarkers, liveVersion]
+  );
+
   const followDriverId = useMemo(() => {
     if (!followDriver) return null;
-    const driver = validMarkers.find((m) => m.animated);
+    const driver = liveMarkers.find((m) => m.animated);
     return driver?.id ?? null;
-  }, [followDriver, validMarkers]);
+  }, [followDriver, liveMarkers]);
 
   const pushUpdate = useCallback(() => {
     if (!mapReady || !webRef.current) return;
 
     const payload = {
-      markers: validMarkers,
+      markers: liveMarkers,
       polylines: validPolylines,
       followDriverId,
     };
@@ -322,7 +322,7 @@ export default function PostaMap({
       }
       true;
     `);
-  }, [mapReady, validMarkers, validPolylines, followDriverId]);
+  }, [mapReady, liveMarkers, validPolylines, followDriverId]);
 
   useEffect(() => {
     pushUpdate();
@@ -354,7 +354,7 @@ export default function PostaMap({
     <View style={[styles.wrap, style]}>
       <WebView
         ref={webRef}
-        source={{ html: MAP_SHELL_HTML, baseUrl: 'https://localhost' }}
+        source={{ html: MAP_SHELL_HTML, baseUrl: 'https://enviosposta.com.ar' }}
         style={styles.webview}
         originWhitelist={['*']}
         scrollEnabled={false}

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { api } from '../api';
-import { socketUrl, POLL_INTERVAL_MS } from '../config';
+import { socketUrl, POLL_INTERVAL_CONNECTED_MS, POLL_INTERVAL_MS } from '../config';
 import { Order, User, AppNotification } from '../types';
 import { normalizeOrder, normalizeOrders } from '../utils/normalizeOrder';
 import { mergeRepartidorLocation, mergeRepartidoresFromServer } from '../utils/repartidorLocation';
+import { publishLiveRepartidor } from '../utils/liveFleet';
 import { showLocalNotification } from './usePushNotifications';
 
 interface OrderLocationPayload {
@@ -27,6 +28,26 @@ interface UseOrdersOptions {
   /** Repartidor: sincroniza escaneos Flex al cargar y con mayor frecuencia */
   flexSync?: boolean;
   onNotificationCreated?: (notification: AppNotification) => void;
+}
+
+function ordersSnapshotKey(list: Order[]): string {
+  let key = String(list.length);
+  for (let i = 0; i < list.length; i += 1) {
+    const order = list[i];
+    key += `\n${order.id}\t${order.status}\t${order.updatedAt}\t${order.archived ? 1 : 0}\t${order.repartidorId ?? ''}`;
+  }
+  return key;
+}
+
+function rememberRepartidorIfNew(
+  prev: User[],
+  repartidorId: string,
+  location: { lat: number; lng: number; timestamp: string },
+  name?: string | null
+): User[] {
+  const known = prev.find((r) => r.id === repartidorId || r.username === repartidorId);
+  if (known?.currentLocation) return prev;
+  return mergeRepartidorLocation(prev, repartidorId, location, name);
 }
 
 interface UseOrdersResult {
@@ -54,6 +75,8 @@ export function useOrders(
   const initialLoadDoneRef = useRef(false);
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
+  const repartidoresRef = useRef(repartidores);
+  repartidoresRef.current = repartidores;
 
   const onNotificationRef = useRef(onNotificationCreated);
   onNotificationRef.current = onNotificationCreated;
@@ -74,43 +97,27 @@ export function useOrders(
   }, []);
 
   const applyLocation = useCallback((payload: OrderLocationPayload) => {
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (order.id !== payload.orderId) return order;
-        const history = order.locationHistory ?? [];
-        const last = history[history.length - 1];
-        if (last?.timestamp === payload.point.timestamp) return order;
-        return {
-          ...order,
-          locationHistory: [...history, payload.point],
-          updatedAt: payload.point.timestamp,
-        };
-      })
+    publishLiveRepartidor(payload.repartidorId, payload.point);
+    if (!trackRepartidores) return;
+    setRepartidores((prev) =>
+      rememberRepartidorIfNew(prev, payload.repartidorId, payload.point, payload.repartidorName)
     );
-    if (trackRepartidores) {
-      setRepartidores((prev) =>
-        mergeRepartidorLocation(
-          prev,
-          payload.repartidorId,
-          payload.point,
-          payload.repartidorName
-        )
-      );
-    }
   }, [trackRepartidores]);
 
   const applyRepartidorLocation = useCallback((payload: RepartidorLocationPayload) => {
-    setRepartidores((prev) => {
-      if (trackRepartidores) {
-        const onSellerOrder = ordersRef.current.some(
-          (o) => !o.archived && o.repartidorId === payload.repartidorId
-        );
-        if (!onSellerOrder && !prev.some((r) => r.id === payload.repartidorId)) {
-          return prev;
-        }
-      }
-      return mergeRepartidorLocation(prev, payload.repartidorId, payload.location, payload.name);
-    });
+    if (trackRepartidores) {
+      const onSellerOrder = ordersRef.current.some(
+        (o) => !o.archived && o.repartidorId === payload.repartidorId
+      );
+      const listed = repartidoresRef.current.some(
+        (r) => r.id === payload.repartidorId || r.username === payload.repartidorId
+      );
+      if (!onSellerOrder && !listed) return;
+    }
+    publishLiveRepartidor(payload.repartidorId, payload.location);
+    setRepartidores((prev) =>
+      rememberRepartidorIfNew(prev, payload.repartidorId, payload.location, payload.name)
+    );
   }, [trackRepartidores]);
 
   const load = useCallback(async (opts?: { forceFlexSync?: boolean }) => {
@@ -125,7 +132,10 @@ export function useOrders(
         trackRepartidores ? api.getRepartidores(token) : Promise.resolve(null),
       ];
       const [ordersData, repsData] = await Promise.all(requests);
-      setOrders(normalizeOrders(ordersData));
+      const nextOrders = normalizeOrders(ordersData);
+      setOrders((prev) =>
+        ordersSnapshotKey(prev) === ordersSnapshotKey(nextOrders) ? prev : nextOrders
+      );
       if (repsData) setRepartidores((prev) => mergeRepartidoresFromServer(prev, repsData));
       setError(null);
     } catch (err) {
@@ -225,9 +235,9 @@ export function useOrders(
 
   useEffect(() => {
     if (!token) return;
-    // Poll liviano (GET). Flex forzado solo al abrir / volver a foreground / pull-to-refresh.
-    const pollMs = connected ? POLL_INTERVAL_MS * 5 : POLL_INTERVAL_MS;
+    const pollMs = connected ? POLL_INTERVAL_CONNECTED_MS : POLL_INTERVAL_MS;
     const interval = setInterval(() => {
+      if (AppState.currentState !== 'active') return;
       void load();
     }, pollMs);
     return () => clearInterval(interval);

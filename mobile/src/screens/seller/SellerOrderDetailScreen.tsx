@@ -146,6 +146,7 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
             label: order.clientName,
           }}
           trail={order.locationHistory.map((p) => ({ lat: p.lat, lng: p.lng }))}
+          repartidorId={order.repartidorId}
           driver={
             liveDriver
               ? {

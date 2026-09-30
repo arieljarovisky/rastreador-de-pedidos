@@ -6,6 +6,9 @@
   "build": {
     "production": {
       "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_CARTO_API_KEY": "cb1_2evw_1_e0d30631e8a597ccd7ee0098"
+      },
       "android": {
         "buildType": "app-bundle"
       }

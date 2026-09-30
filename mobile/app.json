@@ -122,6 +122,7 @@
     ],
     "extra": {
       "apiBaseUrl": "https://envios-erp.up.railway.app",
+      "cartoApiKey": "cb1_2evw_1_e0d30631e8a597ccd7ee0098",
       "eas": {
         "projectId": "66fe0c44-a8c0-428b-babf-e5de345b6ecd"
       }

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import PostaMap, { MapMarker, MapPoint } from './PostaMap';
+import { readLiveLocation, useLiveFleetVersion } from '../utils/liveFleet';
 
 const MAP_COLORS = {
   destination: '#E8431F',
@@ -12,6 +13,8 @@ interface Props {
   destination: MapPoint;
   trail?: MapPoint[];
   driver?: MapPoint | null;
+  /** Si viene, el pin del repartidor se mueve sin re-renderizar la pantalla. */
+  repartidorId?: string | null;
   style?: StyleProp<ViewStyle>;
   /** Centra el mapa en el repartidor mientras se mueve (estilo Uber/Rappi). */
   followDriver?: boolean;
@@ -22,10 +25,20 @@ export default function OrderTrackingMap({
   destination,
   trail = [],
   driver,
+  repartidorId,
   style,
   followDriver = true,
 }: Props) {
+  const liveVersion = useLiveFleetVersion();
   const markers = useMemo(() => {
+    const live = readLiveLocation(repartidorId);
+    const driverPoint = live
+      ? {
+          lat: live.lat,
+          lng: live.lng,
+          label: driver?.label ?? 'Repartidor',
+        }
+      : driver;
     const list: MapMarker[] = [
       {
         id: 'destination',
@@ -35,33 +48,32 @@ export default function OrderTrackingMap({
         color: MAP_COLORS.destination,
       },
     ];
-    if (driver) {
+    if (driverPoint) {
       list.push({
-        id: 'driver',
-        lat: driver.lat,
-        lng: driver.lng,
-        label: driver.label ?? 'Repartidor',
+        id: repartidorId ? `rep_${repartidorId.trim().toLowerCase()}` : 'driver',
+        lat: driverPoint.lat,
+        lng: driverPoint.lng,
+        label: driverPoint.label ?? 'Repartidor',
         color: MAP_COLORS.driver,
         animated: true,
       });
     }
     return list;
-  }, [destination, driver]);
+  }, [destination, driver, repartidorId, liveVersion]);
 
-  const polylines = useMemo(
-    () =>
-      trail.length > 1
-        ? [{ id: 'trail', points: trail, color: MAP_COLORS.route }]
-        : [],
-    [trail]
-  );
+  const polylines = useMemo(() => {
+    const points = trail.length > 40 ? trail.slice(-40) : trail;
+    return points.length > 1
+      ? [{ id: 'trail', points, color: MAP_COLORS.route }]
+      : [];
+  }, [trail]);
 
   return (
     <PostaMap
       markers={markers}
       polylines={polylines}
       style={style}
-      followDriver={followDriver && Boolean(driver)}
+      followDriver={followDriver && markers.some((marker) => marker.animated)}
       emptyLabel="Sin coordenadas de entrega."
     />
   );

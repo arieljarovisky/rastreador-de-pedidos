@@ -3,14 +3,14 @@ import { GPS_HEARTBEAT_MS } from '../config';
 
 /** Opciones compartidas: reportar por tiempo aunque no haya movimiento. */
 export const locationWatchOptions: Location.LocationOptions = {
-  accuracy: Location.Accuracy.High,
-  distanceInterval: 0,
+  accuracy: Location.Accuracy.Balanced,
+  distanceInterval: 25,
   timeInterval: GPS_HEARTBEAT_MS,
 };
 
 export const backgroundLocationOptions: Location.LocationTaskOptions = {
-  accuracy: Location.Accuracy.High,
-  distanceInterval: 0,
+  accuracy: Location.Accuracy.Balanced,
+  distanceInterval: 25,
   timeInterval: GPS_HEARTBEAT_MS,
   showsBackgroundLocationIndicator: true,
   pausesUpdatesAutomatically: false,

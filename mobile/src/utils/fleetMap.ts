@@ -1,6 +1,7 @@
 import { Order, OrderStatus, User } from '../types';
 import { MapMarker } from '../components/PostaMap';
 import { dedupeRepartidores, repartidorMarkerKey } from './repartidorLocation';
+import { resolveRepartidorLocation } from './liveFleet';
 import { spreadOverlappingMarkers } from './markerSpread';
 
 const COLORS = {
@@ -23,13 +24,12 @@ export function buildSellerFleetMarkers(
       .map((o) => o.repartidorId as string)
   );
 
-  const repsWithLocation = dedupeRepartidores(repartidores)
-    .filter((rep) => assignedRepIds.has(rep.id) && rep.currentLocation)
-    .map((rep) => ({
-      rep,
-      lat: rep.currentLocation!.lat,
-      lng: rep.currentLocation!.lng,
-    }));
+  const repsWithLocation = dedupeRepartidores(repartidores).flatMap((rep) => {
+    if (!assignedRepIds.has(rep.id)) return [];
+    const loc = resolveRepartidorLocation(rep);
+    if (!loc) return [];
+    return [{ rep, lat: loc.lat, lng: loc.lng }];
+  });
 
   for (const { rep, displayLat, displayLng } of spreadOverlappingMarkers(repsWithLocation)) {
     markers.push({

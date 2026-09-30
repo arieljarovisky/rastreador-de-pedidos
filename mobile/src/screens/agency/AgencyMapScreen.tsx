@@ -23,6 +23,7 @@ import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { api } from '../../api';
 import { AgencyStackParamList } from '../../navigation/types';
 import { User } from '../../types';
+import { resolveRepartidorLocation, useLiveFleetVersion } from '../../utils/liveFleet';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -40,7 +41,8 @@ function RiderRow({
 }) {
   const { palette: t } = useTheme();
   const styles = useMemo(() => createStyles(t), [t]);
-  const gps = Boolean(rider.currentLocation);
+  useLiveFleetVersion();
+  const gps = Boolean(resolveRepartidorLocation(rider));
   return (
     <View style={styles.rider}>
       <View style={styles.av}>
@@ -106,7 +108,7 @@ export default function AgencyMapScreen() {
   const enCalle = useMemo(
     () =>
       repartidores
-        .filter((r) => (cargaByRider.get(r.id) ?? 0) > 0 || r.currentLocation)
+        .filter((r) => (cargaByRider.get(r.id) ?? 0) > 0 || resolveRepartidorLocation(r))
         .sort((a, b) => (cargaByRider.get(b.id) ?? 0) - (cargaByRider.get(a.id) ?? 0)),
     [repartidores, cargaByRider]
   );

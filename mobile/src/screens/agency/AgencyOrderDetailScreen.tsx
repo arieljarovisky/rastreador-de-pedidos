@@ -147,6 +147,7 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
           style={styles.mapFill}
           destination={{ lat: order.lat, lng: order.lng, label: order.clientName }}
           trail={order.locationHistory.map((p) => ({ lat: p.lat, lng: p.lng }))}
+          repartidorId={order.repartidorId}
           driver={
             liveDriver
               ? {
