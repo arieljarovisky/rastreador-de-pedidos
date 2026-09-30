@@ -70,7 +70,7 @@ export default function AgencyMapScreen() {
   const { user, token } = useAuth();
   const { orders, repartidores, refreshing, refresh } = useAgencyOrdersContext();
   const [unreadNotifs, setUnreadNotifs] = useState(0);
-  const [listExpanded, setListExpanded] = useState(true);
+  const [listExpanded, setListExpanded] = useState(false);
 
   const loadNotifs = useCallback(async () => {
     if (!token) return;
@@ -123,68 +123,70 @@ export default function AgencyMapScreen() {
         onNotifications={() => navigation.navigate('AgencyNotifications')}
       />
 
-      <View style={styles.mapArea}>
-        <PostaMap
-          markers={fleetMarkers}
-          style={styles.map}
-          emptyLabel="Los repartidores aparecen cuando reportan GPS."
-        />
-        <Pressable
-          style={styles.refreshFab}
-          onPress={() => void refresh()}
-          accessibilityLabel="Actualizar mapa"
-        >
-          <PostaIcon name="live" size={16} color={t.sello} strokeWidth={1.8} />
-        </Pressable>
-      </View>
-
-      <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
-        <Pressable
-          style={styles.sheetHeader}
-          onPress={() => setListExpanded((v) => !v)}
-          accessibilityRole="button"
-          accessibilityLabel={listExpanded ? 'Achicar lista' : 'Agrandar lista'}
-        >
-          <View style={styles.grab} />
-          <View style={styles.sheetTitleRow}>
-            <Text style={styles.eyebrow}>
-              Repartidores en calle · {enCalle.length}
-            </Text>
-            <PostaIcon
-              name={listExpanded ? 'chevronDown' : 'chevronUp'}
-              size={16}
-              color={t.ink3}
-            />
-          </View>
-        </Pressable>
-
-        {listExpanded ? (
-          <FlatList
-            data={enCalle}
-            keyExtractor={(r) => r.id}
-            style={{ maxHeight: listMaxHeight }}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={refresh}
-                tintColor={t.sello}
-              />
-            }
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Text style={styles.emptyTitle}>Nadie en calle</Text>
-                <Text style={styles.emptyBody}>
-                  Cuando haya repartidores con pedidos o GPS vas a verlos acá.
-                </Text>
-              </View>
-            }
-            renderItem={({ item }) => (
-              <RiderRow rider={item} carga={cargaByRider.get(item.id) ?? 0} />
-            )}
+      <View style={styles.mapStage}>
+        <View style={styles.mapArea}>
+          <PostaMap
+            markers={fleetMarkers}
+            style={styles.map}
+            emptyLabel="Los repartidores aparecen cuando reportan GPS."
           />
-        ) : null}
+          <Pressable
+            style={styles.refreshFab}
+            onPress={() => void refresh()}
+            accessibilityLabel="Actualizar mapa"
+          >
+            <PostaIcon name="live" size={16} color={t.sello} strokeWidth={1.8} />
+          </Pressable>
+        </View>
+
+        <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
+          <Pressable
+            style={styles.sheetHeader}
+            onPress={() => setListExpanded((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel={listExpanded ? 'Achicar lista' : 'Agrandar lista'}
+          >
+            <View style={styles.grab} />
+            <View style={styles.sheetTitleRow}>
+              <Text style={styles.eyebrow}>
+                Repartidores en calle · {enCalle.length}
+              </Text>
+              <PostaIcon
+                name={listExpanded ? 'chevronDown' : 'chevronUp'}
+                size={16}
+                color={t.ink3}
+              />
+            </View>
+          </Pressable>
+
+          {listExpanded ? (
+            <FlatList
+              data={enCalle}
+              keyExtractor={(r) => r.id}
+              style={{ maxHeight: listMaxHeight }}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={refresh}
+                  tintColor={t.sello}
+                />
+              }
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  <Text style={styles.emptyTitle}>Nadie en calle</Text>
+                  <Text style={styles.emptyBody}>
+                    Cuando haya repartidores con pedidos o GPS vas a verlos acá.
+                  </Text>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <RiderRow rider={item} carga={cargaByRider.get(item.id) ?? 0} />
+              )}
+            />
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -193,12 +195,13 @@ export default function AgencyMapScreen() {
 function createStyles(t: AgencyPalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: t.paper },
-    mapArea: {
+    mapStage: {
       flex: 1,
       position: 'relative',
+    },
+    mapArea: {
+      ...StyleSheet.absoluteFillObject,
       backgroundColor: t.flat,
-      borderBottomWidth: 1,
-      borderBottomColor: t.line,
     },
     map: { flex: 1 },
     refreshFab: {
@@ -213,11 +216,20 @@ function createStyles(t: AgencyPalette) {
       borderColor: t.line,
       alignItems: 'center',
       justifyContent: 'center',
+      zIndex: 2,
     },
     sheet: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 3,
       backgroundColor: t.card,
       borderTopWidth: 1,
       borderTopColor: t.line,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      maxHeight: '48%',
     },
     sheetHeader: {
       paddingHorizontal: 16,

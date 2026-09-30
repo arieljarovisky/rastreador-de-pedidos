@@ -30,6 +30,5 @@ backend/tmp/
 backend/tmp/**
 backend/src/db/**
 
-# APK de la app (se publica por Railway/descarga, no por git; GitHub limita a 100 MB)
-*.apk
-backend/downloads/*.apk
+# APK de la app - usar Git LFS para archivos grandes
+# *.apk - ahora trackeado por Git LFS
