@@ -18,7 +18,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import AgencyTopBar from '../../components/agency/AgencyTopBar';
 import PostaIcon from '../../components/icons/PostaIcons';
+import { useFreshnessTick } from '../../hooks/useFreshnessTick';
 import { computeAgencyPanelCounts } from '../../utils/agencyPanel';
+import { isRepartidorGpsActive } from '../../utils/locationFreshness';
 import { AgencyStackParamList, AgencyTabParamList } from '../../navigation/types';
 
 export default function AgencyDashboardScreen() {
@@ -30,10 +32,11 @@ export default function AgencyDashboardScreen() {
   const { orders, repartidores, loading, refreshing, refresh } = useAgencyOrdersContext();
   const [unreadNotifs, setUnreadNotifs] = useState(0);
 
+  const now = useFreshnessTick();
   const counts = useMemo(() => computeAgencyPanelCounts(orders), [orders]);
   const gpsOn = useMemo(
-    () => repartidores.filter((r) => r.currentLocation).length,
-    [repartidores]
+    () => repartidores.filter((r) => isRepartidorGpsActive(r, now)).length,
+    [repartidores, now]
   );
 
   const loadNotifs = useCallback(async () => {

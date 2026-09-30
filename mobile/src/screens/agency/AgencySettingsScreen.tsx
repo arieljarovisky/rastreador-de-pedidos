@@ -24,6 +24,8 @@ import IconLabelRow from '../../components/ui/IconLabelRow';
 import { zoneLabel } from '../../config/deliveryZones';
 import { AgencySettingsStackParamList } from '../../navigation/types';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
+import { useFreshnessTick } from '../../hooks/useFreshnessTick';
+import { isRepartidorGpsActive } from '../../utils/locationFreshness';
 import { getOAuthRedirectUri } from '../../oauth/redirectUri';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -36,6 +38,7 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
   const styles = useMemo(() => createStyles(t), [t]);
   const { user, token, logout } = useAuth();
   const { orders, repartidores, sellers, deliveryZones, refresh } = useAgencyOrdersContext();
+  const now = useFreshnessTick();
   const [subscription, setSubscription] = useState<AgencySubscriptionStatus | null>(null);
   const [mpStatus, setMpStatus] = useState<AgencyMercadoPagoStatus | null>(null);
   const [payBusy, setPayBusy] = useState(false);
@@ -188,7 +191,7 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
                 <IconLabelRow icon="motorcycle" label={rep.name} color={t.ink} />
                 <Text style={styles.rowMeta}>
                   {rep.deliveryZone ? zoneLabel(deliveryZones, rep.deliveryZone) : 'Sin zona'}
-                  {rep.currentLocation ? ' · GPS activo' : ''}
+                  {isRepartidorGpsActive(rep, now) ? ' · GPS activo' : ''}
                 </Text>
               </View>
             ))

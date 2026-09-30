@@ -19,11 +19,12 @@ import AgencyTopBar from '../../components/agency/AgencyTopBar';
 import PostaIcon from '../../components/icons/PostaIcons';
 import PostaMap from '../../components/PostaMap';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
-import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { api } from '../../api';
 import { AgencyStackParamList } from '../../navigation/types';
 import { User } from '../../types';
-import { resolveRepartidorLocation, useLiveFleetVersion } from '../../utils/liveFleet';
+import { useFreshnessTick } from '../../hooks/useFreshnessTick';
+import { useLiveFleetVersion } from '../../utils/liveFleet';
+import { isRepartidorGpsActive } from '../../utils/locationFreshness';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -35,14 +36,15 @@ function initials(name: string): string {
 function RiderRow({
   rider,
   carga,
+  now,
 }: {
   rider: User;
   carga: number;
+  now: number;
 }) {
   const { palette: t } = useTheme();
   const styles = useMemo(() => createStyles(t), [t]);
-  useLiveFleetVersion();
-  const gps = Boolean(resolveRepartidorLocation(rider));
+  const gps = isRepartidorGpsActive(rider, now);
   return (
     <View style={styles.rider}>
       <View style={styles.av}>
@@ -71,6 +73,8 @@ export default function AgencyMapScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AgencyStackParamList>>();
   const { user, token } = useAuth();
   const { orders, repartidores, refreshing, refresh } = useAgencyOrdersContext();
+  const now = useFreshnessTick();
+  const fleetTick = useLiveFleetVersion();
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [listExpanded, setListExpanded] = useState(false);
 
@@ -91,8 +95,8 @@ export default function AgencyMapScreen() {
   );
 
   const fleetMarkers = useMemo(
-    () => buildSellerFleetMarkers(orders, repartidores),
-    [orders, repartidores]
+    () => buildSellerFleetMarkers(orders, repartidores, now),
+    [orders, repartidores, now, fleetTick]
   );
 
   const cargaByRider = useMemo(() => {
@@ -108,14 +112,13 @@ export default function AgencyMapScreen() {
   const enCalle = useMemo(
     () =>
       repartidores
-        .filter((r) => (cargaByRider.get(r.id) ?? 0) > 0 || resolveRepartidorLocation(r))
+        .filter((r) => isRepartidorGpsActive(r, now))
         .sort((a, b) => (cargaByRider.get(b.id) ?? 0) - (cargaByRider.get(a.id) ?? 0)),
-    [repartidores, cargaByRider]
+    [repartidores, cargaByRider, now, fleetTick]
   );
 
   /** Lista colapsable: mapa usa el resto de la pantalla y no pelea con el refresh. */
   const listMaxHeight = Math.min(320, Math.round(windowHeight * 0.38));
-  const bottomPad = TAB_BAR_CLEARANCE + insets.bottom;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -141,7 +144,7 @@ export default function AgencyMapScreen() {
           </Pressable>
         </View>
 
-        <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
+        <View style={styles.sheet}>
           <Pressable
             style={styles.sheetHeader}
             onPress={() => setListExpanded((v) => !v)}
@@ -179,12 +182,12 @@ export default function AgencyMapScreen() {
                 <View style={styles.empty}>
                   <Text style={styles.emptyTitle}>Nadie en calle</Text>
                   <Text style={styles.emptyBody}>
-                    Cuando haya repartidores con pedidos o GPS vas a verlos acá.
+                    Aparecen acá solo cuando la app está abierta y está llegando el GPS.
                   </Text>
                 </View>
               }
               renderItem={({ item }) => (
-                <RiderRow rider={item} carga={cargaByRider.get(item.id) ?? 0} />
+                <RiderRow rider={item} carga={cargaByRider.get(item.id) ?? 0} now={now} />
               )}
             />
           ) : null}

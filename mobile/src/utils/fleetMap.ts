@@ -2,6 +2,7 @@ import { Order, OrderStatus, User } from '../types';
 import { MapMarker } from '../components/PostaMap';
 import { dedupeRepartidores, repartidorMarkerKey } from './repartidorLocation';
 import { resolveRepartidorLocation } from './liveFleet';
+import { isStaleLocation } from './locationFreshness';
 import { spreadOverlappingMarkers } from './markerSpread';
 
 const COLORS = {
@@ -14,7 +15,8 @@ const COLORS = {
 /** Marcadores para mapa de flota del vendedor (repartidores asignados + pedidos activos). */
 export function buildSellerFleetMarkers(
   orders: Order[],
-  repartidores: User[]
+  repartidores: User[],
+  now = Date.now()
 ): MapMarker[] {
   const markers: MapMarker[] = [];
 
@@ -27,7 +29,7 @@ export function buildSellerFleetMarkers(
   const repsWithLocation = dedupeRepartidores(repartidores).flatMap((rep) => {
     if (!assignedRepIds.has(rep.id)) return [];
     const loc = resolveRepartidorLocation(rep);
-    if (!loc) return [];
+    if (!loc || isStaleLocation(loc.timestamp, now)) return [];
     return [{ rep, lat: loc.lat, lng: loc.lng }];
   });
 

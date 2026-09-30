@@ -25,6 +25,8 @@ import ListTabButton from '../../components/ui/ListTabButton';
 import MapLegendItem from '../../components/ui/MapLegendItem';
 import PostaMap from '../../components/PostaMap';
 import { buildSellerFleetMarkers } from '../../utils/fleetMap';
+import { useFreshnessTick } from '../../hooks/useFreshnessTick';
+import { useLiveFleetVersion } from '../../utils/liveFleet';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { SellerHomeStackParamList, SellerStackParamList } from '../../navigation/types';
 import { api } from '../../api';
@@ -60,6 +62,8 @@ export default function SellerOrdersScreen({ navigation }: Props) {
   const [tab, setTab] = useState<Tab>('active');
   const [mapExpanded, setMapExpanded] = useState(true);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const now = useFreshnessTick();
+  const fleetTick = useLiveFleetVersion();
 
   const loadNotifs = useCallback(async () => {
     if (!token) return;
@@ -78,8 +82,8 @@ export default function SellerOrdersScreen({ navigation }: Props) {
   );
 
   const fleetMarkers = useMemo(
-    () => buildSellerFleetMarkers(orders, repartidores),
-    [orders, repartidores]
+    () => buildSellerFleetMarkers(orders, repartidores, now),
+    [orders, repartidores, now, fleetTick]
   );
 
   const data = useMemo(() => filterOrders(orders, tab), [orders, tab]);
