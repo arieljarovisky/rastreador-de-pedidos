@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors, { CorsOptions } from 'cors';
@@ -146,6 +147,33 @@ app.use('/api/public', publicRoutes);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const downloadsDir = path.join(__dirname, '..', 'downloads');
+const apkPath = path.join(downloadsDir, 'posta-repartidor.apk');
+/** Railway clona sin Git LFS: el .apk del disco es el puntero. El binario está en GitHub. */
+const apkLfsUrl =
+  'https://github.com/arieljarovisky/rastreador-de-pedidos/raw/main/backend/downloads/posta-repartidor.apk';
+
+function apkOnDiskIsLfsPointer(): boolean {
+  try {
+    const fd = fs.openSync(apkPath, 'r');
+    try {
+      const buf = Buffer.alloc(48);
+      const n = fs.readSync(fd, buf, 0, buf.length, 0);
+      return buf.subarray(0, n).toString('utf8').startsWith('version https://git-lfs.github.com/spec/v1');
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
+app.get('/downloads/posta-repartidor.apk', (req, res, next) => {
+  if (!apkOnDiskIsLfsPointer()) {
+    next();
+    return;
+  }
+  res.redirect(302, apkLfsUrl);
+});
 
 app.use(
   '/downloads',
