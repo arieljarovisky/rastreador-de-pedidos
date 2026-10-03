@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#EFE7D8"/>
+      <stop offset="100%" style="stop-color:#E7DDCB"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  
+  <!-- Decorative border -->
+  <rect x="24" y="24" width="1152" height="582" fill="none" stroke="#1C1814" stroke-width="3"/>
+  
+  <!-- Top strip -->
+  <rect x="24" y="24" width="1152" height="48" fill="#1C1814"/>
+  <text x="48" y="56" fill="#EFE7D8" font-family="monospace" font-size="16" letter-spacing="2">REMITO N 001 - LOGISTICA EN TIEMPO REAL</text>
+  <text x="1128" y="56" fill="#3FAE63" font-family="monospace" font-size="16" letter-spacing="2" text-anchor="end">EN VIVO</text>
+  
+  <!-- Logo -->
+  <g transform="translate(100, 200)">
+    <circle cx="26" cy="64" r="12" fill="#1C1814"/>
+    <line x1="38" y1="64" x2="58" y2="64" stroke="#1C1814" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="80" cy="64" r="14" fill="none" stroke="#1C1814" stroke-width="8"/>
+    <line x1="94" y1="64" x2="114" y2="64" stroke="#D8401E" stroke-width="8" stroke-linecap="round"/>
+    <path d="M110 50 L134 64 L110 78 Z" fill="#D8401E"/>
+  </g>
+  
+  <!-- Brand name -->
+  <text x="260" y="280" fill="#1C1814" font-family="system-ui, sans-serif" font-size="72" font-weight="800" letter-spacing="-2">Posta</text>
+  
+  <!-- Tagline -->
+  <text x="100" y="360" fill="#1C1814" font-family="system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="-1">Hoja de ruta en vivo</text>
+  <text x="100" y="420" fill="#1C1814" font-family="system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="-1">para tu logistica</text>
+  
+  <!-- Description -->
+  <text x="100" y="500" fill="#544A3C" font-family="system-ui, sans-serif" font-size="24">Seguimiento GPS en tiempo real - Panel web para agencias</text>
+  <text x="100" y="535" fill="#544A3C" font-family="system-ui, sans-serif" font-size="24">App nativa para repartidores - CABA y GBA</text>
+  
+  <!-- Stamp -->
+  <g transform="translate(850, 280) rotate(-8)">
+    <rect x="0" y="0" width="220" height="80" fill="none" stroke="#D8401E" stroke-width="4" rx="8"/>
+    <rect x="4" y="4" width="212" height="72" fill="none" stroke="#D8401E" stroke-width="2" rx="6"/>
+    <text x="110" y="52" fill="#D8401E" font-family="monospace" font-size="24" font-weight="700" text-anchor="middle" letter-spacing="3">EN VIVO</text>
+  </g>
+  
+  <!-- URL -->
+  <text x="1128" y="590" fill="#897C68" font-family="monospace" font-size="18" text-anchor="end" letter-spacing="1">enviosposta.com.ar</text>
+</svg>
