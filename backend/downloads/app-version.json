@@ -1,7 +1,8 @@
 {
-  "version": "1.4.0",
-  "minVersion": "1.4.0",
-  "versionCode": 18,
-  "minVersionCode": 18,
-  "message": "Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras."
+  "version": "1.4.1",
+  "minVersion": "1.4.1",
+  "versionCode": 19,
+  "minVersionCode": 19,
+  "message": "Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras.",
+  "downloadUrl": "https://expo.dev/artifacts/eas/6gN9DyVkmEO4H1i6DLCeiBV-3Pjl-kLWV9teo0Wxk1Q.apk"
 }
