@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "06ee2081-1a17-4906-ae17-85aa0566f692"
+      }
+    },
+    "android": {
+      "package": "com.jaroviskyariel.postamonorepo"
+    }
+  }
+}
