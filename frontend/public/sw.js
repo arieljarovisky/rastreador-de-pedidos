@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'posta-rastreo-v2';
+const CACHE_NAME = 'posta-rastreo-v3';
 
 const PRECACHE_ASSETS = [
   '/manifest.json',
@@ -42,7 +42,16 @@ function isHashedAsset(url) {
 
 // HTML: siempre red — evita index.html viejo que apunta a chunks que ya no existen tras un deploy
 async function networkOnly(request) {
-  return fetch(request);
+  try {
+    return await fetch(request);
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return new Response('Sin conexión', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
 }
 
 // Bundles con hash: red primero; solo cachear respuestas OK
@@ -57,7 +66,7 @@ async function networkFirstAsset(request) {
   } catch {
     const cached = await caches.match(request);
     if (cached) return cached;
-    throw new Error('Offline');
+    return new Response('', { status: 504, statusText: 'Offline' });
   }
 }
 
@@ -80,7 +89,9 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
-      return fetch(event.request);
+      return fetch(event.request).catch(
+        () => new Response('', { status: 504, statusText: 'Offline' })
+      );
     })
   );
 });

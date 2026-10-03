@@ -37,6 +37,35 @@ import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
 import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
 
+const CACHED_NOTIFICATIONS_LIMIT = 40;
+
+function cacheNotifications(notifications: AppNotification[]) {
+  const slim = notifications.slice(0, CACHED_NOTIFICATIONS_LIMIT).map((n) => ({
+    id: n.id,
+    userId: n.userId,
+    title: n.title,
+    body: String(n.body ?? '').slice(0, 500),
+    createdAt: n.createdAt,
+    read: n.read,
+    type: n.type,
+    ...(n.orderId ? { orderId: n.orderId } : {}),
+  }));
+  const payload = JSON.stringify(slim);
+  try {
+    localStorage.setItem('cached_notifications', payload);
+    return;
+  } catch {
+    // La cuota ya está llena (pedidos + notificaciones viejas).
+  }
+  try {
+    localStorage.removeItem('cached_notifications');
+    localStorage.removeItem('cached_orders');
+    localStorage.setItem('cached_notifications', payload);
+  } catch {
+    // Modo privado o cuota todavía agotada.
+  }
+}
+
 function LazyFallback() {
   return (
     <div className="flex-1 flex items-center justify-center min-h-[12rem] text-[11px] font-mono uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -636,24 +665,35 @@ export default function App() {
         }));
         localStorage.setItem('cached_orders', JSON.stringify(slim));
       } catch {
-        // quota / private mode
+        try {
+          localStorage.removeItem('cached_orders');
+        } catch {
+          // modo privado
+        }
       }
     }, 2000);
     return () => window.clearTimeout(timer);
   }, [orders]);
   useEffect(() => {
-    if (notifications.length > 0) {
-      localStorage.setItem('cached_notifications', JSON.stringify(notifications));
-    }
+    if (notifications.length === 0) return;
+    const timer = window.setTimeout(() => {
+      cacheNotifications(notifications);
+    }, 2000);
+    return () => window.clearTimeout(timer);
   }, [notifications]);
 
   // Recuperar caché si se inicia offline
   useEffect(() => {
     if (!isOnline) {
-      const cachedOrders = localStorage.getItem('cached_orders');
-      const cachedNotifs = localStorage.getItem('cached_notifications');
-      if (cachedOrders) setOrders(JSON.parse(cachedOrders));
-      if (cachedNotifs) setNotifications(JSON.parse(cachedNotifs));
+      try {
+        const cachedOrders = localStorage.getItem('cached_orders');
+        const cachedNotifs = localStorage.getItem('cached_notifications');
+        if (cachedOrders) setOrders(JSON.parse(cachedOrders));
+        if (cachedNotifs) setNotifications(JSON.parse(cachedNotifs));
+      } catch {
+        localStorage.removeItem('cached_orders');
+        localStorage.removeItem('cached_notifications');
+      }
     }
   }, [isOnline]);
 

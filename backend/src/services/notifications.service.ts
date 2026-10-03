@@ -34,7 +34,8 @@ export async function listNotificationsForUser(userId: string): Promise<AppNotif
     `SELECT n.id, n.user_id, n.title, n.body, n.type, n.order_id, n.is_read, n.created_at
      FROM notifications n
      WHERE n.user_id = ?
-     ORDER BY n.created_at DESC`,
+     ORDER BY n.created_at DESC
+     LIMIT 100`,
     [userId]
   );
   return rows.map(rowToNotification);
