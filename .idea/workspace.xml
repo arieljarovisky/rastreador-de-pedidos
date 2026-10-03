@@ -4,16 +4,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7aeee08-5793-4dac-a8bd-3ed39e7229e4" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/mobile/src/screens/agency/AgencyPriceListsScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobile/src/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/api.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobile/src/navigation/AgencyNavigator.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/navigation/AgencyNavigator.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobile/src/navigation/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/navigation/types.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobile/src/screens/agency/AgencyDashboardScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/agency/AgencyDashboardScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobile/src/screens/agency/AgencySettingsScreen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/screens/agency/AgencySettingsScreen.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mobile/src/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/mobile/src/types.ts" afterDir="false" />
-    </list>
+    <list default="true" id="c7aeee08-5793-4dac-a8bd-3ed39e7229e4" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

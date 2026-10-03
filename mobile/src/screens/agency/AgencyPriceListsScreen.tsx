@@ -407,6 +407,8 @@ export default function AgencyPriceListsScreen() {
                   value={list.isDefault ? list.name : listName}
                   onChangeText={setListName}
                   editable={!list.isDefault}
+                  scrollEnabled={false}
+                  multiline={false}
                   style={[styles.input, list.isDefault && styles.inputDisabled]}
                 />
                 {list.isDefault ? (
@@ -502,6 +504,8 @@ export default function AgencyPriceListsScreen() {
             onChangeText={setNewName}
             placeholder="Nombre"
             placeholderTextColor={t.ink3}
+            scrollEnabled={false}
+            multiline={false}
             style={[styles.input, { marginTop: spacing.md }]}
             autoFocus
           />
@@ -584,6 +588,8 @@ function RateField({
         value={value}
         onChangeText={onChange}
         keyboardType="decimal-pad"
+        scrollEnabled={false}
+        multiline={false}
         style={styles.rateInput}
         placeholder="0"
         placeholderTextColor={t.ink3}
@@ -678,11 +684,15 @@ function createStyles(t: AgencyPalette) {
       borderColor: t.line2,
       borderRadius: 10,
       paddingHorizontal: 12,
-      height: 46,
+      paddingVertical: 0,
+      height: 48,
       backgroundColor: t.card,
       color: t.ink,
       fontFamily: fonts.body,
       fontSize: 16,
+      lineHeight: 20,
+      textAlignVertical: 'center',
+      includeFontPadding: false,
     },
     inputDisabled: { color: t.ink2, backgroundColor: t.flat },
     zoneRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -711,15 +721,19 @@ function createStyles(t: AgencyPalette) {
     rateLabel: { width: 78, fontFamily: fonts.body, fontSize: 14, color: t.ink2 },
     rateInput: {
       flex: 1,
-      height: 44,
+      height: 48,
       borderWidth: 1,
       borderColor: t.line2,
       borderRadius: 10,
       paddingHorizontal: 12,
+      paddingVertical: 0,
       backgroundColor: t.card,
       color: t.ink,
       fontFamily: fonts.body,
       fontSize: 16,
+      lineHeight: 20,
+      textAlignVertical: 'center',
+      includeFontPadding: false,
     },
     marginBox: {
       marginTop: 4,
