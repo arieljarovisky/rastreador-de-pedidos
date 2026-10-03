@@ -219,14 +219,61 @@ export interface BillingLedgerEntry {
   createdAt: string;
 }
 
+export interface BillingSellerBalance {
+  sellerId: string;
+  sellerName: string;
+  totalSpent: number;
+  balance: number;
+  chargedShipments: number;
+}
+
 export interface BillingSummary {
   currency: 'ARS';
   dateFrom: string;
   dateTo: string;
+  sellerId?: string | null;
+  sellerName?: string | null;
   totalSpent: number;
   totalPaid: number;
   balance: number;
   chargedShipments: number;
+  byShippingType?: Array<{ shippingType: string; count: number; amount: number }>;
+  sellers?: BillingSellerBalance[];
+}
+
+export interface DriverLedgerEntry {
+  id: string;
+  agencyId: string;
+  repartidorId: string;
+  repartidorName: string | null;
+  orderId: string | null;
+  entryType: 'earning' | 'payment' | 'adjustment';
+  amount: number;
+  description: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface DriverSettlementRow {
+  repartidorId: string;
+  repartidorName: string;
+  totalEarned: number;
+  balance: number;
+  deliveredShipments: number;
+}
+
+export interface DriverSettlementSummary {
+  currency: 'ARS';
+  dateFrom: string;
+  dateTo: string;
+  repartidorId: string | null;
+  repartidorName: string | null;
+  totalEarned: number;
+  totalPaid: number;
+  balance: number;
+  deliveredShipments: number;
+  byShippingType?: Array<{ shippingType: string; count: number; amount: number }>;
+  repartidores?: DriverSettlementRow[];
 }
 
 export interface BillingPaymentOptions {
@@ -279,6 +326,51 @@ export interface DriverScanEntry {
 export interface DriverScanDayResult {
   date: string;
   entries: DriverScanEntry[];
+}
+
+export type RouteAlertKind = 'accident' | 'closure' | 'jam' | 'hazard' | 'construction';
+
+export interface RouteAlert {
+  id: string;
+  kind: RouteAlertKind;
+  lat: number;
+  lng: number;
+  title: string;
+  description: string | null;
+  delaySeconds: number;
+  source: 'fleet' | 'tomtom' | 'gcba' | 'traffic';
+  expiresAt: string | null;
+  mine: boolean;
+  onPath: boolean;
+}
+
+export interface RouteStop {
+  id: string;
+  source: 'order' | 'scan';
+  clientName: string;
+  address: string;
+  lat: number;
+  lng: number;
+  sequence: number;
+  etaSeconds: number;
+  legDurationSeconds: number;
+  legDistanceMeters: number;
+}
+
+export interface RoutePlan {
+  generatedAt: string;
+  origin: { lat: number; lng: number };
+  stops: RouteStop[];
+  skipped: Array<{ label: string; reason: string }>;
+  polyline: Array<{ lat: number; lng: number }>;
+  totalDurationSeconds: number;
+  totalDistanceMeters: number;
+  freeFlowDurationSeconds: number;
+  trafficDelaySeconds: number;
+  trafficMode: 'live' | 'estimated';
+  summary: string;
+  warning: string | null;
+  alerts: RouteAlert[];
 }
 
 export function isAgencyAdmin(role: UserRole): boolean {

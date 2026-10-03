@@ -31,6 +31,7 @@ import publicRoutes from './routes/public.routes.js';
 import mercadopagoRoutes from './routes/mercadopago.routes.js';
 import subscriptionsRoutes from './routes/subscriptions.routes.js';
 import platformRoutes from './routes/platform.routes.js';
+import routePlanRoutes from './routes/route-plan.routes.js';
 import {
   isMercadoPagoOAuthConfigured,
   isPostaMercadoPagoConfigured,
@@ -139,6 +140,7 @@ app.use('/api/integrations', integrationsRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/driver-settlement', authenticate, requireAgencySubscription, driverSettlementRoutes);
 app.use('/api/driver-scan', authenticate, requireAgencySubscription, driverScanRoutes);
+app.use('/api/route-plan', authenticate, requireAgencySubscription, routePlanRoutes);
 app.use('/api/price-lists', authenticate, requireAgencySubscription, priceListsRoutes);
 app.use('/api/mercadopago', mercadopagoRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);

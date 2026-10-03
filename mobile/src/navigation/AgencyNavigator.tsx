@@ -10,6 +10,7 @@ import AgencyMapScreen from '../screens/agency/AgencyMapScreen';
 import AgencyOrderDetailScreen from '../screens/agency/AgencyOrderDetailScreen';
 import AgencySettingsScreen from '../screens/agency/AgencySettingsScreen';
 import AgencyNotificationsScreen from '../screens/agency/AgencyNotificationsScreen';
+import AgencyBalancesScreen from '../screens/agency/AgencyBalancesScreen';
 import PostaBottomTabBar from '../components/navigation/PostaBottomTabBar';
 import {
   AgencyHomeStackParamList,
@@ -142,6 +143,11 @@ export default function AgencyNavigator() {
           name="AgencyNotifications"
           component={AgencyNotificationsScreen}
           options={{ title: 'Notificaciones' }}
+        />
+        <Stack.Screen
+          name="AgencyBalances"
+          component={AgencyBalancesScreen}
+          options={{ title: 'Saldos y pagos' }}
         />
       </Stack.Navigator>
     </AgencyOrdersProvider>

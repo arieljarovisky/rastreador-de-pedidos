@@ -33,7 +33,8 @@ export type PostaIconName =
   | 'alert'
   | 'search'
   | 'sun'
-  | 'moon';
+  | 'moon'
+  | 'receipt';
 
 interface Props {
   name: PostaIconName;
@@ -317,6 +318,18 @@ export default function PostaIcon({
             strokeWidth={strokeWidth}
             strokeLinejoin="round"
           />
+        </Svg>
+      );
+    case 'receipt':
+      return (
+        <Svg {...common}>
+          <Path
+            d="M6 3h12a1 1 0 011 1v17l-2.2-1.4L14.5 21l-2.5-1.5L9.5 21l-2.3-1.4L5 21V4a1 1 0 011-1z"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinejoin="round"
+          />
+          <Path d="M9 8h6M9 12h6M9 16h3" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
         </Svg>
       );
     default:

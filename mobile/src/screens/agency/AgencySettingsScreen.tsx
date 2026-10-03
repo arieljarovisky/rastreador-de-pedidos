@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -32,7 +33,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 type Props = NativeStackScreenProps<AgencySettingsStackParamList, 'AgencySettings'>;
 
-export default function AgencySettingsScreen({ navigation: _navigation }: Props) {
+export default function AgencySettingsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { palette: t } = useTheme();
   const styles = useMemo(() => createStyles(t), [t]);
@@ -179,6 +180,20 @@ export default function AgencySettingsScreen({ navigation: _navigation }: Props)
               Los escaneos se hacen en la app oficial de Mercado Envíos Flex.
             </Text>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Cuentas</Text>
+          <Pressable
+            style={({ pressed }) => [styles.integrationCard, pressed && { opacity: 0.9 }]}
+            onPress={() => navigation.navigate('AgencyBalances' as never)}
+          >
+            <Text style={styles.agencyName}>Saldos y pagos</Text>
+            <Text style={[styles.integrationHint, { marginTop: 4 }]}>
+              Generá el saldo del día, la semana o el mes y registrá cobros de vendedores o pagos a
+              repartidores.
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.section}>

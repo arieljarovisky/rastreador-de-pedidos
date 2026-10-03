@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -11,13 +12,14 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
 import { api } from '../api';
-import { DriverScanEntry, Order, OrderStatus } from '../types';
+import { DriverScanEntry, Order, OrderStatus, RouteStop } from '../types';
 import { colors, roleAccents, spacing, typography } from '../theme';
 import OrderCard from '../components/OrderCard';
 import RepartidorMlConnectBar from '../components/RepartidorMlConnectBar';
@@ -56,6 +58,28 @@ function formatScanTime(iso: string): string {
   }
 }
 
+/** Google Maps acepta hasta 9 paradas intermedias más el destino. */
+const MAPS_MAX_STOPS = 10;
+
+function googleMapsRouteUrl(
+  origin: { lat: number; lng: number },
+  stops: Array<Pick<RouteStop, 'lat' | 'lng'>>
+): string {
+  const included = stops.slice(0, MAPS_MAX_STOPS);
+  const destination = included[included.length - 1];
+  const via = included.slice(0, -1);
+  const params = new URLSearchParams({
+    api: '1',
+    origin: `${origin.lat},${origin.lng}`,
+    destination: `${destination.lat},${destination.lng}`,
+    travelmode: 'driving',
+  });
+  if (via.length > 0) {
+    params.set('waypoints', via.map((stop) => `${stop.lat},${stop.lng}`).join('|'));
+  }
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 function formatRouteDateLabel(dateKey: string): string {
   const [y, m, d] = dateKey.split('-').map(Number);
   if (!y || !m || !d) return dateKey;
@@ -86,6 +110,7 @@ export default function OrdersScreen({ navigation }: Props) {
   } = useOrdersContext();
   const [tab, setTab] = useState<Tab>('assigned');
   const [startingRoute, setStartingRoute] = useState(false);
+  const [planningRoute, setPlanningRoute] = useState(false);
   const [personalEntries, setPersonalEntries] = useState<DriverScanEntry[]>([]);
   const [personalDate, setPersonalDate] = useState<string>('');
   const [personalLoading, setPersonalLoading] = useState(false);
@@ -152,6 +177,58 @@ export default function OrdersScreen({ navigation }: Props) {
   const displayName = user?.name ?? 'Repartidor';
   const showStartRoute = tab === 'assigned' && readyToDeliver.length > 0 && !deliveringOrder;
   const showContinueRoute = tab === 'assigned' && deliveringOrder != null;
+  const showPlanRoute =
+    (tab === 'assigned' && myAssigned.length > 0) || (tab === 'personal' && personalPending > 0);
+  const routeActions = (showPlanRoute ? 1 : 0) + (showStartRoute || showContinueRoute ? 1 : 0);
+
+  const handlePlanRoute = () => {
+    if (!token || planningRoute) return;
+    void (async () => {
+      setPlanningRoute(true);
+      try {
+        const last = await Location.getLastKnownPositionAsync();
+        const fresh = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        }).catch(() => null);
+        const pos = fresh ?? last;
+        if (!pos) {
+          Alert.alert('Ubicación', 'No pudimos leer tu ubicación para armar el recorrido.');
+          return;
+        }
+        const plan = await api.planRoute(token, {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        if (plan.stops.length === 0) {
+          Alert.alert('Sin recorrido', 'No hay paquetes con ubicación para abrir en Google Maps.');
+          return;
+        }
+        await Linking.openURL(googleMapsRouteUrl(plan.origin, plan.stops));
+        const omitted = Math.max(0, plan.stops.length - MAPS_MAX_STOPS);
+        if (omitted > 0 || plan.skipped.length > 0) {
+          const notes: string[] = [];
+          if (omitted > 0) {
+            notes.push(`Google Maps abre hasta ${MAPS_MAX_STOPS} paradas. Quedaron ${omitted} para otro viaje.`);
+          }
+          if (plan.skipped.length > 0) {
+            notes.push(
+              plan.skipped.length === 1
+                ? '1 paquete sin ubicación no entró en la ruta.'
+                : `${plan.skipped.length} paquetes sin ubicación no entraron en la ruta.`
+            );
+          }
+          Alert.alert('Recorrido abierto', notes.join('\n'));
+        }
+      } catch (err) {
+        Alert.alert(
+          'No se pudo armar el recorrido',
+          err instanceof Error ? err.message : 'Intentá de nuevo.'
+        );
+      } finally {
+        setPlanningRoute(false);
+      }
+    })();
+  };
 
   const handleStartDelivering = () => {
     const count = readyToDeliver.length;
@@ -532,7 +609,7 @@ export default function OrdersScreen({ navigation }: Props) {
             contentContainerStyle={[
               styles.list,
               personalEntries.length === 0 && styles.listEmpty,
-              { paddingBottom: TAB_BAR_CLEARANCE + spacing.lg },
+              { paddingBottom: TAB_BAR_CLEARANCE + spacing.lg + routeActions * 64 },
             ]}
             refreshControl={
               <RefreshControl
@@ -570,8 +647,7 @@ export default function OrdersScreen({ navigation }: Props) {
             styles.list,
             data.length === 0 && styles.listEmpty,
             {
-              paddingBottom:
-                TAB_BAR_CLEARANCE + spacing.lg + (showStartRoute || showContinueRoute ? 72 : 0),
+              paddingBottom: TAB_BAR_CLEARANCE + spacing.lg + routeActions * 64,
             },
           ]}
           refreshControl={
@@ -602,26 +678,34 @@ export default function OrdersScreen({ navigation }: Props) {
         />
       )}
 
-      {showStartRoute ? (
-        <View style={[styles.routeBar, { paddingBottom: TAB_BAR_CLEARANCE + spacing.sm }]}>
-          <Button
-            label={`Empezar a repartir (${readyToDeliver.length})`}
-            variant="amber"
-            onPress={handleStartDelivering}
-            loading={startingRoute}
-            style={styles.routeBtn}
-          />
-        </View>
-      ) : null}
-
-      {showContinueRoute && deliveringOrder ? (
-        <View style={[styles.routeBar, { paddingBottom: TAB_BAR_CLEARANCE + spacing.sm }]}>
-          <Button
-            label="Continuar reparto"
-            variant="amber"
-            onPress={() => navigation.navigate('OrderDetail', { orderId: deliveringOrder.id })}
-            style={styles.routeBtn}
-          />
+      {showPlanRoute || showStartRoute || showContinueRoute ? (
+        <View style={[styles.routeBar, { paddingBottom: TAB_BAR_CLEARANCE + spacing.sm, gap: spacing.sm }]}>
+          {showPlanRoute ? (
+            <Button
+              label="Armar recorrido"
+              variant="amber"
+              onPress={handlePlanRoute}
+              loading={planningRoute}
+              style={styles.routeBtn}
+            />
+          ) : null}
+          {showStartRoute ? (
+            <Button
+              label={`Empezar a repartir (${readyToDeliver.length})`}
+              variant="secondary"
+              onPress={handleStartDelivering}
+              loading={startingRoute}
+              style={styles.routeBtn}
+            />
+          ) : null}
+          {showContinueRoute && deliveringOrder ? (
+            <Button
+              label="Continuar reparto"
+              variant="secondary"
+              onPress={() => navigation.navigate('OrderDetail', { orderId: deliveringOrder.id })}
+              style={styles.routeBtn}
+            />
+          ) : null}
         </View>
       ) : null}
     </View>

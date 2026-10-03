@@ -206,6 +206,20 @@ export default function AgencyDashboardScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
+          onPress={() => navigation.navigate('AgencyBalances')}
+        >
+          <View style={styles.ico}>
+            <PostaIcon name="receipt" size={19} color={t.sello} strokeWidth={1.7} />
+          </View>
+          <View style={styles.tileText}>
+            <Text style={styles.tileTitle}>Saldos y pagos</Text>
+            <Text style={styles.tileSub}>Por día, semana o mes. Cobros y liquidaciones</Text>
+          </View>
+          <Text style={styles.chev}>›</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
           onPress={() => goTab('Settings')}
         >
           <View style={styles.ico}>

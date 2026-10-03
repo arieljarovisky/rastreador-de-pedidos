@@ -123,6 +123,18 @@ export const env = {
     clientId: process.env.GOOGLE_CLIENT_ID?.trim() || '',
   },
   /**
+   * Recorridos del repartidor. Sin claves usa calles (OSRM) + hora pico + novedades de la flota.
+   * GOOGLE_MAPS_API_KEY o TOMTOM_API_KEY activan tránsito en vivo.
+   * BA_TRANSPORTE_* suma cortes oficiales de CABA.
+   */
+  routing: {
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY?.trim() || '',
+    tomtomApiKey: process.env.TOMTOM_API_KEY?.trim() || '',
+    baTransporteClientId: process.env.BA_TRANSPORTE_CLIENT_ID?.trim() || '',
+    baTransporteClientSecret: process.env.BA_TRANSPORTE_CLIENT_SECRET?.trim() || '',
+    osrmUrl: (process.env.OSRM_URL?.trim() || 'https://router.project-osrm.org').replace(/\/$/, ''),
+  },
+  /**
    * Emails del dueño de Posta (lista separada por comas).
    * Independiente del rol SUPER_ADMIN (dueño de agencia).
    */

@@ -74,4 +74,5 @@ export type AgencyStackParamList = {
   MainTabs: NavigatorScreenParams<AgencyTabParamList>;
   AgencyOrderDetail: { orderId: string };
   AgencyNotifications: undefined;
+  AgencyBalances: undefined;
 };

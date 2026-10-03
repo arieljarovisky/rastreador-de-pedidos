@@ -9,11 +9,14 @@ import {
   MarketplaceShipmentPreview,
   Order,
   OrderStatus,
+  RoutePlan,
   PickupPoint,
   User,
   BillingSummary,
   BillingLedgerEntry,
   BillingPaymentOptions,
+  DriverLedgerEntry,
+  DriverSettlementSummary,
   AgencySubscriptionStatus,
   AgencyMercadoPagoStatus,
   DriverScanEntry,
@@ -500,14 +503,78 @@ export const api = {
     return apiUrl(`/api/orders/${orderId}/mercadolibre-label`);
   },
 
-  getBillingSummary(token: string, dateFrom: string, dateTo: string): Promise<BillingSummary> {
+  getBillingSummary(
+    token: string,
+    dateFrom: string,
+    dateTo: string,
+    options?: { sellerId?: string }
+  ): Promise<BillingSummary> {
     const params = new URLSearchParams({ dateFrom, dateTo });
+    if (options?.sellerId) params.set('sellerId', options.sellerId);
     return request<BillingSummary>(`/api/billing/summary?${params}`, { token });
   },
 
-  getBillingLedger(token: string, dateFrom: string, dateTo: string): Promise<BillingLedgerEntry[]> {
-    const params = new URLSearchParams({ dateFrom, dateTo, limit: '5000' });
+  getBillingLedger(
+    token: string,
+    dateFrom: string,
+    dateTo: string,
+    options?: { sellerId?: string; limit?: number }
+  ): Promise<BillingLedgerEntry[]> {
+    const params = new URLSearchParams({
+      dateFrom,
+      dateTo,
+      limit: String(options?.limit ?? 5000),
+    });
+    if (options?.sellerId) params.set('sellerId', options.sellerId);
     return request<BillingLedgerEntry[]>(`/api/billing/ledger?${params}`, { token });
+  },
+
+  recordBillingPayment(
+    token: string,
+    body: { sellerId: string; amount: number; description?: string }
+  ): Promise<BillingLedgerEntry> {
+    return request<BillingLedgerEntry>('/api/billing/payments', {
+      method: 'POST',
+      token,
+      body,
+    });
+  },
+
+  getDriverSettlementSummary(
+    token: string,
+    dateFrom: string,
+    dateTo: string,
+    options?: { repartidorId?: string }
+  ): Promise<DriverSettlementSummary> {
+    const params = new URLSearchParams({ dateFrom, dateTo });
+    if (options?.repartidorId) params.set('repartidorId', options.repartidorId);
+    return request<DriverSettlementSummary>(`/api/driver-settlement/summary?${params}`, { token });
+  },
+
+  getDriverLedger(
+    token: string,
+    dateFrom: string,
+    dateTo: string,
+    options?: { repartidorId?: string; limit?: number }
+  ): Promise<DriverLedgerEntry[]> {
+    const params = new URLSearchParams({
+      dateFrom,
+      dateTo,
+      limit: String(options?.limit ?? 80),
+    });
+    if (options?.repartidorId) params.set('repartidorId', options.repartidorId);
+    return request<DriverLedgerEntry[]>(`/api/driver-settlement/ledger?${params}`, { token });
+  },
+
+  recordDriverPayment(
+    token: string,
+    body: { repartidorId: string; amount: number; description?: string }
+  ): Promise<DriverLedgerEntry> {
+    return request<DriverLedgerEntry>('/api/driver-settlement/payments', {
+      method: 'POST',
+      token,
+      body,
+    });
   },
 
   getBillingPaymentOptions(token: string): Promise<BillingPaymentOptions> {
@@ -552,6 +619,15 @@ export const api = {
 
   disconnectAgencyMercadoPago(token: string): Promise<void> {
     return request<void>('/api/mercadopago/oauth', { method: 'DELETE', token });
+  },
+
+  planRoute(token: string, origin: { lat: number; lng: number }): Promise<RoutePlan> {
+    return request<RoutePlan>('/api/route-plan', {
+      method: 'POST',
+      token,
+      body: origin,
+      timeoutMs: 45_000,
+    });
   },
 };
 

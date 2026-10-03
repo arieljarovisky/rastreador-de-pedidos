@@ -28,6 +28,8 @@ export interface MapPoint {
 export interface MapMarker extends MapPoint {
   id?: string;
   color: string;
+  /** Número o signo corto dibujado dentro del pin. */
+  badge?: string;
   /** Mueve el marcador con interpolación suave (ideal para repartidores). */
   animated?: boolean;
 }
@@ -108,23 +110,41 @@ const MAP_SHELL_HTML = `<!DOCTYPE html>
       }
     }
 
-    function makePin(color) {
+    function makePin(color, badge) {
+      if (!badge) {
+        return L.divIcon({
+          className: '',
+          html:
+            '<div class="driver-pin" style="width:18px;height:18px;border-radius:50%;background:' +
+            color +
+            ';border:2px solid #e9edf4;box-shadow:0 2px 8px rgba(0,0,0,0.5);"></div>',
+          iconSize: [18, 18],
+          iconAnchor: [9, 9],
+        });
+      }
+      const text = String(badge);
+      const fontSize = text.length > 1 ? 9 : 11;
       return L.divIcon({
         className: '',
         html:
-          '<div class="driver-pin" style="width:18px;height:18px;border-radius:50%;background:' +
+          '<div style="width:22px;height:22px;border-radius:50%;background:' +
           color +
-          ';border:2px solid #e9edf4;box-shadow:0 2px 8px rgba(0,0,0,0.5);"></div>',
-        iconSize: [18, 18],
-        iconAnchor: [9, 9],
+          ';border:2px solid #EDE6D8;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
+          '<span style="color:#1C1814;font-weight:700;font-size:' +
+          fontSize +
+          'px;line-height:14px;font-family:sans-serif;">' +
+          text +
+          '</span></div>',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
       });
     }
 
-    function paintMarker(marker, color, label) {
-      const visual = color + '|' + (label || '');
+    function paintMarker(marker, color, label, badge) {
+      const visual = color + '|' + (label || '') + '|' + (badge || '');
       if (marker._postaVisual === visual) return;
       marker._postaVisual = visual;
-      marker.setIcon(makePin(color));
+      marker.setIcon(makePin(color, badge || ''));
       if (label) {
         if (marker.getPopup()) marker.setPopupContent(label);
         else marker.bindPopup(label);
@@ -160,10 +180,10 @@ const MAP_SHELL_HTML = `<!DOCTYPE html>
       if (markers[id]) {
         if (m.animated) animateMarker(id, markers[id], m.lat, m.lng);
         else markers[id].setLatLng([m.lat, m.lng]);
-        paintMarker(markers[id], m.color, m.label || '');
+        paintMarker(markers[id], m.color, m.label || '', m.badge || '');
       } else {
-        const marker = L.marker([m.lat, m.lng], { icon: makePin(m.color) }).addTo(map);
-        marker._postaVisual = m.color + '|' + (m.label || '');
+        const marker = L.marker([m.lat, m.lng], { icon: makePin(m.color, m.badge || '') }).addTo(map);
+        marker._postaVisual = m.color + '|' + (m.label || '') + '|' + (m.badge || '');
         if (m.label) marker.bindPopup(m.label);
         markers[id] = marker;
       }
