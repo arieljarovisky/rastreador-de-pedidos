@@ -75,4 +75,5 @@ export type AgencyStackParamList = {
   AgencyOrderDetail: { orderId: string };
   AgencyNotifications: undefined;
   AgencyBalances: undefined;
+  AgencyPriceLists: undefined;
 };

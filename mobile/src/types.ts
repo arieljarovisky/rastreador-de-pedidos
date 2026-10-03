@@ -377,6 +377,40 @@ export function isAgencyAdmin(role: UserRole): boolean {
   return role === UserRole.SUPER_ADMIN || role === UserRole.LOGISTICS_ADMIN;
 }
 
+export interface RateTrio {
+  flex: number;
+  express: number;
+  standard: number;
+}
+
+export interface PriceListZoneRates {
+  zoneKey: string;
+  zoneName: string;
+  shipping: RateTrio;
+  driverPay: RateTrio;
+}
+
+export interface PriceListSummary {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  sellerCount: number;
+}
+
+export interface PriceList extends PriceListSummary {
+  agencyId: string;
+  outsideShipping: RateTrio;
+  outsideDriverPay: RateTrio;
+  zoneRates: PriceListZoneRates[];
+}
+
+export interface SellerPriceListAssignment {
+  sellerId: string;
+  sellerName: string;
+  priceListId: string | null;
+  priceListName: string | null;
+}
+
 export function isSellerRole(role: UserRole): boolean {
   return role === UserRole.STORE_ADMIN;
 }

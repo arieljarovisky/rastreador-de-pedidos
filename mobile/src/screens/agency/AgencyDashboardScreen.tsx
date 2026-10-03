@@ -220,6 +220,20 @@ export default function AgencyDashboardScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
+          onPress={() => navigation.navigate('AgencyPriceLists')}
+        >
+          <View style={styles.ico}>
+            <PostaIcon name="tag" size={19} color={t.sello} strokeWidth={1.7} />
+          </View>
+          <View style={styles.tileText}>
+            <Text style={styles.tileTitle}>Listas de precios</Text>
+            <Text style={styles.tileSub}>Editar tarifas y asignarlas a vendedores</Text>
+          </View>
+          <Text style={styles.chev}>›</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
           onPress={() => goTab('Settings')}
         >
           <View style={styles.ico}>

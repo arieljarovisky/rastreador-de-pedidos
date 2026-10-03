@@ -194,6 +194,15 @@ export default function AgencySettingsScreen({ navigation }: Props) {
               repartidores.
             </Text>
           </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.integrationCard, { marginTop: spacing.md }, pressed && { opacity: 0.9 }]}
+            onPress={() => navigation.navigate('AgencyPriceLists' as never)}
+          >
+            <Text style={styles.agencyName}>Listas de precios</Text>
+            <Text style={[styles.integrationHint, { marginTop: 4 }]}>
+              Modificá cobros y pagos por zona, y asigná una lista a cada vendedor.
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.section}>

@@ -22,6 +22,10 @@ import {
   DriverScanEntry,
   DriverScanDayResult,
   DriverScanEntryStatus,
+  PriceList,
+  PriceListSummary,
+  RateTrio,
+  SellerPriceListAssignment,
 } from './types';
 import type { DeliveryZone } from './config/deliveryZones';
 import type { Barrio } from './config/deliveryZones';
@@ -619,6 +623,54 @@ export const api = {
 
   disconnectAgencyMercadoPago(token: string): Promise<void> {
     return request<void>('/api/mercadopago/oauth', { method: 'DELETE', token });
+  },
+
+  listPriceLists(token: string): Promise<PriceListSummary[]> {
+    return request<{ lists: PriceListSummary[] }>('/api/price-lists', { token }).then((data) => data.lists);
+  },
+
+  getPriceList(token: string, listId: string): Promise<PriceList> {
+    return request<PriceList>(`/api/price-lists/${listId}`, { token });
+  },
+
+  createPriceList(
+    token: string,
+    body: { name: string; cloneFromId?: string | null }
+  ): Promise<PriceList> {
+    return request<PriceList>('/api/price-lists', { method: 'POST', token, body });
+  },
+
+  updatePriceList(
+    token: string,
+    listId: string,
+    body: {
+      name?: string;
+      zoneRates?: Array<{ zoneKey: string; shipping: RateTrio; driverPay: RateTrio }>;
+    }
+  ): Promise<PriceList> {
+    return request<PriceList>(`/api/price-lists/${listId}`, { method: 'PUT', token, body });
+  },
+
+  deletePriceList(token: string, listId: string): Promise<void> {
+    return request<void>(`/api/price-lists/${listId}`, { method: 'DELETE', token });
+  },
+
+  listSellerPriceListAssignments(token: string): Promise<SellerPriceListAssignment[]> {
+    return request<{ assignments: SellerPriceListAssignment[] }>('/api/price-lists/sellers', { token }).then(
+      (data) => data.assignments
+    );
+  },
+
+  assignSellerPriceList(
+    token: string,
+    sellerId: string,
+    priceListId: string | null
+  ): Promise<void> {
+    return request<void>(`/api/price-lists/sellers/${sellerId}`, {
+      method: 'PUT',
+      token,
+      body: { priceListId },
+    });
   },
 
   planRoute(token: string, origin: { lat: number; lng: number }): Promise<RoutePlan> {
