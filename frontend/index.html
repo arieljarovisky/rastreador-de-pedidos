@@ -1470,6 +1470,15 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   if (btnAndroid) btnAndroid.href = apkUrl;
   if (btnIos) btnIos.href = webAppUrl;
 
+  fetch(absUrl('/api/app/version'))
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (info) {
+      if (!btnAndroid || !info || typeof info.downloadUrl !== 'string' || !info.downloadUrl) return;
+      btnAndroid.href = info.downloadUrl;
+      btnAndroid.removeAttribute('download');
+    })
+    .catch(function () {});
+
   fetch(apkUrl, { method: 'HEAD' }).then(function (res) {
     if (!res.ok && dlWarn) dlWarn.hidden = false;
   }).catch(function () {

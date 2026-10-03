@@ -154,6 +154,21 @@ const apkPath = path.join(downloadsDir, 'posta-repartidor.apk');
 const apkLfsUrl =
   'https://github.com/arieljarovisky/rastreador-de-pedidos/raw/main/backend/downloads/posta-repartidor.apk';
 
+/** La APK nueva vive en Expo: GitHub no acepta el binario de más de 100 MB. */
+function readPublishedApkUrl(): string | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(downloadsDir, 'app-version.json'), 'utf8')) as {
+      downloadUrl?: unknown;
+    };
+    if (typeof raw.downloadUrl === 'string' && /^https?:\/\//i.test(raw.downloadUrl)) {
+      return raw.downloadUrl;
+    }
+  } catch {
+    // sin URL publicada
+  }
+  return null;
+}
+
 function apkOnDiskIsLfsPointer(): boolean {
   try {
     const fd = fs.openSync(apkPath, 'r');
@@ -170,6 +185,11 @@ function apkOnDiskIsLfsPointer(): boolean {
 }
 
 app.get('/downloads/posta-repartidor.apk', (req, res, next) => {
+  const published = readPublishedApkUrl();
+  if (published) {
+    res.redirect(302, published);
+    return;
+  }
   if (!apkOnDiskIsLfsPointer()) {
     next();
     return;
