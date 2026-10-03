@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -63,6 +63,9 @@ export default function AgencyBalancesScreen() {
   const [driverSummary, setDriverSummary] = useState<DriverSettlementSummary | null>(null);
   const [sellerLedger, setSellerLedger] = useState<BillingLedgerEntry[]>([]);
   const [driverLedger, setDriverLedger] = useState<DriverLedgerEntry[]>([]);
+  const [focusedSellerLedger, setFocusedSellerLedger] = useState<BillingLedgerEntry[] | null>(null);
+  const [focusedDriverLedger, setFocusedDriverLedger] = useState<DriverLedgerEntry[] | null>(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +77,47 @@ export default function AgencyBalancesScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const range = useMemo(() => balanceRange(period, offset), [period, offset]);
+
+  useEffect(() => {
+    if (!token || !payPersonId) {
+      setFocusedSellerLedger(null);
+      setFocusedDriverLedger(null);
+      setLedgerLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setFocusedSellerLedger(null);
+    setFocusedDriverLedger(null);
+    setLedgerLoading(true);
+    const request =
+      kind === 'sellers'
+        ? api
+            .getBillingLedger(token, range.dateFrom, range.dateTo, { sellerId: payPersonId, limit: 500 })
+            .then((entries) => {
+              if (!cancelled) setFocusedSellerLedger(entries);
+            })
+        : api
+            .getDriverLedger(token, range.dateFrom, range.dateTo, {
+              repartidorId: payPersonId,
+              limit: 500,
+            })
+            .then((entries) => {
+              if (!cancelled) setFocusedDriverLedger(entries);
+            });
+    request
+      .catch(() => {
+        if (!cancelled) {
+          setFocusedSellerLedger(null);
+          setFocusedDriverLedger(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLedgerLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, payPersonId, kind, range.dateFrom, range.dateTo]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -220,22 +264,43 @@ export default function AgencyBalancesScreen() {
           meta: `${row.deliveredShipments} entrega${row.deliveredShipments === 1 ? '' : 's'}`,
         }));
 
-  const movements =
-    kind === 'sellers'
-      ? sellerLedger.map((entry) => ({
-          id: entry.id,
-          title: entry.description,
-          meta: `${formatArDateTime(entry.createdAt)}${entry.sellerName ? ` · ${entry.sellerName}` : ''}`,
-          amount: entry.amount,
-          payment: entry.entryType === 'payment',
-        }))
-      : driverLedger.map((entry) => ({
-          id: entry.id,
-          title: entry.description,
-          meta: `${formatArDateTime(entry.createdAt)}${entry.repartidorName ? ` · ${entry.repartidorName}` : ''}`,
-          amount: entry.amount,
-          payment: entry.entryType === 'payment',
-        }));
+  const movements = useMemo(() => {
+    if (kind === 'sellers') {
+      const source =
+        payPersonId && focusedSellerLedger
+          ? focusedSellerLedger
+          : payPersonId
+            ? sellerLedger.filter((entry) => entry.sellerId === payPersonId)
+            : sellerLedger;
+      return source.map((entry) => ({
+        id: entry.id,
+        title: entry.description,
+        meta: `${formatArDateTime(entry.createdAt)}${entry.sellerName ? ` · ${entry.sellerName}` : ''}`,
+        amount: entry.amount,
+        payment: entry.entryType === 'payment',
+      }));
+    }
+    const source =
+      payPersonId && focusedDriverLedger
+        ? focusedDriverLedger
+        : payPersonId
+          ? driverLedger.filter((entry) => entry.repartidorId === payPersonId)
+          : driverLedger;
+    return source.map((entry) => ({
+      id: entry.id,
+      title: entry.description,
+      meta: `${formatArDateTime(entry.createdAt)}${entry.repartidorName ? ` · ${entry.repartidorName}` : ''}`,
+      amount: entry.amount,
+      payment: entry.entryType === 'payment',
+    }));
+  }, [
+    kind,
+    payPersonId,
+    sellerLedger,
+    driverLedger,
+    focusedSellerLedger,
+    focusedDriverLedger,
+  ]);
 
   const byType =
     kind === 'sellers' ? sellerSummary?.byShippingType : driverSummary?.byShippingType;
@@ -341,7 +406,9 @@ export default function AgencyBalancesScreen() {
               <Text style={styles.sectionTitle}>
                 {kind === 'sellers' ? 'Saldo por vendedor' : 'Saldo por repartidor'}
               </Text>
-              <Text style={styles.captionInline}>Tocá un nombre para cargarlo en el pago.</Text>
+              <Text style={styles.captionInline}>
+                Tocá un nombre para ver sus envíos en Movimientos y cargarlo en el pago.
+              </Text>
               {rows.length === 0 ? (
                 <Text style={styles.muted}>No hay movimientos en este período.</Text>
               ) : (
@@ -353,7 +420,7 @@ export default function AgencyBalancesScreen() {
                       payPersonId === row.id && styles.personRowOn,
                       pressed && styles.pressed,
                     ]}
-                    onPress={() => setPayPersonId(row.id)}
+                    onPress={() => setPayPersonId((current) => (current === row.id ? '' : row.id))}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.personName}>{row.name}</Text>
@@ -446,10 +513,24 @@ export default function AgencyBalancesScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Movimientos</Text>
-              {movements.length === 0 ? (
+              <View style={styles.sectionHead}>
+                <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
+                  {selectedPerson ? `Movimientos · ${selectedPerson.name}` : 'Movimientos'}
+                </Text>
+                {payPersonId ? (
+                  <Pressable onPress={() => setPayPersonId('')} hitSlop={8}>
+                    <Text style={styles.clearFilter}>Ver todos</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              {ledgerLoading && payPersonId ? (
+                <ActivityIndicator color={t.sello} style={{ marginVertical: spacing.sm }} />
+              ) : null}
+              {movements.length === 0 && !(ledgerLoading && payPersonId) ? (
                 <Text style={styles.muted}>
-                  No hay movimientos en este período. Los cargos aparecen cuando un envío se entrega.
+                  {selectedPerson
+                    ? `${selectedPerson.name} no tiene movimientos en este período.`
+                    : 'No hay movimientos en este período. Los cargos aparecen cuando un envío se entrega.'}
                 </Text>
               ) : (
                 movements.map((entry) => (
@@ -658,6 +739,19 @@ function createStyles(t: AgencyPalette) {
       textTransform: 'uppercase',
       color: t.ink3,
       marginBottom: spacing.sm,
+    },
+    sectionHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      marginBottom: spacing.sm,
+    },
+    sectionTitleInline: { flex: 1, marginBottom: 0 },
+    clearFilter: {
+      fontFamily: fonts.bodySemiBold,
+      fontSize: 12,
+      color: t.sello,
     },
     muted: {
       fontFamily: fonts.body,

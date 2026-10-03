@@ -583,7 +583,9 @@ function RateField({
   const styles = useMemo(() => createStyles(t), [t]);
   return (
     <View style={styles.rateRow}>
-      <Text style={styles.rateLabel}>{label}</Text>
+      <Text style={styles.rateLabel} numberOfLines={1}>
+        {label}
+      </Text>
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -715,13 +717,21 @@ function createStyles(t: AgencyPalette) {
     rateRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      justifyContent: 'space-between',
+      gap: 16,
       marginBottom: 8,
     },
-    rateLabel: { width: 78, fontFamily: fonts.body, fontSize: 14, color: t.ink2 },
-    rateInput: {
+    rateLabel: {
       flex: 1,
-      height: 48,
+      flexShrink: 1,
+      fontFamily: fonts.body,
+      fontSize: 15,
+      color: t.ink2,
+    },
+    rateInput: {
+      width: '46%',
+      flexGrow: 0,
+      height: 42,
       borderWidth: 1,
       borderColor: t.line2,
       borderRadius: 10,
