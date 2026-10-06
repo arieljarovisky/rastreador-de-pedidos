@@ -3,17 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Clock,
-  CheckCircle2,
   AlertTriangle,
-  Package,
-  Truck,
   Users,
   ChevronRight,
   Bike,
-  Layers,
   Filter,
   ChevronDown,
   ChevronUp,
@@ -38,7 +33,6 @@ import {
   isRolledForwardWeekendOperationalDay,
   DELIVERY_DEADLINE_HOUR,
   DELIVERY_SLA_HOUR,
-  DELIVERY_TIMEZONE_LABEL,
   formatArTime,
 } from '../utils/deliverySummary.js';
 import SellerFilterControl from './SellerFilterControl.tsx';
@@ -94,6 +88,7 @@ export default function OperationsDashboard({
   const [cordonFilterId, setCordonFilterId] = useState('');
   const [repartidorFilterId, setRepartidorFilterId] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [queue, setQueue] = useState<'open' | 'route' | 'done' | 'late'>('open');
   const [ambaGeoReady, setAmbaGeoReady] = useState(() => isAmbaGeoLoaded());
   const isToday = selectedDateKey === todayKey;
   const isTomorrow = selectedDateKey === tomorrowKey;
@@ -124,6 +119,10 @@ export default function OperationsDashboard({
       cancelled = true;
     };
   }, [ambaGeoReady]);
+
+  useEffect(() => {
+    setQueue('open');
+  }, [selectedDateKey]);
 
   const cordonZones = useMemo(
     () => buildCordonMapZones(deliveryZones, barrios),
@@ -189,15 +188,6 @@ export default function OperationsDashboard({
     [scopedOrders, selectedDateKey]
   );
 
-  const statusBreakdown = useMemo(() => {
-    const undeliveredToday = getUndeliveredTodayOrders(scopedOrders, selectedDateKey);
-    return {
-      pending: undeliveredToday.filter((o) => o.status === OrderStatus.PENDING).length,
-      assigned: undeliveredToday.filter((o) => o.status === OrderStatus.ASSIGNED).length,
-      delivering: undeliveredToday.filter((o) => o.status === OrderStatus.DELIVERING).length,
-    };
-  }, [scopedOrders, selectedDateKey]);
-
   const sellerBreakdown = useMemo(() => {
     if (!isAgencyAdmin(userRole)) return [];
     const map = new Map<string, { id: string; name: string; undelivered: number; delivered: number }>();
@@ -243,29 +233,74 @@ export default function OperationsDashboard({
         ? 'mañana'
         : formatOperationalDateShort(selectedDateKey);
 
+  const routeOrders = useMemo(
+    () => undelivered.filter((order) => order.status === OrderStatus.DELIVERING),
+    [undelivered]
+  );
+  const activeOrders =
+    queue === 'done' ? delivered : queue === 'late' ? deliveredLate : queue === 'route' ? routeOrders : undelivered;
+
+  const headline =
+    summary.total === 0
+      ? 'No hay pedidos'
+      : summary.undelivered === 0
+        ? 'Todo entregado'
+        : `${summary.undelivered} por entregar`;
+
+  const deadlineLine = isToday
+    ? summary.isPastDeadline
+      ? `El corte de las ${cutHour}:00 ya pasó. Son las ${formatArTime()} hs.`
+      : `Corte a las ${cutHour}:00 · faltan ${formatMinutesUntilDeadline(summary.minutesUntilDeadline)}.`
+    : isFuture
+      ? 'Pedidos programados para este día.'
+      : 'Este día ya cerró.';
+
+  const listCopy = {
+    open: {
+      title: isToday ? 'Por entregar hoy' : `Por entregar ${dayScopeLabel}`,
+      empty: isToday
+        ? 'No queda nada por entregar.'
+        : `No hay pedidos pendientes para ${dayScopeLabel}.`,
+      tone: 'warn' as const,
+    },
+    route: {
+      title: 'En viaje',
+      empty: 'Nadie está en camino ahora.',
+      tone: 'warn' as const,
+    },
+    done: {
+      title: isToday ? 'Entregados hoy' : `Entregados ${dayScopeLabel}`,
+      empty: isToday ? 'Todavía no hay entregas.' : `No hubo entregas ${dayScopeLabel}.`,
+      tone: 'ok' as const,
+    },
+    late: {
+      title: 'Entregados tarde',
+      empty: `Ninguno se entregó después de las ${DELIVERY_SLA_HOUR}:00.`,
+      tone: 'danger' as const,
+    },
+  }[queue];
+
   return (
-    <div
-      className="flex flex-col posta-surface"
-      id="operations-dashboard"
-    >
-      <div className="p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3 sm:space-y-3 lg:shrink-0">
+    <div className="flex flex-col posta-surface" id="operations-dashboard">
+      <div className="p-3 sm:p-5 border-b border-[var(--surface-border)] space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-              {isAgency ? 'Posta Agencia' : 'Posta Envios'} · Panel del día
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {isAgency ? 'Agencia' : 'Envíos'} · {dayScopeLabel}
             </p>
-            <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5">
-              Control de entregas
+            <h1 className="text-2xl sm:text-[1.75rem] font-display font-bold text-[var(--ink-soft)] leading-tight mt-0.5">
+              {headline}
             </h1>
+            <p className="text-sm text-[var(--color-text-muted)] mt-1">{deadlineLine}</p>
           </div>
           {onGoToOperations && (
             <button
               type="button"
               onClick={onGoToOperations}
-              className="shrink-0 min-h-11 px-3 py-2.5 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] uppercase tracking-wider flex items-center gap-1"
+              className="shrink-0 min-h-11 px-3.5 py-2 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] text-sm font-semibold inline-flex items-center gap-1"
             >
-              Mapa y pedidos
-              <ChevronRight className="w-3.5 h-3.5" />
+              Ver mapa
+              <ChevronRight className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -295,59 +330,102 @@ export default function OperationsDashboard({
           onGoToday={() => setSelectedDateKey(todayKey)}
         />
 
+        {summary.total > 0 && (
+          <div className="rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] px-3.5 py-3">
+            <div className="flex items-baseline justify-between gap-3 mb-2">
+              <p className="text-sm text-[var(--ink-soft)]">
+                <span className="font-semibold">{summary.delivered}</span>
+                {' de '}
+                {progressBase}
+                {' entregados'}
+              </p>
+              <p className="text-sm font-mono font-bold tabular-nums text-[var(--color-ok)]">{progressPct}%</p>
+            </div>
+            <div className="h-2.5 bg-[var(--surface-bg)] rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-500 ${
+                  urgency === 'overdue' ? 'bg-[var(--color-danger)]' : 'bg-[var(--color-ok)]'
+                }`}
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            {summary.overdue > 0 && (
+              <p className="mt-2 text-sm text-[var(--color-danger)] flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {summary.overdue} ya pasaron el horario de entrega.
+              </p>
+            )}
+          </div>
+        )}
+
+        {summary.total > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="tablist" aria-label="Qué pedidos ver">
+            <QueueTab
+              label="Por entregar"
+              count={undelivered.length}
+              selected={queue === 'open'}
+              onClick={() => setQueue('open')}
+            />
+            <QueueTab
+              label="En viaje"
+              count={routeOrders.length}
+              selected={queue === 'route'}
+              onClick={() => setQueue('route')}
+            />
+            <QueueTab
+              label="Entregados"
+              count={delivered.length}
+              selected={queue === 'done'}
+              onClick={() => setQueue('done')}
+            />
+            <QueueTab
+              label="Tarde"
+              count={deliveredLate.length}
+              selected={queue === 'late'}
+              attention={deliveredLate.length > 0}
+              onClick={() => setQueue('late')}
+            />
+          </div>
+        )}
+
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => setFiltersOpen((open) => !open)}
             aria-expanded={filtersOpen}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+            className={`inline-flex items-center gap-1.5 min-h-10 px-3 rounded-[5px] border text-sm transition ${
               filtersOpen || activeFiltersCount > 0
                 ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
                 : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--ink-soft)] hover:border-[var(--color-accent)]/30'
             }`}
           >
-            <Filter className="w-3.5 h-3.5 shrink-0" />
-            Filtros
+            <Filter className="w-4 h-4 shrink-0" />
+            Filtrar
             {activeFiltersCount > 0 && (
-              <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-accent)] text-white text-[9px] flex items-center justify-center">
+              <span className="min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-[var(--color-accent)] text-white text-[11px] font-semibold flex items-center justify-center">
                 {activeFiltersCount}
               </span>
             )}
-            {filtersOpen ? (
-              <ChevronUp className="w-3.5 h-3.5 shrink-0 opacity-70" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-70" />
-            )}
+            {filtersOpen ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
           </button>
           {activeFiltersCount > 0 && (
             <button
               type="button"
               onClick={clearFilters}
-              className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
+              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition"
             >
-              Limpiar
+              Quitar filtros
             </button>
           )}
         </div>
 
         {filtersOpen && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {isAgency && sellers.length > 0 && (
-              <SellerFilterControl
-                sellers={sellers}
-                value={sellerFilterId}
-                onChange={setSellerFilterId}
-              />
+              <SellerFilterControl sellers={sellers} value={sellerFilterId} onChange={setSellerFilterId} />
             )}
-            <MarketplaceSourceFilter
-              value={marketplaceSourceFilter}
-              onChange={setMarketplaceSourceFilter}
-            />
-            <CordonFilterControl
-              zones={cordonZones}
-              value={cordonFilterId}
-              onChange={setCordonFilterId}
-            />
+            <MarketplaceSourceFilter value={marketplaceSourceFilter} onChange={setMarketplaceSourceFilter} />
+            <CordonFilterControl zones={cordonZones} value={cordonFilterId} onChange={setCordonFilterId} />
             {isAgency && (
               <RepartidorFilterControl
                 repartidores={repartidores}
@@ -357,204 +435,82 @@ export default function OperationsDashboard({
             )}
           </div>
         )}
-
-        <p className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 flex-wrap">
-          <Clock className="w-3.5 h-3.5 shrink-0" />
-          <span>
-            Corte {cutHour}:00 hs ({DELIVERY_TIMEZONE_LABEL})
-            {isToday ? (
-              <>
-                {' · '}
-                {summary.isPastDeadline
-                  ? 'vencido'
-                  : formatMinutesUntilDeadline(summary.minutesUntilDeadline)}
-                {' · ahora '}
-                {formatArTime()} hs
-              </>
-            ) : isFuture ? (
-              <> · pedidos programados</>
-            ) : (
-              <> · día cerrado</>
-            )}
-          </span>
-        </p>
-
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <KpiCard label="Total pedidos" value={summary.total} tone="accent" icon={Layers} />
-            <KpiCard label="Entregados" value={summary.delivered} tone="ok" icon={CheckCircle2} />
-            <KpiCard label="Sin entregar" value={summary.undelivered} tone={summary.undelivered > 0 ? 'warn' : 'neutral'} icon={Package} />
-            <KpiCard label="Fuera plazo" value={summary.overdue} tone={summary.overdue > 0 ? 'danger' : 'neutral'} icon={AlertTriangle} />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <KpiCard
-              label="Entregados tarde"
-              value={summary.deliveredLate}
-              tone={summary.deliveredLate > 0 ? 'danger' : 'neutral'}
-              icon={AlertTriangle}
-            />
-            <KpiCard label="En ruta" value={statusBreakdown.delivering} tone="warn" icon={Truck} />
-            <KpiCard label="Pendientes" value={statusBreakdown.pending + statusBreakdown.assigned} tone="neutral" icon={Package} />
-          </div>
-        </div>
-
-        {summary.total > 0 && (
-          <div>
-            <div className="flex justify-between text-[10px] font-mono text-[var(--color-text-muted)] mb-1">
-              <span>Progreso del día ({summary.total} pedidos)</span>
-              <span className={urgency === 'overdue' ? 'text-[var(--color-danger)] font-bold' : ''}>
-                {progressPct}%
-              </span>
-            </div>
-            <div className="h-2.5 sm:h-2 bg-[var(--surface-panel-2)] rounded-full overflow-hidden border border-[var(--surface-border)]">
-              <div
-                className="h-full bg-[var(--color-ok)] transition-all duration-500"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          </div>
-        )}
       </div>
 
-      <div className="flex flex-col p-3 sm:p-4 pt-3 pb-6 lg:pb-4">
-        <div
-          className={`grid gap-3 ${
-            isAgency && sellerBreakdown.length > 0
-              ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
-              : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
-          }`}
-        >
-          <OrderListSection
-            title={
-              isWeekendForward
-                ? `Sin entregar el ${dayScopeLabel}`
-                : isToday
-                  ? 'Sin entregar hoy'
-                  : isTomorrow
-                    ? 'Sin entregar mañana'
-                    : 'Sin entregar'
-            }
-            count={undelivered.length}
-            orders={undelivered}
-            emptyMessage={
-              isWeekendForward
-                ? `No hay pedidos sin entregar el ${dayScopeLabel}.`
-                : isToday
-                  ? 'Todos los pedidos del día fueron entregados.'
-                  : isTomorrow
-                    ? 'No hay pedidos programados para mañana.'
-                    : `No quedaron pedidos sin entregar el ${dayScopeLabel}.`
-            }
-            tone="warn"
-            onSelectOrder={onSelectOrder}
-            onScheduleOrderToday={
-              !isToday && onScheduleOrderToday ? onScheduleOrderToday : undefined
-            }
-            showSeller={isAgency}
-          />
-          <OrderListSection
-            title={
-              isWeekendForward
-                ? `Entregados el ${dayScopeLabel}`
-                : isToday
-                  ? 'Entregados hoy'
-                  : isTomorrow
-                    ? 'Entregados mañana'
-                    : 'Entregados'
-            }
-            count={delivered.length}
-            orders={delivered}
-            emptyMessage={
-              isWeekendForward
-                ? `Todavía no hay entregas registradas el ${dayScopeLabel}.`
-                : isToday
-                  ? 'Todavía no hay entregas registradas hoy.'
-                  : isTomorrow
-                    ? 'Todavía no hay entregas registradas para mañana.'
-                    : `No hubo entregas registradas el ${dayScopeLabel}.`
-            }
-            tone="ok"
-            onSelectOrder={onSelectOrder}
-            showSeller={isAgency}
-          />
-          <OrderListSection
-            title="Entregados fuera de plazo"
-            count={deliveredLate.length}
-            orders={deliveredLate}
-            emptyMessage={
-              isWeekendForward
-                ? `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
-                : isToday
-                  ? `Ningún pedido entregado después de las ${DELIVERY_SLA_HOUR}:00.`
-                  : isTomorrow
-                    ? 'Ningún pedido de mañana entregado fuera de plazo.'
-                    : `Ningún pedido entregado fuera de plazo el ${dayScopeLabel}.`
-            }
-            tone="danger"
-            onSelectOrder={onSelectOrder}
-            showSeller={isAgency}
-            showDeliveredAt
-            deadlineHour={DELIVERY_SLA_HOUR}
-            className="md:col-span-2 xl:col-span-1"
-          />
-
-          {isAgency && sellerBreakdown.length > 0 && (
-            <SellerBreakdownSection
-              rows={sellerBreakdown}
-              selectedSellerId={sellerFilterId}
-              onSelectSeller={setSellerFilterId}
-              onViewSellerHistory={onViewSellerHistory}
-              className="hidden 2xl:flex"
+      <div className="p-3 sm:p-5">
+        {summary.total === 0 ? (
+          <p className="rounded-[var(--radius-posta)] border border-[var(--surface-border)] px-4 py-10 text-center text-sm text-[var(--color-text-muted)]">
+            No hay pedidos para {dayScopeLabel}. Probá otro día o quitá los filtros.
+          </p>
+        ) : (
+          <div
+            className={`grid gap-4 ${
+              isAgency && sellerBreakdown.length > 0 ? 'xl:grid-cols-[minmax(0,1fr)_17.5rem]' : 'grid-cols-1'
+            }`}
+          >
+            <OrderListSection
+              title={listCopy.title}
+              count={activeOrders.length}
+              orders={activeOrders}
+              emptyMessage={listCopy.empty}
+              tone={listCopy.tone}
+              onSelectOrder={onSelectOrder}
+              onScheduleOrderToday={!isToday && queue === 'open' && onScheduleOrderToday ? onScheduleOrderToday : undefined}
+              showSeller={isAgency}
+              showDeliveredAt={queue === 'late'}
+              deadlineHour={DELIVERY_SLA_HOUR}
             />
-          )}
-        </div>
-
-        {isAgency && sellerBreakdown.length > 0 && (
-          <SellerBreakdownSection
-            rows={sellerBreakdown}
-            selectedSellerId={sellerFilterId}
-            onSelectSeller={setSellerFilterId}
-            onViewSellerHistory={onViewSellerHistory}
-            className="mt-3 2xl:hidden"
-          />
+            {isAgency && sellerBreakdown.length > 0 && (
+              <SellerBreakdownSection
+                rows={sellerBreakdown}
+                selectedSellerId={sellerFilterId}
+                onSelectSeller={setSellerFilterId}
+                onViewSellerHistory={onViewSellerHistory}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function KpiCard({
+function QueueTab({
   label,
-  value,
-  sub,
-  tone,
-  icon: Icon,
+  count,
+  selected,
+  attention = false,
+  onClick,
 }: {
   label: string;
-  value: number;
-  sub?: string;
-  tone: 'ok' | 'warn' | 'danger' | 'accent' | 'neutral';
-  icon: React.ComponentType<{ className?: string }>;
+  count: number;
+  selected: boolean;
+  attention?: boolean;
+  onClick: () => void;
 }) {
-  const tones = {
-    ok: 'border-[var(--color-ok)]/25 bg-[var(--color-ok)]/5 text-[var(--color-ok)]',
-    warn: 'border-[var(--color-warn)]/25 bg-[var(--color-warn)]/5 text-[var(--color-warn)]',
-    danger: 'border-[var(--color-danger)]/25 bg-[var(--color-danger)]/5 text-[var(--color-danger)]',
-    accent: 'border-[var(--color-accent)]/25 bg-[var(--color-accent)]/5 text-[var(--color-accent)]',
-    neutral: 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--ink-soft)]',
-  };
-
   return (
-    <div className={`rounded border px-3 py-3 min-w-0 ${tones[tone]}`}>
-      <div className="flex items-center gap-1.5 mb-1.5 opacity-80 min-w-0">
-        <Icon className="w-3.5 h-3.5 shrink-0" />
-        <span className="text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-tight truncate">{label}</span>
-      </div>
-      <p className="text-2xl font-bold font-mono leading-none tabular-nums">
-        {value}
-        {sub && <span className="text-xs text-[var(--color-text-muted)]">{sub}</span>}
-      </p>
-    </div>
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onClick}
+      className={`min-h-12 rounded-[5px] border px-3 py-2 text-left transition ${
+        selected
+          ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10'
+          : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] hover:border-[var(--color-accent)]/30'
+      }`}
+    >
+      <span className="block text-lg font-mono font-bold tabular-nums leading-none text-[var(--ink-soft)]">
+        {count}
+      </span>
+      <span
+        className={`block text-xs mt-1 ${
+          attention && !selected ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-muted)]'
+        }`}
+      >
+        {label}
+      </span>
+    </button>
   );
 }
 
@@ -605,10 +561,10 @@ function OrderListSection({
       className={`border rounded-[var(--radius-posta)] overflow-hidden flex flex-col ${borderTone} ${className}`}
     >
       <div className="shrink-0 px-3 py-2.5 sm:py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex justify-between items-center">
-        <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
+        <h2 className="text-sm font-semibold text-[var(--ink-soft)]">
           {title}
         </h2>
-        <span className="text-[10px] font-mono font-bold text-[var(--color-text-muted)]">{count}</span>
+        <span className="text-sm font-mono font-semibold tabular-nums text-[var(--color-text-muted)]">{count}</span>
       </div>
       {orders.length === 0 ? (
         <p className="flex-1 flex items-center justify-center px-3 py-8 sm:py-6 text-center text-[12px] sm:text-[11px] text-[var(--color-text-muted)]">
@@ -640,17 +596,19 @@ function OrderListSection({
                       );
                     })()}
                   </div>
-                  <p className="text-[15px] sm:text-sm font-semibold text-[var(--ink-soft)] truncate">{order.clientName}</p>
-                  <p className="text-[12px] sm:text-[11px] text-[var(--color-text-muted)] truncate mt-0.5">{order.address}</p>
-                  {showSeller && order.sellerName && (
-                    <p className="text-[11px] sm:text-[10px] text-[var(--color-accent)] mt-1 sm:mt-0.5">{order.sellerName}</p>
-                  )}
-                  {order.repartidorName && (
-                    <p className="text-[11px] sm:text-[10px] text-[var(--color-text-muted)] mt-1 sm:mt-0.5 flex items-center gap-1">
-                      <Bike className="w-3.5 h-3.5 sm:w-3 sm:h-3 shrink-0" />
-                      {order.repartidorName}
-                    </p>
-                  )}
+                  <p className="text-base font-semibold text-[var(--ink-soft)] truncate">{order.clientName}</p>
+                  <p className="text-sm text-[var(--color-text-muted)] truncate mt-0.5">{order.address}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[var(--color-text-muted)]">
+                    {showSeller && order.sellerName && (
+                      <span className="text-[var(--color-accent)]">{order.sellerName}</span>
+                    )}
+                    {order.repartidorName && (
+                      <span className="inline-flex items-center gap-1">
+                        <Bike className="w-3.5 h-3.5 shrink-0" />
+                        {order.repartidorName}
+                      </span>
+                    )}
+                  </div>
                   {showDeliveredAt && (() => {
                     const deliveredAt = getOrderDeliveredAt(order);
                     return deliveredAt ? (
@@ -667,9 +625,9 @@ function OrderListSection({
                       e.stopPropagation();
                       void onScheduleOrderToday(order.id);
                     }}
-                    className="mt-2 w-full sm:w-auto px-2.5 py-1.5 rounded-[5px] border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition"
+                    className="mt-2 min-h-10 px-3 py-2 rounded-[5px] border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-sm font-semibold text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition"
                   >
-                    Programar para hoy
+                    Traer a hoy
                   </button>
                 )}
               </li>
@@ -680,9 +638,9 @@ function OrderListSection({
               <button
                 type="button"
                 onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-                className="w-full py-2 rounded-[5px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/80 hover:bg-[var(--surface-panel-2)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] transition"
+                className="w-full py-2.5 rounded-[5px] text-sm font-semibold text-[var(--color-accent)] hover:bg-[var(--surface-panel-2)] transition"
               >
-                Cargar más ({orders.length - visibleCount} restantes)
+                Cargar más ({orders.length - visibleCount})
               </button>
             </div>
           )}
@@ -710,13 +668,13 @@ function SellerBreakdownSection({
       className={`border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden flex flex-col ${className}`}
     >
       <div className="shrink-0 px-3 py-2.5 sm:py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
-        <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] flex items-center gap-1.5">
-          <Users className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-          Por vendedor
+        <h2 className="text-sm font-semibold text-[var(--ink-soft)] flex items-center gap-1.5">
+          <Users className="w-4 h-4 text-[var(--color-accent)]" />
+          Vendedores
         </h2>
         {onSelectSeller && (
-          <p className="text-[10px] sm:text-[9px] text-[var(--color-text-faint)] mt-1">
-            Tocá para filtrar el día · Historial abre Registro completo
+          <p className="text-xs text-[var(--color-text-muted)] mt-1">
+            Tocá uno para ver solo sus pedidos.
           </p>
         )}
       </div>
@@ -729,9 +687,9 @@ function SellerBreakdownSection({
                 {row.name}
               </span>
               <div className="flex items-center gap-2 shrink-0 font-mono text-[11px] sm:text-[10px]">
-                <span className="text-[var(--color-ok)]">{row.delivered} ok</span>
-                <span className={row.undelivered > 0 ? 'text-[var(--color-warn)] font-bold' : 'text-[var(--color-text-muted)]'}>
-                  {row.undelivered} pend.
+                <span className="text-[var(--color-ok)]">{row.delivered} entregados</span>
+                <span className={row.undelivered > 0 ? 'text-[var(--color-warn)] font-semibold' : 'text-[var(--color-text-muted)]'}>
+                  {row.undelivered} faltan
                 </span>
               </div>
             </>
@@ -764,7 +722,7 @@ function SellerBreakdownSection({
                   type="button"
                   title={`Ver todos los envíos de ${row.name}`}
                   onClick={() => onViewSellerHistory(row.id)}
-                  className="shrink-0 px-2.5 self-stretch flex items-center text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 border-l border-[var(--surface-border)]/60"
+                  className="shrink-0 px-3 self-stretch flex items-center text-xs font-semibold text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 border-l border-[var(--surface-border)]/60"
                 >
                   Historial
                 </button>
