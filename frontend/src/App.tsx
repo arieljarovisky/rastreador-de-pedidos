@@ -12,30 +12,29 @@ import LoginScreen, {
   type RegisterAgencyResult,
 } from './components/LoginScreen.tsx';
 const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
-import OperationsDashboard from './components/OperationsDashboard.tsx';
-import SettingsPage from './components/SettingsPage.tsx';
+const OperationsDashboard = lazy(() => import('./components/OperationsDashboard.tsx'));
+const SettingsPage = lazy(() => import('./components/SettingsPage.tsx'));
 const ShippingAccountPage = lazy(() => import('./components/ShippingAccountPage.tsx'));
 const DriverSettlementPage = lazy(() => import('./components/DriverSettlementPage.tsx'));
-import RegistroPage from './components/RegistroPage.tsx';
+const RegistroPage = lazy(() => import('./components/RegistroPage.tsx'));
 const RepartidorDashboard = lazy(() => import('./components/RepartidorDashboard.tsx'));
-import NotificationHub from './components/NotificationHub.tsx';
+const NotificationHub = lazy(() => import('./components/NotificationHub.tsx'));
+const PriceListsPage = lazy(() => import('./components/PriceListsPage.tsx'));
+const PlatformOwnerPanel = lazy(() => import('./components/PlatformOwnerPanel.tsx'));
+const RealtimeBridge = lazy(() => import('./realtime/RealtimeBridge.tsx'));
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import type { MarketplacePlatform } from './components/MarketplaceIntegrations.tsx';
 import { LogOut, Bell, Settings, LayoutDashboard, Package, Wallet, Tags, Crown, ClipboardList } from 'lucide-react';
 import BootSplash from './components/ui/BootSplash.tsx';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
-import PriceListsPage from './components/PriceListsPage.tsx';
-import PlatformOwnerPanel from './components/PlatformOwnerPanel.tsx';
 import SubscriptionExpiredOverlay from './components/SubscriptionExpiredOverlay.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl, oauthReturnOriginQuery, fetchAllOrders } from './api.ts';
 import { mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
 import { clearLiveFleet, publishLiveRepartidor } from './utils/liveFleet.ts';
-import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
-import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
 
 const CACHED_NOTIFICATIONS_LIMIT = 40;
 
@@ -110,6 +109,39 @@ function readNotifsSidebarOpen(): boolean {
   return localStorage.getItem(NOTIFS_SIDEBAR_KEY) !== 'closed';
 }
 
+/** Con sesión guardada, el chunk de la pantalla activa empieza a bajar junto con el shell. */
+function prefetchSignedInShell() {
+  try {
+    if (!localStorage.getItem('lupo_token')) return;
+    void import('./realtime/RealtimeBridge.tsx');
+    void import('./components/NotificationHub.tsx');
+    const raw = localStorage.getItem('lupo_user');
+    const role = raw ? (JSON.parse(raw) as { role?: string }).role : undefined;
+    if (role === 'platform_owner') {
+      void import('./components/PlatformOwnerPanel.tsx');
+      return;
+    }
+    if (role === 'repartidor') {
+      void import('./components/RepartidorDashboard.tsx');
+      return;
+    }
+    const tab = localStorage.getItem(ACTIVE_TAB_KEY);
+    if (tab === 'dashboard') void import('./components/AdminDashboard.tsx');
+    else if (tab === 'settings') void import('./components/SettingsPage.tsx');
+    else if (tab === 'account') {
+      void import('./components/ShippingAccountPage.tsx');
+      void import('./components/DriverSettlementPage.tsx');
+    } else if (tab === 'registro') void import('./components/RegistroPage.tsx');
+    else if (tab === 'prices') void import('./components/PriceListsPage.tsx');
+    else if (tab === 'platform') void import('./components/PlatformOwnerPanel.tsx');
+    else void import('./components/OperationsDashboard.tsx');
+  } catch {
+    // localStorage no disponible.
+  }
+}
+
+prefetchSignedInShell();
+
 export default function App() {
   const { alert: showAlert, confirm: showConfirm } = useModal();
   const [user, setUser] = useState<User | null>(null);
@@ -174,10 +206,6 @@ export default function App() {
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
-  }, []);
-
-  useEffect(() => {
-    void loadAmbaGeoJson().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -531,38 +559,6 @@ export default function App() {
     setActiveOrderId((current) => (current === orderId ? null : current));
     setLastSyncAt(new Date());
   }, []);
-
-  useRealtimeSocket({
-    token,
-    activeOrderId,
-    onOrderUpdated: mergeOrder,
-    onOrderDeleted: removeOrder,
-    onOrderLocation: (payload) => {
-      // El pin se mueve solo. No tocamos la lista: eso re-renderizaba todo el panel.
-      publishLiveRepartidor(payload.repartidorId, payload.point);
-    },
-    onRepartidorLocation: (payload) => {
-      const current = userRef.current;
-      if (current?.role === UserRole.STORE_ADMIN) {
-        const onSellerOrder = ordersRef.current.some(
-          (o) => !o.archived && o.repartidorId === payload.repartidorId
-        );
-        const known = repartidoresRef.current.some(
-          (r) => r.id === payload.repartidorId || r.username === payload.repartidorId
-        );
-        if (!onSellerOrder && !known) return;
-      }
-      publishLiveRepartidor(payload.repartidorId, payload.location);
-    },
-    onConnectionChange: setWsConnected,
-    onNotificationCreated: (notification) => {
-      setNotifications((prev) => {
-        if (prev.some((n) => n.id === notification.id)) return prev;
-        return [notification, ...prev];
-      });
-      // El pedido llega por order:updated. No re-bajamos toda la lista por cada alerta.
-    },
-  });
 
   // Sincronización inicial + respaldo si WebSocket cae
   useEffect(() => {
@@ -2177,8 +2173,47 @@ export default function App() {
     }
   }, [user, mobileTab, showSettings, showAccount, showRegistro, showPrices, isPlatformOwner, isPlatformOnlyUser, setMobileTab]);
 
+  const liveUpdates = token ? (
+    <Suspense fallback={null}>
+      <RealtimeBridge
+        token={token}
+        activeOrderId={activeOrderId}
+        onOrderUpdated={mergeOrder}
+        onOrderDeleted={removeOrder}
+        onOrderLocation={(payload) => {
+          publishLiveRepartidor(payload.repartidorId, payload.point);
+        }}
+        onRepartidorLocation={(payload) => {
+          const current = userRef.current;
+          if (current?.role === UserRole.STORE_ADMIN) {
+            const onSellerOrder = ordersRef.current.some(
+              (o) => !o.archived && o.repartidorId === payload.repartidorId
+            );
+            const known = repartidoresRef.current.some(
+              (r) => r.id === payload.repartidorId || r.username === payload.repartidorId
+            );
+            if (!onSellerOrder && !known) return;
+          }
+          publishLiveRepartidor(payload.repartidorId, payload.location);
+        }}
+        onConnectionChange={setWsConnected}
+        onNotificationCreated={(notification) => {
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === notification.id)) return prev;
+            return [notification, ...prev];
+          });
+        }}
+      />
+    </Suspense>
+  ) : null;
+
   if (loading && !user) {
-    return <BootSplash message="Sincronizando sistema" />;
+    return (
+      <>
+        {liveUpdates}
+        <BootSplash message="Sincronizando sistema" />
+      </>
+    );
   }
 
   if (
@@ -2187,7 +2222,12 @@ export default function App() {
     !platformSessionChecked &&
     (isAgencyAdmin(user.role) || user.role === UserRole.PLATFORM_OWNER)
   ) {
-    return <BootSplash message="Cargando panel" />;
+    return (
+      <>
+        {liveUpdates}
+        <BootSplash message="Cargando panel" />
+      </>
+    );
   }
 
   if (!user) {
@@ -2246,7 +2286,10 @@ export default function App() {
         <main className="flex-1 min-h-0 overflow-hidden p-2 sm:p-3 md:p-4">
           <div className="app-shell h-full">
             <div className="h-full min-h-[calc(100dvh-5rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-              <PlatformOwnerPanel token={token} />
+              {liveUpdates}
+              <Suspense fallback={<LazyFallback />}>
+                <PlatformOwnerPanel token={token} />
+              </Suspense>
             </div>
           </div>
         </main>
@@ -2256,7 +2299,7 @@ export default function App() {
 
   return (
     <div className="app-viewport min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden">
-      
+      {liveUpdates}
       {/* CABECERA — móvil compacta */}
       <header className="safe-top shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/90 relative z-40 xl:hidden">
         <div className="flex items-center gap-1.5 px-2 py-1.5 min-h-[2.75rem]">
@@ -2624,6 +2667,7 @@ export default function App() {
           >
             {mobileTab === 'panel' && (
               <div className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch]">
+                  <Suspense fallback={<LazyFallback />}>
                   <OperationsDashboard
                     orders={orders}
                     repartidores={repartidores}
@@ -2645,6 +2689,7 @@ export default function App() {
                       setMobileTab('registro');
                     }}
                   />
+                  </Suspense>
               </div>
             )}
             {mobileTab === 'dashboard' && (
@@ -2729,6 +2774,7 @@ export default function App() {
 
             {mobileTab === 'registro' && token && isAgencyAdmin(user.role) && (
               <div className="flex-1 min-w-0 w-full flex flex-col rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-visible">
+                <Suspense fallback={<LazyFallback />}>
                 <RegistroPage
                   token={token}
                   orders={orders}
@@ -2741,23 +2787,29 @@ export default function App() {
                     setMobileTab('dashboard');
                   }}
                 />
+                </Suspense>
               </div>
             )}
 
             {mobileTab === 'prices' && token && isAgencyAdmin(user.role) && (
               <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-                <PriceListsPage token={token} />
+                <Suspense fallback={<LazyFallback />}>
+                  <PriceListsPage token={token} />
+                </Suspense>
               </div>
             )}
 
             {mobileTab === 'platform' && token && isPlatformOwner && (
               <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-                <PlatformOwnerPanel token={token} />
+                <Suspense fallback={<LazyFallback />}>
+                  <PlatformOwnerPanel token={token} />
+                </Suspense>
               </div>
             )}
 
             {mobileTab === 'settings' && (
               <div className="flex-1 min-w-0 w-full">
+                <Suspense fallback={<LazyFallback />}>
                 <SettingsPage
                   user={user}
                   onBack={() => setMobileTab('panel')}
@@ -2847,10 +2899,12 @@ export default function App() {
                     isAgencyAdmin(user.role) ? disconnectAgencyMercadoPago : undefined
                   }
                 />
+                </Suspense>
               </div>
             )}
 
             <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+              <Suspense fallback={<LazyFallback />}>
               <NotificationHub
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}
@@ -2865,6 +2919,7 @@ export default function App() {
                 }}
                 onOpenMap={() => setMobileTab('dashboard')}
               />
+              </Suspense>
             </NotifsSidebar>
           </div>
         ) : (
@@ -2902,6 +2957,7 @@ export default function App() {
             </div>
 
             <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+              <Suspense fallback={<LazyFallback />}>
               <NotificationHub
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}
@@ -2916,6 +2972,7 @@ export default function App() {
                 }}
                 onOpenMap={() => setMobileTab('dashboard')}
               />
+              </Suspense>
             </NotifsSidebar>
           </div>
         )}

@@ -16,6 +16,7 @@ import { spreadOverlappingMarkers } from '../utils/markerSpread.js';
 import { resolveRepartidorLocation, useLiveFleetVersion } from '../utils/liveFleet.ts';
 import { CARTO_TILE_OPTIONS, getPostaMapColors, getPostaStatusColors, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
+import 'leaflet/dist/leaflet.css';
 import * as L from 'leaflet';
 
 const DEFAULT_HUB: [number, number] = [-34.5885, -58.4306];

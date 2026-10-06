@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import 'leaflet/dist/leaflet.css';
 import * as L from 'leaflet';
 import { CARTO_TILE_OPTIONS, MAP_TILE_URLS } from '../theme/colors.ts';
 import { usePostaTheme, readPostaTheme } from '../theme/usePostaTheme.ts';
