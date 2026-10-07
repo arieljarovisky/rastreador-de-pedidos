@@ -398,7 +398,13 @@ export default function AdminDashboard({
   const [repartidorFilterId, setRepartidorFilterId] = useState<string>('');
   const todayKey = getActiveOperationalDateKey();
   const tomorrowKey = getNextOperationalDateKey(todayKey);
-  const [dateFilterKey, setDateFilterKey] = useState<string>(todayKey);
+  /** Evita volver a pisar la fecha si el usuario la cambia después de abrir el pedido. */
+  const dateSyncedForOrderRef = useRef<string | null>(null);
+  const [dateFilterKey, setDateFilterKey] = useState<string>(() => {
+    if (!activeOrderId) return todayKey;
+    const order = orders.find((o) => o.id === activeOrderId);
+    return order ? getOrderOperationalDateKey(order) : todayKey;
+  });
   const [mapRepartidorIds, setMapRepartidorIds] = useState<Set<string>>(() => {
     if (initialMapRepartidorPrefs.kind === 'some') return initialMapRepartidorPrefs.ids;
     return new Set();
@@ -511,6 +517,25 @@ export default function AdminDashboard({
       setShowMapPanel(true);
     }
   }, [activeOrderId]);
+
+  // Un pedido de otro día (panel de mañana, registro o alerta) tiene que abrir
+  // la lista y el mapa en su fecha, no en la de hoy.
+  useEffect(() => {
+    if (!activeOrderId) {
+      dateSyncedForOrderRef.current = null;
+      return;
+    }
+    if (dateSyncedForOrderRef.current === activeOrderId) return;
+    const order = orders.find((o) => o.id === activeOrderId);
+    if (!order) return;
+    dateSyncedForOrderRef.current = activeOrderId;
+    const key = getOrderOperationalDateKey(order);
+    setDateFilterKey((current) => {
+      // Sin fecha (todas) o ya en el día del pedido: no tocar el filtro.
+      if (!current || current === key) return current;
+      return key;
+    });
+  }, [activeOrderId, orders]);
 
   const handleSelectOrder = useCallback(
     (orderId: string | null) => {
