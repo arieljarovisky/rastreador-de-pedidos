@@ -488,6 +488,43 @@ async function startServer() {
     res.json(order);
   });
 
+  app.post('/api/orders/mark-delivered', (req, res) => {
+    const user = getAuthenticatedUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'No autorizado.' });
+      return;
+    }
+    const rawIds = req.body?.orderIds;
+    if (!Array.isArray(rawIds) || rawIds.some((id: unknown) => typeof id !== 'string')) {
+      res.status(400).json({ error: 'orderIds debe ser una lista de identificadores.' });
+      return;
+    }
+    const updated: typeof db.orders = [];
+    let skipped = 0;
+    for (const id of [...new Set(rawIds.map((id: string) => id.trim()).filter(Boolean))]) {
+      const order = db.orders.find((item) => item.id === id);
+      if (!order || order.externalSource === 'mercadolibre') {
+        skipped += 1;
+        continue;
+      }
+      if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+        skipped += 1;
+        continue;
+      }
+      order.status = OrderStatus.DELIVERED;
+      order.updatedAt = new Date().toISOString();
+      order.history.push({
+        status: OrderStatus.DELIVERED,
+        timestamp: order.updatedAt,
+        updatedBy: user.name,
+        comment: 'Marcado como entregado en lote',
+      });
+      updated.push(order);
+    }
+    if (updated.length > 0) saveDatabase();
+    res.json({ updated, skipped, failed: [] });
+  });
+
   // Reportar ubicación GPS del repartidor (Tiempo real)
   app.post('/api/orders/:id/location', (req, res) => {
     const user = getAuthenticatedUser(req);

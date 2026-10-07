@@ -1969,6 +1969,48 @@ export default function App() {
     }
   };
 
+  const handleMarkOrdersDelivered = async (orderIds: string[]) => {
+    if (!token) throw new Error('Sin sesión');
+    const res = await fetch(apiUrl('/api/orders/mark-delivered'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ orderIds }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body.error || 'No se pudieron marcar los envíos');
+    }
+    const updated = (Array.isArray(body.updated) ? body.updated : []) as Order[];
+    if (updated.length > 0) {
+      setOrders((prev) => {
+        const byId = new Map(updated.map((order) => [order.id, order]));
+        const seen = new Set<string>();
+        const next = prev.map((order) => {
+          const fresh = byId.get(order.id);
+          if (!fresh) return order;
+          seen.add(order.id);
+          return fresh;
+        });
+        for (const order of updated) {
+          if (!seen.has(order.id)) next.unshift(order);
+        }
+        return next;
+      });
+      setActiveOrderId((current) => (current && updated.some((order) => order.id === current) ? null : current));
+      setLastSyncAt(new Date());
+    }
+    void fetchData();
+    return {
+      updated: updated.length,
+      skipped: Number(body.skipped ?? 0),
+      failed: Array.isArray(body.failed) ? body.failed.length : 0,
+      updatedIds: updated.map((order) => order.id),
+    };
+  };
+
   const handleAddOrderIncident = async (orderId: string, comment: string) => {
     if (!token) return;
     try {
@@ -2670,6 +2712,7 @@ export default function App() {
                       userRole={user.role}
                       onOpenShippingLabel={handleOpenShippingLabel}
                       onOpenShippingLabels={handleOpenShippingLabels}
+                      onMarkOrdersDelivered={handleMarkOrdersDelivered}
                       onViewSellerRegistry={(sellerId) => {
                         setRegistroSellerId(sellerId);
                         setMobileTab('registro');

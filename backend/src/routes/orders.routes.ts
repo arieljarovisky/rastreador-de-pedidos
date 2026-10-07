@@ -7,6 +7,7 @@ import {
   getOrderById,
   createOrder,
   updateOrderStatus,
+  markOrdersDelivered,
   addOrderIncident,
   reportOrderLocation,
   reportOrderLocationsBatch,
@@ -556,6 +557,50 @@ router.post(
     }
   }
 );
+
+router.post('/mark-delivered', authenticate, async (req: Request, res: Response) => {
+  const rawIds = req.body?.orderIds;
+  if (!Array.isArray(rawIds) || rawIds.some((id) => typeof id !== 'string')) {
+    res.status(400).json({ error: 'orderIds debe ser una lista de identificadores.' });
+    return;
+  }
+  const orderIds = rawIds.map((id) => id.trim()).filter(Boolean);
+  if (orderIds.length === 0) {
+    res.status(400).json({ error: 'Seleccioná al menos un pedido.' });
+    return;
+  }
+
+  try {
+    const result = await markOrdersDelivered(req.user!, orderIds);
+    for (const order of result.updated) {
+      const sellerId = await getSellerIdForOrder(order.id);
+      if (sellerId) {
+        try {
+          const byWhom = order.repartidorName?.trim() || req.user!.name;
+          await createNotification({
+            id: `n_deliv_${order.id}_${Date.now()}`,
+            userId: sellerId,
+            title: 'Pedido Entregado',
+            body: `¡El pedido ${order.id} ha sido entregado exitosamente por ${byWhom}!`,
+            type: 'order_delivered',
+            orderId: order.id,
+          });
+        } catch (notifErr) {
+          console.warn('[orders] No se pudo notificar entrega:', notifErr);
+        }
+      }
+      emitOrderUpdated(order, sellerId);
+    }
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para marcar estos envíos.' });
+      return;
+    }
+    throw err;
+  }
+});
 
 router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
   const { status, repartidorId, comment } = req.body;

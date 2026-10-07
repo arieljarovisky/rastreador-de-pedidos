@@ -15,17 +15,19 @@ interface ArDateParts {
   minute: number;
 }
 
+const arDateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: DELIVERY_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  hourCycle: 'h23',
+});
+
 function getArDateParts(date: Date): ArDateParts {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: DELIVERY_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    hourCycle: 'h23',
-  }).formatToParts(date);
+  const parts = arDateTimeFormatter.formatToParts(date);
 
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
   // Algunos engines devuelven hour=24 cerca de medianoche con hour12:false.
@@ -41,16 +43,7 @@ function getArDateParts(date: Date): ArDateParts {
 /** Convierte una fecha/hora local Argentina a instante UTC. */
 function arLocalToUtc(year: number, month: number, day: number, hour: number, minute = 0): Date {
   const guess = new Date(Date.UTC(year, month - 1, day, hour + 3, minute, 0, 0));
-  const formatted = new Intl.DateTimeFormat('en-US', {
-    timeZone: DELIVERY_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    hourCycle: 'h23',
-  }).formatToParts(guess);
+  const formatted = arDateTimeFormatter.formatToParts(guess);
 
   const get = (type: string) => Number(formatted.find((p) => p.type === type)?.value ?? 0);
   const actualHour = get('hour') % 24;
@@ -311,13 +304,152 @@ export function getOperationalDateKey(date: Date = new Date()): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+const operationalDateKeyByIso = new Map<string, string>();
+
+/** Misma marca de tiempo → mismo día. Evita armar `Intl` por cada pedido. */
+export function operationalDateKeyFromIso(iso: string): string {
+  const hit = operationalDateKeyByIso.get(iso);
+  if (hit) return hit;
+  const key = getOperationalDateKey(new Date(iso));
+  operationalDateKeyByIso.set(iso, key);
+  return key;
+}
+
+const orderOperationalDateKeyCache = new WeakMap<Order, { stamp: string; key: string }>();
+
+/** Día operativo de entrega. Cacheado por pedido para no recalcularlo al cambiar de día. */
+export function orderOperationalDateKey(order: Order): string {
+  const stamp = order.deliveryDeadline || order.createdAt;
+  const hit = orderOperationalDateKeyCache.get(order);
+  if (hit && hit.stamp === stamp) return hit.key;
+  const key = operationalDateKeyFromIso(stamp);
+  orderOperationalDateKeyCache.set(order, { stamp, key });
+  return key;
+}
+
 function isTodayOrder(order: Order, dateKey: string): boolean {
   // Solo el día operativo de entrega (deliveryDeadline). No mezclar con createdAt:
   // un pedido dado de alta el sábado post-corte con corte→lunes no debe aparecer en el sábado.
-  const operationalKey = order.deliveryDeadline
-    ? getOperationalDateKey(new Date(order.deliveryDeadline))
-    : getOperationalDateKey(new Date(order.createdAt));
-  return operationalKey === dateKey;
+  return orderOperationalDateKey(order) === dateKey;
+}
+
+export type DaySellerRow = {
+  id: string;
+  name: string;
+  undelivered: number;
+  delivered: number;
+};
+
+/** Un día ya partido: listados, KPIs y vendedores, sin volver a mirar el resto de los pedidos. */
+export type PreparedOperationalDay = {
+  summary: DeliveryDailySummary;
+  undelivered: Order[];
+  delivered: Order[];
+  deliveredLate: Order[];
+  pending: number;
+  assigned: number;
+  delivering: number;
+  sellers: DaySellerRow[];
+};
+
+/** Agrupa una sola vez. Cambiar de día después es un lookup. */
+export function indexOrdersByOperationalDate(orders: readonly Order[]): Map<string, Order[]> {
+  const map = new Map<string, Order[]>();
+  for (const order of orders) {
+    if (order.archived) continue;
+    const key = orderOperationalDateKey(order);
+    const list = map.get(key);
+    if (list) list.push(order);
+    else map.set(key, [order]);
+  }
+  return map;
+}
+
+export function buildPreparedOperationalDay(
+  listOrders: readonly Order[],
+  sellerOrders: readonly Order[],
+  dateKey: string,
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR
+): PreparedOperationalDay {
+  const cutHour = normalizeDeadlineHour(deadlineHour);
+  const undelivered: Order[] = [];
+  const delivered: Order[] = [];
+  let cancelled = 0;
+  let pending = 0;
+  let assigned = 0;
+  let delivering = 0;
+
+  for (const order of listOrders) {
+    if (order.archived) continue;
+    if (order.status === OrderStatus.DELIVERED) {
+      delivered.push(order);
+    } else if (order.status === OrderStatus.CANCELLED) {
+      cancelled += 1;
+    } else {
+      undelivered.push(order);
+      if (order.status === OrderStatus.PENDING) pending += 1;
+      else if (order.status === OrderStatus.ASSIGNED) assigned += 1;
+      else if (order.status === OrderStatus.DELIVERING) delivering += 1;
+    }
+  }
+
+  const slaAt = getDeadlineForOperationalDate(dateKey, DELIVERY_SLA_HOUR).getTime();
+  const deliveredLate = delivered.filter((order) => {
+    const deliveredAt = getOrderDeliveredAt(order);
+    return deliveredAt != null && deliveredAt.getTime() > slaAt;
+  });
+
+  const sellers = new Map<string, DaySellerRow>();
+  for (const order of sellerOrders) {
+    if (order.archived || !order.sellerId) continue;
+    const isDelivered = order.status === OrderStatus.DELIVERED;
+    const isUndelivered =
+      order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED;
+    if (!isDelivered && !isUndelivered) continue;
+    const entry = sellers.get(order.sellerId) ?? {
+      id: order.sellerId,
+      name: order.sellerName ?? 'Sin nombre',
+      undelivered: 0,
+      delivered: 0,
+    };
+    if (isUndelivered) entry.undelivered += 1;
+    if (isDelivered) entry.delivered += 1;
+    sellers.set(order.sellerId, entry);
+  }
+
+  const todayKey = getActiveOperationalDateKey();
+  const salesCutoffAt = getDeadlineForOperationalDate(dateKey, cutHour);
+  const deliverySlaAt = getDeadlineForOperationalDate(dateKey, DELIVERY_SLA_HOUR);
+  const now = Date.now();
+  const isViewingToday = dateKey === todayKey;
+  const isPastDeadline = isViewingToday ? now >= salesCutoffAt.getTime() : dateKey < todayKey;
+  const isPastDeliverySla = isViewingToday ? now >= deliverySlaAt.getTime() : dateKey < todayKey;
+  const undeliveredCount = undelivered.length;
+
+  return {
+    summary: {
+      date: dateKey,
+      deadlineHour: cutHour,
+      deadlineAt: salesCutoffAt.toISOString(),
+      total: undeliveredCount + delivered.length + cancelled,
+      delivered: delivered.length,
+      undelivered: undeliveredCount,
+      overdue: isPastDeliverySla ? undeliveredCount : 0,
+      deliveredLate: deliveredLate.length,
+      cancelled,
+      minutesUntilDeadline: isViewingToday
+        ? Math.max(0, Math.floor((salesCutoffAt.getTime() - now) / 60_000))
+        : 0,
+      isPastDeadline,
+    },
+    undelivered,
+    delivered,
+    deliveredLate,
+    pending,
+    assigned,
+    delivering,
+    sellers: [...sellers.values()].sort((a, b) => b.undelivered - a.undelivered),
+  };
 }
 
 export function getTodayOrders(

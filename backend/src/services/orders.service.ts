@@ -1860,6 +1860,63 @@ export async function updateOrderStatus(
   };
 }
 
+const MAX_BULK_DELIVER = 200;
+
+/** Marca varios envíos como entregados. Mercado Libre y los ya cerrados se omiten. */
+export async function markOrdersDelivered(
+  user: User,
+  orderIds: string[]
+): Promise<{
+  updated: Order[];
+  skipped: number;
+  failed: Array<{ id: string; error: string }>;
+}> {
+  const unique = [...new Set(orderIds.map((id) => id.trim()).filter(Boolean))].slice(0, MAX_BULK_DELIVER);
+  const updated: Order[] = [];
+  const failed: Array<{ id: string; error: string }> = [];
+  let skipped = 0;
+
+  for (const id of unique) {
+    try {
+      const existing = await getOrderById(id);
+      if (!existing) {
+        skipped += 1;
+        continue;
+      }
+      if (existing.externalSource === 'mercadolibre') {
+        skipped += 1;
+        continue;
+      }
+      if (existing.status === OrderStatus.DELIVERED || existing.status === OrderStatus.CANCELLED) {
+        skipped += 1;
+        continue;
+      }
+      const order = await updateOrderStatus(
+        user,
+        id,
+        OrderStatus.DELIVERED,
+        undefined,
+        'Marcado como entregado en lote'
+      );
+      updated.push(order);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'ERROR';
+      if (
+        message === 'MANUAL_DELIVER_ML_FORBIDDEN' ||
+        message === 'NOT_FOUND' ||
+        message === 'NOT_AVAILABLE' ||
+        message === 'FORBIDDEN'
+      ) {
+        skipped += 1;
+        continue;
+      }
+      failed.push({ id, error: message });
+    }
+  }
+
+  return { updated, skipped, failed };
+}
+
 /** Registra una incidencia en la bitÃ¡cora sin cambiar el estado del pedido. */
 export async function addOrderIncident(
   user: User,

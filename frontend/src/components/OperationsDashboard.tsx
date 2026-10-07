@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Clock,
   CheckCircle2,
@@ -18,17 +18,15 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
+import { Order, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import {
-  computeDeliverySummaryFromOrders,
+  buildPreparedOperationalDay,
+  indexOrdersByOperationalDate,
   formatMinutesUntilDeadline,
-  getUndeliveredTodayOrders,
-  getDeliveredTodayOrders,
-  getDeliveredLateTodayOrders,
   getOrderDeliveredAt,
   getActiveOperationalDateKey,
   getNextOperationalDateKey,
@@ -40,12 +38,13 @@ import {
   DELIVERY_SLA_HOUR,
   DELIVERY_TIMEZONE_LABEL,
   formatArTime,
+  type PreparedOperationalDay,
 } from '../utils/deliverySummary.js';
 import SellerFilterControl from './SellerFilterControl.tsx';
 import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import { buildCordonMapZones } from '../config/ambaCordonZones.js';
-import { getOrderOperationalDateKey, matchesOrderFilters } from '../utils/orderFilters.js';
+import { matchesOrderFilters } from '../utils/orderFilters.js';
 import { isAmbaGeoLoaded, loadAmbaGeoJson } from '../utils/zoneMapGeo.js';
 import type { Barrio, DeliveryZone } from '../config/deliveryZones.js';
 
@@ -155,70 +154,80 @@ export default function OperationsDashboard({
     [orders, orderFilterContext]
   );
 
+  /** Índice por día: se arma cuando cambian los pedidos, no al mover la fecha. */
+  const ordersByDate = useMemo(() => indexOrdersByOperationalDate(orders), [orders]);
+  const scopedByDate = useMemo(
+    () => indexOrdersByOperationalDate(scopedOrders),
+    [scopedOrders]
+  );
+
   /** Fechas con envíos: solo día operativo de entrega (según filtros activos). */
-  const datesWithShipments = useMemo(() => {
-    const keys = new Set<string>();
-    for (const order of scopedOrders) {
-      if (order.archived) continue;
-      keys.add(getOrderOperationalDateKey(order));
-    }
-    return [...keys].sort();
-  }, [scopedOrders]);
+  const datesWithShipments = useMemo(
+    () => [...scopedByDate.keys()].sort(),
+    [scopedByDate]
+  );
 
   const latestShipmentDateKey = datesWithShipments.at(-1) ?? todayKey;
   const maxDateKey =
     latestShipmentDateKey > tomorrowKey ? latestShipmentDateKey : tomorrowKey;
   const nextShipmentDateKey =
     datesWithShipments.find((key) => key > selectedDateKey) ?? null;
+  const prevShipmentDateKey = useMemo(() => {
+    for (let i = datesWithShipments.length - 1; i >= 0; i -= 1) {
+      const key = datesWithShipments[i];
+      if (key && key < selectedDateKey) return key;
+    }
+    return null;
+  }, [datesWithShipments, selectedDateKey]);
   const canGoForward = nextShipmentDateKey != null;
 
-  const summary = useMemo(
-    () => computeDeliverySummaryFromOrders(scopedOrders, selectedDateKey, cutHour),
-    [scopedOrders, selectedDateKey, cutHour]
-  );
-  const undelivered = useMemo(
-    () => getUndeliveredTodayOrders(scopedOrders, selectedDateKey),
-    [scopedOrders, selectedDateKey]
-  );
-  const delivered = useMemo(
-    () => getDeliveredTodayOrders(scopedOrders, selectedDateKey),
-    [scopedOrders, selectedDateKey]
-  );
-  const deliveredLate = useMemo(
-    () => getDeliveredLateTodayOrders(scopedOrders, selectedDateKey),
-    [scopedOrders, selectedDateKey]
-  );
+  const dayCacheRef = useRef<{
+    ordersByDate: Map<string, Order[]>;
+    scopedByDate: Map<string, Order[]>;
+    cutHour: number;
+    cache: Map<string, PreparedOperationalDay>;
+  } | null>(null);
 
-  const statusBreakdown = useMemo(() => {
-    const undeliveredToday = getUndeliveredTodayOrders(scopedOrders, selectedDateKey);
-    return {
-      pending: undeliveredToday.filter((o) => o.status === OrderStatus.PENDING).length,
-      assigned: undeliveredToday.filter((o) => o.status === OrderStatus.ASSIGNED).length,
-      delivering: undeliveredToday.filter((o) => o.status === OrderStatus.DELIVERING).length,
-    };
-  }, [scopedOrders, selectedDateKey]);
-
-  const sellerBreakdown = useMemo(() => {
-    if (!isAgencyAdmin(userRole)) return [];
-    const map = new Map<string, { id: string; name: string; undelivered: number; delivered: number }>();
-    for (const order of orders) {
-      if (!order.sellerId) continue;
-      const isUndelivered =
-        getUndeliveredTodayOrders([order], selectedDateKey).length > 0;
-      const isDelivered = getDeliveredTodayOrders([order], selectedDateKey).length > 0;
-      if (!isUndelivered && !isDelivered) continue;
-      const entry = map.get(order.sellerId) ?? {
-        id: order.sellerId,
-        name: order.sellerName ?? 'Sin nombre',
-        undelivered: 0,
-        delivered: 0,
-      };
-      if (isUndelivered) entry.undelivered += 1;
-      if (isDelivered) entry.delivered += 1;
-      map.set(order.sellerId, entry);
+  const readPreparedDay = (dateKey: string): PreparedOperationalDay => {
+    let bucket = dayCacheRef.current;
+    if (
+      !bucket ||
+      bucket.ordersByDate !== ordersByDate ||
+      bucket.scopedByDate !== scopedByDate ||
+      bucket.cutHour !== cutHour
+    ) {
+      bucket = { ordersByDate, scopedByDate, cutHour, cache: new Map() };
+      dayCacheRef.current = bucket;
     }
-    return [...map.values()].sort((a, b) => b.undelivered - a.undelivered);
-  }, [orders, userRole, selectedDateKey]);
+    const hit = bucket.cache.get(dateKey);
+    if (hit) return hit;
+    const built = buildPreparedOperationalDay(
+      scopedByDate.get(dateKey) ?? [],
+      ordersByDate.get(dateKey) ?? [],
+      dateKey,
+      cutHour
+    );
+    bucket.cache.set(dateKey, built);
+    return built;
+  };
+
+  const dayView = readPreparedDay(selectedDateKey);
+  const warmPrevKey = prevShipmentDateKey ?? shiftOperationalDateKey(selectedDateKey, -1);
+  const warmNextKey = nextShipmentDateKey ?? shiftOperationalDateKey(selectedDateKey, 1);
+  if (warmPrevKey !== selectedDateKey) readPreparedDay(warmPrevKey);
+  if (warmNextKey !== selectedDateKey) readPreparedDay(warmNextKey);
+  if (todayKey !== selectedDateKey) readPreparedDay(todayKey);
+
+  const summary = dayView.summary;
+  const undelivered = dayView.undelivered;
+  const delivered = dayView.delivered;
+  const deliveredLate = dayView.deliveredLate;
+  const statusBreakdown = {
+    pending: dayView.pending,
+    assigned: dayView.assigned,
+    delivering: dayView.delivering,
+  };
+  const sellerBreakdown = isAgencyAdmin(userRole) ? dayView.sellers : [];
 
   // Los pedidos cancelados no cuentan para el progreso: si todo lo entregable
   // se entregó, la barra llega al 100% aunque queden cancelados en el día.
@@ -280,15 +289,7 @@ export default function OperationsDashboard({
           nextShipmentDateKey={nextShipmentDateKey}
           shipmentDateKeys={datesWithShipments}
           onChange={setSelectedDateKey}
-          onPreviousDay={() =>
-            setSelectedDateKey((d) => {
-              for (let i = datesWithShipments.length - 1; i >= 0; i -= 1) {
-                const key = datesWithShipments[i];
-                if (key && key < d) return key;
-              }
-              return shiftOperationalDateKey(d, -1);
-            })
-          }
+          onPreviousDay={() => setSelectedDateKey(warmPrevKey)}
           onNextDay={() => {
             if (nextShipmentDateKey) setSelectedDateKey(nextShipmentDateKey);
           }}

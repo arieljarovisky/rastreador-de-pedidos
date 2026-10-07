@@ -92,7 +92,7 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
             onChange={() => onToggleCheck(order.id)}
             onClick={(e) => e.stopPropagation()}
             aria-label={`Seleccionar ${order.id}`}
-            title="Seleccionar para imprimir etiquetas"
+            title="Seleccionar para etiquetas o marcar como entregado"
             className="accent-[var(--color-accent)] cursor-pointer"
           />
         ) : (
@@ -198,6 +198,13 @@ interface AdminDashboardProps {
     orderIds: string[],
     layout?: '2x2' | '2x1'
   ) => Promise<void>;
+  /** Marca varios envíos no-ML como entregados. */
+  onMarkOrdersDelivered?: (orderIds: string[]) => Promise<{
+    updated: number;
+    skipped: number;
+    failed: number;
+    updatedIds: string[];
+  }>;
   /** Abre el registro completo de envíos del vendedor (pestaña Registro). */
   onViewSellerRegistry?: (sellerId: string) => void;
 }
@@ -323,6 +330,7 @@ export default function AdminDashboard({
   userRole = UserRole.STORE_ADMIN,
   onOpenShippingLabel,
   onOpenShippingLabels,
+  onMarkOrdersDelivered,
   onViewSellerRegistry,
 }: AdminDashboardProps) {
   const [adminMobileTab, setAdminMobileTab] = useState<'orders' | 'map'>('orders');
@@ -340,6 +348,7 @@ export default function AdminDashboard({
   const [savingIncident, setSavingIncident] = useState(false);
   const [checkedOrderIds, setCheckedOrderIds] = useState<Set<string>>(() => new Set());
   const [printingLabels, setPrintingLabels] = useState(false);
+  const [markingDelivered, setMarkingDelivered] = useState(false);
   const [labelSheetLayout, setLabelSheetLayout] = useState<'2x2' | '2x1'>('2x2');
 
   const onOrdersScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
@@ -851,6 +860,17 @@ export default function AdminDashboard({
 
   const checkedInViewCount = printableCheckedIds.length;
 
+  const deliverableCheckedOrders = useMemo(() => {
+    const agency = isAgencyAdmin(userRole);
+    const isSeller = userRole === UserRole.STORE_ADMIN;
+    if (!agency && !isSeller) return [];
+    return selectableFilteredOrders.filter((order) => {
+      if (!checkedOrderIds.has(order.id)) return false;
+      if (order.externalSource === 'mercadolibre') return false;
+      return order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED;
+    });
+  }, [userRole, selectableFilteredOrders, checkedOrderIds]);
+
   const allFilteredChecked =
     selectableFilteredOrders.length > 0 &&
     selectableFilteredOrders.every((o) => checkedOrderIds.has(o.id));
@@ -905,6 +925,53 @@ export default function AdminDashboard({
       setPrintingLabels(false);
     }
   }, [onOpenShippingLabels, printableCheckedIds, labelSheetLayout, showAlert]);
+
+  const handleMarkSelectedDelivered = useCallback(async () => {
+    if (!onMarkOrdersDelivered || deliverableCheckedOrders.length === 0) return;
+    const ids = deliverableCheckedOrders.map((order) => order.id);
+    const count = ids.length;
+    const ok = await confirm({
+      title: 'Marcar como entregados',
+      message: `¿Confirmar ${count} envío${count === 1 ? '' : 's'} como entregado${count === 1 ? '' : 's'}?`,
+      variant: 'warning',
+      confirmText: 'Sí, entregados',
+      cancelText: 'Cancelar',
+    });
+    if (!ok) return;
+    setMarkingDelivered(true);
+    try {
+      const result = await onMarkOrdersDelivered(ids);
+      if (result.updatedIds.length > 0) {
+        setCheckedOrderIds((prev) => {
+          const next = new Set(prev);
+          for (const id of result.updatedIds) next.delete(id);
+          return next;
+        });
+      }
+      if (result.updated === 0) {
+        void showAlert({
+          title: 'Sin cambios',
+          message: 'Esos envíos ya estaban cerrados o no se pueden confirmar a mano.',
+          variant: 'warning',
+        });
+      } else if (result.failed > 0 || result.skipped > 0) {
+        const pending = result.failed + result.skipped;
+        void showAlert({
+          title: 'Entrega parcial',
+          message: `Se marcaron ${result.updated} envío${result.updated === 1 ? '' : 's'}. ${pending} quedó${pending === 1 ? '' : 'n'} sin cambio.`,
+          variant: result.failed > 0 ? 'error' : 'warning',
+        });
+      }
+    } catch (err: unknown) {
+      void showAlert({
+        title: 'No se pudieron marcar',
+        message: err instanceof Error ? err.message : 'Error al actualizar los pedidos.',
+        variant: 'error',
+      });
+    } finally {
+      setMarkingDelivered(false);
+    }
+  }, [onMarkOrdersDelivered, deliverableCheckedOrders, confirm, showAlert]);
 
   const allRepartidoresOnMap = useMemo(
     () =>
@@ -1798,6 +1865,22 @@ export default function AdminDashboard({
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
+              {onMarkOrdersDelivered && deliverableCheckedOrders.length > 0 && (
+                <button
+                  type="button"
+                  disabled={markingDelivered}
+                  onClick={() => void handleMarkSelectedDelivered()}
+                  title="Marcar como entregados los envíos seleccionados que no son de Mercado Libre"
+                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded border border-[var(--color-ok)]/40 bg-[var(--color-ok)]/10 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-ok)] hover:bg-[var(--color-ok)]/20 transition disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>
+                    {markingDelivered
+                      ? 'Marcando…'
+                      : `Entregar (${deliverableCheckedOrders.length})`}
+                  </span>
+                </button>
+              )}
               {onOpenShippingLabels && checkedInViewCount > 0 && (
                 <div className="flex items-center gap-1">
                   <select

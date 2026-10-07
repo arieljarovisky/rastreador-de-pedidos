@@ -11,7 +11,7 @@ import {
 } from '../config/deliveryZones.js';
 import { buildCordonMapZones, CORDON_ZONE_IDS } from '../config/ambaCordonZones.js';
 import { findZoneForPointByGeo, isAmbaGeoLoaded } from './zoneMapGeo.js';
-import { getOperationalDateKey } from './deliverySummary.js';
+import { getOperationalDateKey, orderOperationalDateKey } from './deliverySummary.js';
 
 export const UNASSIGNED_REPARTIDOR_FILTER = '__unassigned__';
 
@@ -41,10 +41,7 @@ export function getOrderCordonId(
 
 /** Día operativo del pedido (corte de entrega o día de creación). */
 export function getOrderOperationalDateKey(order: Order): string {
-  if (order.deliveryDeadline) {
-    return getOperationalDateKey(new Date(order.deliveryDeadline));
-  }
-  return getOperationalDateKey(new Date(order.createdAt));
+  return orderOperationalDateKey(order);
 }
 
 /** Día en que el pedido se importó / creó en Posta. */
