@@ -44,6 +44,12 @@ export default defineConfig(() => {
       },
     },
     build: {
+      modulePreload: {
+        resolveDependencies(_filename, deps) {
+          // El login no debe precargar mapa, socket ni pantallas que se piden al abrirlas.
+          return deps.filter((dep) => !/\/(map|socket)-[^/]+\.js$/.test(dep));
+        },
+      },
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, 'index.html'),

@@ -201,21 +201,30 @@ function indexAmbaGeo(collection: FeatureCollection): void {
   }
 }
 
+let ambaGeoPromise: Promise<FeatureCollection> | null = null;
+
 export async function loadAmbaGeoJson(): Promise<FeatureCollection> {
   if (ambaGeo) return ambaGeo;
-
-  const res = await fetch('/geo/departamentos-ar.geojson');
-  if (!res.ok) throw new Error('No se pudo cargar el mapa de zonas.');
-
-  const raw = (await res.json()) as FeatureCollection;
-  const features = raw.features.filter((feature) => {
-    const prov = (feature.properties as GeoProps | null)?.provincia?.nombre;
-    return prov === 'Buenos Aires' || prov === 'Ciudad Autónoma de Buenos Aires';
-  });
-
-  ambaGeo = { type: 'FeatureCollection', features };
-  indexAmbaGeo(ambaGeo);
-  return ambaGeo;
+  if (!ambaGeoPromise) {
+    ambaGeoPromise = fetch('/geo/departamentos-ar.geojson')
+      .then(async (res) => {
+        if (!res.ok) throw new Error('No se pudo cargar el mapa de zonas.');
+        const raw = (await res.json()) as FeatureCollection;
+        const features = raw.features.filter((feature) => {
+          const prov = (feature.properties as GeoProps | null)?.provincia?.nombre;
+          return prov === 'Buenos Aires' || prov === 'Ciudad Autónoma de Buenos Aires';
+        });
+        const collection: FeatureCollection = { type: 'FeatureCollection', features };
+        ambaGeo = collection;
+        indexAmbaGeo(collection);
+        return collection;
+      })
+      .catch((error) => {
+        ambaGeoPromise = null;
+        throw error;
+      });
+  }
+  return ambaGeoPromise;
 }
 
 export function resolveBarrioGeoFeature(barrio: Barrio): Feature | null {

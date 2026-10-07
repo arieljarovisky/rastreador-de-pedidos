@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, type ReactNode } from 'react';
 import { User, UserRole, Order, OrderStatus, AppNotification, LocationPoint, PickupPoint, isAgencyAdmin, SellerDetail, MarketplaceIntegrationStatus, MarketplaceShipmentPreview, RepartidorMercadoLibreStatus } from './types.js';
 import type { DeliveryZone, Barrio } from './config/deliveryZones.js';
 import LoginScreen, {
@@ -12,30 +12,29 @@ import LoginScreen, {
   type RegisterAgencyResult,
 } from './components/LoginScreen.tsx';
 const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
-import OperationsDashboard from './components/OperationsDashboard.tsx';
-import SettingsPage from './components/SettingsPage.tsx';
+const OperationsDashboard = lazy(() => import('./components/OperationsDashboard.tsx'));
+const SettingsPage = lazy(() => import('./components/SettingsPage.tsx'));
 const ShippingAccountPage = lazy(() => import('./components/ShippingAccountPage.tsx'));
 const DriverSettlementPage = lazy(() => import('./components/DriverSettlementPage.tsx'));
-import RegistroPage from './components/RegistroPage.tsx';
+const RegistroPage = lazy(() => import('./components/RegistroPage.tsx'));
 const RepartidorDashboard = lazy(() => import('./components/RepartidorDashboard.tsx'));
-import NotificationHub from './components/NotificationHub.tsx';
+const NotificationHub = lazy(() => import('./components/NotificationHub.tsx'));
+const PriceListsPage = lazy(() => import('./components/PriceListsPage.tsx'));
+const PlatformOwnerPanel = lazy(() => import('./components/PlatformOwnerPanel.tsx'));
+const RealtimeBridge = lazy(() => import('./realtime/RealtimeBridge.tsx'));
 import NotifsSidebar from './components/NotifsSidebar.tsx';
 import type { MarketplacePlatform } from './components/MarketplaceIntegrations.tsx';
-import { LogOut, Bell, Settings, LayoutDashboard, Package, Wallet, Tags, Crown, ClipboardList } from 'lucide-react';
+import { LogOut, Bell, Crown } from 'lucide-react';
 import BootSplash from './components/ui/BootSplash.tsx';
 import PostaLogo from './components/ui/PostaLogo.tsx';
 import ConnectionIndicator from './components/ui/ConnectionIndicator.tsx';
-import PriceListsPage from './components/PriceListsPage.tsx';
-import PlatformOwnerPanel from './components/PlatformOwnerPanel.tsx';
 import SubscriptionExpiredOverlay from './components/SubscriptionExpiredOverlay.tsx';
 import { applyPostaTheme, usePostaTheme } from './theme/usePostaTheme.ts';
 import ThemeToggle from './components/ui/ThemeToggle.tsx';
 import { apiUrl, oauthReturnOriginQuery, fetchAllOrders } from './api.ts';
 import { mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
 import { clearLiveFleet, publishLiveRepartidor } from './utils/liveFleet.ts';
-import { useRealtimeSocket } from './useRealtimeSocket.ts';
 import { useModal } from './context/ModalContext.tsx';
-import { loadAmbaGeoJson } from './utils/zoneMapGeo.js';
 
 const CACHED_NOTIFICATIONS_LIMIT = 40;
 
@@ -110,6 +109,107 @@ function readNotifsSidebarOpen(): boolean {
   return localStorage.getItem(NOTIFS_SIDEBAR_KEY) !== 'closed';
 }
 
+function roleLabel(role: UserRole): string {
+  switch (role) {
+    case UserRole.SUPER_ADMIN:
+      return 'Administrador';
+    case UserRole.LOGISTICS_ADMIN:
+      return 'Logística';
+    case UserRole.STORE_ADMIN:
+      return 'Vendedor';
+    case UserRole.REPARTIDOR:
+      return 'Repartidor';
+    case UserRole.PLATFORM_OWNER:
+      return 'Dueño';
+    default:
+      return '';
+  }
+}
+
+function AppNavLink({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`h-9 px-2.5 rounded-[5px] text-sm font-medium whitespace-nowrap transition ${
+        active
+          ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+          : 'text-[var(--color-text-muted)] hover:bg-[var(--surface-panel-2)] hover:text-[var(--color-text)]'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MobileNavLink({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 min-w-[4.5rem] min-h-11 px-2 inline-flex items-center justify-center text-sm font-medium whitespace-nowrap transition ${
+        active
+          ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]'
+          : 'text-[var(--color-text-muted)] border-b-2 border-transparent hover:text-[var(--color-text)]'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Con sesión guardada, el chunk de la pantalla activa empieza a bajar junto con el shell. */
+function prefetchSignedInShell() {
+  try {
+    if (!localStorage.getItem('lupo_token')) return;
+    void import('./realtime/RealtimeBridge.tsx');
+    void import('./components/NotificationHub.tsx');
+    const raw = localStorage.getItem('lupo_user');
+    const role = raw ? (JSON.parse(raw) as { role?: string }).role : undefined;
+    if (role === 'platform_owner') {
+      void import('./components/PlatformOwnerPanel.tsx');
+      return;
+    }
+    if (role === 'repartidor') {
+      void import('./components/RepartidorDashboard.tsx');
+      return;
+    }
+    const tab = localStorage.getItem(ACTIVE_TAB_KEY);
+    if (tab === 'dashboard') void import('./components/AdminDashboard.tsx');
+    else if (tab === 'settings') void import('./components/SettingsPage.tsx');
+    else if (tab === 'account') {
+      void import('./components/ShippingAccountPage.tsx');
+      void import('./components/DriverSettlementPage.tsx');
+    } else if (tab === 'registro') void import('./components/RegistroPage.tsx');
+    else if (tab === 'prices') void import('./components/PriceListsPage.tsx');
+    else if (tab === 'platform') void import('./components/PlatformOwnerPanel.tsx');
+    else void import('./components/OperationsDashboard.tsx');
+  } catch {
+    // localStorage no disponible.
+  }
+}
+
+prefetchSignedInShell();
+
 export default function App() {
   const { alert: showAlert, confirm: showConfirm } = useModal();
   const [user, setUser] = useState<User | null>(null);
@@ -174,10 +274,6 @@ export default function App() {
   const setMobileTab = useCallback((tab: AppTab) => {
     setMobileTabState(tab);
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
-  }, []);
-
-  useEffect(() => {
-    void loadAmbaGeoJson().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -531,38 +627,6 @@ export default function App() {
     setActiveOrderId((current) => (current === orderId ? null : current));
     setLastSyncAt(new Date());
   }, []);
-
-  useRealtimeSocket({
-    token,
-    activeOrderId,
-    onOrderUpdated: mergeOrder,
-    onOrderDeleted: removeOrder,
-    onOrderLocation: (payload) => {
-      // El pin se mueve solo. No tocamos la lista: eso re-renderizaba todo el panel.
-      publishLiveRepartidor(payload.repartidorId, payload.point);
-    },
-    onRepartidorLocation: (payload) => {
-      const current = userRef.current;
-      if (current?.role === UserRole.STORE_ADMIN) {
-        const onSellerOrder = ordersRef.current.some(
-          (o) => !o.archived && o.repartidorId === payload.repartidorId
-        );
-        const known = repartidoresRef.current.some(
-          (r) => r.id === payload.repartidorId || r.username === payload.repartidorId
-        );
-        if (!onSellerOrder && !known) return;
-      }
-      publishLiveRepartidor(payload.repartidorId, payload.location);
-    },
-    onConnectionChange: setWsConnected,
-    onNotificationCreated: (notification) => {
-      setNotifications((prev) => {
-        if (prev.some((n) => n.id === notification.id)) return prev;
-        return [notification, ...prev];
-      });
-      // El pedido llega por order:updated. No re-bajamos toda la lista por cada alerta.
-    },
-  });
 
   // Sincronización inicial + respaldo si WebSocket cae
   useEffect(() => {
@@ -2219,8 +2283,47 @@ export default function App() {
     }
   }, [user, mobileTab, showSettings, showAccount, showRegistro, showPrices, isPlatformOwner, isPlatformOnlyUser, setMobileTab]);
 
+  const liveUpdates = token ? (
+    <Suspense fallback={null}>
+      <RealtimeBridge
+        token={token}
+        activeOrderId={activeOrderId}
+        onOrderUpdated={mergeOrder}
+        onOrderDeleted={removeOrder}
+        onOrderLocation={(payload) => {
+          publishLiveRepartidor(payload.repartidorId, payload.point);
+        }}
+        onRepartidorLocation={(payload) => {
+          const current = userRef.current;
+          if (current?.role === UserRole.STORE_ADMIN) {
+            const onSellerOrder = ordersRef.current.some(
+              (o) => !o.archived && o.repartidorId === payload.repartidorId
+            );
+            const known = repartidoresRef.current.some(
+              (r) => r.id === payload.repartidorId || r.username === payload.repartidorId
+            );
+            if (!onSellerOrder && !known) return;
+          }
+          publishLiveRepartidor(payload.repartidorId, payload.location);
+        }}
+        onConnectionChange={setWsConnected}
+        onNotificationCreated={(notification) => {
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === notification.id)) return prev;
+            return [notification, ...prev];
+          });
+        }}
+      />
+    </Suspense>
+  ) : null;
+
   if (loading && !user) {
-    return <BootSplash message="Sincronizando sistema" />;
+    return (
+      <>
+        {liveUpdates}
+        <BootSplash message="Sincronizando sistema" />
+      </>
+    );
   }
 
   if (
@@ -2229,7 +2332,12 @@ export default function App() {
     !platformSessionChecked &&
     (isAgencyAdmin(user.role) || user.role === UserRole.PLATFORM_OWNER)
   ) {
-    return <BootSplash message="Cargando panel" />;
+    return (
+      <>
+        {liveUpdates}
+        <BootSplash message="Cargando panel" />
+      </>
+    );
   }
 
   if (!user) {
@@ -2288,7 +2396,10 @@ export default function App() {
         <main className="flex-1 min-h-0 overflow-hidden p-2 sm:p-3 md:p-4">
           <div className="app-shell h-full">
             <div className="h-full min-h-[calc(100dvh-5rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-              <PlatformOwnerPanel token={token} />
+              {liveUpdates}
+              <Suspense fallback={<LazyFallback />}>
+                <PlatformOwnerPanel token={token} />
+              </Suspense>
             </div>
           </div>
         </main>
@@ -2298,7 +2409,7 @@ export default function App() {
 
   return (
     <div className="app-viewport min-h-screen bg-[var(--surface-bg)] text-[var(--color-text)] flex flex-col font-sans select-none overflow-hidden">
-      
+      {liveUpdates}
       {/* CABECERA — móvil compacta */}
       <header className="safe-top shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/90 relative z-40 xl:hidden">
         <div className="flex items-center gap-1.5 px-2 py-1.5 min-h-[2.75rem]">
@@ -2335,311 +2446,127 @@ export default function App() {
         </div>
       </header>
 
-      {/* CABECERA — escritorio (compacta en xl, completa en 2xl) */}
-      <header className="safe-top hidden xl:flex min-h-[4.5rem] 2xl:min-h-[5.25rem] items-center justify-between gap-2 2xl:gap-4 px-4 2xl:px-8 py-3 2xl:py-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)]/80 shrink-0 relative z-40 overflow-hidden">
-        <div className="flex items-center gap-2 2xl:gap-5 shrink-0">
-          <PostaLogo
-            size={40}
-            showWordmark
-            variant={theme === 'paper' ? 'paper' : 'dark'}
-            className="shrink-0"
-          />
-          <span className="hidden 2xl:inline text-sm text-[var(--color-text-muted)] font-sans">v2.4.0</span>
-          <div className="flex items-center gap-1.5 2xl:gap-2 pl-2 2xl:pl-3 border-l border-[var(--surface-border)]">
-            <div className="hidden 2xl:flex items-center gap-2">
-              <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} />
-              <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            </div>
-            <div className="flex 2xl:hidden items-center gap-1.5">
-              <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} compact />
-              <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2 2xl:gap-8 items-center min-w-0 justify-end">
-          <div className="hidden 2xl:flex flex-col items-end">
-            <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Pedidos Activos</span>
-            <span className="text-xl font-mono text-[var(--color-ok)] font-semibold leading-none mt-0.5">
-              {orders.filter(o => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED).length}
-            </span>
-          </div>
-          
-          {isAgencyAdmin(user.role) && (
-            <div className="hidden 2xl:flex flex-col items-end">
-              <span className="text-[9px] text-[var(--color-text-muted)] uppercase tracking-widest font-mono">Repartidores</span>
-              <span className="text-xl font-mono text-[var(--color-accent)] font-semibold leading-none mt-0.5">
-                {String(repartidores.length).padStart(2, '0')}
-              </span>
-            </div>
-          )}
-
-          <div className="hidden 2xl:block h-8 w-[1px] bg-[var(--surface-border)] mx-1" />
-
-          <div className="flex items-center gap-1.5 2xl:gap-3 min-w-0">
-            <div className="flex items-center gap-0.5 2xl:gap-1 shrink-0">
-              {showSettings && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setMobileTab('panel')}
-                    title="Panel de control de entregas"
-                    className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                      mobileTab === 'panel'
-                        ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
-                    <span className="hidden 2xl:inline">Dashboard</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMobileTab('dashboard')}
-                    title="Envíos y mapa en vivo"
-                    className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                      mobileTab === 'dashboard'
-                        ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    <Package className="w-3.5 h-3.5 shrink-0" />
-                    <span className="hidden 2xl:inline">Envíos</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMobileTab('account')}
-                    title="Cuenta de envíos y gastos"
-                    className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                      mobileTab === 'account'
-                        ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    <Wallet className="w-3.5 h-3.5 shrink-0" />
-                    <span className="hidden 2xl:inline">Cuenta</span>
-                  </button>
-                  {showRegistro && (
-                    <button
-                      type="button"
-                      onClick={() => setMobileTab('registro')}
-                      title="Registro de envíos por vendedor y paquetes personales"
-                      className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                        mobileTab === 'registro'
-                          ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                          : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                      }`}
-                    >
-                      <ClipboardList className="w-3.5 h-3.5 shrink-0" />
-                      <span className="hidden 2xl:inline">Registro</span>
-                    </button>
-                  )}
-                  {showPrices && (
-                    <button
-                      type="button"
-                      onClick={() => setMobileTab('prices')}
-                      title="Listas de precios por zona"
-                      className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                        mobileTab === 'prices'
-                          ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                          : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                      }`}
-                    >
-                      <Tags className="w-3.5 h-3.5 shrink-0" />
-                      <span className="hidden 2xl:inline">Precios</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setMobileTab('settings')}
-                    title="Configuración"
-                    className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                      mobileTab === 'settings'
-                        ? 'bg-[var(--surface-panel-2)] border-[var(--color-text-muted)] text-[var(--color-text)]'
-                        : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    <Settings className="w-3.5 h-3.5 shrink-0" />
-                    <span className="hidden 2xl:inline">Config</span>
-                  </button>
-                  {isPlatformOwner && (
-                    <button
-                      type="button"
-                      onClick={() => setMobileTab('platform')}
-                      title="Panel del dueño de Posta"
-                      className={`flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                        mobileTab === 'platform'
-                          ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                          : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                      }`}
-                    >
-                      <Crown className="w-3.5 h-3.5 shrink-0" />
-                      <span className="hidden 2xl:inline">Plataforma</span>
-                    </button>
-                  )}
-                </>
+      <header className="safe-top hidden xl:flex h-14 items-center gap-3 px-4 border-b border-[var(--surface-border)] bg-[var(--surface-panel)] shrink-0 relative z-40">
+        <PostaLogo
+          size={28}
+          showWordmark
+          variant={theme === 'paper' ? 'paper' : 'dark'}
+          className="shrink-0"
+        />
+        <nav className="flex items-center gap-0.5 min-w-0 overflow-x-auto scroll-tabs" aria-label="Secciones">
+          {showSettings && (
+            <>
+              <AppNavLink active={mobileTab === 'panel'} onClick={() => setMobileTab('panel')} title="Cómo va el día">
+                Hoy
+              </AppNavLink>
+              <AppNavLink active={mobileTab === 'dashboard'} onClick={() => setMobileTab('dashboard')} title="Mapa y pedidos">
+                Mapa
+              </AppNavLink>
+              <AppNavLink active={mobileTab === 'account'} onClick={() => setMobileTab('account')} title="Cuenta de envíos y gastos">
+                Cuenta
+              </AppNavLink>
+              {showRegistro && (
+                <AppNavLink active={mobileTab === 'registro'} onClick={() => setMobileTab('registro')} title="Historial por vendedor">
+                  Registro
+                </AppNavLink>
               )}
-              <button
-                type="button"
-                onClick={toggleNotifsSidebar}
-                title={notifsSidebarOpen ? 'Ocultar panel de alertas' : 'Mostrar panel de alertas'}
-                className={`relative flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] border font-bold text-[11px] transition ${
-                  notifsSidebarOpen
-                    ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/40 text-[var(--color-accent)]'
-                    : 'bg-[var(--surface-panel-2)] border-[var(--surface-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                }`}
-              >
-                <Bell className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden 2xl:inline">Alertas</span>
-                {!notifsSidebarOpen && unreadNotifsCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-[var(--color-cta)] text-[#F6F0E4] font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center border border-[var(--surface-bg)]">
-                    {unreadNotifsCount}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            <div className="hidden 2xl:block text-right shrink-0">
-              <p className="text-sm font-medium text-[var(--color-text)] truncate max-w-[9rem]">{user.name}</p>
-              <p className="text-[9px] text-[var(--color-text-muted)] uppercase font-mono">{user.role}</p>
-            </div>
-
-            <div className="w-9 h-9 2xl:w-10 2xl:h-10 rounded-full bg-[var(--surface-panel-2)] border border-[var(--surface-border)] flex items-center justify-center text-sm font-bold text-[var(--color-text-muted)] uppercase shrink-0">
-              {user.name.slice(0, 2)}
-            </div>
-
-            <button
-              onClick={handleLogout}
-              id="btn-logout"
-              title="Cerrar sesión"
-              className="flex items-center gap-1 px-2 2xl:px-2.5 py-1.5 rounded-[5px] bg-[var(--surface-panel-2)] hover:bg-[var(--color-danger)]/10 border border-[var(--surface-border)] hover:border-[var(--color-danger)]/40 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] font-bold text-[11px] transition shrink-0"
-            >
-              <LogOut className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden 2xl:inline">Salir</span>
-            </button>
-          </div>
-        </div>
-      </header>
-      
-      {/* Selector de pestañas para vista mobile/tablet */}
-      <div className="xl:hidden scroll-tabs bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)] flex shrink-0 min-h-[2.5rem] z-40">
-        {showSettings && (
-          <>
-            <button
-              onClick={() => setMobileTab('panel')}
-              className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-                mobileTab === 'panel'
-                  ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
-              <span>Dashboard</span>
-            </button>
-            <button
-              onClick={() => setMobileTab('dashboard')}
-              className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-                mobileTab === 'dashboard'
-                  ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-              }`}
-            >
-              <Package className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
-              <span>Envíos</span>
-            </button>
-            <button
-              onClick={() => setMobileTab('account')}
-              className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-                mobileTab === 'account'
-                  ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-              }`}
-            >
-              <Wallet className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
-              <span>Cuenta</span>
-            </button>
-            {showRegistro && (
-              <button
-                onClick={() => setMobileTab('registro')}
-                className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-                  mobileTab === 'registro'
-                    ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                }`}
-              >
-                <ClipboardList className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
-                <span>Registro</span>
-              </button>
-            )}
-            {showPrices && (
-              <button
-                onClick={() => setMobileTab('prices')}
-                className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-                  mobileTab === 'prices'
-                    ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                }`}
-              >
-                <Tags className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
-                <span>Precios</span>
-              </button>
-            )}
-          </>
-        )}
-        {!showSettings && (
-          <button
-            onClick={() => setMobileTab('dashboard')}
-            className={`flex-1 min-w-[4.5rem] flex items-center justify-center px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-              mobileTab === 'dashboard'
-                ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-            }`}
-          >
-            <span>Flota</span>
-          </button>
-        )}
-        {showSettings && (
-          <button
-            onClick={() => setMobileTab('settings')}
-            className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-              mobileTab === 'settings'
-                ? 'text-[var(--color-text)] border-b-2 border-[var(--color-text-muted)] bg-[var(--surface-panel)]/50'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-            }`}
-          >
-            <Settings className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
-            <span>Config</span>
-          </button>
-        )}
-        {isPlatformOwner && (
-          <button
-            onClick={() => setMobileTab('platform')}
-            className={`flex-1 min-w-[4.5rem] flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-mono font-bold uppercase tracking-wide transition-all ${
-              mobileTab === 'platform'
-                ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-            }`}
-          >
-            <Crown className="w-3.5 h-3.5 hidden sm:inline shrink-0" />
-            <span>Plataforma</span>
-          </button>
-        )}
+              {showPrices && (
+                <AppNavLink active={mobileTab === 'prices'} onClick={() => setMobileTab('prices')} title="Listas de precios">
+                  Precios
+                </AppNavLink>
+              )}
+              <AppNavLink active={mobileTab === 'settings'} onClick={() => setMobileTab('settings')} title="Ajustes de la agencia">
+                Ajustes
+              </AppNavLink>
+              {isPlatformOwner && (
+                <AppNavLink active={mobileTab === 'platform'} onClick={() => setMobileTab('platform')} title="Panel del dueño de Posta">
+                  Plataforma
+                </AppNavLink>
+              )}
+            </>
+          )}
+        </nav>
+        <div className="flex-1 min-w-2" />
+        <p className="hidden 2xl:block text-sm text-[var(--color-text-muted)] whitespace-nowrap">
+          <span className="font-semibold tabular-nums text-[var(--color-ok)]">
+            {orders.filter((o) => o.status !== OrderStatus.DELIVERED && o.status !== OrderStatus.CANCELLED).length}
+          </span>
+          {' activos'}
+          {isAgencyAdmin(user.role) && (
+            <>
+              {' · '}
+              <span className="font-semibold tabular-nums text-[var(--color-accent)]">{repartidores.length}</span>
+              {' repartidores'}
+            </>
+          )}
+        </p>
+        <ConnectionIndicator isOnline={isOnline} wsConnected={wsConnected} />
         <button
-          onClick={() => setMobileTab('notifications')}
-          className={`flex-1 min-w-[5.5rem] flex items-center justify-center gap-1.5 px-2 py-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider transition-all ${
-            mobileTab === 'notifications'
-              ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)] bg-[var(--color-accent)]/5'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+          type="button"
+          onClick={toggleNotifsSidebar}
+          title={notifsSidebarOpen ? 'Ocultar alertas' : 'Ver alertas'}
+          className={`relative inline-flex items-center gap-1.5 h-9 px-2.5 rounded-[5px] text-sm font-medium transition ${
+            notifsSidebarOpen
+              ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)]'
+              : 'text-[var(--color-text-muted)] hover:bg-[var(--surface-panel-2)] hover:text-[var(--color-text)]'
           }`}
         >
-          <Bell className={`w-3.5 h-3.5 shrink-0 ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
-          <span>Alertas</span>
+          <Bell className="w-4 h-4 shrink-0" />
+          <span className="hidden 2xl:inline">Alertas</span>
           {unreadNotifsCount > 0 && (
-            <span className="shrink-0 bg-[var(--color-cta)] text-[#F6F0E4] font-black text-[9px] min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center leading-none">
+            <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-cta)] text-[#F6F0E4] text-[11px] font-semibold flex items-center justify-center">
               {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
             </span>
           )}
         </button>
-      </div>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} compact />
+        <div className="hidden lg:block text-right shrink-0 max-w-[11rem]">
+          <p className="text-sm font-medium text-[var(--color-text)] truncate">{user.name}</p>
+          <p className="text-xs text-[var(--color-text-muted)] truncate">{roleLabel(user.role)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          id="btn-logout"
+          title="Cerrar sesión"
+          className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-[5px] text-sm font-medium text-[var(--color-text-muted)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)] transition shrink-0"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span className="hidden 2xl:inline">Salir</span>
+        </button>
+      </header>
+      <nav className="xl:hidden scroll-tabs bg-[var(--surface-panel)] border-b border-[var(--surface-border)] flex shrink-0 z-40" aria-label="Secciones">
+        {showSettings && (
+          <>
+            <MobileNavLink active={mobileTab === 'panel'} onClick={() => setMobileTab('panel')}>Hoy</MobileNavLink>
+            <MobileNavLink active={mobileTab === 'dashboard'} onClick={() => setMobileTab('dashboard')}>Mapa</MobileNavLink>
+            <MobileNavLink active={mobileTab === 'account'} onClick={() => setMobileTab('account')}>Cuenta</MobileNavLink>
+            {showRegistro && (
+              <MobileNavLink active={mobileTab === 'registro'} onClick={() => setMobileTab('registro')}>Registro</MobileNavLink>
+            )}
+            {showPrices && (
+              <MobileNavLink active={mobileTab === 'prices'} onClick={() => setMobileTab('prices')}>Precios</MobileNavLink>
+            )}
+            <MobileNavLink active={mobileTab === 'settings'} onClick={() => setMobileTab('settings')}>Ajustes</MobileNavLink>
+          </>
+        )}
+        {!showSettings && (
+          <MobileNavLink active={mobileTab === 'dashboard'} onClick={() => setMobileTab('dashboard')}>Mapa</MobileNavLink>
+        )}
+        {isPlatformOwner && (
+          <MobileNavLink active={mobileTab === 'platform'} onClick={() => setMobileTab('platform')}>Plataforma</MobileNavLink>
+        )}
+        <MobileNavLink active={mobileTab === 'notifications'} onClick={() => setMobileTab('notifications')}>
+          <span className="inline-flex items-center justify-center gap-1.5">
+            Alertas
+            {unreadNotifsCount > 0 && (
+              <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-cta)] text-[#F6F0E4] text-[11px] font-semibold inline-flex items-center justify-center">
+                {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
+              </span>
+            )}
+          </span>
+        </MobileNavLink>
+      </nav>
 
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
@@ -2666,6 +2593,7 @@ export default function App() {
           >
             {mobileTab === 'panel' && (
               <div className="flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch]">
+                  <Suspense fallback={<LazyFallback />}>
                   <OperationsDashboard
                     orders={orders}
                     repartidores={repartidores}
@@ -2687,6 +2615,7 @@ export default function App() {
                       setMobileTab('registro');
                     }}
                   />
+                  </Suspense>
               </div>
             )}
             {mobileTab === 'dashboard' && (
@@ -2772,6 +2701,7 @@ export default function App() {
 
             {mobileTab === 'registro' && token && isAgencyAdmin(user.role) && (
               <div className="flex-1 min-w-0 w-full flex flex-col rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] overflow-visible">
+                <Suspense fallback={<LazyFallback />}>
                 <RegistroPage
                   token={token}
                   orders={orders}
@@ -2784,23 +2714,29 @@ export default function App() {
                     setMobileTab('dashboard');
                   }}
                 />
+                </Suspense>
               </div>
             )}
 
             {mobileTab === 'prices' && token && isAgencyAdmin(user.role) && (
               <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-                <PriceListsPage token={token} />
+                <Suspense fallback={<LazyFallback />}>
+                  <PriceListsPage token={token} />
+                </Suspense>
               </div>
             )}
 
             {mobileTab === 'platform' && token && isPlatformOwner && (
               <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col rounded-[6px] border border-[var(--surface-border)] overflow-hidden bg-[var(--surface-panel)]">
-                <PlatformOwnerPanel token={token} />
+                <Suspense fallback={<LazyFallback />}>
+                  <PlatformOwnerPanel token={token} />
+                </Suspense>
               </div>
             )}
 
             {mobileTab === 'settings' && (
               <div className="flex-1 min-w-0 w-full">
+                <Suspense fallback={<LazyFallback />}>
                 <SettingsPage
                   user={user}
                   onBack={() => setMobileTab('panel')}
@@ -2890,10 +2826,12 @@ export default function App() {
                     isAgencyAdmin(user.role) ? disconnectAgencyMercadoPago : undefined
                   }
                 />
+                </Suspense>
               </div>
             )}
 
             <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+              <Suspense fallback={<LazyFallback />}>
               <NotificationHub
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}
@@ -2908,6 +2846,7 @@ export default function App() {
                 }}
                 onOpenMap={() => setMobileTab('dashboard')}
               />
+              </Suspense>
             </NotifsSidebar>
           </div>
         ) : (
@@ -2945,6 +2884,7 @@ export default function App() {
             </div>
 
             <NotifsSidebar open={notifsSidebarOpen} mobileShow={mobileTab === 'notifications'}>
+              <Suspense fallback={<LazyFallback />}>
               <NotificationHub
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}
@@ -2959,6 +2899,7 @@ export default function App() {
                 }}
                 onOpenMap={() => setMobileTab('dashboard')}
               />
+              </Suspense>
             </NotifsSidebar>
           </div>
         )}

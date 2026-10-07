@@ -3,12 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'posta-rastreo-v3';
+const CACHE_NAME = 'posta-rastreo-v4';
 
-const PRECACHE_ASSETS = [
-  '/manifest.json',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-];
+const PRECACHE_ASSETS = ['/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
