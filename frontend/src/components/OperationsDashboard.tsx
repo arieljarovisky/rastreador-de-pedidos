@@ -13,7 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { Order, User, UserRole, isAgencyAdmin } from '../types.js';
+import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
