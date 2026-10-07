@@ -553,11 +553,21 @@ function OrderListSection({
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const visibleOrders = orders.slice(0, visibleCount);
   const hasMore = visibleCount < orders.length;
+  const isExpanded = visibleCount > PAGE_SIZE;
 
   // Si cambia el listado (fecha/filtro), volver a las primeras 6.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [orders]);
+
+  const scrollToTop = () => {
+    document.getElementById('operations-dashboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const showLess = () => {
+    setVisibleCount(PAGE_SIZE);
+    scrollToTop();
+  };
 
   const borderTone =
     tone === 'ok'
@@ -643,15 +653,36 @@ function OrderListSection({
               </li>
             ))}
           </ul>
-          {hasMore && (
-            <div className="shrink-0 border-t border-[var(--surface-border)]/60 p-2">
-              <button
-                type="button"
-                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-                className="w-full py-2.5 rounded-[5px] text-sm font-semibold text-[var(--color-accent)] hover:bg-[var(--surface-panel-2)] transition"
-              >
-                Cargar más ({orders.length - visibleCount})
-              </button>
+          {(hasMore || isExpanded) && (
+            <div className="shrink-0 border-t border-[var(--surface-border)]/60 p-2 flex flex-wrap gap-2">
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                  className="flex-1 min-w-[8rem] py-2.5 rounded-[5px] text-sm font-semibold text-[var(--color-accent)] hover:bg-[var(--surface-panel-2)] transition"
+                >
+                  Cargar más ({orders.length - visibleCount})
+                </button>
+              )}
+              {isExpanded && (
+                <button
+                  type="button"
+                  onClick={showLess}
+                  className="flex-1 min-w-[8rem] py-2.5 rounded-[5px] text-sm font-semibold text-[var(--color-text-muted)] hover:bg-[var(--surface-panel-2)] hover:text-[var(--ink-soft)] transition"
+                >
+                  Ocultar
+                </button>
+              )}
+              {isExpanded && (
+                <button
+                  type="button"
+                  onClick={scrollToTop}
+                  className="flex-1 min-w-[8rem] py-2.5 rounded-[5px] text-sm font-semibold text-[var(--color-text-muted)] hover:bg-[var(--surface-panel-2)] hover:text-[var(--ink-soft)] transition inline-flex items-center justify-center gap-1"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                  Volver arriba
+                </button>
+              )}
             </div>
           )}
         </>
