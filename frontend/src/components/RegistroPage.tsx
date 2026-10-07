@@ -18,6 +18,12 @@ interface RegistroPageProps {
     repartidorId?: string,
     comment?: string
   ) => Promise<void>;
+  onMarkOrdersDelivered?: (orderIds: string[]) => Promise<{
+    updated: number;
+    skipped: number;
+    failed: number;
+    updatedIds: string[];
+  }>;
   onSelectOrder?: (orderId: string) => void;
 }
 
@@ -28,6 +34,7 @@ export default function RegistroPage({
   userRole,
   initialSellerId = null,
   onUpdateOrderStatus,
+  onMarkOrdersDelivered,
   onSelectOrder,
 }: RegistroPageProps) {
   return (
@@ -39,6 +46,7 @@ export default function RegistroPage({
         userRole={userRole}
         initialSellerId={initialSellerId}
         onUpdateOrderStatus={onUpdateOrderStatus}
+        onMarkOrdersDelivered={onMarkOrdersDelivered}
         onSelectOrder={onSelectOrder}
       />
     </div>

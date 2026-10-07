@@ -2709,6 +2709,7 @@ export default function App() {
                   userRole={user.role}
                   initialSellerId={registroSellerId}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onMarkOrdersDelivered={handleMarkOrdersDelivered}
                   onSelectOrder={(orderId) => {
                     setActiveOrderId(orderId);
                     setMobileTab('dashboard');

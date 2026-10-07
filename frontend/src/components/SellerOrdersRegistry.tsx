@@ -45,6 +45,12 @@ interface SellerOrdersRegistryProps {
     repartidorId?: string,
     comment?: string
   ) => Promise<void>;
+  onMarkOrdersDelivered?: (orderIds: string[]) => Promise<{
+    updated: number;
+    skipped: number;
+    failed: number;
+    updatedIds: string[];
+  }>;
   onSelectOrder?: (orderId: string) => void;
 }
 
@@ -94,6 +100,14 @@ function personalStatusLabel(status: AgencyDriverScanStatus): string {
   return 'Pendiente';
 }
 
+function canBulkDeliver(order: Order): boolean {
+  return (
+    order.status !== OrderStatus.DELIVERED &&
+    order.status !== OrderStatus.CANCELLED &&
+    order.externalSource !== 'mercadolibre'
+  );
+}
+
 function personalMatchesStatus(status: AgencyDriverScanStatus, filter: string): boolean {
   if (filter === 'all') return true;
   if (filter === 'archived') return false;
@@ -111,6 +125,7 @@ export default function SellerOrdersRegistry({
   userRole,
   initialSellerId = null,
   onUpdateOrderStatus,
+  onMarkOrdersDelivered,
   onSelectOrder,
 }: SellerOrdersRegistryProps) {
   const { confirm, alert: showAlert } = useModal();
@@ -124,6 +139,8 @@ export default function SellerOrdersRegistry({
   const [searchDebounced, setSearchDebounced] = useState('');
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
+  const [markingBulk, setMarkingBulk] = useState(false);
   const [personalEntries, setPersonalEntries] = useState<AgencyDriverScanEntry[]>([]);
   const [personalLoading, setPersonalLoading] = useState(false);
   const [pageOrders, setPageOrders] = useState<Order[]>([]);
@@ -347,6 +364,7 @@ export default function SellerOrdersRegistry({
 
   useEffect(() => {
     setPage(1);
+    setCheckedIds(new Set());
   }, [sellerId, marketplaceSource, statusFilter, searchDebounced, dateFromKey, dateToKey]);
 
   useEffect(() => {
@@ -424,6 +442,94 @@ export default function SellerOrdersRegistry({
       });
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const deliverableOnPage = useMemo(
+    () =>
+      pageRows.flatMap((row) =>
+        row.kind === 'posta' && canBulkDeliver(row.order) ? [row.order] : []
+      ),
+    [pageRows]
+  );
+  const allPageChecked =
+    deliverableOnPage.length > 0 && deliverableOnPage.every((order) => checkedIds.has(order.id));
+
+  const toggleOrderCheck = (orderId: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
+
+  const togglePageChecks = () => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageChecked) {
+        for (const order of deliverableOnPage) next.delete(order.id);
+      } else {
+        for (const order of deliverableOnPage) next.add(order.id);
+      }
+      return next;
+    });
+  };
+
+  const markSelectedDelivered = async () => {
+    if (!onMarkOrdersDelivered || checkedIds.size === 0) return;
+    const ids = [...checkedIds];
+    const count = ids.length;
+    const ok = await confirm({
+      title: 'Marcar como entregados',
+      message: `¿Confirmar ${count} envío${count === 1 ? '' : 's'} como entregado${count === 1 ? '' : 's'}?`,
+      variant: 'warning',
+      confirmText: 'Sí, entregados',
+      cancelText: 'Cancelar',
+    });
+    if (!ok) return;
+    setMarkingBulk(true);
+    try {
+      const result = await onMarkOrdersDelivered(ids);
+      const done = new Set(result.updatedIds);
+      if (done.size > 0) {
+        setPageOrders((prev) =>
+          prev.map((order) =>
+            done.has(order.id)
+              ? { ...order, status: OrderStatus.DELIVERED, updatedAt: new Date().toISOString() }
+              : order
+          )
+        );
+      }
+      setCheckedIds((prev) => {
+        if (result.failed === 0) return new Set();
+        const next = new Set(prev);
+        for (const id of result.updatedIds) next.delete(id);
+        return next;
+      });
+      void loadRegistryPage();
+      if (result.updated === 0) {
+        await showAlert({
+          title: 'Sin cambios',
+          message: 'Esos envíos ya estaban cerrados o no se pueden confirmar a mano.',
+          variant: 'warning',
+        });
+      } else if (result.failed > 0 || result.skipped > 0) {
+        const pending = result.failed + result.skipped;
+        await showAlert({
+          title: 'Entrega parcial',
+          message: `Se marcaron ${result.updated} envío${result.updated === 1 ? '' : 's'}. ${pending} quedó${pending === 1 ? '' : 'n'} sin cambio.`,
+          variant: result.failed > 0 ? 'error' : 'warning',
+        });
+      }
+    } catch (err: unknown) {
+      await showAlert({
+        title: 'No se pudieron marcar',
+        message: err instanceof Error ? err.message : 'Error al actualizar los pedidos.',
+        variant: 'error',
+      });
+    } finally {
+      setMarkingBulk(false);
     }
   };
 
@@ -638,7 +744,19 @@ export default function SellerOrdersRegistry({
             ? ` · ${dateFromKey ? formatOperationalDateShort(dateFromKey) : '…'} → ${dateToKey ? formatOperationalDateShort(dateToKey) : '…'}`
             : ''}
         </p>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {onMarkOrdersDelivered && checkedIds.size > 0 && (
+            <button
+              type="button"
+              disabled={markingBulk}
+              onClick={() => void markSelectedDelivered()}
+              title="Marcar como entregados los envíos seleccionados que no son de Mercado Libre"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[5px] border border-[var(--color-ok)]/40 bg-[var(--color-ok)]/10 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-ok)] hover:bg-[var(--color-ok)]/20 disabled:opacity-50"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {markingBulk ? 'Marcando…' : `Entregar (${checkedIds.size})`}
+            </button>
+          )}
           <button
             type="button"
             disabled={currentPage <= 1 || historyLoading}
@@ -692,6 +810,22 @@ export default function SellerOrdersRegistry({
             <table className="w-full text-left text-xs">
               <thead className="bg-[var(--surface-panel-2)] text-[9px] font-mono uppercase tracking-wider text-[var(--color-text-muted)]">
                 <tr>
+                  <th className="px-2 py-2 w-8">
+                    {onMarkOrdersDelivered && deliverableOnPage.length > 0 ? (
+                      <input
+                        type="checkbox"
+                        checked={allPageChecked}
+                        onChange={togglePageChecks}
+                        title={
+                          allPageChecked
+                            ? 'Deseleccionar esta página'
+                            : 'Seleccionar los envíos de esta página que no son de Mercado Libre'
+                        }
+                        aria-label="Seleccionar envíos de esta página"
+                        className="accent-[var(--color-accent)] cursor-pointer"
+                      />
+                    ) : null}
+                  </th>
                   <th className="px-3 py-2 font-bold">Fecha</th>
                   <th className="px-3 py-2 font-bold">Tipo</th>
                   <th className="px-3 py-2 font-bold">ID</th>
@@ -715,16 +849,27 @@ export default function SellerOrdersRegistry({
                       minute: '2-digit',
                       timeZone: 'America/Argentina/Buenos_Aires',
                     });
-                    const canDeliver =
-                      order.status !== OrderStatus.DELIVERED &&
-                      order.status !== OrderStatus.CANCELLED &&
-                      order.externalSource !== 'mercadolibre';
+                    const canDeliver = canBulkDeliver(order);
 
                     return (
                       <tr
                         key={row.id}
-                        className="border-t border-[var(--surface-border)] hover:bg-[var(--surface-panel-2)]/40"
+                        className={`border-t border-[var(--surface-border)] hover:bg-[var(--surface-panel-2)]/40 ${
+                          checkedIds.has(order.id) ? 'bg-[var(--color-accent)]/5' : ''
+                        }`}
                       >
+                        <td className="px-2 py-2 w-8">
+                          {onMarkOrdersDelivered && canDeliver ? (
+                            <input
+                              type="checkbox"
+                              checked={checkedIds.has(order.id)}
+                              onChange={() => toggleOrderCheck(order.id)}
+                              aria-label={`Seleccionar ${order.id}`}
+                              title="Seleccionar para marcar como entregado"
+                              className="accent-[var(--color-accent)] cursor-pointer"
+                            />
+                          ) : null}
+                        </td>
                         <td className="px-3 py-2 font-mono text-[10px] text-[var(--color-text-muted)] whitespace-nowrap">
                           <span className="block text-[var(--ink-soft)]">{dateLabel}</span>
                           <span className="block">{timeLabel}</span>
@@ -812,6 +957,7 @@ export default function SellerOrdersRegistry({
                       key={row.id}
                       className="border-t border-[var(--surface-border)] hover:bg-[var(--surface-panel-2)]/40"
                     >
+                      <td className="px-2 py-2 w-8" />
                       <td className="px-3 py-2 font-mono text-[10px] text-[var(--color-text-muted)] whitespace-nowrap">
                         <span className="block text-[var(--ink-soft)]">{dateLabel}</span>
                         <span className="block">{timeLabel}</span>
