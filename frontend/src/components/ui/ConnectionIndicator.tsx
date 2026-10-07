@@ -31,7 +31,7 @@ export default function ConnectionIndicator({
     return (
       <span className={`connection-indicator connection-indicator--offline ${className}`.trim()}>
         <WifiOff className="w-3 h-3 shrink-0" aria-hidden="true" />
-        OFFLINE
+        Sin red
       </span>
     );
   }
@@ -41,7 +41,7 @@ export default function ConnectionIndicator({
       <span className={`connection-indicator connection-indicator--live ${className}`.trim()}>
         <span className="connection-indicator__dot" aria-hidden="true" />
         <Wifi className="w-3 h-3 shrink-0" aria-hidden="true" />
-        LIVE
+        En vivo
       </span>
     );
   }
@@ -50,7 +50,7 @@ export default function ConnectionIndicator({
     <span className={`connection-indicator connection-indicator--online ${className}`.trim()}>
       <span className="connection-indicator__dot" aria-hidden="true" />
       <Wifi className="w-3 h-3 shrink-0" aria-hidden="true" />
-      ONLINE
+      En línea
     </span>
   );
 }
