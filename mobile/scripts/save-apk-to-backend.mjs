@@ -72,11 +72,17 @@ if (!url) throw new Error(`Build ${id ?? '(direct)'} sin URL de artefacto.`);
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
 const isLocalFile = /^([a-zA-Z]:\\|\/)/.test(url) && !url.startsWith('http');
+// GitHub rechaza blobs de más de 100 MB. La APK de EAS se sirve por downloadUrl
+// y no se copia al repo.
 if (isLocalFile) {
   if (!fs.existsSync(url)) throw new Error(`No existe el archivo local: ${url}`);
+  const sizeMb = fs.statSync(url).size / (1024 * 1024);
+  if (sizeMb > 100) {
+    throw new Error(
+      `El APK pesa ${sizeMb.toFixed(1)} MB. Git no acepta archivos de más de 100 MB. Publicá el binario en EAS y usá downloadUrl.`
+    );
+  }
   fs.copyFileSync(url, outPath);
-} else {
-  run(`curl -fsSL "${url}" -o "${outPath}"`);
 }
 
 const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
@@ -95,8 +101,13 @@ const versionPayload = {
 };
 fs.writeFileSync(versionPath, `${JSON.stringify(versionPayload, null, 2)}\n`);
 
-const sizeMb = (fs.statSync(outPath).size / (1024 * 1024)).toFixed(1);
-console.log(`APK guardado: ${outPath} (${sizeMb} MB)`);
+if (isLocalFile) {
+  const sizeMb = (fs.statSync(outPath).size / (1024 * 1024)).toFixed(1);
+  console.log(`APK guardado: ${outPath} (${sizeMb} MB)`);
+} else {
+  console.log('APK no copiado al repo (supera el límite de 100 MB de Git).');
+  console.log(`Descarga: ${url}`);
+}
 console.log(`Versión publicada: ${versionPayload.version} (mínima: ${versionPayload.minVersion})`);
 console.log(`Metadata: ${versionPath}`);
 console.log(`Build EAS: ${id ?? 'url-directa'}`);
