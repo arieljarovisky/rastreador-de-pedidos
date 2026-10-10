@@ -214,6 +214,7 @@ export const api = {
       clientName?: string;
       address?: string;
       clientPhone?: string;
+      sellerId?: string;
     }
   ): Promise<DriverScanEntry> {
     return request<DriverScanEntry>('/api/driver-scan', {
@@ -228,9 +229,22 @@ export const api = {
         clientName: options?.clientName,
         address: options?.address,
         clientPhone: options?.clientPhone,
+        sellerId: options?.sellerId,
       },
       timeoutMs: 45_000,
     });
+  },
+
+  /** Repartidor: vendedores de la agencia para asociar una etiqueta. */
+  getDriverScanSellers(token: string): Promise<{ sellers: Array<{ id: string; name: string }> }> {
+    return request<{ sellers: Array<{ id: string; name: string }> }>('/api/driver-scan/sellers', {
+      token,
+    });
+  },
+
+  /** Vendedor: etiquetas que un repartidor asoció a su cuenta. */
+  getAssignedScanEntries(token: string): Promise<{ entries: DriverScanEntry[] }> {
+    return request<{ entries: DriverScanEntry[] }>('/api/driver-scan/assigned', { token });
   },
 
   /** Repartidor: listado de su registro personal por día operativo. */
@@ -243,7 +257,7 @@ export const api = {
   updateDriverScanEntryDetails(
     token: string,
     entryId: string,
-    data: { clientName?: string; address?: string; clientPhone?: string }
+    data: { clientName?: string; address?: string; clientPhone?: string; sellerId?: string }
   ): Promise<DriverScanEntry> {
     return request<DriverScanEntry>(`/api/driver-scan/${entryId}/details`, {
       method: 'PUT',

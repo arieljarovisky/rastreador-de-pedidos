@@ -183,14 +183,13 @@ export default function SellerOrdersRegistry({
   }, [loadPersonal]);
 
   const includePersonal =
-    agency &&
-    !sellerId &&
-    (marketplaceSource === '' || marketplaceSource === 'personal');
+    agency && (marketplaceSource === '' || marketplaceSource === 'personal');
 
   const personalScoped = useMemo(() => {
     if (!includePersonal) return [];
     return personalEntries
       .filter((entry) => {
+        if (sellerId && entry.sellerId !== sellerId) return false;
         if (!personalMatchesStatus(entry.status, statusFilter)) return false;
         if (dateFromKey || dateToKey) {
           const entryDay =
@@ -208,11 +207,12 @@ export default function SellerOrdersRegistry({
           (entry.clientName?.toLowerCase().includes(q) ?? false) ||
           (entry.address?.toLowerCase().includes(q) ?? false) ||
           (entry.repartidorName?.toLowerCase().includes(q) ?? false) ||
+          (entry.sellerName?.toLowerCase().includes(q) ?? false) ||
           entry.scanCode.toLowerCase().includes(q)
         );
       })
       .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime());
-  }, [includePersonal, personalEntries, statusFilter, searchDebounced, dateFromKey, dateToKey]);
+  }, [includePersonal, personalEntries, sellerId, statusFilter, searchDebounced, dateFromKey, dateToKey]);
 
   const personalN = marketplaceSource === 'personal' ? personalScoped.length : includePersonal ? personalScoped.length : 0;
   const onlyPersonal = marketplaceSource === 'personal';
@@ -993,7 +993,9 @@ export default function SellerOrdersRegistry({
                         </span>
                       </td>
                       {agency && (
-                        <td className="px-3 py-2 text-[var(--color-text-faint)]">—</td>
+                        <td className="px-3 py-2 text-[var(--color-text-muted)] max-w-[8rem] truncate">
+                          {entry.sellerName?.trim() || '—'}
+                        </td>
                       )}
                       <td className="px-3 py-2 text-[var(--color-text-muted)] whitespace-nowrap">
                         {entry.repartidorName?.split(' ')[0] ?? '—'}

@@ -17,6 +17,8 @@ export interface AgencyDriverScanEntry {
   agencyId: string;
   repartidorId: string;
   repartidorName?: string;
+  sellerId?: string | null;
+  sellerName?: string | null;
   scanCode: string;
   routeDate: string;
   status: AgencyDriverScanStatus;
@@ -259,6 +261,7 @@ export default function AgencyDriverScanPage({
                 <tr>
                   <th className="px-3 py-2 font-bold">Hora</th>
                   <th className="px-3 py-2 font-bold">Repartidor</th>
+                  <th className="px-3 py-2 font-bold">Vendedor</th>
                   <th className="px-3 py-2 font-bold">Cliente</th>
                   <th className="px-3 py-2 font-bold">Código</th>
                   <th className="px-3 py-2 font-bold">Dirección</th>
@@ -277,6 +280,9 @@ export default function AgencyDriverScanPage({
                     </td>
                     <td className="px-3 py-2 text-[var(--color-text)] whitespace-nowrap">
                       {entry.repartidorName ?? '—'}
+                    </td>
+                    <td className="px-3 py-2 text-[var(--color-text)] whitespace-nowrap">
+                      {entry.sellerName?.trim() || '—'}
                     </td>
                     <td className="px-3 py-2 text-[var(--color-text)] max-w-[12rem]">
                       {entry.clientName?.trim() || (

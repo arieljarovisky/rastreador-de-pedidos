@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import { api } from '../api';
 import { colors, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
+import SellerPickerSheet, { SellerOption } from '../components/ui/SellerPickerSheet';
 import { formatScanCodeLabel, stripAddressReference } from '../utils/scanCodeLabel';
 import { parseShippingLabelOcr } from '../utils/parseShippingLabelOcr';
 import { DriverScanEntry } from '../types';
@@ -68,19 +69,47 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [pendingAddressEntry, setPendingAddressEntry] = useState<DriverScanEntry | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const [ocrReading, setOcrReading] = useState(false);
+  const [sellers, setSellers] = useState<SellerOption[]>([]);
+  const [sellersReady, setSellersReady] = useState(false);
+  const [pendingSellerScan, setPendingSellerScan] = useState<{
+    code: string;
+    location?: { lat: number; lng: number };
+    ocr: { address: string | null; clientName: string | null };
+  } | null>(null);
+  const [lastSellerId, setLastSellerId] = useState<string | null>(null);
   const lastCodeRef = useRef<string | null>(null);
   const busyRef = useRef(false);
   const cameraRef = useRef<CameraView>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void api
+      .getDriverScanSellers(token)
+      .then((data) => {
+        if (!cancelled) setSellers(data.sellers ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSellers([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSellersReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const showPersonalResult = useCallback((entry: DriverScanEntry) => {
     setScannedCount((n) => n + 1);
     const name = entry.clientName?.trim() || 'Sin nombre';
     const code = formatScanCodeLabel(entry.scanCode);
     const addr = entry.address?.trim() ? `\n${stripAddressReference(entry.address.trim())}` : '';
+    const seller = entry.sellerName?.trim() ? `\nVendedor: ${entry.sellerName.trim()}` : '';
     setLastResult(
       entry.alreadyRegistered
-        ? `Ya en tu registro: ${name}\n#${code}${addr}`
-        : `Registro: ${name}\n#${code}${addr}`
+        ? `Ya en tu registro: ${name}\n#${code}${addr}${seller}`
+        : `Registro: ${name}\n#${code}${addr}${seller}`
     );
   }, []);
 
@@ -103,17 +132,20 @@ export default function ScanLabelScreen({ navigation }: Props) {
   }, []);
 
   const savePersonal = useCallback(
-    async (code: string, location?: { lat: number; lng: number }) => {
+    async (
+      code: string,
+      location: { lat: number; lng: number } | undefined,
+      ocrFields: { address: string | null; clientName: string | null },
+      sellerId: string
+    ) => {
       if (!token) throw new Error('Sesión inválida');
-
-      setLastResult(`Leyendo dirección de la etiqueta…\n#${formatScanCodeLabel(code)}`);
-      const ocrFields = await captureLabelFields();
 
       let entry = await api.createDriverScanEntry(token, code, {
         lat: location?.lat,
         lng: location?.lng,
         address: ocrFields.address ? stripAddressReference(ocrFields.address) : undefined,
         clientName: ocrFields.clientName ?? undefined,
+        sellerId,
       });
 
       // Por si el alta no persistió la dirección del OCR, la completamos.
@@ -159,7 +191,36 @@ export default function ScanLabelScreen({ navigation }: Props) {
         setPendingAddressEntry(null);
       }
     },
-    [token, captureLabelFields, showPersonalResult]
+    [token, showPersonalResult]
+  );
+
+  const cancelSellerPick = useCallback(() => {
+    setPendingSellerScan(null);
+    lastCodeRef.current = null;
+    busyRef.current = false;
+    setProcessing(false);
+  }, []);
+
+  const confirmSellerPick = useCallback(
+    async (sellerId: string) => {
+      const pending = pendingSellerScan;
+      if (!pending) return;
+      setLastSellerId(sellerId);
+      setPendingSellerScan(null);
+      setProcessing(true);
+      try {
+        await savePersonal(pending.code, pending.location, pending.ocr, sellerId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'No se pudo procesar el escaneo.';
+        setLastResult(null);
+        lastCodeRef.current = null;
+        Alert.alert('Escaneo', message);
+      } finally {
+        setProcessing(false);
+        busyRef.current = false;
+      }
+    },
+    [pendingSellerScan, savePersonal]
   );
 
   const confirmAddressFromLabel = useCallback(async () => {
@@ -193,11 +254,12 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const handleScan = useCallback(
     async (scan: BarcodeScanningResult) => {
       const code = scan.data?.trim();
-      if (!token || !code || busyRef.current || pendingAddressEntry || ocrReading) return;
+      if (!token || !code || busyRef.current || pendingAddressEntry || pendingSellerScan || ocrReading) return;
       if (lastCodeRef.current === code) return;
       busyRef.current = true;
       lastCodeRef.current = code;
       setProcessing(true);
+      let waitingForSeller = false;
       try {
         const location = await currentLocation();
         if (code.startsWith(POSTA_ORDER_QR_PREFIX)) {
@@ -208,9 +270,20 @@ export default function ScanLabelScreen({ navigation }: Props) {
               ? `Ya asignado: ${result.order.clientName} (${result.order.id})`
               : `Asignado: ${result.order.clientName} (${result.order.id})`
           );
+        } else if (!sellersReady) {
+          lastCodeRef.current = null;
+          Alert.alert('Vendedores', 'Estamos cargando los vendedores. Escaneá de nuevo en un momento.');
+        } else if (sellers.length === 0) {
+          lastCodeRef.current = null;
+          Alert.alert(
+            'Sin vendedores',
+            'El administrador de la agencia tiene que crear vendedores (usuario y contraseña, sin tienda online) antes de asociar etiquetas.'
+          );
         } else {
-          // Siempre registro personal (paquetes ajenos / control).
-          await savePersonal(code, location);
+          setLastResult(`Leyendo dirección de la etiqueta…\n#${formatScanCodeLabel(code)}`);
+          const ocr = await captureLabelFields();
+          waitingForSeller = true;
+          setPendingSellerScan({ code, location, ocr });
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No se pudo procesar el escaneo.';
@@ -224,11 +297,15 @@ export default function ScanLabelScreen({ navigation }: Props) {
           },
         ]);
       } finally {
-        setProcessing(false);
-        busyRef.current = false;
+        if (!waitingForSeller) {
+          setProcessing(false);
+          busyRef.current = false;
+        } else {
+          setProcessing(false);
+        }
       }
     },
-    [token, savePersonal, pendingAddressEntry, ocrReading]
+    [token, captureLabelFields, pendingAddressEntry, pendingSellerScan, ocrReading, sellers.length, sellersReady]
   );
 
   if (!permission) {
@@ -267,7 +344,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ['qr', 'code128', 'datamatrix'] }}
         onBarcodeScanned={
-          processing || pendingAddressEntry || ocrReading
+          processing || pendingAddressEntry || pendingSellerScan || ocrReading
             ? undefined
             : (scan) => void handleScan(scan)
         }
@@ -318,6 +395,14 @@ export default function ScanLabelScreen({ navigation }: Props) {
         </View>
       </Modal>
 
+      <SellerPickerSheet
+        visible={Boolean(pendingSellerScan)}
+        sellers={sellers}
+        selectedId={lastSellerId}
+        onSelect={(id) => void confirmSellerPick(id)}
+        onClose={cancelSellerPick}
+      />
+
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable style={styles.closeBtn} onPress={() => navigation.goBack()} hitSlop={12}>
           <PostaIcon name="chevronDown" size={22} color={colors.text} />
@@ -350,7 +435,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
           </View>
         ) : (
           <Text style={styles.statusText}>
-            Escaneá la etiqueta: queda en tu registro del día con la dirección leída del texto.
+            Escaneá la etiqueta. Después elegís qué vendedor queda asociado a ese paquete.
           </Text>
         )}
 

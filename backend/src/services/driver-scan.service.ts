@@ -4,6 +4,7 @@ import { pool } from '../config/database.js';
 import { User, UserRole } from '../types/index.js';
 import { getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
 import { isAgencyAdmin } from '../utils/roles.js';
+import { assertSellerInAgency } from './users.service.js';
 import {
   getIntegration,
   listMercadoLibreIntegrationsForAgencyScan,
@@ -26,6 +27,8 @@ export interface DriverScanEntry {
   agencyId: string;
   repartidorId: string;
   repartidorName?: string;
+  sellerId: string | null;
+  sellerName?: string | null;
   scanCode: string;
   routeDate: string;
   status: DriverScanEntryStatus;
@@ -43,6 +46,8 @@ interface DbDriverScanRow extends RowDataPacket {
   agency_id: string;
   repartidor_id: string;
   repartidor_name?: string | null;
+  seller_id?: string | null;
+  seller_name?: string | null;
   scan_code: string;
   route_date: string | Date;
   status: DriverScanEntryStatus;
@@ -84,6 +89,8 @@ function mapRow(row: DbDriverScanRow, alreadyRegistered = false): DriverScanEntr
     agencyId: row.agency_id,
     repartidorId: row.repartidor_id,
     repartidorName: row.repartidor_name ?? undefined,
+    sellerId: row.seller_id?.trim() ? row.seller_id.trim() : null,
+    sellerName: row.seller_name?.trim() ? row.seller_name.trim() : null,
     scanCode: row.scan_code,
     routeDate: formatRouteDate(row.route_date),
     status: row.status,
@@ -95,6 +102,28 @@ function mapRow(row: DbDriverScanRow, alreadyRegistered = false): DriverScanEntr
     deliveredAt: toIso(row.delivered_at),
     alreadyRegistered,
   };
+}
+
+const ENTRY_SELECT = `e.*, u.name AS repartidor_name, s.name AS seller_name`;
+const ENTRY_FROM = `FROM driver_scan_entries e
+  LEFT JOIN users u ON u.id = e.repartidor_id
+  LEFT JOIN users s ON s.id = e.seller_id`;
+
+async function loadEntry(id: string, alreadyRegistered = false): Promise<DriverScanEntry> {
+  const [rows] = await pool.query<DbDriverScanRow[]>(
+    `SELECT ${ENTRY_SELECT} ${ENTRY_FROM} WHERE e.id = ? LIMIT 1`,
+    [id]
+  );
+  if (!rows[0]) throw new Error('NOT_FOUND');
+  return mapRow(rows[0], alreadyRegistered);
+}
+
+async function resolveScanSeller(user: User, sellerId: string | undefined): Promise<string | null> {
+  const trimmed = sellerId?.trim();
+  if (!trimmed) return null;
+  if (!user.agencyId) throw new Error('FORBIDDEN');
+  const seller = await assertSellerInAgency(trimmed, user.agencyId);
+  return seller.id;
 }
 
 function assertRepartidor(user: User): asserts user is User & { agencyId: string } {
@@ -142,6 +171,7 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
           id VARCHAR(36) PRIMARY KEY,
           agency_id VARCHAR(36) NOT NULL,
           repartidor_id VARCHAR(36) NOT NULL,
+          seller_id VARCHAR(36) NULL,
           scan_code VARCHAR(255) NOT NULL,
           route_date DATE NOT NULL,
           status ENUM('pending', 'delivered', 'cancelled') NOT NULL DEFAULT 'pending',
@@ -156,6 +186,7 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
           UNIQUE KEY uk_driver_scan_day_code (repartidor_id, route_date, scan_code),
           INDEX idx_driver_scan_repartidor_date (repartidor_id, route_date),
           INDEX idx_driver_scan_agency_date (agency_id, route_date),
+          INDEX idx_driver_scan_seller (seller_id),
           CONSTRAINT fk_driver_scan_agency FOREIGN KEY (agency_id) REFERENCES agencies(id) ON DELETE CASCADE,
           CONSTRAINT fk_driver_scan_repartidor FOREIGN KEY (repartidor_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -164,7 +195,7 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
       const [cols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
         `SELECT COLUMN_NAME FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'driver_scan_entries'
-           AND COLUMN_NAME IN ('client_name', 'address', 'client_phone')`
+           AND COLUMN_NAME IN ('client_name', 'address', 'client_phone', 'seller_id')`
       );
       const have = new Set(cols.map((c) => c.COLUMN_NAME));
       if (!have.has('client_name')) {
@@ -180,6 +211,14 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
       if (!have.has('client_phone')) {
         await pool.query(
           'ALTER TABLE driver_scan_entries ADD COLUMN client_phone VARCHAR(64) NULL AFTER address'
+        );
+      }
+      if (!have.has('seller_id')) {
+        await pool.query(
+          'ALTER TABLE driver_scan_entries ADD COLUMN seller_id VARCHAR(36) NULL AFTER repartidor_id'
+        );
+        await pool.query(
+          'ALTER TABLE driver_scan_entries ADD INDEX idx_driver_scan_seller (seller_id)'
         );
       }
     })().catch((err) => {
@@ -355,11 +394,13 @@ export async function createDriverScanEntry(
     clientName?: string;
     address?: string;
     clientPhone?: string;
+    sellerId?: string;
   }
 ): Promise<DriverScanEntry> {
   assertRepartidor(user);
   await ensureDriverScanEntriesTable();
 
+  const sellerId = await resolveScanSeller(user, data.sellerId);
   const scanCode = normalizeScanCode(data.code);
   const routeDate =
     data.routeDate && isValidDateKey(data.routeDate) ? data.routeDate : getActiveOperationalDateKey();
@@ -377,6 +418,12 @@ export async function createDriverScanEntry(
     [user.id, routeDate, scanCode]
   );
   if (existingRows[0]) {
+    if (sellerId && existingRows[0].seller_id !== sellerId) {
+      await pool.query('UPDATE driver_scan_entries SET seller_id = ? WHERE id = ?', [
+        sellerId,
+        existingRows[0].id,
+      ]);
+    }
     // Reescaneo: completar dirección si todavía no la tenemos.
     if (!existingRows[0].address?.trim()) {
       const contact =
@@ -389,10 +436,10 @@ export async function createDriverScanEntry(
           address: contact.address,
           clientPhone: contact.clientPhone ?? manualPhone,
         });
-        if (updated) return mapRow(updated, true);
+        if (updated) return loadEntry(updated.id, true);
       }
     }
-    return mapRow(existingRows[0], true);
+    return loadEntry(existingRows[0].id, true);
   }
 
   const contact = manualAddress
@@ -402,13 +449,14 @@ export async function createDriverScanEntry(
   try {
     await pool.query<ResultSetHeader>(
       `INSERT INTO driver_scan_entries
-        (id, agency_id, repartidor_id, scan_code, route_date, status, note,
+        (id, agency_id, repartidor_id, seller_id, scan_code, route_date, status, note,
          client_name, address, client_phone, scanned_at, delivered_at, lat, lng)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, NULL, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, NULL, ?, ?)`,
       [
         id,
         user.agencyId,
         user.id,
+        sellerId,
         scanCode,
         routeDate,
         note,
@@ -429,17 +477,12 @@ export async function createDriverScanEntry(
          LIMIT 1`,
         [user.id, routeDate, scanCode]
       );
-      if (rows[0]) return mapRow(rows[0], true);
+      if (rows[0]) return loadEntry(rows[0].id, true);
     }
     throw err;
   }
 
-  const [rows] = await pool.query<DbDriverScanRow[]>(
-    'SELECT * FROM driver_scan_entries WHERE id = ? LIMIT 1',
-    [id]
-  );
-  if (!rows[0]) throw new Error('NOT_FOUND');
-  return mapRow(rows[0], false);
+  return loadEntry(id, false);
 }
 
 export async function listDriverScanEntries(
@@ -453,10 +496,25 @@ export async function listDriverScanEntries(
     options?.date && isValidDateKey(options.date) ? options.date : getActiveOperationalDateKey();
 
   const [rows] = await pool.query<DbDriverScanRow[]>(
-    `SELECT * FROM driver_scan_entries
-     WHERE repartidor_id = ? AND route_date = ?
-     ORDER BY scanned_at DESC`,
+    `SELECT ${ENTRY_SELECT} ${ENTRY_FROM}
+     WHERE e.repartidor_id = ? AND e.route_date = ?
+     ORDER BY e.scanned_at DESC`,
     [user.id, routeDate]
+  );
+  return rows.map((row) => mapRow(row));
+}
+
+/** Etiquetas que un repartidor asoció a este vendedor (sin cuenta de ecommerce). */
+export async function listSellerAssignedScanEntries(user: User): Promise<DriverScanEntry[]> {
+  if (user.role !== UserRole.STORE_ADMIN) throw new Error('FORBIDDEN');
+  await ensureDriverScanEntriesTable();
+
+  const [rows] = await pool.query<DbDriverScanRow[]>(
+    `SELECT ${ENTRY_SELECT} ${ENTRY_FROM}
+     WHERE e.seller_id = ?
+     ORDER BY e.scanned_at DESC
+     LIMIT 300`,
+    [user.id]
   );
   return rows.map((row) => mapRow(row));
 }
@@ -488,9 +546,7 @@ export async function listAgencyDriverScanEntries(
   }
 
   const [rows] = await pool.query<DbDriverScanRow[]>(
-    `SELECT e.*, u.name AS repartidor_name
-     FROM driver_scan_entries e
-     LEFT JOIN users u ON u.id = e.repartidor_id
+    `SELECT ${ENTRY_SELECT} ${ENTRY_FROM}
      WHERE e.agency_id = ?${dateFilter}${repartidorFilter}
      ORDER BY e.scanned_at DESC
      LIMIT 5000`,
@@ -544,19 +600,14 @@ export async function updateDriverScanEntryStatus(
     [status, deliveredAt, entryId]
   );
 
-  const [updated] = await pool.query<DbDriverScanRow[]>(
-    'SELECT * FROM driver_scan_entries WHERE id = ? LIMIT 1',
-    [entryId]
-  );
-  if (!updated[0]) throw new Error('NOT_FOUND');
-  return mapRow(updated[0]);
+  return loadEntry(entryId);
 }
 
 /** Completa o corrige destinatario/dirección de un registro personal (p. ej. leídos de la etiqueta). */
 export async function updateDriverScanEntryDetails(
   user: User,
   entryId: string,
-  data: { clientName?: string; address?: string; clientPhone?: string }
+  data: { clientName?: string; address?: string; clientPhone?: string; sellerId?: string }
 ): Promise<DriverScanEntry> {
   assertRepartidor(user);
   await ensureDriverScanEntriesTable();
@@ -590,19 +641,17 @@ export async function updateDriverScanEntryDetails(
     throw new Error('INVALID_ADDRESS');
   }
 
+  const sellerId =
+    data.sellerId !== undefined ? await resolveScanSeller(user, data.sellerId) : rows[0].seller_id ?? null;
+
   await pool.query(
     `UPDATE driver_scan_entries
-     SET client_name = ?, address = ?, client_phone = ?
+     SET client_name = ?, address = ?, client_phone = ?, seller_id = ?
      WHERE id = ? AND repartidor_id = ?`,
-    [clientName, address, clientPhone, entryId, user.id]
+    [clientName, address, clientPhone, sellerId, entryId, user.id]
   );
 
-  const [updated] = await pool.query<DbDriverScanRow[]>(
-    'SELECT * FROM driver_scan_entries WHERE id = ? LIMIT 1',
-    [entryId]
-  );
-  if (!updated[0]) throw new Error('NOT_FOUND');
-  return mapRow(updated[0]);
+  return loadEntry(entryId);
 }
 
 /** Elimina un registro personal: el repartidor el propio, la agencia cualquiera de su flota. */

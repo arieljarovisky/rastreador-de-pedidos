@@ -30,6 +30,7 @@ import ListTabButton from '../components/ui/ListTabButton';
 import MonoLabel from '../components/ui/MonoLabel';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
+import SellerPickerSheet, { SellerOption } from '../components/ui/SellerPickerSheet';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import { formatScanCodeLabel, stripAddressReference } from '../utils/scanCodeLabel';
 import { RepartidorHomeStackParamList, RepartidorStackParamList } from '../navigation/types';
@@ -119,6 +120,8 @@ export default function OrdersScreen({ navigation }: Props) {
   const [updatingEntryId, setUpdatingEntryId] = useState<string | null>(null);
   const [pendingDeleteEntry, setPendingDeleteEntry] = useState<DriverScanEntry | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [sellers, setSellers] = useState<SellerOption[]>([]);
+  const [sellerEditEntry, setSellerEditEntry] = useState<DriverScanEntry | null>(null);
 
   const loadPersonal = useCallback(
     async (opts?: { soft?: boolean }) => {
@@ -144,7 +147,12 @@ export default function OrdersScreen({ navigation }: Props) {
     useCallback(() => {
       void refresh();
       void loadPersonal({ soft: true });
-    }, [refresh, loadPersonal])
+      if (!token) return;
+      void api
+        .getDriverScanSellers(token)
+        .then((data) => setSellers(data.sellers ?? []))
+        .catch(() => setSellers([]));
+    }, [refresh, loadPersonal, token])
   );
 
   const myAssigned = useMemo(
@@ -263,6 +271,26 @@ export default function OrdersScreen({ navigation }: Props) {
         },
       ]
     );
+  };
+
+  const assignPersonalSeller = (sellerId: string) => {
+    const entry = sellerEditEntry;
+    if (!token || !entry) return;
+    setSellerEditEntry(null);
+    void (async () => {
+      setUpdatingEntryId(entry.id);
+      try {
+        const updated = await api.updateDriverScanEntryDetails(token, entry.id, { sellerId });
+        setPersonalEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      } catch (err) {
+        Alert.alert(
+          'Vendedor',
+          err instanceof Error ? err.message : 'No se pudo asociar el vendedor.'
+        );
+      } finally {
+        setUpdatingEntryId(null);
+      }
+    })();
   };
 
   const handlePersonalStatus = (
@@ -397,6 +425,13 @@ export default function OrdersScreen({ navigation }: Props) {
                 <Text style={styles.personalAddressMissing}>+ Agregar dirección de la etiqueta</Text>
               </Pressable>
             )}
+            <Pressable onPress={() => setSellerEditEntry(item)} hitSlop={8}>
+              <Text style={styles.personalSeller}>
+                {item.sellerName?.trim()
+                  ? `Vendedor: ${item.sellerName.trim()}`
+                  : 'Elegir vendedor'}
+              </Text>
+            </Pressable>
             <Text style={styles.personalMeta}>
               Escaneado {formatScanTime(item.scannedAt)}
               {item.deliveredAt ? ` · Entregado ${formatScanTime(item.deliveredAt)}` : ''}
@@ -505,6 +540,14 @@ export default function OrdersScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <SellerPickerSheet
+        visible={Boolean(sellerEditEntry)}
+        sellers={sellers}
+        selectedId={sellerEditEntry?.sellerId ?? null}
+        onSelect={assignPersonalSeller}
+        onClose={() => setSellerEditEntry(null)}
+      />
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -832,6 +875,10 @@ const styles = StyleSheet.create({
     ...typography.body(13, colors.text),
   },
   personalAddressMissing: {
+    ...typography.body(13, roleAccents.repartidor),
+    fontWeight: '600',
+  },
+  personalSeller: {
     ...typography.body(13, roleAccents.repartidor),
     fontWeight: '600',
   },

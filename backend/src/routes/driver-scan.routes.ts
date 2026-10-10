@@ -5,6 +5,7 @@ import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 import {
   createDriverScanEntry,
   listDriverScanEntries,
+  listSellerAssignedScanEntries,
   listAgencyDriverScanEntries,
   updateDriverScanEntryStatus,
   updateDriverScanEntryDetails,
@@ -12,6 +13,7 @@ import {
   type DriverScanEntryStatus,
 } from '../services/driver-scan.service.js';
 import { getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
+import { listSellers } from '../services/users.service.js';
 
 const router = Router();
 
@@ -61,6 +63,43 @@ router.get(
   }
 );
 
+/** Vendedores de la agencia para asociar una etiqueta al escanear (sin cuenta de ecommerce). */
+router.get(
+  '/sellers',
+  requireRoles(UserRole.REPARTIDOR, ...AGENCY_ADMIN_ROLES),
+  async (req: Request, res: Response) => {
+    if (!req.user?.agencyId) {
+      res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+      return;
+    }
+    try {
+      const sellers = await listSellers(req.user.agencyId);
+      res.json({
+        sellers: sellers.map((seller) => ({ id: seller.id, name: seller.name })),
+      });
+    } catch (err) {
+      console.error('[driver-scan] GET /sellers error:', err);
+      res.status(500).json({ error: 'No se pudieron cargar los vendedores.' });
+    }
+  }
+);
+
+/** Etiquetas que los repartidores asociaron a la cuenta del vendedor. */
+router.get('/assigned', requireRoles(UserRole.STORE_ADMIN), async (req: Request, res: Response) => {
+  try {
+    const entries = await listSellerAssignedScanEntries(req.user!);
+    res.json({ entries });
+  } catch (err: unknown) {
+    const code = err instanceof Error ? err.message : 'ERROR';
+    if (code === 'FORBIDDEN') {
+      res.status(403).json({ error: 'Solo el vendedor puede ver sus etiquetas.' });
+      return;
+    }
+    console.error('[driver-scan] GET /assigned error:', err);
+    res.status(500).json({ error: 'No se pudieron cargar las etiquetas.' });
+  }
+});
+
 router.get('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
   try {
     const date =
@@ -81,7 +120,7 @@ router.get('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Res
 });
 
 router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  const { code, note, lat, lng, routeDate, clientName, address, clientPhone } = req.body as {
+  const { code, note, lat, lng, routeDate, clientName, address, clientPhone, sellerId } = req.body as {
     code?: string;
     note?: string;
     lat?: unknown;
@@ -90,6 +129,7 @@ router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Re
     clientName?: unknown;
     address?: unknown;
     clientPhone?: unknown;
+    sellerId?: unknown;
   };
 
   if (!code?.trim()) {
@@ -107,12 +147,17 @@ router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Re
       clientName: parseOptionalText(clientName),
       address: parseOptionalText(address),
       clientPhone: parseOptionalText(clientPhone),
+      sellerId: parseOptionalText(sellerId),
     });
     res.status(entry.alreadyRegistered ? 200 : 201).json(entry);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'ERROR';
     if (message === 'FORBIDDEN') {
       res.status(403).json({ error: 'Solo el repartidor puede registrar paquetes personales.' });
+      return;
+    }
+    if (message === 'SELLER_NOT_FOUND') {
+      res.status(400).json({ error: 'Ese vendedor no pertenece a tu agencia.', code: 'SELLER_NOT_FOUND' });
       return;
     }
     if (message === 'INVALID_CODE') {
@@ -125,10 +170,11 @@ router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Re
 });
 
 router.put('/:id/details', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  const { clientName, address, clientPhone } = req.body as {
+  const { clientName, address, clientPhone, sellerId } = req.body as {
     clientName?: unknown;
     address?: unknown;
     clientPhone?: unknown;
+    sellerId?: unknown;
   };
 
   try {
@@ -136,6 +182,7 @@ router.put('/:id/details', requireRoles(UserRole.REPARTIDOR), async (req: Reques
       clientName: parseOptionalText(clientName),
       address: parseOptionalText(address),
       clientPhone: parseOptionalText(clientPhone),
+      sellerId: parseOptionalText(sellerId),
     });
     res.json(entry);
   } catch (err: unknown) {
@@ -150,6 +197,10 @@ router.put('/:id/details', requireRoles(UserRole.REPARTIDOR), async (req: Reques
     }
     if (message === 'INVALID_ADDRESS') {
       res.status(400).json({ error: 'Ingresá la dirección del destinatario.', code: 'INVALID_ADDRESS' });
+      return;
+    }
+    if (message === 'SELLER_NOT_FOUND') {
+      res.status(400).json({ error: 'Ese vendedor no pertenece a tu agencia.', code: 'SELLER_NOT_FOUND' });
       return;
     }
     console.error('[driver-scan] PUT /:id/details error:', err);

@@ -1156,6 +1156,10 @@ export default function SettingsPage({
                 ) : undefined
               }
             />
+            <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+              Usuario y contraseña propios, sin Mercado Libre, Tienda Nube ni otra tienda.
+              Cuando un repartidor escanea una etiqueta, elige a cuál de estos vendedores queda asociada.
+            </p>
 
             {sellers.length > 0 && !showSellerForm && !selectedSellerId && (
               <ul className="space-y-1">

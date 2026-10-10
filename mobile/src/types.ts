@@ -311,6 +311,9 @@ export interface DriverScanEntry {
   id: string;
   agencyId: string;
   repartidorId: string;
+  repartidorName?: string | null;
+  sellerId?: string | null;
+  sellerName?: string | null;
   scanCode: string;
   routeDate: string;
   status: DriverScanEntryStatus;

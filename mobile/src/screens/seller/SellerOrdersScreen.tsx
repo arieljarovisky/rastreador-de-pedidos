@@ -14,7 +14,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { useSellerOrdersContext } from '../../context/SellerOrdersContext';
-import { Order, OrderStatus } from '../../types';
+import { DriverScanEntry, Order, OrderStatus } from '../../types';
+import { formatScanCodeLabel, stripAddressReference } from '../../utils/scanCodeLabel';
 import { colors, fonts, radius, roleAccents, spacing } from '../../theme';
 import OrderCard from '../../components/OrderCard';
 import PostaIcon from '../../components/icons/PostaIcons';
@@ -62,6 +63,7 @@ export default function SellerOrdersScreen({ navigation }: Props) {
   const [tab, setTab] = useState<Tab>('active');
   const [mapExpanded, setMapExpanded] = useState(true);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [assignedLabels, setAssignedLabels] = useState<DriverScanEntry[]>([]);
   const now = useFreshnessTick();
   const fleetTick = useLiveFleetVersion();
 
@@ -75,15 +77,31 @@ export default function SellerOrdersScreen({ navigation }: Props) {
     }
   }, [token]);
 
+  const loadAssignedLabels = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.getAssignedScanEntries(token);
+      setAssignedLabels(data.entries ?? []);
+    } catch {
+      setAssignedLabels([]);
+    }
+  }, [token]);
+
   useFocusEffect(
     useCallback(() => {
       void loadNotifs();
-    }, [loadNotifs])
+      void loadAssignedLabels();
+    }, [loadNotifs, loadAssignedLabels])
   );
 
   const fleetMarkers = useMemo(
     () => buildSellerFleetMarkers(orders, repartidores, now),
     [orders, repartidores, now, fleetTick]
+  );
+
+  const pendingLabels = useMemo(
+    () => assignedLabels.filter((entry) => entry.status === 'pending'),
+    [assignedLabels]
   );
 
   const data = useMemo(() => filterOrders(orders, tab), [orders, tab]);
@@ -193,16 +211,49 @@ export default function SellerOrdersScreen({ navigation }: Props) {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={refresh}
+              onRefresh={() => {
+                void refresh();
+                void loadAssignedLabels();
+              }}
               tintColor={colors.accent}
             />
+          }
+          ListHeaderComponent={
+            tab === 'active' && pendingLabels.length > 0 ? (
+              <View style={styles.labelsBlock}>
+                <Text style={styles.labelsTitle}>Etiquetas asociadas</Text>
+                {pendingLabels.map((entry) => (
+                  <View key={entry.id} style={styles.labelCard}>
+                    <Text style={styles.labelName} numberOfLines={1}>
+                      {entry.clientName?.trim() || 'Sin nombre'}
+                    </Text>
+                    <Text style={styles.labelCode} numberOfLines={1}>
+                      {formatScanCodeLabel(entry.scanCode)}
+                    </Text>
+                    {entry.address?.trim() ? (
+                      <Text style={styles.labelAddress} numberOfLines={2}>
+                        {stripAddressReference(entry.address.trim())}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.labelMeta}>
+                      {entry.repartidorName ? `${entry.repartidorName} · ` : ''}
+                      {entry.status === 'delivered'
+                        ? 'Entregado'
+                        : entry.status === 'cancelled'
+                          ? 'Cancelado'
+                          : 'Pendiente'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             tab === 'active' ? (
               <EmptyState
                 icon="package"
                 title="Sin envíos activos"
-                message="Creá un envío manual o importá desde Mercado Libre / Tienda Nube."
+                message="Creá un envío manual. Si un repartidor escanea una etiqueta y te la asocia, aparece arriba."
               />
             ) : tab === 'done' ? (
               <EmptyState
@@ -287,6 +338,44 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.xs,
+  },
+  labelsBlock: { marginBottom: spacing.lg, gap: spacing.sm },
+  labelsTitle: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+  },
+  labelCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 2,
+  },
+  labelName: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
+    color: colors.text,
+  },
+  labelCode: {
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  labelAddress: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.text,
+  },
+  labelMeta: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textFaint,
+    marginTop: 2,
   },
   list: { padding: spacing.lg },
   listEmpty: { flexGrow: 1 },
