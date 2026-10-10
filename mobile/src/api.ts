@@ -133,6 +133,37 @@ async function request<T>(
   }
 }
 
+async function requestForm<T>(
+  path: string,
+  options: { token?: string | null; form: FormData; timeoutMs?: number }
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (options.token) headers.Authorization = `Bearer ${options.token}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 60_000);
+  try {
+    const res = await fetch(apiUrl(path), {
+      method: 'POST',
+      headers,
+      body: options.form,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      let message = 'Error de servidor';
+      try {
+        const data = await res.json();
+        message = data.error || message;
+      } catch {
+        // respuesta no-JSON
+      }
+      throw new ApiError(message, res.status);
+    }
+    return res.json() as Promise<T>;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const api = {
   login(
     username: string,
@@ -215,8 +246,33 @@ export const api = {
       address?: string;
       clientPhone?: string;
       sellerId?: string;
+      assignAutomatic?: boolean;
+      photoUri?: string;
     }
   ): Promise<DriverScanEntry> {
+    if (options?.photoUri) {
+      const form = new FormData();
+      form.append('code', code);
+      if (options.note) form.append('note', options.note);
+      if (options.lat != null) form.append('lat', String(options.lat));
+      if (options.lng != null) form.append('lng', String(options.lng));
+      if (options.routeDate) form.append('routeDate', options.routeDate);
+      if (options.clientName) form.append('clientName', options.clientName);
+      if (options.address) form.append('address', options.address);
+      if (options.clientPhone) form.append('clientPhone', options.clientPhone);
+      if (options.sellerId) form.append('sellerId', options.sellerId);
+      if (options.assignAutomatic) form.append('assignAutomatic', '1');
+      form.append('photo', {
+        uri: options.photoUri,
+        name: 'etiqueta.jpg',
+        type: 'image/jpeg',
+      } as unknown as Blob);
+      return requestForm<DriverScanEntry>('/api/driver-scan', {
+        token,
+        form,
+        timeoutMs: 60_000,
+      });
+    }
     return request<DriverScanEntry>('/api/driver-scan', {
       method: 'POST',
       token,
@@ -230,6 +286,7 @@ export const api = {
         address: options?.address,
         clientPhone: options?.clientPhone,
         sellerId: options?.sellerId,
+        assignAutomatic: options?.assignAutomatic,
       },
       timeoutMs: 45_000,
     });

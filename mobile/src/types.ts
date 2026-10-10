@@ -321,6 +321,7 @@ export interface DriverScanEntry {
   clientName?: string | null;
   address?: string | null;
   clientPhone?: string | null;
+  hasPhoto?: boolean;
   scannedAt: string;
   deliveredAt: string | null;
   alreadyRegistered: boolean;

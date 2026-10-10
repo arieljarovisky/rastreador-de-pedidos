@@ -7,6 +7,7 @@ import {
   Modal,
   Pressable,
   RefreshControl,
+  Image,
   StyleSheet,
   Text,
   View,
@@ -19,6 +20,7 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useOrdersContext } from '../context/OrdersContext';
 import { api } from '../api';
+import { API_BASE } from '../config';
 import { DriverScanEntry, Order, OrderStatus, RouteStop } from '../types';
 import { colors, roleAccents, spacing, typography } from '../theme';
 import OrderCard from '../components/OrderCard';
@@ -410,6 +412,15 @@ export default function OrdersScreen({ navigation }: Props) {
       <View style={styles.personalCard}>
         <View style={styles.personalCardTop}>
           <View style={styles.personalCardText}>
+            {item.hasPhoto && token ? (
+              <Image
+                source={{
+                  uri: `${API_BASE}/api/driver-scan/${item.id}/photo`,
+                  headers: { Authorization: `Bearer ${token}` },
+                }}
+                style={styles.personalPhoto}
+              />
+            ) : null}
             <Text style={styles.personalCode} numberOfLines={1}>
               {item.clientName?.trim() || 'Sin nombre'}
             </Text>
@@ -862,6 +873,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   personalCardText: { flex: 1, minWidth: 0, gap: 4 },
+  personalPhoto: {
+    width: '100%',
+    height: 140,
+    borderRadius: 10,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+  },
   personalCode: {
     ...typography.body(14, colors.text),
     fontWeight: '700',

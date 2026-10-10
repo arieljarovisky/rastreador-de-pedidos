@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Modal,
   Pressable,
   StyleSheet,
@@ -18,13 +19,17 @@ import { api } from '../api';
 import { colors, radius, spacing, typography } from '../theme';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
-import SellerPickerSheet, { SellerOption } from '../components/ui/SellerPickerSheet';
+import { SellerOption } from '../components/ui/SellerPickerSheet';
 import { formatScanCodeLabel, stripAddressReference } from '../utils/scanCodeLabel';
 import { parseShippingLabelOcr } from '../utils/parseShippingLabelOcr';
 import { DriverScanEntry } from '../types';
 import { RepartidorStackParamList } from '../navigation/types';
 
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'ScanLabel'>;
+
+type ScanAssignment =
+  | { mode: 'auto' }
+  | { mode: 'seller'; sellerId: string; sellerName: string };
 
 const POSTA_ORDER_QR_PREFIX = 'POSTA-ORDER:';
 
@@ -71,12 +76,8 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [ocrReading, setOcrReading] = useState(false);
   const [sellers, setSellers] = useState<SellerOption[]>([]);
   const [sellersReady, setSellersReady] = useState(false);
-  const [pendingSellerScan, setPendingSellerScan] = useState<{
-    code: string;
-    location?: { lat: number; lng: number };
-    ocr: { address: string | null; clientName: string | null };
-  } | null>(null);
-  const [lastSellerId, setLastSellerId] = useState<string | null>(null);
+  const [assignment, setAssignment] = useState<ScanAssignment | null>(null);
+  const [chooserOpen, setChooserOpen] = useState(true);
   const lastCodeRef = useRef<string | null>(null);
   const busyRef = useRef(false);
   const cameraRef = useRef<CameraView>(null);
@@ -103,13 +104,17 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const showPersonalResult = useCallback((entry: DriverScanEntry) => {
     setScannedCount((n) => n + 1);
     const name = entry.clientName?.trim() || 'Sin nombre';
-    const code = formatScanCodeLabel(entry.scanCode);
+    const isPhoto = entry.scanCode.startsWith('FOTO-') || entry.hasPhoto;
+    const code = isPhoto && entry.scanCode.startsWith('FOTO-') ? 'Foto de etiqueta' : `#${formatScanCodeLabel(entry.scanCode)}`;
     const addr = entry.address?.trim() ? `\n${stripAddressReference(entry.address.trim())}` : '';
-    const seller = entry.sellerName?.trim() ? `\nVendedor: ${entry.sellerName.trim()}` : '';
+    const seller = entry.sellerName?.trim()
+      ? `\nVendedor: ${entry.sellerName.trim()}`
+      : '\nAsignación automática';
+    const photo = entry.hasPhoto ? '\nFoto guardada' : '';
     setLastResult(
       entry.alreadyRegistered
-        ? `Ya en tu registro: ${name}\n#${code}${addr}${seller}`
-        : `Registro: ${name}\n#${code}${addr}${seller}`
+        ? `Ya en tu registro: ${name}\n${code}${addr}${seller}${photo}`
+        : `Registro: ${name}\n${code}${addr}${seller}${photo}`
     );
   }, []);
 
@@ -136,7 +141,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
       code: string,
       location: { lat: number; lng: number } | undefined,
       ocrFields: { address: string | null; clientName: string | null },
-      sellerId: string
+      options: { sellerId?: string; assignAutomatic?: boolean; photoUri?: string }
     ) => {
       if (!token) throw new Error('Sesión inválida');
 
@@ -145,7 +150,9 @@ export default function ScanLabelScreen({ navigation }: Props) {
         lng: location?.lng,
         address: ocrFields.address ? stripAddressReference(ocrFields.address) : undefined,
         clientName: ocrFields.clientName ?? undefined,
-        sellerId,
+        sellerId: options.sellerId,
+        assignAutomatic: options.assignAutomatic,
+        photoUri: options.photoUri,
       });
 
       // Por si el alta no persistió la dirección del OCR, la completamos.
@@ -194,34 +201,12 @@ export default function ScanLabelScreen({ navigation }: Props) {
     [token, showPersonalResult]
   );
 
-  const cancelSellerPick = useCallback(() => {
-    setPendingSellerScan(null);
-    lastCodeRef.current = null;
-    busyRef.current = false;
-    setProcessing(false);
-  }, []);
-
-  const confirmSellerPick = useCallback(
-    async (sellerId: string) => {
-      const pending = pendingSellerScan;
-      if (!pending) return;
-      setLastSellerId(sellerId);
-      setPendingSellerScan(null);
-      setProcessing(true);
-      try {
-        await savePersonal(pending.code, pending.location, pending.ocr, sellerId);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'No se pudo procesar el escaneo.';
-        setLastResult(null);
-        lastCodeRef.current = null;
-        Alert.alert('Escaneo', message);
-      } finally {
-        setProcessing(false);
-        busyRef.current = false;
-      }
-    },
-    [pendingSellerScan, savePersonal]
-  );
+  const scanOptions = useCallback(() => {
+    if (!assignment || assignment.mode === 'auto') {
+      return { assignAutomatic: true as const };
+    }
+    return { sellerId: assignment.sellerId };
+  }, [assignment]);
 
   const confirmAddressFromLabel = useCallback(async () => {
     if (!token || !pendingAddressEntry) return;
@@ -254,12 +239,12 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const handleScan = useCallback(
     async (scan: BarcodeScanningResult) => {
       const code = scan.data?.trim();
-      if (!token || !code || busyRef.current || pendingAddressEntry || pendingSellerScan || ocrReading) return;
+      if (!token || !code || !assignment || busyRef.current || pendingAddressEntry || ocrReading) return;
+      if (scan.type !== 'qr') return;
       if (lastCodeRef.current === code) return;
       busyRef.current = true;
       lastCodeRef.current = code;
       setProcessing(true);
-      let waitingForSeller = false;
       try {
         const location = await currentLocation();
         if (code.startsWith(POSTA_ORDER_QR_PREFIX)) {
@@ -270,20 +255,10 @@ export default function ScanLabelScreen({ navigation }: Props) {
               ? `Ya asignado: ${result.order.clientName} (${result.order.id})`
               : `Asignado: ${result.order.clientName} (${result.order.id})`
           );
-        } else if (!sellersReady) {
-          lastCodeRef.current = null;
-          Alert.alert('Vendedores', 'Estamos cargando los vendedores. Escaneá de nuevo en un momento.');
-        } else if (sellers.length === 0) {
-          lastCodeRef.current = null;
-          Alert.alert(
-            'Sin vendedores',
-            'El administrador de la agencia tiene que crear vendedores (usuario y contraseña, sin tienda online) antes de asociar etiquetas.'
-          );
         } else {
           setLastResult(`Leyendo dirección de la etiqueta…\n#${formatScanCodeLabel(code)}`);
           const ocr = await captureLabelFields();
-          waitingForSeller = true;
-          setPendingSellerScan({ code, location, ocr });
+          await savePersonal(code, location, ocr, scanOptions());
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No se pudo procesar el escaneo.';
@@ -297,16 +272,39 @@ export default function ScanLabelScreen({ navigation }: Props) {
           },
         ]);
       } finally {
-        if (!waitingForSeller) {
-          setProcessing(false);
-          busyRef.current = false;
-        } else {
-          setProcessing(false);
-        }
+        setProcessing(false);
+        busyRef.current = false;
       }
     },
-    [token, captureLabelFields, pendingAddressEntry, pendingSellerScan, ocrReading, sellers.length, sellersReady]
+    [token, assignment, captureLabelFields, pendingAddressEntry, ocrReading, savePersonal, scanOptions]
   );
+
+  const registerWithoutQr = useCallback(async () => {
+    if (!token || !assignment || busyRef.current || pendingAddressEntry || ocrReading) return;
+    busyRef.current = true;
+    setProcessing(true);
+    setOcrReading(true);
+    try {
+      const photo = await cameraRef.current?.takePictureAsync({
+        quality: 0.7,
+        shutterSound: false,
+      });
+      if (!photo?.uri) throw new Error('No se pudo sacar la foto de la etiqueta.');
+      const ocr = await recognizeLabelFromPhoto(photo.uri);
+      const location = await currentLocation();
+      const code = `FOTO-${Date.now().toString(36)}`;
+      setLastResult('Guardando foto de la etiqueta…');
+      await savePersonal(code, location, ocr, { ...scanOptions(), photoUri: photo.uri });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo guardar la foto.';
+      setLastResult(null);
+      Alert.alert('Etiqueta', message);
+    } finally {
+      setOcrReading(false);
+      setProcessing(false);
+      busyRef.current = false;
+    }
+  }, [token, assignment, pendingAddressEntry, ocrReading, savePersonal, scanOptions]);
 
   if (!permission) {
     return (
@@ -336,6 +334,72 @@ export default function ScanLabelScreen({ navigation }: Props) {
     );
   }
 
+  if (chooserOpen || !assignment) {
+    const assignmentLabel =
+      assignment?.mode === 'seller' ? assignment.sellerName : assignment?.mode === 'auto' ? 'Automático' : null;
+    return (
+      <View style={[styles.chooser, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.lg }]}>
+        <View style={styles.chooserHeader}>
+          <Pressable onPress={() => (assignment ? setChooserOpen(false) : navigation.goBack())} hitSlop={12}>
+            <Text style={styles.chooserBack}>{assignment ? 'Volver a escanear' : 'Cerrar'}</Text>
+          </Pressable>
+          <Text style={typography.displayTitle(22)}>Antes de escanear</Text>
+          <Text style={styles.chooserLead}>
+            Elegí el vendedor de estas etiquetas, o dejá que se asigne automático cuando el QR lo identifica.
+          </Text>
+        </View>
+        <Pressable
+          style={[styles.autoCard, assignment?.mode === 'auto' && styles.autoCardOn]}
+          onPress={() => {
+            setAssignment({ mode: 'auto' });
+            setChooserOpen(false);
+          }}
+        >
+          <Text style={styles.autoTitle}>Asignar automático</Text>
+          <Text style={styles.autoHint}>
+            Si el QR es de Mercado Libre y el vendedor está en la agencia, se lo asigna solo. Si no hay QR, se guarda la foto.
+          </Text>
+        </Pressable>
+        <Text style={styles.chooserSection}>O elegí un vendedor</Text>
+        {!sellersReady ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.lg }} />
+        ) : (
+          <FlatList
+            data={sellers}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.chooserList}
+            ListEmptyComponent={
+              <Text style={styles.chooserEmpty}>
+                No hay vendedores. El administrador puede crearlos en la web, sin tienda online.
+                Mientras tanto podés usar la asignación automática.
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const selected = assignment?.mode === 'seller' && assignment.sellerId === item.id;
+              return (
+                <Pressable
+                  style={[styles.sellerRow, selected && styles.sellerRowOn]}
+                  onPress={() => {
+                    setAssignment({ mode: 'seller', sellerId: item.id, sellerName: item.name });
+                    setChooserOpen(false);
+                  }}
+                >
+                  <Text style={styles.sellerName}>{item.name}</Text>
+                  {selected ? <Text style={styles.sellerOn}>Elegido</Text> : null}
+                </Pressable>
+              );
+            }}
+          />
+        )}
+        {assignmentLabel ? (
+          <Text style={styles.chooserCurrent}>Ahora: {assignmentLabel}</Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  const modeLabel = assignment.mode === 'auto' ? 'Automático' : assignment.sellerName;
+
   return (
     <View style={styles.container}>
       <CameraView
@@ -344,9 +408,12 @@ export default function ScanLabelScreen({ navigation }: Props) {
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ['qr', 'code128', 'datamatrix'] }}
         onBarcodeScanned={
-          processing || pendingAddressEntry || pendingSellerScan || ocrReading
+          processing || pendingAddressEntry || ocrReading
             ? undefined
-            : (scan) => void handleScan(scan)
+            : (scan) => {
+                if (scan.type !== 'qr') return;
+                void handleScan(scan);
+              }
         }
       />
 
@@ -395,26 +462,22 @@ export default function ScanLabelScreen({ navigation }: Props) {
         </View>
       </Modal>
 
-      <SellerPickerSheet
-        visible={Boolean(pendingSellerScan)}
-        sellers={sellers}
-        selectedId={lastSellerId}
-        onSelect={(id) => void confirmSellerPick(id)}
-        onClose={cancelSellerPick}
-      />
-
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable style={styles.closeBtn} onPress={() => navigation.goBack()} hitSlop={12}>
           <PostaIcon name="chevronDown" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.topTitle}>Registro de paquetes</Text>
+        <Pressable style={styles.modeChip} onPress={() => setChooserOpen(true)}>
+          <Text style={styles.modeChipText} numberOfLines={1}>
+            {modeLabel}
+          </Text>
+        </Pressable>
         <View style={styles.closeBtn} />
       </View>
 
       <View style={styles.frame} pointerEvents="none">
         <View style={styles.frameBox} />
         <Text style={styles.frameHint}>
-          {ocrReading ? 'Leyendo texto de la etiqueta…' : 'Apuntá al QR de la etiqueta'}
+          {ocrReading ? 'Leyendo la etiqueta…' : 'QR automático. Si no hay QR, sacá la foto.'}
         </Text>
       </View>
 
@@ -435,9 +498,19 @@ export default function ScanLabelScreen({ navigation }: Props) {
           </View>
         ) : (
           <Text style={styles.statusText}>
-            Escaneá la etiqueta. Después elegís qué vendedor queda asociado a ese paquete.
+            {assignment.mode === 'auto'
+              ? 'El vendedor se asigna solo si el QR lo identifica. Sin QR, usá el botón de foto.'
+              : `Estas etiquetas quedan para ${assignment.sellerName}.`}
           </Text>
         )}
+
+        <Pressable
+          style={[styles.shutter, (processing || ocrReading) && { opacity: 0.5 }]}
+          disabled={processing || ocrReading}
+          onPress={() => void registerWithoutQr()}
+        >
+          <Text style={styles.shutterText}>Foto si no hay QR</Text>
+        </Pressable>
 
         {scannedCount > 0 && !processing && !ocrReading ? (
           <Button
@@ -531,6 +604,61 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   doneBtn: { width: '100%' },
+  chooser: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.lg },
+  chooserHeader: { gap: spacing.sm, marginBottom: spacing.lg },
+  chooserBack: { color: colors.accent, fontWeight: '700', marginBottom: spacing.sm },
+  chooserLead: { color: colors.textFaint, fontSize: 14, lineHeight: 20 },
+  autoCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radius?.lg ?? 16,
+    padding: spacing.md,
+    gap: 4,
+  },
+  autoCardOn: { borderColor: colors.accent },
+  autoTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  autoHint: { color: colors.textFaint, fontSize: 13, lineHeight: 18 },
+  chooserSection: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  chooserList: { paddingBottom: spacing.xl },
+  chooserEmpty: { color: colors.textFaint, fontSize: 14, lineHeight: 20, paddingVertical: spacing.lg },
+  sellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.sm,
+  },
+  sellerRowOn: { borderWidth: 1, borderColor: colors.accent },
+  sellerName: { color: colors.text, fontSize: 16, fontWeight: '600', flex: 1 },
+  sellerOn: { color: colors.accent, fontWeight: '700', fontSize: 12 },
+  chooserCurrent: { color: colors.textFaint, textAlign: 'center', marginTop: spacing.sm },
+  modeChip: {
+    maxWidth: 220,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  modeChipText: { color: colors.text, fontWeight: '700', fontSize: 13 },
+  shutter: {
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  shutterText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   addressModalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.65)',

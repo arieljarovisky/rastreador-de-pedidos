@@ -28,6 +28,7 @@ backend/data/
 backend/logs/
 backend/tmp/
 backend/tmp/**
+backend/uploads/
 backend/src/db/**
 
 # APK de la app - usar Git LFS para archivos grandes

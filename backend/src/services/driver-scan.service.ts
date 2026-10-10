@@ -1,4 +1,7 @@
 import { randomUUID } from 'crypto';
+import { mkdir, writeFile } from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { pool } from '../config/database.js';
 import { User, UserRole } from '../types/index.js';
@@ -36,6 +39,7 @@ export interface DriverScanEntry {
   clientName: string | null;
   address: string | null;
   clientPhone: string | null;
+  hasPhoto: boolean;
   scannedAt: string;
   deliveredAt: string | null;
   alreadyRegistered: boolean;
@@ -55,6 +59,7 @@ interface DbDriverScanRow extends RowDataPacket {
   client_name?: string | null;
   address?: string | null;
   client_phone?: string | null;
+  photo_path?: string | null;
   scanned_at: Date | string;
   delivered_at: Date | string | null;
 }
@@ -98,6 +103,7 @@ function mapRow(row: DbDriverScanRow, alreadyRegistered = false): DriverScanEntr
     clientName: row.client_name?.trim() ? row.client_name.trim() : null,
     address: row.address?.trim() ? row.address.trim() : null,
     clientPhone: row.client_phone?.trim() ? row.client_phone.trim() : null,
+    hasPhoto: Boolean(row.photo_path?.trim()),
     scannedAt: toIso(row.scanned_at) ?? new Date().toISOString(),
     deliveredAt: toIso(row.delivered_at),
     alreadyRegistered,
@@ -124,6 +130,66 @@ async function resolveScanSeller(user: User, sellerId: string | undefined): Prom
   if (!user.agencyId) throw new Error('FORBIDDEN');
   const seller = await assertSellerInAgency(trimmed, user.agencyId);
   return seller.id;
+}
+
+const scanPhotoDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../uploads/driver-scans'
+);
+
+/** Si no eligieron vendedor, usa el dueño del QR de Mercado Libre cuando está en la agencia. */
+async function resolveAutomaticSeller(user: User, rawCode: string): Promise<string | null> {
+  if (!user.agencyId) return null;
+  const senderId = extractSenderIdFromScan(rawCode);
+  if (!senderId) return null;
+  try {
+    const contexts = await listMercadoLibreIntegrationsForAgencyScan(user.agencyId);
+    const owner = contexts.find((ctx) => ctx.integration.externalUserId === senderId);
+    if (!owner) return null;
+    const seller = await assertSellerInAgency(owner.integration.userId, user.agencyId);
+    return seller.id;
+  } catch (err) {
+    if (err instanceof Error && err.message === 'SELLER_NOT_FOUND') return null;
+    throw err;
+  }
+}
+
+export async function attachDriverScanPhoto(
+  user: User,
+  entryId: string,
+  image: Buffer
+): Promise<DriverScanEntry> {
+  assertRepartidor(user);
+  await ensureDriverScanEntriesTable();
+  const [rows] = await pool.query<DbDriverScanRow[]>(
+    'SELECT id FROM driver_scan_entries WHERE id = ? AND repartidor_id = ? LIMIT 1',
+    [entryId, user.id]
+  );
+  if (!rows[0]) throw new Error('NOT_FOUND');
+  await mkdir(scanPhotoDir, { recursive: true });
+  const filename = `${entryId}.jpg`;
+  await writeFile(path.join(scanPhotoDir, filename), image);
+  await pool.query('UPDATE driver_scan_entries SET photo_path = ? WHERE id = ?', [filename, entryId]);
+  return loadEntry(entryId);
+}
+
+export async function getDriverScanPhotoPath(user: User, entryId: string): Promise<string> {
+  await ensureDriverScanEntriesTable();
+  const [rows] = await pool.query<
+    Array<{ photo_path: string | null; repartidor_id: string; agency_id: string; seller_id: string | null } & RowDataPacket>
+  >(
+    `SELECT photo_path, repartidor_id, agency_id, seller_id
+     FROM driver_scan_entries WHERE id = ? LIMIT 1`,
+    [entryId]
+  );
+  const row = rows[0];
+  if (!row?.photo_path) throw new Error('NOT_FOUND');
+  const allowed =
+    (user.role === UserRole.REPARTIDOR && row.repartidor_id === user.id) ||
+    (isAgencyAdmin(user.role) && user.agencyId === row.agency_id) ||
+    (user.role === UserRole.STORE_ADMIN && row.seller_id === user.id);
+  if (!allowed) throw new Error('FORBIDDEN');
+  return path.join(scanPhotoDir, path.basename(row.photo_path));
 }
 
 function assertRepartidor(user: User): asserts user is User & { agencyId: string } {
@@ -179,6 +245,7 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
           client_name VARCHAR(255) NULL,
           address VARCHAR(500) NULL,
           client_phone VARCHAR(64) NULL,
+          photo_path VARCHAR(255) NULL,
           scanned_at DATETIME(3) NOT NULL,
           delivered_at DATETIME(3) NULL,
           lat DECIMAL(10, 7) NULL,
@@ -195,7 +262,7 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
       const [cols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
         `SELECT COLUMN_NAME FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'driver_scan_entries'
-           AND COLUMN_NAME IN ('client_name', 'address', 'client_phone', 'seller_id')`
+           AND COLUMN_NAME IN ('client_name', 'address', 'client_phone', 'seller_id', 'photo_path')`
       );
       const have = new Set(cols.map((c) => c.COLUMN_NAME));
       if (!have.has('client_name')) {
@@ -219,6 +286,11 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
         );
         await pool.query(
           'ALTER TABLE driver_scan_entries ADD INDEX idx_driver_scan_seller (seller_id)'
+        );
+      }
+      if (!have.has('photo_path')) {
+        await pool.query(
+          'ALTER TABLE driver_scan_entries ADD COLUMN photo_path VARCHAR(255) NULL AFTER client_phone'
         );
       }
     })().catch((err) => {
@@ -395,12 +467,17 @@ export async function createDriverScanEntry(
     address?: string;
     clientPhone?: string;
     sellerId?: string;
+    /** Sin vendedor elegido: intenta el dueño del QR de Mercado Libre. */
+    assignAutomatic?: boolean;
   }
 ): Promise<DriverScanEntry> {
   assertRepartidor(user);
   await ensureDriverScanEntriesTable();
 
-  const sellerId = await resolveScanSeller(user, data.sellerId);
+  let sellerId = await resolveScanSeller(user, data.sellerId);
+  if (!sellerId && data.assignAutomatic) {
+    sellerId = await resolveAutomaticSeller(user, data.code);
+  }
   const scanCode = normalizeScanCode(data.code);
   const routeDate =
     data.routeDate && isValidDateKey(data.routeDate) ? data.routeDate : getActiveOperationalDateKey();

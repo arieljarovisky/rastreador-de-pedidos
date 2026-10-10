@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { requireRoles } from '../middleware/auth.js';
 import { UserRole } from '../types/index.js';
 import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
@@ -10,12 +11,26 @@ import {
   updateDriverScanEntryStatus,
   updateDriverScanEntryDetails,
   deleteDriverScanEntry,
+  attachDriverScanPhoto,
+  getDriverScanPhotoPath,
   type DriverScanEntryStatus,
 } from '../services/driver-scan.service.js';
 import { getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
 import { listSellers } from '../services/users.service.js';
 
 const router = Router();
+
+const labelPhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    if (file.mimetype !== 'image/jpeg' && file.mimetype !== 'image/png' && file.mimetype !== 'image/jpg') {
+      cb(new Error('INVALID_PHOTO'));
+      return;
+    }
+    cb(null, true);
+  },
+});
 
 function parseOptionalCoord(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -119,26 +134,51 @@ router.get('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Res
   }
 });
 
-router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  const { code, note, lat, lng, routeDate, clientName, address, clientPhone, sellerId } = req.body as {
-    code?: string;
-    note?: string;
-    lat?: unknown;
-    lng?: unknown;
-    routeDate?: string;
-    clientName?: unknown;
-    address?: unknown;
-    clientPhone?: unknown;
-    sellerId?: unknown;
-  };
+router.post('/', requireRoles(UserRole.REPARTIDOR), (req: Request, res: Response) => {
+  const contentType = req.headers['content-type'] ?? '';
+  if (contentType.includes('multipart/form-data')) {
+    labelPhotoUpload.single('photo')(req, res, (err: unknown) => {
+      if (err) {
+        const code = err instanceof Error ? err.message : '';
+        if (code === 'INVALID_PHOTO') {
+          res.status(400).json({ error: 'La foto tiene que ser JPG o PNG.' });
+          return;
+        }
+        res.status(400).json({ error: 'No se pudo leer la foto de la etiqueta.' });
+        return;
+      }
+      void handleCreateScan(req, res);
+    });
+    return;
+  }
+  void handleCreateScan(req, res);
+});
+
+async function handleCreateScan(req: Request, res: Response): Promise<void> {
+  const { code, note, lat, lng, routeDate, clientName, address, clientPhone, sellerId, assignAutomatic } =
+    req.body as {
+      code?: string;
+      note?: string;
+      lat?: unknown;
+      lng?: unknown;
+      routeDate?: string;
+      clientName?: unknown;
+      address?: unknown;
+      clientPhone?: unknown;
+      sellerId?: unknown;
+      assignAutomatic?: unknown;
+    };
 
   if (!code?.trim()) {
     res.status(400).json({ error: 'Escaneá o ingresá el código del paquete.', code: 'INVALID_CODE' });
     return;
   }
 
+  const automatic =
+    assignAutomatic === true || assignAutomatic === '1' || assignAutomatic === 'true';
+
   try {
-    const entry = await createDriverScanEntry(req.user!, {
+    let entry = await createDriverScanEntry(req.user!, {
       code,
       note,
       lat: parseOptionalCoord(lat),
@@ -148,7 +188,12 @@ router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Re
       address: parseOptionalText(address),
       clientPhone: parseOptionalText(clientPhone),
       sellerId: parseOptionalText(sellerId),
+      assignAutomatic: automatic,
     });
+    const photo = (req as Request & { file?: { buffer?: Buffer } }).file;
+    if (photo?.buffer?.length) {
+      entry = await attachDriverScanPhoto(req.user!, entry.id, photo.buffer);
+    }
     res.status(entry.alreadyRegistered ? 200 : 201).json(entry);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'ERROR';
@@ -166,6 +211,25 @@ router.post('/', requireRoles(UserRole.REPARTIDOR), async (req: Request, res: Re
     }
     console.error('[driver-scan] POST / error:', err);
     res.status(500).json({ error: 'No se pudo registrar el paquete.' });
+  }
+}
+
+router.get('/:id/photo', requireRoles(UserRole.REPARTIDOR, UserRole.STORE_ADMIN, ...AGENCY_ADMIN_ROLES), async (req: Request, res: Response) => {
+  try {
+    const filePath = await getDriverScanPhotoPath(req.user!, req.params.id);
+    res.sendFile(filePath);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'ERROR';
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para ver esta foto.' });
+      return;
+    }
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Esta etiqueta no tiene foto.' });
+      return;
+    }
+    console.error('[driver-scan] GET /:id/photo error:', err);
+    res.status(500).json({ error: 'No se pudo abrir la foto.' });
   }
 });
 
