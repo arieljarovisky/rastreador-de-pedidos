@@ -477,16 +477,16 @@ export default function ScanLabelScreen({ navigation }: Props) {
       <View style={styles.frame} pointerEvents="none">
         <View style={styles.frameBox} />
         <Text style={styles.frameHint}>
-          {ocrReading ? 'Leyendo la etiqueta…' : 'QR automático. Si no hay QR, sacá la foto.'}
+          {ocrReading ? 'Sacando la foto…' : 'Apuntá al QR. Si no tiene, usá el botón de foto.'}
         </Text>
       </View>
 
-      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + spacing.lg }]}>
+      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + spacing.lg }]} pointerEvents="box-none">
         {processing || ocrReading ? (
           <View style={styles.statusRow}>
             <ActivityIndicator color={colors.accent} />
             <Text style={styles.statusText}>
-              {ocrReading ? 'Leyendo dirección impresa…' : 'Registrando paquete…'}
+              {ocrReading ? 'Sacando la foto…' : 'Registrando paquete…'}
             </Text>
           </View>
         ) : lastResult ? (
@@ -499,17 +499,24 @@ export default function ScanLabelScreen({ navigation }: Props) {
         ) : (
           <Text style={styles.statusText}>
             {assignment.mode === 'auto'
-              ? 'El vendedor se asigna solo si el QR lo identifica. Sin QR, usá el botón de foto.'
-              : `Estas etiquetas quedan para ${assignment.sellerName}.`}
+              ? 'Si no aparece un QR, tocá el botón de abajo y sacale una foto.'
+              : `Sin QR, sacale una foto. Queda para ${assignment.sellerName}.`}
           </Text>
         )}
 
         <Pressable
-          style={[styles.shutter, (processing || ocrReading) && { opacity: 0.5 }]}
+          style={[styles.shutterWrap, (processing || ocrReading) && { opacity: 0.5 }]}
           disabled={processing || ocrReading}
           onPress={() => void registerWithoutQr()}
+          accessibilityRole="button"
+          accessibilityLabel="Sacar foto de la etiqueta"
         >
-          <Text style={styles.shutterText}>Foto si no hay QR</Text>
+          <View style={styles.shutterRing}>
+            <View style={styles.shutterCore}>
+              <PostaIcon name="camera" size={28} color="#1a1612" />
+            </View>
+          </View>
+          <Text style={styles.shutterText}>Sacar foto</Text>
         </Pressable>
 
         {scannedCount > 0 && !processing && !ocrReading ? (
@@ -588,8 +595,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 3,
     padding: spacing.lg,
     gap: spacing.md,
+    alignItems: 'center',
     backgroundColor: 'rgba(20, 18, 16, 0.85)',
   },
   statusRow: {
@@ -652,11 +661,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)',
   },
   modeChipText: { color: colors.text, fontWeight: '700', fontSize: 13 },
-  shutter: {
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    paddingVertical: 12,
+  shutterWrap: { alignItems: 'center', gap: 8, paddingVertical: 4 },
+  shutterRing: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 4,
+    borderColor: '#fff',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  shutterCore: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   shutterText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   addressModalBackdrop: {
