@@ -1795,10 +1795,13 @@ export async function updateOrderStatus(
 
   if (user.role === UserRole.REPARTIDOR) {
     if (status === OrderStatus.ASSIGNED) {
-      if (order.status !== OrderStatus.PENDING) throw new Error('NOT_AVAILABLE');
-      if (!belongsToUserAgency(user, order.agencyId)) throw new Error('NOT_AVAILABLE');
-      assignedRepartidorId = user.id;
-      assignedRepartidorName = user.name;
+      const leavingTrip = order.status === OrderStatus.DELIVERING && order.repartidorId === user.id;
+      if (!leavingTrip) {
+        if (order.status !== OrderStatus.PENDING) throw new Error('NOT_AVAILABLE');
+        if (!belongsToUserAgency(user, order.agencyId)) throw new Error('NOT_AVAILABLE');
+        assignedRepartidorId = user.id;
+        assignedRepartidorName = user.name;
+      }
     } else if (order.repartidorId !== user.id) {
       throw new Error('FORBIDDEN');
     }
@@ -1816,7 +1819,7 @@ export async function updateOrderStatus(
     }
   } else if (status === OrderStatus.PENDING && isAgencyAdmin(user.role)) {
     if (!canViewOrder(user, order, sellerId)) throw new Error('FORBIDDEN');
-    if (order.status !== OrderStatus.ASSIGNED) {
+    if (order.status !== OrderStatus.ASSIGNED && order.status !== OrderStatus.DELIVERING) {
       throw new Error('CANNOT_UNASSIGN');
     }
     assignedRepartidorId = null;
@@ -1883,6 +1886,13 @@ export async function updateOrderStatus(
     `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
     [orderId, status, user.name, historyComment, now]
   );
+
+  if (
+    order.status === OrderStatus.DELIVERING &&
+    (status === OrderStatus.PENDING || status === OrderStatus.ASSIGNED)
+  ) {
+    await pool.query('DELETE FROM order_location_history WHERE order_id = ?', [orderId]);
+  }
 
   if (status === OrderStatus.DELIVERING) {
     await pool.query('DELETE FROM order_location_history WHERE order_id = ?', [orderId]);

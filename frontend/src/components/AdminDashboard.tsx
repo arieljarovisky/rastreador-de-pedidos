@@ -1173,6 +1173,30 @@ export default function AdminDashboard({
       });
     }
 
+    if (agency && order.status === OrderStatus.DELIVERING) {
+      items.push({
+        id: 'return-warehouse',
+        label: 'Volver a almacén',
+        onClick: () => {
+          void confirm({
+            title: 'Volver a almacén',
+            message: `¿Sacar ${order.id} del viaje?\n\nDeja de estar en ruta y vuelve a almacén, sin repartidor.`,
+            variant: 'warning',
+            confirmText: 'Volver a almacén',
+            cancelText: 'Cancelar',
+          }).then((ok) => {
+            if (!ok) return;
+            void onUpdateOrderStatus(
+              order.id,
+              OrderStatus.PENDING,
+              undefined,
+              'Vuelto a almacén por administración'
+            );
+          });
+        },
+      });
+    }
+
     if (agency && order.status === OrderStatus.ASSIGNED && order.repartidorId) {
       items.push({
         id: 'unassign-repartidor',
@@ -2880,6 +2904,32 @@ export default function AdminDashboard({
                         })()}
                       </div>
                     )
+                  )}
+
+                  {selectedOrder.status === OrderStatus.DELIVERING && isAgencyAdmin(userRole) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void confirm({
+                          title: 'Volver a almacén',
+                          message: `¿Sacar ${selectedOrder.id} del viaje?\n\nDeja de estar en ruta y vuelve a almacén, sin repartidor.`,
+                          variant: 'warning',
+                          confirmText: 'Volver a almacén',
+                          cancelText: 'Cancelar',
+                        }).then((ok) => {
+                          if (!ok) return;
+                          void onUpdateOrderStatus(
+                            selectedOrder.id,
+                            OrderStatus.PENDING,
+                            undefined,
+                            'Vuelto a almacén por administración'
+                          );
+                        });
+                      }}
+                      className="w-full text-center py-1 border border-[var(--color-warn)]/30 hover:border-[var(--color-warn)] bg-[var(--color-warn)]/10 text-[var(--color-warn)] font-bold text-[10px] uppercase tracking-wider rounded transition"
+                    >
+                      Volver a almacén
+                    </button>
                   )}
 
                   {selectedOrder.status === OrderStatus.CANCELLED &&

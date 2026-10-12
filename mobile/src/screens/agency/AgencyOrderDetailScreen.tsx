@@ -239,6 +239,35 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
           </View>
         ) : null}
 
+        {order.status === OrderStatus.DELIVERING && (
+          <Button
+            label="Volver a almacén"
+            variant="amber"
+            onPress={() =>
+              Alert.alert(
+                'Volver a almacén',
+                `¿Sacar ${order.id} del viaje? Deja la ruta y vuelve a almacén, sin repartidor.`,
+                [
+                  { text: 'No', style: 'cancel' },
+                  {
+                    text: 'Volver a almacén',
+                    onPress: () =>
+                      run(async () => {
+                        await updateStatus(
+                          order.id,
+                          OrderStatus.PENDING,
+                          'Vuelto a almacén desde app de agencia'
+                        );
+                      }),
+                  },
+                ]
+              )
+            }
+            loading={busy}
+            style={{ marginTop: spacing.md }}
+          />
+        )}
+
         {order.status === OrderStatus.ASSIGNED && order.repartidorId && (
           <Button
             label="Desasignar repartidor"

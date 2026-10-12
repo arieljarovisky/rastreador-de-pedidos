@@ -787,7 +787,7 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
     }
     if (message === 'CANNOT_UNASSIGN') {
       res.status(400).json({
-        error: 'Solo se puede desasignar repartidor en pedidos asignados que aún no salieron a ruta.',
+        error: 'Solo se puede volver a almacén un pedido asignado o en viaje.',
       });
       return;
     }

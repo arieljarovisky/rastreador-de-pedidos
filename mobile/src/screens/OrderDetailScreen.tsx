@@ -25,6 +25,10 @@ import IconActionChip from '../components/ui/IconActionChip';
 import IconLabelRow from '../components/ui/IconLabelRow';
 import { RepartidorStackParamList } from '../navigation/types';
 import DeliveryReceiptSheet, { DeliveryReceipt } from '../components/DeliveryReceiptSheet';
+import FailedDeliverySheet from '../components/FailedDeliverySheet';
+import { api } from '../api';
+import { DELIVERY_INCIDENTS, incidentWhatsappText } from '../config/deliveryIncidents';
+import { whatsappPhone, whatsappUrl } from '../utils/whatsapp';
 
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'OrderDetail'>;
 
@@ -36,6 +40,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     useOrdersContext();
   const [busy, setBusy] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [failedOpen, setFailedOpen] = useState(false);
 
   useTrackOrder(token, orderId);
 
@@ -98,6 +103,58 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
     run(OrderStatus.DELIVERING, { comment: 'Viaje iniciado' });
 
   const handleDeliver = () => setReceiptOpen(true);
+
+  const confirmFailedDelivery = async (incidentId: string, note: string) => {
+    const incident = DELIVERY_INCIDENTS.find((item) => item.id === incidentId);
+    if (!incident) throw new Error('Elegí un motivo.');
+    if (!token) throw new Error('Sin sesión');
+    const detail = note.trim();
+    const comment = detail ? `${incident.label}. ${detail}` : incident.label;
+    setBusy(true);
+    try {
+      await api.addOrderIncident(token, order.id, comment);
+      const phone = whatsappPhone(order.clientPhone);
+      const text = incidentWhatsappText(
+        incident,
+        {
+          clientName: order.clientName,
+          address: order.address,
+          orderId: order.id,
+        },
+        detail
+      );
+      setFailedOpen(false);
+      if (order.status === OrderStatus.DELIVERING) {
+        try {
+          await updateStatus(order.id, OrderStatus.ASSIGNED, {
+            comment: 'No se pudo entregar. El pedido sigue asignado.',
+          });
+        } catch (err) {
+          Alert.alert(
+            'Incidencia registrada',
+            err instanceof Error ? err.message : 'No se pudo sacar el pedido del viaje.'
+          );
+        }
+      }
+      if (phone) {
+        try {
+          await Linking.openURL(whatsappUrl(phone, text));
+        } catch {
+          Alert.alert(
+            'Incidencia registrada',
+            'Quedó en el pedido. No se pudo abrir WhatsApp en este teléfono.'
+          );
+        }
+      } else {
+        Alert.alert(
+          'Incidencia registrada',
+          'Quedó en el pedido. No hay un teléfono del cliente para abrir WhatsApp.'
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const confirmDeliver = async (receipt: DeliveryReceipt) => {
     setBusy(true);
@@ -279,6 +336,15 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               loading={busy}
             />
           )}
+          {(order.status === OrderStatus.ASSIGNED || order.status === OrderStatus.DELIVERING) &&
+            isMine && (
+            <Button
+              label="No se pudo entregar"
+              variant="danger"
+              onPress={() => setFailedOpen(true)}
+              loading={busy}
+            />
+          )}
           {order.status === OrderStatus.DELIVERING &&
             isMine &&
             order.externalSource === 'mercadolibre' && (
@@ -309,6 +375,15 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           )}
         </View>
       </ScrollView>
+      <FailedDeliverySheet
+        visible={failedOpen}
+        hasPhone={Boolean(whatsappPhone(order.clientPhone))}
+        busy={busy}
+        onClose={() => {
+          if (!busy) setFailedOpen(false);
+        }}
+        onConfirm={confirmFailedDelivery}
+      />
       <DeliveryReceiptSheet
         visible={receiptOpen}
         orderId={order.id}

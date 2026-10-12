@@ -375,6 +375,14 @@ export const api = {
     });
   },
 
+  addOrderIncident(token: string, orderId: string, comment: string): Promise<Order> {
+    return request<Order>(`/api/orders/${orderId}/incidencias`, {
+      method: 'POST',
+      token,
+      body: { comment },
+    });
+  },
+
   /** Reporta el GPS asociado a un pedido en viaje. */
   reportOrderLocation(
     token: string,

@@ -403,6 +403,31 @@ export default function SellerOrdersRegistry({
     };
   }, [postaStats, includePersonal, personalEntries, marketplaceSource]);
 
+  const returnToWarehouse = async (order: Order) => {
+    const ok = await confirm({
+      title: 'Volver a almacén',
+      message: `¿Sacar ${order.id} del viaje?\n\nDeja de estar en ruta y vuelve a almacén, sin repartidor.`,
+      variant: 'warning',
+      confirmText: 'Volver a almacén',
+      cancelText: 'Cancelar',
+    });
+    if (!ok) return;
+    setBusyId(order.id);
+    try {
+      await onUpdateOrderStatus(
+        order.id,
+        OrderStatus.PENDING,
+        undefined,
+        'Vuelto a almacén desde Registro'
+      );
+      void loadRegistryPage();
+    } catch {
+      // El aviso lo muestra quien llama a la API.
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const restoreCancelled = async (order: Order) => {
     if (!onRestoreOrder) return;
     const ok = await confirm({
@@ -947,25 +972,40 @@ export default function SellerOrdersRegistry({
                           {order.repartidorName?.split(' ')[0] ?? '—'}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          {canDeliver ? (
-                            <button
-                              type="button"
-                              disabled={busyId === order.id}
-                              onClick={() => void markPostaDelivered(order)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[var(--color-ok)]/30 bg-[var(--color-ok)]/10 text-[var(--color-ok)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-ok)]/15 disabled:opacity-50"
-                            >
-                              <CheckCircle2 className="w-3 h-3" />
-                              Entregado
-                            </button>
-                          ) : order.status === OrderStatus.CANCELLED && agency && onRestoreOrder ? (
-                            <button
-                              type="button"
-                              disabled={busyId === order.id}
-                              onClick={() => void restoreCancelled(order)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 disabled:opacity-50"
-                            >
-                              Reactivar
-                            </button>
+                          {canDeliver || (order.status === OrderStatus.DELIVERING && agency) || (order.status === OrderStatus.CANCELLED && agency && onRestoreOrder) ? (
+                            <div className="flex items-center gap-1">
+                              {canDeliver && (
+                                <button
+                                  type="button"
+                                  disabled={busyId === order.id}
+                                  onClick={() => void markPostaDelivered(order)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[var(--color-ok)]/30 bg-[var(--color-ok)]/10 text-[var(--color-ok)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-ok)]/15 disabled:opacity-50"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Entregado
+                                </button>
+                              )}
+                              {order.status === OrderStatus.DELIVERING && agency && (
+                                <button
+                                  type="button"
+                                  disabled={busyId === order.id}
+                                  onClick={() => void returnToWarehouse(order)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[var(--color-warn)]/30 bg-[var(--color-warn)]/10 text-[var(--color-warn)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-warn)]/15 disabled:opacity-50"
+                                >
+                                  Almacén
+                                </button>
+                              )}
+                              {order.status === OrderStatus.CANCELLED && agency && onRestoreOrder && (
+                                <button
+                                  type="button"
+                                  disabled={busyId === order.id}
+                                  onClick={() => void restoreCancelled(order)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 disabled:opacity-50"
+                                >
+                                  Reactivar
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-[var(--color-text-faint)]">—</span>
                           )}
