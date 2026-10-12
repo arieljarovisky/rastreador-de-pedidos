@@ -2141,10 +2141,10 @@ export default function AdminDashboard({
           </div>
         )}
 
-        <div className="mt-1.5 shrink-0 scroll-tabs flex w-full bg-[var(--surface-panel-2)] p-0.5 rounded-full border border-[var(--surface-border)]/80 text-[10px]">
+        <div className="mt-1.5 shrink-0 scroll-tabs flex w-full bg-[var(--surface-panel-2)] p-0.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)]/80 text-[10px]">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-[var(--radius-posta)] transition ${
               statusFilter === 'all' ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2152,7 +2152,7 @@ export default function AdminDashboard({
           </button>
           <button
             onClick={() => setStatusFilter(OrderStatus.PENDING)}
-            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-[var(--radius-posta)] transition ${
               statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2160,7 +2160,7 @@ export default function AdminDashboard({
           </button>
           <button
             onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
-            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-[var(--radius-posta)] transition ${
               statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-[var(--cta-ink)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2168,7 +2168,7 @@ export default function AdminDashboard({
           </button>
           <button
             onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
-            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-[var(--radius-posta)] transition ${
               statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[var(--cta-ink)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2176,7 +2176,7 @@ export default function AdminDashboard({
           </button>
           <button
             onClick={() => setStatusFilter('archived')}
-            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-[var(--radius-posta)] transition ${
               statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
