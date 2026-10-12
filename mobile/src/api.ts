@@ -310,6 +310,29 @@ export const api = {
     return request<DriverScanDayResult>(`/api/driver-scan${qs}`, { token });
   },
 
+  /** Repartidor: la foto de la etiqueta se lee con IA y devuelve la dirección del destinatario. */
+  readShippingLabel(
+    token: string,
+    photoUri: string
+  ): Promise<{
+    address: string | null;
+    clientName: string | null;
+    clientPhone: string | null;
+    reference: string | null;
+  }> {
+    const form = new FormData();
+    form.append('photo', {
+      uri: photoUri,
+      name: 'etiqueta.jpg',
+      type: 'image/jpeg',
+    } as unknown as Blob);
+    return requestForm('/api/driver-scan/read-label', {
+      token,
+      form,
+      timeoutMs: 35_000,
+    });
+  },
+
   /** Repartidor: completa dirección/destinatario leídos de la etiqueta. */
   updateDriverScanEntryDetails(
     token: string,

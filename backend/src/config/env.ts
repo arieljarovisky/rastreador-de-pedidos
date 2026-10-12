@@ -122,6 +122,11 @@ export const env = {
   googleAuth: {
     clientId: process.env.GOOGLE_CLIENT_ID?.trim() || '',
   },
+  /** Lectura de dirección en fotos de etiquetas (Gemini). Sin clave, la app sigue con el OCR del celular. */
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY?.trim() || '',
+    model: process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash',
+  },
   /**
    * Recorridos del repartidor. Sin claves usa calles (OSRM) + hora pico + novedades de la flota.
    * GOOGLE_MAPS_API_KEY o TOMTOM_API_KEY activan tránsito en vivo.

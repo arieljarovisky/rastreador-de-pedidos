@@ -63,6 +63,32 @@ function entryHasAddress(entry: Pick<DriverScanEntry, 'address'>): boolean {
   return Boolean(entry.address?.trim());
 }
 
+type LabelFields = {
+  address: string | null;
+  clientName: string | null;
+  clientPhone?: string | null;
+};
+
+function addressLooksUsable(address: string | null | undefined): boolean {
+  const text = address?.trim() ?? '';
+  return text.length >= 6 && /\d/.test(text);
+}
+
+function pickLabelFields(local: LabelFields, ai: LabelFields | null): LabelFields {
+  if (!ai) return local;
+  const aiAddress = ai.address?.trim() || null;
+  const localAddress = local.address?.trim() || null;
+  return {
+    address: addressLooksUsable(aiAddress)
+      ? aiAddress
+      : addressLooksUsable(localAddress)
+        ? localAddress
+        : aiAddress || localAddress,
+    clientName: ai.clientName?.trim() || local.clientName,
+    clientPhone: ai.clientPhone?.trim() || local.clientPhone || null,
+  };
+}
+
 export default function ScanLabelScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
@@ -74,6 +100,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [pendingAddressEntry, setPendingAddressEntry] = useState<DriverScanEntry | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const [ocrReading, setOcrReading] = useState(false);
+  const [capturePhase, setCapturePhase] = useState<'idle' | 'photo' | 'read'>('idle');
   const [captureMode, setCaptureMode] = useState(false);
   const [sellers, setSellers] = useState<SellerOption[]>([]);
   const [sellersReady, setSellersReady] = useState(false);
@@ -130,6 +157,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
     () =>
       new Promise<string>((resolve, reject) => {
         captureWaiter.current = { resolve, reject };
+        setCapturePhase('photo');
         setCaptureMode(true);
       }),
     []
@@ -171,25 +199,44 @@ export default function ScanLabelScreen({ navigation }: Props) {
     );
   }, []);
 
-  /** Foto + OCR de la etiqueta. El lector de QR se apaga antes: en Android no conviven. */
+  const readLabelWithAi = useCallback(
+    async (uri: string, local: LabelFields): Promise<LabelFields> => {
+      if (!token) return local;
+      setCapturePhase('read');
+      try {
+        const ai = await api.readShippingLabel(token, uri);
+        return pickLabelFields(local, ai);
+      } catch (err) {
+        console.warn('[label-ai] lectura falló:', err);
+        return local;
+      }
+    },
+    [token]
+  );
+
+  /** Foto + OCR de la etiqueta. Si el OCR no ve la calle, la lee la IA del servidor. */
   const captureLabelFields = useCallback(async () => {
     setOcrReading(true);
+    setCapturePhase('photo');
     try {
       const uri = await takeStill();
-      return await recognizeLabelFromPhoto(uri);
+      const local = await recognizeLabelFromPhoto(uri);
+      if (addressLooksUsable(local.address)) return local;
+      return await readLabelWithAi(uri, local);
     } catch (err) {
       console.warn('[ocr] capture failed:', err);
       return { address: null as string | null, clientName: null as string | null };
     } finally {
       setOcrReading(false);
+      setCapturePhase('idle');
     }
-  }, [takeStill]);
+  }, [takeStill, readLabelWithAi]);
 
   const savePersonal = useCallback(
     async (
       code: string,
       location: { lat: number; lng: number } | undefined,
-      ocrFields: { address: string | null; clientName: string | null },
+      ocrFields: LabelFields,
       options: { sellerId?: string; assignAutomatic?: boolean; photoUri?: string }
     ) => {
       if (!token) throw new Error('Sesión inválida');
@@ -199,6 +246,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         lng: location?.lng,
         address: ocrFields.address ? stripAddressReference(ocrFields.address) : undefined,
         clientName: ocrFields.clientName ?? undefined,
+        clientPhone: ocrFields.clientPhone ?? undefined,
         sellerId: options.sellerId,
         assignAutomatic: options.assignAutomatic,
         photoUri: options.photoUri,
@@ -215,6 +263,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
           entry = await api.updateDriverScanEntryDetails(token, entry.id, {
             address: cleanAddress,
             clientName: ocrFields.clientName ?? undefined,
+            clientPhone: ocrFields.clientPhone ?? undefined,
           });
         } catch (err) {
           console.warn('[ocr] update details failed:', err);
@@ -335,7 +384,18 @@ export default function ScanLabelScreen({ navigation }: Props) {
     setOcrReading(true);
     try {
       const photoUri = await takeStill();
-      const ocr = await recognizeLabelFromPhoto(photoUri);
+      setCapturePhase('read');
+      const [local, ai] = await Promise.all([
+        recognizeLabelFromPhoto(photoUri),
+        token
+          ? api.readShippingLabel(token, photoUri).catch((err) => {
+              console.warn('[label-ai] lectura falló:', err);
+              return null;
+            })
+          : Promise.resolve(null),
+      ]);
+      const ocr = pickLabelFields(local, ai);
+      setCapturePhase('idle');
       const location = await currentLocation();
       const code = `FOTO-${Date.now().toString(36)}`;
       setLastResult('Guardando foto de la etiqueta…');
@@ -346,6 +406,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
       Alert.alert('Etiqueta', message);
     } finally {
       setOcrReading(false);
+      setCapturePhase('idle');
       setProcessing(false);
       busyRef.current = false;
     }
@@ -525,7 +586,13 @@ export default function ScanLabelScreen({ navigation }: Props) {
       <View style={styles.frame} pointerEvents="none">
         <View style={styles.frameBox} />
         <Text style={styles.frameHint}>
-          {ocrReading ? 'Sacando la foto…' : 'Apuntá al QR. Si no tiene, usá el botón de foto.'}
+          {capturePhase === 'read'
+            ? 'Leyendo la dirección…'
+            : capturePhase === 'photo'
+              ? 'Sacando la foto…'
+              : processing || ocrReading
+                ? 'Registrando paquete…'
+                : 'Apuntá al QR. Si no tiene, usá el botón de foto.'}
         </Text>
       </View>
 
@@ -534,7 +601,11 @@ export default function ScanLabelScreen({ navigation }: Props) {
           <View style={styles.statusRow}>
             <ActivityIndicator color={colors.accent} />
             <Text style={styles.statusText}>
-              {ocrReading ? 'Sacando la foto…' : 'Registrando paquete…'}
+              {capturePhase === 'read'
+                ? 'Leyendo la dirección…'
+                : capturePhase === 'photo'
+                  ? 'Sacando la foto…'
+                  : 'Registrando paquete…'}
             </Text>
           </View>
         ) : lastResult ? (

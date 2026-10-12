@@ -60,6 +60,9 @@ async function start(): Promise<void> {
     console.log(`[startup] Webhook TN pedidos: ${getTiendaNubeOrderWebhookUrl()}`);
     console.log(`[startup] Webhook Shopify pedidos: ${getShopifyOrderWebhookUrl()}`);
     console.log(`[startup] Webhook WooCommerce pedidos: ${getWooCommerceOrderWebhookUrl()}`);
+    console.log(
+      `[startup] Lectura de etiquetas: ${env.gemini.apiKey ? `Gemini ${env.gemini.model}` : 'SIN GEMINI_API_KEY (solo OCR del celular)'}`
+    );
 
     if (env.mercadolibre.appOwnerAccessToken) {
       void replayMercadoLibreMissedFeeds({ topic: 'flex-handshakes', limit: 30 })

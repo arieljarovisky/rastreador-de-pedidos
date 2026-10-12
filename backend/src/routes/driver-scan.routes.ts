@@ -17,6 +17,7 @@ import {
 } from '../services/driver-scan.service.js';
 import { getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
 import { listSellers } from '../services/users.service.js';
+import { isLabelVisionConfigured, readShippingLabel } from '../services/label-vision.service.js';
 
 const router = Router();
 
@@ -211,6 +212,44 @@ async function handleCreateScan(req: Request, res: Response): Promise<void> {
     }
     console.error('[driver-scan] POST / error:', err);
     res.status(500).json({ error: 'No se pudo registrar el paquete.' });
+  }
+}
+
+/** Foto de etiqueta → dirección y destinatario (Gemini). Si no hay clave, la app sigue con el OCR local. */
+router.post('/read-label', requireRoles(UserRole.REPARTIDOR), (req: Request, res: Response) => {
+  labelPhotoUpload.single('photo')(req, res, (err: unknown) => {
+    if (err) {
+      const code = err instanceof Error ? err.message : '';
+      if (code === 'INVALID_PHOTO') {
+        res.status(400).json({ error: 'La foto tiene que ser JPG o PNG.' });
+        return;
+      }
+      res.status(400).json({ error: 'No se pudo leer la foto de la etiqueta.' });
+      return;
+    }
+    void handleReadLabel(req, res);
+  });
+});
+
+async function handleReadLabel(req: Request, res: Response): Promise<void> {
+  const photo = (req as Request & { file?: { buffer?: Buffer; mimetype?: string } }).file;
+  if (!photo?.buffer?.length) {
+    res.status(400).json({ error: 'Falta la foto de la etiqueta.' });
+    return;
+  }
+  if (!isLabelVisionConfigured()) {
+    res.status(503).json({
+      error: 'El lector de etiquetas no está configurado.',
+      code: 'LABEL_AI_UNAVAILABLE',
+    });
+    return;
+  }
+  try {
+    const fields = await readShippingLabel(photo.buffer, photo.mimetype || 'image/jpeg');
+    res.json(fields);
+  } catch (err) {
+    console.error('[label-vision] POST /read-label error:', err);
+    res.status(502).json({ error: 'No se pudo leer la dirección de la etiqueta.' });
   }
 }
 
