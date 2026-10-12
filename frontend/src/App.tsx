@@ -17,6 +17,7 @@ const SettingsPage = lazy(() => import('./components/SettingsPage.tsx'));
 const ShippingAccountPage = lazy(() => import('./components/ShippingAccountPage.tsx'));
 const DriverSettlementPage = lazy(() => import('./components/DriverSettlementPage.tsx'));
 const RegistroPage = lazy(() => import('./components/RegistroPage.tsx'));
+const RepartidoresPage = lazy(() => import('./components/RepartidoresPage.tsx'));
 const RepartidorDashboard = lazy(() => import('./components/RepartidorDashboard.tsx'));
 const NotificationHub = lazy(() => import('./components/NotificationHub.tsx'));
 const PriceListsPage = lazy(() => import('./components/PriceListsPage.tsx'));
@@ -72,7 +73,7 @@ function LazyFallback() {
     </div>
   );
 }
-type AppTab = 'panel' | 'dashboard' | 'account' | 'registro' | 'prices' | 'notifications' | 'settings' | 'platform';
+type AppTab = 'panel' | 'dashboard' | 'account' | 'registro' | 'repartidores' | 'prices' | 'notifications' | 'settings' | 'platform';
 
 /** Firma barata para no reemplazar la lista si el servidor no trajo cambios reales. */
 function ordersSnapshotKey(list: Order[]): string {
@@ -93,6 +94,7 @@ function readSavedTab(): AppTab {
     saved === 'dashboard' ||
     saved === 'account' ||
     saved === 'registro' ||
+    saved === 'repartidores' ||
     saved === 'prices' ||
     saved === 'notifications' ||
     saved === 'settings' ||
@@ -200,6 +202,7 @@ function prefetchSignedInShell() {
       void import('./components/ShippingAccountPage.tsx');
       void import('./components/DriverSettlementPage.tsx');
     } else if (tab === 'registro') void import('./components/RegistroPage.tsx');
+    else if (tab === 'repartidores') void import('./components/RepartidoresPage.tsx');
     else if (tab === 'prices') void import('./components/PriceListsPage.tsx');
     else if (tab === 'platform') void import('./components/PlatformOwnerPanel.tsx');
     else void import('./components/OperationsDashboard.tsx');
@@ -2272,6 +2275,9 @@ export default function App() {
     if (mobileTab === 'registro' && !showRegistro) {
       setMobileTab('panel');
     }
+    if (mobileTab === 'repartidores' && !showRegistro) {
+      setMobileTab('panel');
+    }
     if (mobileTab === 'prices' && !showPrices) {
       setMobileTab('panel');
     }
@@ -2475,6 +2481,11 @@ export default function App() {
                   Precios
                 </AppNavLink>
               )}
+              {showRegistro && (
+                <AppNavLink active={mobileTab === 'repartidores'} onClick={() => setMobileTab('repartidores')} title="Perfil y pedidos de cada repartidor">
+                  Repartidores
+                </AppNavLink>
+              )}
               <AppNavLink active={mobileTab === 'settings'} onClick={() => setMobileTab('settings')} title="Ajustes de la agencia">
                 Ajustes
               </AppNavLink>
@@ -2547,6 +2558,9 @@ export default function App() {
             {showPrices && (
               <MobileNavLink active={mobileTab === 'prices'} onClick={() => setMobileTab('prices')}>Precios</MobileNavLink>
             )}
+            {showRegistro && (
+              <MobileNavLink active={mobileTab === 'repartidores'} onClick={() => setMobileTab('repartidores')}>Repartidores</MobileNavLink>
+            )}
             <MobileNavLink active={mobileTab === 'settings'} onClick={() => setMobileTab('settings')}>Ajustes</MobileNavLink>
           </>
         )}
@@ -2571,14 +2585,14 @@ export default function App() {
       {/* CUERPO PRINCIPAL DEL PANEL (HIGH DENSITY HEIGHT) */}
       <main
         className={`flex-1 min-h-0 relative ${
-          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'platform' || mobileTab === 'registro'
+          mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'prices' || mobileTab === 'platform' || mobileTab === 'registro' || mobileTab === 'repartidores'
             ? 'overflow-y-auto overscroll-y-contain scrollbar-thin [-webkit-overflow-scrolling:touch] px-2 sm:px-3 md:px-4 pb-2 sm:pb-3 md:pb-4 pt-0'
             : 'overflow-hidden p-2 sm:p-3 md:p-4'
         }`}
       >
         <div
           className={`app-shell ${
-            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'registro' || mobileTab === 'prices' || mobileTab === 'platform'
+            mobileTab === 'settings' || mobileTab === 'account' || mobileTab === 'registro' || mobileTab === 'repartidores' || mobileTab === 'prices' || mobileTab === 'platform'
               ? ''
               : 'h-full'
           }`}
@@ -2715,6 +2729,18 @@ export default function App() {
                     setMobileTab('dashboard');
                   }}
                 />
+                </Suspense>
+              </div>
+            )}
+
+            {mobileTab === 'repartidores' && token && isAgencyAdmin(user.role) && (
+              <div className="flex-1 min-w-0 w-full flex flex-col">
+                <Suspense fallback={<LazyFallback />}>
+                  <RepartidoresPage
+                    token={token}
+                    repartidores={repartidores}
+                    deliveryZones={deliveryZones}
+                  />
                 </Suspense>
               </div>
             )}

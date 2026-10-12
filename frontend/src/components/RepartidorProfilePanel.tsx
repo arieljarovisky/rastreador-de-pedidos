@@ -52,10 +52,13 @@ export default function RepartidorProfilePanel({
   token,
   repartidorId,
   onClose,
+  embedded = false,
 }: {
   token: string;
   repartidorId: string;
-  onClose: () => void;
+  onClose?: () => void;
+  /** Dentro de la pestaña Repartidores, sin capa encima del panel. */
+  embedded?: boolean;
 }) {
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,11 +119,10 @@ export default function RepartidorProfilePanel({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/45">
-      <button type="button" aria-label="Cerrar perfil" className="absolute inset-0" onClick={onClose} />
-      <aside className="relative flex h-full w-full max-w-xl flex-col border-l border-[var(--surface-border)] bg-[var(--surface-bg)] text-[var(--color-text)]">
+  const body = (
+      <aside className={`relative flex h-full min-h-0 w-full flex-col text-[var(--color-text)] ${embedded ? '' : 'max-w-xl border-l border-[var(--surface-border)] bg-[var(--surface-bg)]'}`}>
         <div className="flex items-center gap-3 border-b border-[var(--surface-border)] px-4 py-3">
+          {!embedded && onClose && (
           <button
             type="button"
             onClick={onClose}
@@ -129,6 +131,7 @@ export default function RepartidorProfilePanel({
           >
             <ArrowLeft className="size-4" />
           </button>
+          )}
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{data?.repartidor.name ?? 'Repartidor'}</p>
             <p className="truncate text-[11px] text-[var(--color-text-muted)]">
@@ -207,6 +210,14 @@ export default function RepartidorProfilePanel({
           </>
         )}
       </aside>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/45">
+      <button type="button" aria-label="Cerrar perfil" className="absolute inset-0" onClick={onClose} />
+      {body}
     </div>
   );
 }
