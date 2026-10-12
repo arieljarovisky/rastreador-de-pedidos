@@ -51,6 +51,8 @@ export interface IPhoneProps {
   onScreenTap?: () => void
   /** Custom className for the container */
   className?: string
+  /** Alto del marco. El ancho sale de la proporción del equipo. */
+  height?: string
 }
 
 const FRAME_COLORS = {
@@ -158,19 +160,19 @@ const DYNAMIC_ISLAND_SIZES = {
   compact: { width: 90, height: 28, borderRadius: 14 },
   /** width ignored for motion — expanded uses nearly full screen width */
   expanded: { width: 176, height: 42, borderRadius: 21 },
-  large: { width: 290, height: 120, borderRadius: 32 },
+  large: { width: 240, height: 118, borderRadius: 28 },
   ultra: { width: 300, height: 180, borderRadius: 36 },
 }
 
 function getIslandMotionAnimate(size: DynamicIslandSize) {
   const c = DYNAMIC_ISLAND_SIZES[size]
-  //   if (size === "expanded") {
-  //     return {
-  //       width: "calc(100% - 18px)",
-  //       borderRadius: c.borderRadius,
-  //       height: c.height,
-  //     };
-  //   }
+  if (size === "large" || size === "ultra") {
+    return {
+      width: "calc(100% - 28px)",
+      borderRadius: c.borderRadius,
+      height: c.height,
+    }
+  }
   return {
     width: c.width,
     borderRadius: c.borderRadius,
@@ -191,6 +193,7 @@ export function IPhone17ProMax({
   onDynamicIslandTap,
   onScreenTap,
   className = "",
+  height = "min(700px, 85vh)",
 }: IPhoneProps) {
   const [internalDynamicIslandSize, setInternalDynamicIslandSize] =
     useState<DynamicIslandSize>(dynamicIslandSize)
@@ -219,9 +222,8 @@ export function IPhone17ProMax({
       <div
         className={"relative transition-transform duration-150 ease-out"}
         style={{
-          height: "min(700px, 85vh)",
+          height,
           aspectRatio: "71.5 / 149.6",
-          //   aspectRatio: "71.5 / 145.6",
         }}
       >
         {/* Outer Shadow */}

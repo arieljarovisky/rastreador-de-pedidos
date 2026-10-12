@@ -131,7 +131,11 @@ function RiderScreen() {
   );
 }
 
-function Phone({ className = '' }: { className?: string }) {
+function Phone({ className = '', height }: { className?: string; height?: string }) {
+  const [island, setIsland] = useState<'default' | 'expanded' | 'large'>('expanded');
+  const cycleIsland = () =>
+    setIsland((size) => (size === 'default' ? 'expanded' : size === 'expanded' ? 'large' : 'default'));
+
   return (
     <IPhone17ProMax
       className={className}
@@ -139,17 +143,39 @@ function Phone({ className = '' }: { className?: string }) {
       time="14:32"
       batteryLevel={78}
       signalStrength={4}
-      dynamicIslandSize="expanded"
-      onDynamicIslandTap={() => {}}
-      onScreenTap={() => {}}
+      height={height}
+      dynamicIslandSize={island}
+      onDynamicIslandTap={cycleIsland}
+      onScreenTap={cycleIsland}
       dynamicIslandContent={
-        <div className="flex w-full items-center gap-2 text-left text-white">
-          <span className="size-1.5 shrink-0 rounded-full bg-[#ff5a2a]" />
-          <div className="min-w-0 leading-tight">
-            <div className="truncate text-[11px] font-medium">Lucía Paz · en viaje</div>
-            <div className="truncate text-[10px] text-white/65">Rivadavia 4100 · 6 min</div>
+        island === 'large' ? (
+          <div className="flex h-full w-full flex-col justify-between py-1 text-left text-white">
+            <div className="flex items-center gap-2">
+              <span className="size-2 shrink-0 rounded-full bg-[#ff5a2a]" />
+              <div className="min-w-0">
+                <div className="truncate text-[12px] font-medium">Lucía Paz · en viaje</div>
+                <div className="truncate text-[10px] text-white/65">Av. Rivadavia 4100</div>
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 flex justify-between text-[10px] text-white/55">
+                <span>En camino</span>
+                <span>6 min</span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-white/15">
+                <div className="h-full w-2/3 rounded-full bg-[#ff5a2a]" />
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex w-full items-center gap-2 text-left text-white">
+            <span className="size-1.5 shrink-0 rounded-full bg-[#ff5a2a]" />
+            <div className="min-w-0 leading-tight">
+              <div className="truncate text-[11px] font-medium">Lucía Paz · en viaje</div>
+              <div className="truncate text-[10px] text-white/65">Rivadavia 4100 · 6 min</div>
+            </div>
+          </div>
+        )
       }
     >
       <RiderScreen />
@@ -375,7 +401,7 @@ export function LandingPage() {
         )}
       </header>
 
-      <section className="relative min-h-[100svh] overflow-hidden pt-28">
+      <section className="relative min-h-[100svh] overflow-visible pt-28">
         <p className="pointer-events-none absolute top-32 left-3 z-10 hidden origin-left -translate-y-4 -rotate-90 text-[10px] uppercase tracking-[0.45em] text-muted-foreground xl:block">
           Cabina de despacho · Buenos Aires
         </p>
@@ -419,9 +445,9 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="relative">
-            <div className="mx-auto h-[560px] max-w-[340px] overflow-hidden lg:mr-[-8%] lg:ml-auto lg:origin-top lg:scale-[0.92] lg:-rotate-6">
-              <Phone className="!p-0" />
+          <div className="relative flex justify-center lg:justify-end">
+            <div className="origin-center px-4 py-6 lg:-rotate-6">
+              <Phone className="!p-0" height="min(640px, 68vh)" />
             </div>
           </div>
         </div>
@@ -542,10 +568,8 @@ export function LandingPage() {
           <p className="mt-3 text-xs text-muted-foreground">Android 8+ · iOS 15+ · requiere permiso de ubicación</p>
           <DirectionAwareTabs tabs={downloadTabs} className="mt-8 bg-foreground/10" />
         </div>
-        <div className="h-[520px] overflow-hidden">
-          <div className="origin-top scale-[0.72]">
-            <Phone />
-          </div>
+        <div className="flex justify-center">
+          <Phone height="min(560px, 64vh)" />
         </div>
       </section>
 
