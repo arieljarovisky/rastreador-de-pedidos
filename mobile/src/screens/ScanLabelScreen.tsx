@@ -99,8 +99,9 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [addressDraft, setAddressDraft] = useState('');
   const [pendingAddressEntry, setPendingAddressEntry] = useState<DriverScanEntry | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
-  const [ocrReading, setOcrReading] = useState(false);
-  const [capturePhase, setCapturePhase] = useState<'idle' | 'photo' | 'read'>('idle');
+  const [capturing, setCapturing] = useState(false);
+  const [inFlight, setInFlight] = useState(0);
+  const [capturePhase, setCapturePhase] = useState<'idle' | 'photo'>('idle');
   const [captureMode, setCaptureMode] = useState(false);
   const [sellers, setSellers] = useState<SellerOption[]>([]);
   const [sellersReady, setSellersReady] = useState(false);
@@ -108,6 +109,15 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [chooserOpen, setChooserOpen] = useState(true);
   const lastCodeRef = useRef<string | null>(null);
   const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const capturingRef = useRef(false);
+  const pendingRef = useRef<DriverScanEntry | null>(null);
+  const addressQueueRef = useRef<DriverScanEntry[]>([]);
+  const jobQueueRef = useRef<Array<() => Promise<void>>>([]);
+  const runningRef = useRef(0);
+  const inFlightRef = useRef(0);
+  const promoteRef = useRef<() => void>(() => {});
+  const drainRef = useRef<() => void>(() => {});
   const cameraRef = useRef<CameraView>(null);
   const captureWaiter = useRef<{
     resolve: (uri: string) => void;
@@ -153,6 +163,20 @@ export default function ScanLabelScreen({ navigation }: Props) {
     };
   }, [captureMode]);
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const syncInFlight = useCallback(() => {
+    const pending = runningRef.current + jobQueueRef.current.length;
+    inFlightRef.current = pending;
+    if (mountedRef.current) setInFlight(pending);
+    return pending;
+  }, []);
+
   const takeStill = useCallback(
     () =>
       new Promise<string>((resolve, reject) => {
@@ -183,6 +207,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
   }, [token]);
 
   const showPersonalResult = useCallback((entry: DriverScanEntry) => {
+    if (!mountedRef.current) return;
     setScannedCount((n) => n + 1);
     const name = entry.clientName?.trim() || 'Sin nombre';
     const isPhoto = entry.scanCode.startsWith('FOTO-') || entry.hasPhoto;
@@ -199,10 +224,60 @@ export default function ScanLabelScreen({ navigation }: Props) {
     );
   }, []);
 
-  const readLabelWithAi = useCallback(
-    async (uri: string, local: LabelFields): Promise<LabelFields> => {
-      if (!token) return local;
-      setCapturePhase('read');
+  promoteRef.current = () => {
+    if (!mountedRef.current || pendingRef.current || capturingRef.current || inFlightRef.current > 0) {
+      return;
+    }
+    const next = addressQueueRef.current.shift();
+    if (!next) return;
+    pendingRef.current = next;
+    setAddressDraft('');
+    setPendingAddressEntry(next);
+  };
+
+  drainRef.current = () => {
+    while (runningRef.current < 2 && jobQueueRef.current.length > 0) {
+      const job = jobQueueRef.current.shift();
+      if (!job) break;
+      runningRef.current += 1;
+      syncInFlight();
+      void job()
+        .catch((err) => {
+          console.warn('[label-job]', err);
+          if (!mountedRef.current) return;
+          const message = err instanceof Error ? err.message : 'No se pudo registrar la etiqueta.';
+          Alert.alert('Etiqueta', message);
+        })
+        .finally(() => {
+          runningRef.current = Math.max(0, runningRef.current - 1);
+          const left = syncInFlight();
+          if (left === 0) promoteRef.current();
+          else drainRef.current();
+        });
+    }
+  };
+
+  const enqueueLabelJob = useCallback(
+    (job: () => Promise<void>) => {
+      jobQueueRef.current.push(job);
+      syncInFlight();
+      drainRef.current();
+    },
+    [syncInFlight]
+  );
+
+  const releaseAddressPrompt = useCallback(() => {
+    pendingRef.current = null;
+    setPendingAddressEntry(null);
+    setAddressDraft('');
+    promoteRef.current();
+  }, []);
+
+  /** OCR local y, si no alcanza, la IA. No toca la cámara. */
+  const readLabelFields = useCallback(
+    async (uri: string): Promise<LabelFields> => {
+      const local = await recognizeLabelFromPhoto(uri);
+      if (addressLooksUsable(local.address) || !token) return local;
       try {
         const ai = await api.readShippingLabel(token, uri);
         return pickLabelFields(local, ai);
@@ -214,30 +289,17 @@ export default function ScanLabelScreen({ navigation }: Props) {
     [token]
   );
 
-  /** Foto + OCR de la etiqueta. Si el OCR no ve la calle, la lee la IA del servidor. */
-  const captureLabelFields = useCallback(async () => {
-    setOcrReading(true);
-    setCapturePhase('photo');
-    try {
-      const uri = await takeStill();
-      const local = await recognizeLabelFromPhoto(uri);
-      if (addressLooksUsable(local.address)) return local;
-      return await readLabelWithAi(uri, local);
-    } catch (err) {
-      console.warn('[ocr] capture failed:', err);
-      return { address: null as string | null, clientName: null as string | null };
-    } finally {
-      setOcrReading(false);
-      setCapturePhase('idle');
-    }
-  }, [takeStill, readLabelWithAi]);
-
   const savePersonal = useCallback(
     async (
       code: string,
       location: { lat: number; lng: number } | undefined,
       ocrFields: LabelFields,
-      options: { sellerId?: string; assignAutomatic?: boolean; photoUri?: string }
+      options: {
+        sellerId?: string;
+        assignAutomatic?: boolean;
+        photoUri?: string;
+        deferAddressPrompt?: boolean;
+      }
     ) => {
       if (!token) throw new Error('Sesión inválida');
 
@@ -288,11 +350,21 @@ export default function ScanLabelScreen({ navigation }: Props) {
 
       showPersonalResult(entry);
 
-      // Solo pedir carga manual si no hay dirección de OCR ni del backend.
+      if (!mountedRef.current) return;
+
+      // Si el repartidor sigue sacando fotos, la dirección faltante se pide al final.
       if (!entryHasAddress(entry)) {
+        if (options.deferAddressPrompt) {
+          addressQueueRef.current.push(entry);
+          return;
+        }
+        pendingRef.current = entry;
         setAddressDraft('');
         setPendingAddressEntry(entry);
-      } else {
+        return;
+      }
+      if (!options.deferAddressPrompt) {
+        pendingRef.current = null;
         setPendingAddressEntry(null);
       }
     },
@@ -319,8 +391,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         address,
         clientName: pendingAddressEntry.clientName ?? undefined,
       });
-      setPendingAddressEntry(null);
-      setAddressDraft('');
+      releaseAddressPrompt();
       setLastResult(
         `Registro: ${updated.clientName?.trim() || formatScanCodeLabel(updated.scanCode)}\n${updated.address}`
       );
@@ -332,12 +403,14 @@ export default function ScanLabelScreen({ navigation }: Props) {
     } finally {
       setSavingAddress(false);
     }
-  }, [token, pendingAddressEntry, addressDraft]);
+  }, [token, pendingAddressEntry, addressDraft, releaseAddressPrompt]);
 
   const handleScan = useCallback(
     async (scan: BarcodeScanningResult) => {
       const code = scan.data?.trim();
-      if (!token || !code || !assignment || busyRef.current || pendingAddressEntry || ocrReading) return;
+      if (!token || !code || !assignment || busyRef.current || capturingRef.current || pendingRef.current) {
+        return;
+      }
       if (scan.type !== 'qr') return;
       if (lastCodeRef.current === code) return;
       busyRef.current = true;
@@ -354,9 +427,20 @@ export default function ScanLabelScreen({ navigation }: Props) {
               : `Asignado: ${result.order.clientName} (${result.order.id})`
           );
         } else {
-          setLastResult(`Leyendo dirección de la etiqueta…\n#${formatScanCodeLabel(code)}`);
-          const ocr = await captureLabelFields();
-          await savePersonal(code, location, ocr, scanOptions());
+          capturingRef.current = true;
+          setCapturing(true);
+          try {
+            const uri = await takeStill();
+            const options = scanOptions();
+            enqueueLabelJob(async () => {
+              const fields = await readLabelFields(uri);
+              await savePersonal(code, location, fields, { ...options, deferAddressPrompt: true });
+            });
+          } finally {
+            capturingRef.current = false;
+            setCapturing(false);
+            setCapturePhase('idle');
+          }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No se pudo procesar el escaneo.';
@@ -371,46 +455,54 @@ export default function ScanLabelScreen({ navigation }: Props) {
         ]);
       } finally {
         setProcessing(false);
+        setCapturePhase('idle');
         busyRef.current = false;
+        if (inFlightRef.current === 0) promoteRef.current();
       }
     },
-    [token, assignment, captureLabelFields, pendingAddressEntry, ocrReading, savePersonal, scanOptions]
+    [token, assignment, takeStill, enqueueLabelJob, readLabelFields, savePersonal, scanOptions]
   );
 
   const registerWithoutQr = useCallback(async () => {
-    if (!token || !assignment || busyRef.current || pendingAddressEntry || ocrReading) return;
-    busyRef.current = true;
-    setProcessing(true);
-    setOcrReading(true);
+    if (!token || !assignment || capturingRef.current || pendingRef.current || busyRef.current) return;
+    capturingRef.current = true;
+    setCapturing(true);
     try {
       const photoUri = await takeStill();
-      setCapturePhase('read');
-      const [local, ai] = await Promise.all([
-        recognizeLabelFromPhoto(photoUri),
-        token
-          ? api.readShippingLabel(token, photoUri).catch((err) => {
+      const shotToken = token;
+      const options = scanOptions();
+      enqueueLabelJob(async () => {
+        try {
+          const [local, ai] = await Promise.all([
+            recognizeLabelFromPhoto(photoUri),
+            api.readShippingLabel(shotToken, photoUri).catch((err) => {
               console.warn('[label-ai] lectura falló:', err);
               return null;
-            })
-          : Promise.resolve(null),
-      ]);
-      const ocr = pickLabelFields(local, ai);
-      setCapturePhase('idle');
-      const location = await currentLocation();
-      const code = `FOTO-${Date.now().toString(36)}`;
-      setLastResult('Guardando foto de la etiqueta…');
-      await savePersonal(code, location, ocr, { ...scanOptions(), photoUri });
+            }),
+          ]);
+          const fields = pickLabelFields(local, ai);
+          const location = await currentLocation();
+          const code = `FOTO-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+          await savePersonal(code, location, fields, {
+            ...options,
+            photoUri,
+            deferAddressPrompt: true,
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'No se pudo guardar la foto.';
+          if (mountedRef.current) Alert.alert('Etiqueta', message);
+        }
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo guardar la foto.';
-      setLastResult(null);
       Alert.alert('Etiqueta', message);
     } finally {
-      setOcrReading(false);
+      capturingRef.current = false;
+      setCapturing(false);
       setCapturePhase('idle');
-      setProcessing(false);
-      busyRef.current = false;
+      if (inFlightRef.current === 0) promoteRef.current();
     }
-  }, [token, assignment, pendingAddressEntry, ocrReading, savePersonal, scanOptions, takeStill]);
+  }, [token, assignment, savePersonal, scanOptions, takeStill, enqueueLabelJob]);
 
   if (!permission) {
     return (
@@ -517,7 +609,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
           captureMode ? undefined : { barcodeTypes: ['qr', 'code128', 'datamatrix'] }
         }
         onBarcodeScanned={
-          captureMode || processing || pendingAddressEntry || ocrReading
+          captureMode || capturing || processing || pendingAddressEntry
             ? undefined
             : (scan) => {
                 if (scan.type !== 'qr') return;
@@ -530,7 +622,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
         visible={Boolean(pendingAddressEntry)}
         transparent
         animationType="fade"
-        onRequestClose={() => setPendingAddressEntry(null)}
+        onRequestClose={() => releaseAddressPrompt()}
       >
         <View style={styles.addressModalBackdrop}>
           <View style={styles.addressModalCard}>
@@ -550,7 +642,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
             <View style={styles.addressModalActions}>
               <Pressable
                 style={styles.addressSkipBtn}
-                onPress={() => setPendingAddressEntry(null)}
+                onPress={() => releaseAddressPrompt()}
                 disabled={savingAddress}
               >
                 <Text style={styles.addressSkipText}>Omitir</Text>
@@ -586,36 +678,35 @@ export default function ScanLabelScreen({ navigation }: Props) {
       <View style={styles.frame} pointerEvents="none">
         <View style={styles.frameBox} />
         <Text style={styles.frameHint}>
-          {capturePhase === 'read'
-            ? 'Leyendo la dirección…'
-            : capturePhase === 'photo'
-              ? 'Sacando la foto…'
-              : processing || ocrReading
-                ? 'Registrando paquete…'
-                : 'Apuntá al QR. Si no tiene, usá el botón de foto.'}
+          {capturing
+            ? 'Sacando la foto…'
+            : inFlight > 0
+              ? 'Podés sacar la siguiente.'
+              : 'Apuntá al QR. Si no tiene, usá el botón de foto.'}
         </Text>
       </View>
 
       <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + spacing.lg }]} pointerEvents="box-none">
-        {processing || ocrReading ? (
+        {capturing || inFlight > 0 ? (
           <View style={styles.statusRow}>
             <ActivityIndicator color={colors.accent} />
             <Text style={styles.statusText}>
-              {capturePhase === 'read'
-                ? 'Leyendo la dirección…'
-                : capturePhase === 'photo'
-                  ? 'Sacando la foto…'
-                  : 'Registrando paquete…'}
+              {capturing
+                ? inFlight > 0
+                  ? `Sacando la foto… · ${inFlight} en lectura`
+                  : 'Sacando la foto…'
+                : `Leyendo ${inFlight} ${inFlight === 1 ? 'etiqueta' : 'etiquetas'}…`}
             </Text>
           </View>
-        ) : lastResult ? (
+        ) : null}
+        {lastResult ? (
           <View style={styles.statusRow}>
             <PostaIcon name="checkCircle" size={20} color={colors.green ?? '#4caf50'} />
             <Text style={styles.statusText} numberOfLines={3}>
               {lastResult}
             </Text>
           </View>
-        ) : (
+        ) : capturing || inFlight > 0 ? null : (
           <Text style={styles.statusText}>
             {assignment.mode === 'auto'
               ? 'Si no aparece un QR, tocá el botón de abajo y sacale una foto.'
@@ -624,8 +715,8 @@ export default function ScanLabelScreen({ navigation }: Props) {
         )}
 
         <Pressable
-          style={[styles.shutterWrap, (processing || ocrReading) && { opacity: 0.5 }]}
-          disabled={processing || ocrReading}
+          style={[styles.shutterWrap, (capturing || Boolean(pendingAddressEntry)) && { opacity: 0.5 }]}
+          disabled={capturing || Boolean(pendingAddressEntry)}
           onPress={() => void registerWithoutQr()}
           accessibilityRole="button"
           accessibilityLabel="Sacar foto de la etiqueta"
@@ -638,7 +729,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
           <Text style={styles.shutterText}>Sacar foto</Text>
         </Pressable>
 
-        {scannedCount > 0 && !processing && !ocrReading ? (
+        {scannedCount > 0 && !capturing ? (
           <Button
             label={`Listo (${scannedCount})`}
             variant="amber"
