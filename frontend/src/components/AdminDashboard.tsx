@@ -117,7 +117,7 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
       <td className="px-2 py-2 text-[var(--color-text-muted)] truncate overflow-hidden">
         {order.address}
       </td>
-      <td className="px-2 py-2 overflow-hidden">
+      <td className="px-2 py-2 whitespace-nowrap">
         <StatusBadge
           status={order.status}
           label={exception?.label}
@@ -2141,10 +2141,10 @@ export default function AdminDashboard({
           </div>
         )}
 
-        <div className="mt-1.5 shrink-0 scroll-tabs flex w-full bg-[var(--surface-panel-2)] p-0.5 rounded border border-[var(--surface-border)]/80 text-[10px]">
+        <div className="mt-1.5 shrink-0 scroll-tabs flex w-full bg-[var(--surface-panel-2)] p-0.5 rounded-full border border-[var(--surface-border)]/80 text-[10px]">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
               statusFilter === 'all' ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2152,7 +2152,7 @@ export default function AdminDashboard({
           </button>
           <button
             onClick={() => setStatusFilter(OrderStatus.PENDING)}
-            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
               statusFilter === OrderStatus.PENDING ? 'bg-[var(--surface-panel)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2160,7 +2160,7 @@ export default function AdminDashboard({
           </button>
           <button
             onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
-            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
               statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-[var(--cta-ink)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2168,7 +2168,7 @@ export default function AdminDashboard({
           </button>
           <button
             onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
-            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
               statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[var(--cta-ink)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2176,7 +2176,7 @@ export default function AdminDashboard({
           </button>
           <button
             onClick={() => setStatusFilter('archived')}
-            className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
+            className={`flex-1 min-w-0 py-1 px-2 text-center font-medium rounded-full transition ${
               statusFilter === 'archived' ? 'bg-[var(--surface-panel)] text-[var(--color-text-muted)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
@@ -2222,7 +2222,7 @@ export default function AdminDashboard({
                   <th className="px-2 py-2 font-bold w-[6.25rem]">ID</th>
                   <th className="px-2 py-2 font-bold w-[16%]">Cliente</th>
                   <th className="px-2 py-2 font-bold">Dirección</th>
-                  <th className="px-2 py-2 font-bold w-[6.5rem]">Estado</th>
+                  <th className="px-2 py-2 font-bold w-[9.5rem]">Estado</th>
                   {isAgencyAdmin(userRole) && (
                     <th className="px-2 py-2 font-bold w-[12%]">Vendedor</th>
                   )}

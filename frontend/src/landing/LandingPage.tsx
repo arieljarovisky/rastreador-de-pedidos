@@ -1,13 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Menu, Moon, Sun, X } from 'lucide-react';
 import { DirectionAwareTabs } from '@/components/ui/direction-aware-tabs';
-import {
-  DynamicDescription,
-  DynamicIsland,
-  DynamicIslandProvider,
-  DynamicTitle,
-  SIZE_PRESETS,
-} from '@/components/ui/dynamic-island';
 import { GradientHeading } from '@/components/ui/gradient-heading';
 import { HaloBadge } from '@/components/ui/halo-badge';
 import { HaloButton } from '@/components/ui/halo-button';
@@ -146,10 +139,16 @@ function Phone({ className = '' }: { className?: string }) {
       time="14:32"
       batteryLevel={78}
       signalStrength={4}
+      dynamicIslandSize="expanded"
+      onDynamicIslandTap={() => {}}
+      onScreenTap={() => {}}
       dynamicIslandContent={
-        <div className="px-2 text-left text-[11px] leading-tight text-white">
-          <div className="font-semibold">Lucía Paz</div>
-          <div className="opacity-70">En viaje · 6 min</div>
+        <div className="flex w-full items-center gap-2 text-left text-white">
+          <span className="size-1.5 shrink-0 rounded-full bg-[#dff56a]" />
+          <div className="min-w-0 leading-tight">
+            <div className="truncate text-[11px] font-medium">Lucía Paz · en viaje</div>
+            <div className="truncate text-[10px] text-white/65">Rivadavia 4100 · 6 min</div>
+          </div>
         </div>
       }
     >
@@ -421,19 +420,6 @@ export function LandingPage() {
           </div>
 
           <div className="relative">
-            <div className="absolute -top-2 left-6 z-30 h-20 w-[320px]">
-              <DynamicIslandProvider initialSize={SIZE_PRESETS.LONG}>
-                <DynamicIsland id="posta-live">
-                  <div className="flex h-full items-center gap-3 px-4 text-left text-white">
-                    <span className="size-2 shrink-0 rounded-full bg-[#dff56a]" />
-                    <div>
-                      <DynamicTitle className="text-sm font-medium text-white">Lucía Paz · en viaje</DynamicTitle>
-                      <DynamicDescription className="text-[11px] text-white/70">Rivadavia 4100 · 6 min</DynamicDescription>
-                    </div>
-                  </div>
-                </DynamicIsland>
-              </DynamicIslandProvider>
-            </div>
             <div className="mx-auto h-[560px] max-w-[340px] overflow-hidden lg:mr-[-8%] lg:ml-auto lg:origin-top lg:scale-[0.92] lg:-rotate-6">
               <Phone className="!p-0" />
             </div>

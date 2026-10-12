@@ -157,7 +157,7 @@ const DYNAMIC_ISLAND_SIZES = {
   default: { width: 110, height: 32, borderRadius: 16 },
   compact: { width: 90, height: 28, borderRadius: 14 },
   /** width ignored for motion — expanded uses nearly full screen width */
-  expanded: { width: 280, height: 56, borderRadius: 32 },
+  expanded: { width: 176, height: 42, borderRadius: 21 },
   large: { width: 290, height: 120, borderRadius: 32 },
   ultra: { width: 300, height: 180, borderRadius: 36 },
 }
@@ -365,7 +365,7 @@ export function IPhone17ProMax({
                   ) : (
                     <motion.div
                       animate={{ opacity: 1, scale: 1 }}
-                      className="flex h-full w-full items-center justify-center p-3 text-white"
+                      className="flex h-full w-full items-center justify-center px-2.5 text-white"
                       exit={{ opacity: 0, scale: 0.8 }}
                       initial={{ opacity: 0, scale: 0.8 }}
                       key="content"
