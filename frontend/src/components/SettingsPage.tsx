@@ -31,6 +31,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import MarketplaceIntegrations, { type MarketplacePlatform } from './MarketplaceIntegrations.tsx';
+import RepartidorProfilePanel from './RepartidorProfilePanel.tsx';
 import AgencyPaymentsPanel from './AgencyPaymentsPanel.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
 import { zoneLabel, getDeliveryZone, ZONE_COLOR_PRESETS, barrioNames, assignmentZones, isDeletableAssignmentZone, isLegacyZoneId, type DeliveryZone, type Barrio } from '../config/deliveryZones.js';
@@ -365,6 +366,7 @@ export default function SettingsPage({
   const [zoneFormMessage, setZoneFormMessage] = useState<string | null>(null);
   const [deletingZoneId, setDeletingZoneId] = useState<string | null>(null);
   const [repartidorSearch, setRepartidorSearch] = useState('');
+  const [profileRepId, setProfileRepId] = useState<string | null>(null);
   const [repartidoresLimit, setRepartidoresLimit] = useState(REPARTIDORES_PAGE_SIZE);
 
   const [showPickupForm, setShowPickupForm] = useState(false);
@@ -1964,12 +1966,18 @@ export default function SettingsPage({
                             className="border-b border-[var(--surface-border)]/50 hover:bg-[var(--paper)]/60 transition-colors"
                           >
                             <td className="px-2.5 py-1.5">
-                              <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate">
-                                {rep.name}
-                              </p>
-                              <p className="text-[9px] text-[var(--color-text-muted)] font-mono truncate">
-                                @{rep.username}
-                              </p>
+                              <button
+                                type="button"
+                                onClick={() => token && setProfileRepId(rep.id)}
+                                className="block max-w-full text-left"
+                              >
+                                <p className="text-[11px] font-medium text-[var(--ink-soft)] truncate hover:text-[var(--color-accent)]">
+                                  {rep.name}
+                                </p>
+                                <p className="text-[9px] text-[var(--color-text-muted)] font-mono truncate">
+                                  @{rep.username}
+                                </p>
+                              </button>
                             </td>
                             <td className="px-2 py-1.5">
                               {onUpdateRepartidorZone ? (
@@ -2478,6 +2486,13 @@ export default function SettingsPage({
           </section>
         )}
         </div>
+      {profileRepId && token && (
+        <RepartidorProfilePanel
+          token={token}
+          repartidorId={profileRepId}
+          onClose={() => setProfileRepId(null)}
+        />
+      )}
     </div>
   );
 }

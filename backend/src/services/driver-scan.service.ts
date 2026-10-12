@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
@@ -14,6 +14,7 @@ import { getAgencyDeparture } from './agencies.service.js';
 import { resolveClosedDateKeys } from './closed-days.service.js';
 import { geocodeAddress } from './geocode.service.js';
 import { emitOrderUpdated } from '../realtime/io.js';
+import { saveOrderLabel } from './label-archive.service.js';
 import {
   assertSellerInAgency,
   getUserById,
@@ -193,6 +194,17 @@ export async function attachDriverScanPhoto(
 }
 
 const PHOTO_ORDER_SOURCE = 'foto';
+
+async function archiveScanPhoto(orderId: string, photoFilename: string | null | undefined): Promise<void> {
+  const name = photoFilename?.trim();
+  if (!orderId || !name) return;
+  try {
+    const photo = await readFile(path.join(scanPhotoDir, path.basename(name)));
+    await saveOrderLabel(orderId, photo, 'jpg');
+  } catch (err) {
+    console.warn('[label-archive] foto', orderId, err);
+  }
+}
 const promotingPhotoOrders = new Map<string, Promise<string | null>>();
 
 function coord(value: number | string | null | undefined): number | null {
@@ -294,6 +306,7 @@ async function promotePhotoLabelOrder(entryId: string): Promise<string | null> {
       );
     }
     await pool.query('UPDATE driver_scan_entries SET order_id = ? WHERE id = ?', [order.id, row.id]);
+    await archiveScanPhoto(order.id, row.photo_path);
     emitOrderUpdated(order, order.sellerId ?? row.seller_id ?? null);
     return order.id;
   } catch (err: unknown) {
@@ -305,6 +318,7 @@ async function promotePhotoLabelOrder(entryId: string): Promise<string | null> {
           existing.id,
           row.id,
         ]);
+        await archiveScanPhoto(existing.id, row.photo_path);
         return existing.id;
       }
     }

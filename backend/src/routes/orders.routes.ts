@@ -23,6 +23,7 @@ import {
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../services/mercadolibre.service.js';
+import { findSavedOrderLabel, saveOrderLabel } from '../services/label-archive.service.js';
 import {
   generatePostaShippingLabelPdf,
   generatePostaShippingLabelsSheetPdf,
@@ -361,15 +362,26 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 });
 
 /** Descarga el PDF oficial de ML y responde; comparte el manejo de errores entre ambas rutas de etiqueta. */
+async function sendSavedLabel(res: Response, orderId: string): Promise<boolean> {
+  const saved = await findSavedOrderLabel(orderId);
+  if (!saved) return false;
+  res.setHeader('Content-Type', saved.contentType);
+  res.setHeader('Content-Disposition', `inline; filename="etiqueta-${orderId}.${saved.ext}"`);
+  res.sendFile(saved.filePath);
+  return true;
+}
+
 async function sendMercadoLibreLabel(
   res: Response,
   order: Order,
   sellerId: string
 ): Promise<void> {
+  if (await sendSavedLabel(res, order.id)) return;
   try {
     const pdf = await getMercadoLibreShippingLabelPdf(sellerId, order.externalOrderId!, {
       alternateRef: extractMlOrderIdFromNotes(order.notes),
     });
+    await saveOrderLabel(order.id, pdf, 'pdf');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -377,6 +389,7 @@ async function sendMercadoLibreLabel(
     );
     res.send(pdf);
   } catch (err) {
+    if (await sendSavedLabel(res, order.id)) return;
     const code = err instanceof Error ? err.message : 'ML_LABEL_UNAVAILABLE';
     if (code === 'ML_ALREADY_DELIVERED' || code === 'ML_LABEL_NOT_READY') {
       try {
@@ -442,9 +455,14 @@ router.get('/:id/shipping-label', authenticate, async (req: Request, res: Respon
     return;
   }
 
+  if (await sendSavedLabel(res, order.id)) return;
+
   if (order.externalSource === 'foto' && order.externalOrderId) {
     try {
       const filePath = await getDriverScanPhotoPath(req.user!, order.externalOrderId);
+      const { readFile } = await import('fs/promises');
+      const photo = await readFile(filePath);
+      await saveOrderLabel(order.id, photo, 'jpg');
       res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Content-Disposition', `inline; filename="etiqueta-${order.id}.jpg"`);
       res.sendFile(filePath);

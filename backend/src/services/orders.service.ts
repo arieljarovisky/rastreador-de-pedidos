@@ -232,6 +232,18 @@ function belongsToUserAgency(user: User, agencyId: string | null | undefined): b
   return !!user.agencyId && user.agencyId === agencyId;
 }
 
+/** Pedidos que hizo un repartidor de la agencia, del más reciente al más viejo. */
+export async function listRepartidorOrders(
+  agencyId: string,
+  repartidorId: string
+): Promise<Order[]> {
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT} WHERE o.agency_id = ? AND o.repartidor_id = ? ORDER BY o.updated_at DESC LIMIT 400`,
+    [agencyId, repartidorId]
+  );
+  return enrichOrders(rows, 'list');
+}
+
 export async function getOrderById(id: string): Promise<Order | null> {
   const [rows] = await pool.query<OrderWithRepartidorRow[]>(
     `${ORDER_SELECT} WHERE o.id = ?`,

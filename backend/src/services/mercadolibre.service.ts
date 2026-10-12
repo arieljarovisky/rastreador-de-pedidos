@@ -1443,3 +1443,25 @@ export async function getMercadoLibreShippingLabelPdf(
   }
   throw new Error('ML_LABEL_UNAVAILABLE');
 }
+
+/** Baja el PDF oficial y lo deja en disco. No interrumpe el alta del pedido si ML todavía no lo entrega. */
+export function queueMercadoLibreLabelArchive(input: {
+  orderId: string;
+  sellerUserId: string;
+  externalOrderId: string;
+  notes?: string | null;
+}): void {
+  const { orderId, sellerUserId, externalOrderId, notes } = input;
+  if (!orderId || !sellerUserId || !externalOrderId) return;
+  void (async () => {
+    const { findSavedOrderLabel, saveOrderLabel } = await import('./label-archive.service.js');
+    if (await findSavedOrderLabel(orderId)) return;
+    const pdf = await getMercadoLibreShippingLabelPdf(sellerUserId, externalOrderId, {
+      alternateRef: extractMlOrderIdFromNotes(notes),
+    });
+    await saveOrderLabel(orderId, pdf, 'pdf');
+  })().catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : 'ERROR';
+    console.warn('[label-archive] ML', orderId, message);
+  });
+}

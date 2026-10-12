@@ -267,6 +267,62 @@ router.post('/sellers', authenticate, requireAgencyAdmin(), async (req: Request,
   }
 });
 
+router.get('/repartidores/:id/profile', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  if (!req.user?.agencyId) {
+    res.status(403).json({ error: 'Tu cuenta no está asociada a una agencia.' });
+    return;
+  }
+  const repartidor = await getUserById(req.params.id);
+  if (
+    !repartidor ||
+    repartidor.role !== UserRole.REPARTIDOR ||
+    repartidor.agencyId !== req.user.agencyId
+  ) {
+    res.status(404).json({ error: 'Repartidor no encontrado.' });
+    return;
+  }
+
+  try {
+    const { promotePendingPhotoLabels } = await import('../services/driver-scan.service.js');
+    const { listRepartidorOrders } = await import('../services/orders.service.js');
+    const { findSavedOrderLabel } = await import('../services/label-archive.service.js');
+    await promotePendingPhotoLabels(req.user).catch((err: unknown) => {
+      console.warn('[repartidor-profile] fotos pendientes', err);
+    });
+    const orders = await listRepartidorOrders(req.user.agencyId, repartidor.id);
+    const saved = await Promise.all(orders.map((order) => findSavedOrderLabel(order.id)));
+    res.json({
+      repartidor: {
+        id: repartidor.id,
+        name: repartidor.name,
+        username: repartidor.username,
+        deliveryZone: repartidor.deliveryZone ?? null,
+      },
+      stats: {
+        total: orders.length,
+        delivered: orders.filter((order) => order.status === 'delivered').length,
+        delivering: orders.filter((order) => order.status === 'delivering' || order.status === 'assigned').length,
+        cancelled: orders.filter((order) => order.status === 'cancelled').length,
+      },
+      orders: orders.map((order, index) => ({
+        id: order.id,
+        clientName: order.clientName,
+        address: order.address,
+        status: order.status,
+        externalSource: order.externalSource ?? null,
+        externalOrderId: order.externalOrderId ?? null,
+        sellerName: order.sellerName ?? null,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        labelSaved: Boolean(saved[index]),
+      })),
+    });
+  } catch (err) {
+    console.error('[repartidor-profile]', err);
+    res.status(500).json({ error: 'No se pudo cargar el perfil del repartidor.' });
+  }
+});
+
 router.post('/repartidores', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
   const { username, password, name, deliveryZone } = req.body;
   if (!username || !password || !name) {

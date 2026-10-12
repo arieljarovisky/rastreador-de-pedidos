@@ -39,6 +39,7 @@ import {
   formatMlShipmentStatusLabel,
   mapMercadoLibreShipmentToOrderStatus,
   resolveMercadoLibreFlexDeliveryDeadline,
+  queueMercadoLibreLabelArchive,
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import {
@@ -821,6 +822,12 @@ async function importMercadoLibreFlexShipment(
       const synced = await syncMercadoLibreOrderAfterImport(mlUserId, existing, shipment);
       const sellerId = await getSellerIdForOrder(synced.id);
       emitOrderUpdated(synced, sellerId);
+      queueMercadoLibreLabelArchive({
+        orderId: synced.id,
+        sellerUserId: sellerId ?? mlUserId,
+        externalOrderId: shipment.externalId,
+        notes: synced.notes,
+      });
       return { kind: 'synced', order: synced };
     }
 
@@ -864,6 +871,12 @@ async function importMercadoLibreFlexShipment(
     order = await syncMercadoLibreOrderAfterImport(mlUserId, order, shipment);
     const sellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, sellerId);
+    queueMercadoLibreLabelArchive({
+      orderId: order.id,
+      sellerUserId: sellerId ?? mlUserId,
+      externalOrderId: shipment.externalId,
+      notes: order.notes,
+    });
     return { kind: 'imported', order };
   } catch (err) {
     const reason = err instanceof Error ? err.message : 'error desconocido';

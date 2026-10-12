@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Menu, Moon, Sun, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { DirectionAwareTabs } from '@/components/ui/direction-aware-tabs';
 import { GradientHeading } from '@/components/ui/gradient-heading';
 import { HaloBadge } from '@/components/ui/halo-badge';
@@ -25,6 +26,12 @@ const NAV = [
   { href: '#recorrido', label: 'Recorrido' },
   { href: '#descargar', label: 'App' },
   { href: '#precios', label: 'Tarifas' },
+];
+
+const MENU_LINKS = [
+  ...NAV,
+  { href: '/seguimiento', label: 'Seguí tu envío' },
+  { href: '/app', label: 'Iniciar sesión' },
 ];
 
 const ZONES = ['Norte', 'Centro', 'Sur', 'Oeste', 'GBA Sur'];
@@ -351,7 +358,7 @@ export function LandingPage() {
       <h1 className="sr-only">Posta — hoja de ruta en vivo para tu logística en CABA y GBA</h1>
 
       <header className="fixed inset-x-0 top-0 z-40">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
+        <div className="relative z-40 mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
           <div className="flex flex-1 items-center gap-4 rounded-full border border-border/80 bg-background/70 px-4 py-2 backdrop-blur-xl">
             <Logo />
             <nav className="hidden items-center gap-4 text-xs uppercase tracking-[0.16em] text-muted-foreground md:flex" aria-label="Secciones">
@@ -381,24 +388,71 @@ export function LandingPage() {
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >
-            {open ? <X className="size-4" /> : <Menu className="size-4" />}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={open ? 'close' : 'open'}
+                initial={{ opacity: 0, rotate: -90, scale: 0.7 }}
+                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                exit={{ opacity: 0, rotate: 90, scale: 0.7 }}
+                transition={{ duration: 0.18 }}
+                className="grid place-items-center"
+              >
+                {open ? <X className="size-4" /> : <Menu className="size-4" />}
+              </motion.span>
+            </AnimatePresence>
           </button>
         </div>
-        {open && (
-          <div className="mx-4 rounded-3xl border border-border bg-background p-4 md:hidden">
-            {NAV.map((item) => (
-              <a key={item.href} href={item.href} className="block py-2" onClick={() => setOpen(false)}>
-                {item.label}
-              </a>
-            ))}
-            <a href="/seguimiento" className="block py-2" onClick={() => setOpen(false)}>
-              Seguí tu envío
-            </a>
-            <a href="/app" className="block py-2" onClick={() => setOpen(false)}>
-              Iniciar sesión
-            </a>
-          </div>
-        )}
+        <AnimatePresence>
+          {open && (
+            <>
+              <motion.button
+                key="menu-backdrop"
+                type="button"
+                aria-label="Cerrar menú"
+                className="fixed inset-0 z-30 bg-black/55 md:hidden"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setOpen(false)}
+              />
+              <motion.div
+                key="menu-panel"
+                className="relative z-40 mx-4 overflow-hidden rounded-3xl border border-border bg-background md:hidden"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+              >
+                <motion.nav
+                  aria-label="Secciones"
+                  className="flex flex-col p-3"
+                  initial="closed"
+                  animate="open"
+                  variants={{
+                    open: { transition: { staggerChildren: 0.045, delayChildren: 0.06 } },
+                    closed: {},
+                  }}
+                >
+                  {MENU_LINKS.map((item) => (
+                    <motion.a
+                      key={item.href}
+                      href={item.href}
+                      variants={{
+                        closed: { opacity: 0, y: 10 },
+                        open: { opacity: 1, y: 0 },
+                      }}
+                      className="rounded-2xl px-3 py-2.5 text-sm hover:bg-foreground/5"
+                      onClick={() => setOpen(false)}
+                    >
+                      {item.label}
+                    </motion.a>
+                  ))}
+                </motion.nav>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </header>
 
       <section className="relative min-h-[100svh] overflow-visible pt-28">
