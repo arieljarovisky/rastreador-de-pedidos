@@ -209,16 +209,28 @@ export interface RepriceChargesResult {
 /** Recalcula cargos ya facturados de la agencia con las tarifas actuales de listas/zonas. */
 export async function repriceAgencyChargesToCurrentRates(
   user: User,
-  options?: { sellerId?: string | null; dryRun?: boolean }
+  options?: { sellerId?: string | null; dryRun?: boolean; dateFrom?: string; dateTo?: string }
 ): Promise<RepriceChargesResult> {
   if (!isAgencyAdmin(user.role) || !user.agencyId) throw new Error('FORBIDDEN');
 
   const dryRun = options?.dryRun === true;
-  const params: string[] = [user.agencyId];
+  const params: Array<string | Date> = [user.agencyId];
   let sellerFilter = '';
   if (options?.sellerId) {
     sellerFilter = ' AND b.seller_id = ?';
     params.push(options.sellerId);
+  }
+
+  const dateFrom = options?.dateFrom?.trim() ?? '';
+  const dateTo = options?.dateTo?.trim() ?? '';
+  let periodFilter = '';
+  if (dateFrom || dateTo) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+      throw new Error('INVALID_PERIOD');
+    }
+    const { start, end } = periodBounds(dateFrom, dateTo);
+    periodFilter = ` AND ${ENTRY_PERIOD_AT} >= ? AND ${ENTRY_PERIOD_AT} <= ?`;
+    params.push(start, end);
   }
 
   const [charges] = await pool.query<
@@ -226,9 +238,10 @@ export async function repriceAgencyChargesToCurrentRates(
   >(
     `SELECT b.id, b.order_id, b.amount
      FROM billing_ledger_entries b
+     LEFT JOIN orders o ON o.id = b.order_id
      WHERE b.agency_id = ?
        AND b.entry_type = 'charge'
-       AND b.order_id IS NOT NULL${sellerFilter}`,
+       AND b.order_id IS NOT NULL${sellerFilter}${periodFilter}`,
     params
   );
 

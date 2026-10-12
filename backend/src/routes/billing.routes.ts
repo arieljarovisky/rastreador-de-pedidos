@@ -136,12 +136,23 @@ router.post(
     try {
       const sellerId = typeof req.body?.sellerId === 'string' ? req.body.sellerId : undefined;
       const dryRun = req.body?.dryRun === true;
-      const result = await repriceAgencyChargesToCurrentRates(req.user!, { sellerId, dryRun });
+      const dateFrom = typeof req.body?.dateFrom === 'string' ? req.body.dateFrom : undefined;
+      const dateTo = typeof req.body?.dateTo === 'string' ? req.body.dateTo : undefined;
+      const result = await repriceAgencyChargesToCurrentRates(req.user!, {
+        sellerId,
+        dryRun,
+        dateFrom,
+        dateTo,
+      });
       res.json(result);
     } catch (err: unknown) {
       const code = err instanceof Error ? err.message : 'ERROR';
       if (code === 'FORBIDDEN') {
         res.status(403).json({ error: 'No tenés permiso para recalcular cargos.' });
+        return;
+      }
+      if (code === 'INVALID_PERIOD') {
+        res.status(400).json({ error: 'Elegí un desde y un hasta válidos.' });
         return;
       }
       console.error('[billing] POST /reprice-charges error:', err);

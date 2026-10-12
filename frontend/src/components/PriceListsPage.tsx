@@ -20,6 +20,18 @@ import {
 } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import { useModal } from '../context/ModalContext.tsx';
+import OperationalDatePicker from './OperationalDatePicker.tsx';
+import { formatOperationalDateShort, getActiveOperationalDateKey } from '../utils/deliverySummary.js';
+
+function currentOperationalMonth(): { dateFrom: string; dateTo: string } {
+  const today = getActiveOperationalDateKey();
+  const [year, month] = today.split('-');
+  const lastDay = new Date(Number(year), Number(month), 0).getDate();
+  return {
+    dateFrom: `${year}-${month}-01`,
+    dateTo: `${year}-${month}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
 
 interface RateTrio {
   flex: number;
@@ -119,6 +131,8 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [repricing, setRepricing] = useState(false);
+  const [repriceFrom, setRepriceFrom] = useState(() => currentOperationalMonth().dateFrom);
+  const [repriceTo, setRepriceTo] = useState(() => currentOperationalMonth().dateTo);
   const [message, setMessage] = useState<string | null>(null);
   const [messageOk, setMessageOk] = useState(true);
   const [newListName, setNewListName] = useState('');
@@ -259,10 +273,11 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
   );
 
   const handleRepriceCharges = async () => {
+    const fromLabel = formatOperationalDateShort(repriceFrom);
+    const toLabel = formatOperationalDateShort(repriceTo);
     const ok = await confirm({
       title: 'Aplicar tarifas a envíos facturados',
-      message:
-        'Se van a recalcular todos los cargos de envíos ya entregados de tu agencia con las tarifas actuales de cada zona (CABA y cordones). Los pagos registrados no se tocan. ¿Continuar?',
+      message: `Se van a recalcular los cargos facturados entre el ${fromLabel} y el ${toLabel}, con las tarifas actuales de cada zona. Los pagos registrados no se tocan. ¿Continuar?`,
       confirmText: 'Recalcular',
       cancelText: 'Cancelar',
     });
@@ -274,7 +289,7 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
       const res = await fetch(apiUrl('/api/billing/reprice-charges'), {
         method: 'POST',
         headers,
-        body: JSON.stringify({}),
+        body: JSON.stringify({ dateFrom: repriceFrom, dateTo: repriceTo }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'No se pudieron recalcular los cargos.');
@@ -288,8 +303,8 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
       setMessageOk(true);
       setMessage(
         changed === 0
-          ? 'Ningún cargo cambió: ya estaban al día con las tarifas actuales.'
-          : `Listo: ${changed} cargo${changed === 1 ? '' : 's'} actualizado${changed === 1 ? '' : 's'} (delta ${deltaLabel}).`
+          ? `Ningún cargo cambió entre el ${fromLabel} y el ${toLabel}.`
+          : `Listo: ${changed} cargo${changed === 1 ? '' : 's'} del ${fromLabel} al ${toLabel} (delta ${deltaLabel}).`
       );
     } catch (err) {
       setMessageOk(false);
@@ -505,12 +520,34 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
             </button>
           </div>
 
+          <div className="w-[10.5rem]">
+            <OperationalDatePicker
+              layout="field"
+              label="Desde"
+              value={repriceFrom}
+              maxDateKey={repriceTo}
+              onChange={(key) => {
+                setRepriceFrom(key);
+                if (key > repriceTo) setRepriceTo(key);
+              }}
+            />
+          </div>
+          <div className="w-[10.5rem]">
+            <OperationalDatePicker
+              layout="field"
+              label="Hasta"
+              value={repriceTo}
+              minDateKey={repriceFrom}
+              maxDateKey={getActiveOperationalDateKey()}
+              onChange={setRepriceTo}
+            />
+          </div>
           <button
             type="button"
             disabled={repricing || saving}
             onClick={() => void handleRepriceCharges()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:bg-[var(--surface-panel)] disabled:opacity-40"
-            title="Recalcula cargos de envíos ya entregados con las tarifas actuales por zona"
+            className="inline-flex items-center gap-1.5 self-end px-3 py-1.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:bg-[var(--surface-panel)] disabled:opacity-40"
+            title="Recalcula los cargos facturados del período con las tarifas actuales por zona"
           >
             {repricing ? (
               <Loader2 className="h-3 w-3 animate-spin" />
