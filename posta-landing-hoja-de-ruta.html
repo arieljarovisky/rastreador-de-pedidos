@@ -664,7 +664,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
     </div>
 
     <div class="dl-actions">
-      <a href="#" class="store-btn android" id="btnAndroid" download="posta-repartidor.apk" aria-label="Descargar Posta para Android">
+      <a href="https://expo.dev/artifacts/eas/aIJTY4vilORXfj149rNpf76mMVY-hGPiaJc7CGWx7wI.apk" class="store-btn android" id="btnAndroid" aria-label="Descargar Posta para Android">
         <span class="ico" aria-hidden="true">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M3.18 23.76c.39.22.87.22 1.26 0l12.66-7.32-2.7-2.7-11.22 9.02zm-1.05-20.3a1.5 1.5 0 0 0-.23.8v19.48c0 .3.08.58.23.8l.1.1 10.9-10.9v-.26L2.13 3.36l.1.1zM20.07 10.37 17.2 8.9l-2.96 2.96 2.96 2.96 2.88-1.48c.81-.44.81-1.53 0-1.97zM4.44 2.44 14.34 12.34l2.7-2.7L5.7 1.18a1.12 1.12 0 0 0-1.26 0z"/></svg>
         </span>
@@ -946,7 +946,7 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   var APP_DOWNLOAD = {
     // Servidor donde está el APK (backend en Railway)
     origin: 'https://envios-erp.up.railway.app',
-    androidApk: '/downloads/posta-repartidor.apk',
+    androidApk: 'https://expo.dev/artifacts/eas/aIJTY4vilORXfj149rNpf76mMVY-hGPiaJc7CGWx7wI.apk',
     // PWA web para repartidores (iPhone instala desde Safari)
     webAppPath: '/app'
   };
@@ -964,14 +964,11 @@ footer{border-top:2px solid var(--ink);margin-top:clamp(56px,8vw,96px);padding:4
   var apkUrl = absUrl(APP_DOWNLOAD.androidApk);
   var webAppUrl = window.location.origin.replace(/\/$/, '') + (APP_DOWNLOAD.webAppPath || '/app');
 
-  if (btnAndroid) btnAndroid.href = apkUrl;
+  if (btnAndroid) {
+    btnAndroid.href = apkUrl;
+    btnAndroid.removeAttribute('download');
+  }
   if (btnIos) btnIos.href = webAppUrl;
-
-  fetch(apkUrl, { method: 'HEAD' }).then(function (res) {
-    if (!res.ok && dlWarn) dlWarn.hidden = false;
-  }).catch(function () {
-    if (dlWarn) dlWarn.hidden = false;
-  });
 
   var ua = navigator.userAgent || '';
   var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
