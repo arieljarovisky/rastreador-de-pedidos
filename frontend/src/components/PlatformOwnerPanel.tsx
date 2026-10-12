@@ -923,7 +923,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                         type="button"
                         disabled={busy}
                         onClick={() => void saveAgency()}
-                        className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-black"
+                        className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-[var(--cta-ink)]"
                       >
                         Guardar ficha
                       </button>
@@ -995,7 +995,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                         type="button"
                         disabled={busy}
                         onClick={() => void saveSubscription()}
-                        className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-black"
+                        className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-[var(--cta-ink)]"
                       >
                         Guardar suscripción
                       </button>
@@ -1060,7 +1060,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                         type="button"
                         disabled={busy}
                         onClick={() => void createUser()}
-                        className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-black"
+                        className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-[var(--cta-ink)]"
                       >
                         Crear usuario
                       </button>
@@ -1184,7 +1184,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                       type="button"
                       disabled={busy}
                       onClick={() => void createPriceList()}
-                      className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-black"
+                      className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-[var(--cta-ink)]"
                     >
                       Nueva lista
                     </button>
@@ -1283,7 +1283,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                 type="button"
                 disabled={busy}
                 onClick={() => void createAgency()}
-                className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-black"
+                className="text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded bg-[var(--color-accent)] text-[var(--cta-ink)]"
               >
                 Crear
               </button>
@@ -1320,7 +1320,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                 className={`text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded ${
                   confirmState.danger
                     ? 'bg-red-500 text-white'
-                    : 'bg-[var(--color-accent)] text-black'
+                    : 'bg-[var(--color-accent)] text-[var(--cta-ink)]'
                 }`}
               >
                 {confirmState.confirmLabel}
@@ -1379,7 +1379,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                 className={`text-[10px] font-mono font-bold uppercase px-3 py-1.5 rounded ${
                   promptState.danger
                     ? 'bg-red-500 text-white'
-                    : 'bg-[var(--color-accent)] text-black'
+                    : 'bg-[var(--color-accent)] text-[var(--cta-ink)]'
                 }`}
               >
                 {promptState.confirmLabel}

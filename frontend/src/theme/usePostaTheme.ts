@@ -36,6 +36,7 @@ export function applyPostaTheme(theme: PostaTheme): void {
   root.setAttribute('data-theme', theme);
   root.classList.toggle('theme-dark', theme === 'dark');
   root.classList.toggle('theme-paper', theme === 'paper');
+  root.classList.toggle('dark', theme === 'dark');
   try {
     localStorage.setItem(LANDING_THEME_KEY, appToLandingTheme(theme));
     localStorage.setItem(LEGACY_APP_THEME_KEY, theme);

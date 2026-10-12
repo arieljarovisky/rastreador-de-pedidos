@@ -2430,7 +2430,7 @@ export default function App() {
           >
             <Bell className={`w-4 h-4 text-[var(--color-text-muted)] ${unreadNotifsCount > 0 ? 'animate-swing' : ''}`} />
             {unreadNotifsCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 bg-[var(--color-cta)] text-[#F6F0E4] font-black text-[8px] min-w-[0.875rem] h-3.5 px-0.5 rounded-full flex items-center justify-center">
+              <span className="absolute top-0.5 right-0.5 bg-[var(--color-cta)] text-[var(--cta-ink)] font-black text-[8px] min-w-[0.875rem] h-3.5 px-0.5 rounded-full flex items-center justify-center">
                 {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
               </span>
             )}
@@ -2514,7 +2514,7 @@ export default function App() {
           <Bell className="w-4 h-4 shrink-0" />
           <span className="hidden 2xl:inline">Alertas</span>
           {unreadNotifsCount > 0 && (
-            <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-cta)] text-[#F6F0E4] text-[11px] font-semibold flex items-center justify-center">
+            <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-cta)] text-[var(--cta-ink)] text-[11px] font-semibold flex items-center justify-center">
               {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
             </span>
           )}
@@ -2560,7 +2560,7 @@ export default function App() {
           <span className="inline-flex items-center justify-center gap-1.5">
             Alertas
             {unreadNotifsCount > 0 && (
-              <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-cta)] text-[#F6F0E4] text-[11px] font-semibold inline-flex items-center justify-center">
+              <span className="min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[var(--color-cta)] text-[var(--cta-ink)] text-[11px] font-semibold inline-flex items-center justify-center">
                 {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
               </span>
             )}

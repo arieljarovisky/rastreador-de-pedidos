@@ -4,35 +4,35 @@
 import type { PostaTheme } from './usePostaTheme.ts';
 
 export const POSTA_MAP_DARK = {
-  route: '#5C87EB',
-  destination: '#E8431F',
-  departure: '#5C87EB',
-  departureRing: 'rgba(92, 135, 235, 0.25)',
-  pickup: '#5C6BC0',
+  route: '#DFF56A',
+  destination: '#FF5A2A',
+  departure: '#DFF56A',
+  departureRing: 'rgba(223, 245, 106, 0.25)',
+  pickup: '#9AA3B5',
 } as const;
 
 export const POSTA_MAP_PAPER = {
-  route: '#2B3A55',
-  destination: '#D8401E',
-  departure: '#2B3A55',
-  departureRing: 'rgba(43, 58, 85, 0.2)',
-  pickup: '#3D4F8C',
+  route: '#3D6212',
+  destination: '#E23B16',
+  departure: '#3D6212',
+  departureRing: 'rgba(61, 98, 18, 0.2)',
+  pickup: '#6D675E',
 } as const;
 
 export const POSTA_STATUS_DARK = {
-  pending: '#A99B85',
-  assigned: '#5C87EB',
-  delivering: '#E69A2E',
-  delivered: '#3FAE63',
-  cancelled: '#E5564F',
+  pending: '#8D887F',
+  assigned: '#DFF56A',
+  delivering: '#E6B15A',
+  delivered: '#7DCEA0',
+  cancelled: '#E07A72',
 } as const;
 
 export const POSTA_STATUS_PAPER = {
-  pending: '#7A6E59',
-  assigned: '#2B3A55',
-  delivering: '#B5670E',
-  delivered: '#2E6B45',
-  cancelled: '#B0301C',
+  pending: '#6D675E',
+  assigned: '#3D6212',
+  delivering: '#9A6410',
+  delivered: '#2F6B45',
+  cancelled: '#A33B32',
 } as const;
 
 /** @deprecated usar getPostaMapColors */

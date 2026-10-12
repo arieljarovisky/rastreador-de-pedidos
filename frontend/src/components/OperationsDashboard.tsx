@@ -315,7 +315,7 @@ export default function OperationsDashboard({
             <button
               type="button"
               onClick={onGoToOperations}
-              className="shrink-0 min-h-11 px-3.5 py-2 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] text-sm font-semibold inline-flex items-center gap-1"
+              className="shrink-0 min-h-11 px-3.5 py-2 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[var(--cta-ink)] text-sm font-semibold inline-flex items-center gap-1"
             >
               Ver mapa
               <ChevronRight className="w-4 h-4" />
@@ -412,7 +412,7 @@ export default function OperationsDashboard({
             <Filter className="w-4 h-4 shrink-0" />
             Filtrar
             {activeFiltersCount > 0 && (
-              <span className="min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-[var(--color-accent)] text-white text-[11px] font-semibold flex items-center justify-center">
+              <span className="min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-[var(--color-accent)] text-[var(--cta-ink)] text-[11px] font-semibold flex items-center justify-center">
                 {activeFiltersCount}
               </span>
             )}

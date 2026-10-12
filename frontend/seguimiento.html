@@ -10,16 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap"
-      media="print"
-      onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap"
     />
-    <noscript>
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap"
-      />
-    </noscript>
     <script>
     (function(){
       var landing=localStorage.getItem('posta-theme');
@@ -32,6 +24,7 @@
       root.setAttribute('data-theme',theme);
       root.classList.toggle('theme-dark',theme==='dark');
       root.classList.toggle('theme-paper',theme==='paper');
+      root.classList.toggle('dark',theme==='dark');
     })();
     </script>
   </head>

@@ -146,7 +146,7 @@ function CalendarPopover({
               className={[
                 'relative h-9 w-full rounded-lg text-[12px] font-mono font-bold transition flex flex-col items-center justify-center gap-0.5',
                 isSelected
-                  ? 'bg-[var(--color-accent)] text-white shadow-md'
+                  ? 'bg-[var(--color-accent)] text-[var(--cta-ink)] shadow-md'
                   : isToday
                     ? 'border border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10'
                     : hasShipments
@@ -393,7 +393,7 @@ export default function OperationalDatePicker({
             <div
               className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border ${
                 highlightAsCurrent
-                  ? 'bg-[var(--color-accent)] text-[#F6F0E4] border-[var(--color-accent)]'
+                  ? 'bg-[var(--color-accent)] text-[var(--cta-ink)] border-[var(--color-accent)]'
                   : 'bg-[var(--surface-panel)] border-[var(--surface-border)] text-[var(--ink-soft)]'
               }`}
             >

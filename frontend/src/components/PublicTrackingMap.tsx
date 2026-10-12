@@ -22,9 +22,9 @@ interface PublicTrackingMapProps {
 }
 
 const COLORS = {
-  destination: '#E8431F',
-  driver: '#5C87EB',
-  route: '#E69A2E',
+  destination: '#FF5A2A',
+  driver: '#DFF56A',
+  route: '#DFF56A',
 };
 
 function pinIcon(color: string, label: string) {

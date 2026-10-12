@@ -190,7 +190,7 @@ export default function PublicTrackingPage() {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--accent)] text-white px-4 py-2.5 text-sm font-semibold hover:brightness-110 disabled:opacity-60 transition"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--stamp)] text-[var(--cta-ink)] px-5 py-2.5 text-sm font-medium hover:opacity-90 disabled:opacity-60 transition"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               Buscar

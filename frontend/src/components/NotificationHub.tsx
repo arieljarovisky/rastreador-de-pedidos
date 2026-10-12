@@ -327,7 +327,7 @@ export default function NotificationHub({
                 <button
                   onClick={requestPermission}
                   id="btn-request-notifications"
-                  className="mt-2 w-full text-center py-1 bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[9px] uppercase tracking-wider rounded-[5px] transition"
+                  className="mt-2 w-full text-center py-1 bg-[var(--color-cta)] hover:brightness-110 text-[var(--cta-ink)] font-mono font-bold text-[9px] uppercase tracking-wider rounded-[5px] transition"
                 >
                   Activar Alertas
                 </button>

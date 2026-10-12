@@ -9,35 +9,38 @@
 <link rel="apple-touch-icon" href="/icon-192.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <script>
 (function(){
   var k='posta-theme',s=localStorage.getItem(k);
   var t=s||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
   document.documentElement.setAttribute('data-theme',t);
+  document.documentElement.classList.toggle('dark', t==='dark');
 })();
 </script>
 <style>
 :root,[data-theme="light"]{
   color-scheme:light;
-  --paper:#EFE7D8; --paper2:#F6F0E4; --edge:#D8CCB5; --edge2:#C5B79C;
-  --ink:#1C1814; --ink2:#544A3C; --ink3:#897C68;
-  --stamp:#D8401E; --stamp2:#A82E13; --stampwash:rgba(216,64,30,.10);
-  --ok:#2E6B45;
-  --header-bg:rgba(239,231,216,.9);
-  --disp:'Bricolage Grotesque',system-ui,sans-serif;
-  --body:'IBM Plex Sans',system-ui,sans-serif;
-  --mono:'Space Mono',ui-monospace,monospace;
+  --paper:#f3f0e8; --paper2:#faf8f4; --edge:#ddd6c8; --edge2:#cfc6b6;
+  --ink:#1a1714; --ink2:#4e493f; --ink3:#6d675e;
+  --stamp:#1a1714; --stamp2:#3d6212; --stampwash:rgba(26,23,20,.06);
+  --ember:#e23b16;
+  --ok:#2f6b45;
+  --header-bg:rgba(243,240,232,.92);
+  --disp:'Instrument Serif',Georgia,serif;
+  --body:'Geist',ui-sans-serif,system-ui,sans-serif;
+  --mono:'Geist',ui-sans-serif,system-ui,sans-serif;
   --maxw:760px;
   --pad-x:clamp(24px,6vw,48px);
 }
 [data-theme="dark"]{
   color-scheme:dark;
-  --paper:#141210; --paper2:#1C1814; --edge:#2E2820; --edge2:#3D352C;
-  --ink:#EDE6D8; --ink2:#B8AB98; --ink3:#7A6F60;
-  --stamp:#E85A38; --stamp2:#D8401E; --stampwash:rgba(232,90,56,.14);
-  --ok:#6BC48A;
-  --header-bg:rgba(20,18,16,.92);
+  --paper:#101218; --paper2:#171a22; --edge:#2c3140; --edge2:#3a4154;
+  --ink:#f3f0e8; --ink2:#a39e94; --ink3:#6e6a63;
+  --stamp:#dff56a; --stamp2:#dff56a; --stampwash:rgba(223,245,106,.08);
+  --ember:#ff5a2a;
+  --ok:#7dcea0;
+  --header-bg:rgba(16,18,24,.92);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -46,39 +49,38 @@ a{color:var(--stamp);text-decoration:underline;text-underline-offset:3px}
 a:hover{color:var(--stamp2)}
 .wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--pad-x)}
 .mono{font-family:var(--mono)}
-.eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--stamp2);font-weight:700}
-h1,h2{font-family:var(--disp);font-weight:700;color:var(--ink);line-height:1.12;letter-spacing:-.02em}
-h1{font-size:clamp(2rem,5vw,2.8rem);margin:14px 0 0}
-h2{font-size:1.25rem;margin:36px 0 12px;padding-top:8px;border-top:1.5px dashed var(--edge2)}
+.eyebrow{font-family:var(--body);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);font-weight:500}
+h1{font-family:var(--disp);font-weight:400;font-style:italic;color:var(--ink);line-height:.95;letter-spacing:-.03em;font-size:clamp(2.4rem,5vw,3.4rem);margin:14px 0 0}
+h2{font-family:var(--body);font-weight:500;color:var(--ink);line-height:1.2;letter-spacing:-.02em;font-size:1.15rem;margin:36px 0 12px;padding-top:8px;border-top:1px solid var(--edge)}
 h2:first-of-type{border-top:none;padding-top:0;margin-top:28px}
 p,li{color:var(--ink2)}
 ul,ol{padding-left:1.35em;margin:10px 0 0}
 li{margin:6px 0}
 li::marker{color:var(--stamp)}
 .meta{font-family:var(--mono);font-size:.74rem;color:var(--ink3);margin-top:18px;letter-spacing:.02em}
-header{position:sticky;top:0;z-index:40;background:var(--header-bg);backdrop-filter:blur(8px);border-bottom:1.5px solid var(--ink)}
+header{position:sticky;top:0;z-index:40;background:var(--header-bg);backdrop-filter:blur(8px);border-bottom:1px solid var(--edge)}
 .nav{display:flex;align-items:center;justify-content:space-between;height:62px;max-width:1140px;margin:0 auto;padding:0 var(--pad-x)}
 .brand{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:700;font-size:1.25rem;letter-spacing:-.03em;color:var(--ink);text-decoration:none}
 .brand:hover{color:var(--stamp)}
 .navlinks{display:flex;align-items:center;gap:18px}
-.navlinks a{font-family:var(--mono);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);text-decoration:none}
+.navlinks a{font-family:var(--body);font-size:.84rem;letter-spacing:-.01em;text-transform:none;color:var(--ink2);text-decoration:none}
 .navlinks a:hover{color:var(--stamp)}
-.theme-toggle{display:flex;align-items:center;justify-content:center;background:none;border:1.5px solid var(--ink);border-radius:4px;width:42px;height:42px;cursor:pointer;color:var(--ink);transition:background .15s ease}
+.theme-toggle{display:flex;align-items:center;justify-content:center;background:none;border:1px solid var(--edge);border-radius:999px;width:42px;height:42px;cursor:pointer;color:var(--ink);transition:background .15s ease}
 .theme-toggle:hover{background:var(--paper2)}
 .theme-toggle svg{width:18px;height:18px}
 .theme-toggle .icon-moon{display:none}
 [data-theme="dark"] .theme-toggle .icon-sun{display:none}
 [data-theme="dark"] .theme-toggle .icon-moon{display:block}
 main{padding:clamp(40px,7vw,72px) 0 clamp(56px,8vw,88px)}
-.doc{background:var(--paper2);border:1.5px solid var(--edge);border-radius:6px;padding:clamp(28px,5vw,44px);box-shadow:4px 5px 0 rgba(28,24,20,.06)}
-[data-theme="dark"] .doc{box-shadow:4px 5px 0 rgba(0,0,0,.25)}
+.doc{background:var(--paper2);border:1px solid var(--edge);border-radius:16px;padding:clamp(28px,5vw,44px);box-shadow:none}
+[data-theme="dark"] .doc{box-shadow:none}
 .doc-intro{font-size:1.05rem;margin-top:16px;max-width:62ch}
 table{width:100%;border-collapse:collapse;margin:16px 0 0;font-size:.92rem}
 th,td{text-align:left;padding:10px 12px;border:1px solid var(--edge);vertical-align:top}
-th{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);background:var(--paper);font-weight:700}
-.contact-box{margin-top:28px;padding:18px 20px;border:1.5px solid var(--edge);border-radius:6px;background:var(--paper)}
+th{font-family:var(--body);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3);background:var(--paper);font-weight:500}
+.contact-box{margin-top:28px;padding:18px 20px;border:1px solid var(--edge);border-radius:16px;background:var(--paper)}
 .contact-box p{margin:0}
-footer{border-top:2px solid var(--ink);margin-top:48px;padding:32px 0 28px}
+footer{border-top:1px solid var(--edge);margin-top:48px;padding:32px 0 28px}
 .foot-bot{font-family:var(--mono);font-size:.72rem;color:var(--ink3);text-align:center;line-height:1.7}
 @media (max-width:620px){
   .navlinks .back-home{display:none}
@@ -96,8 +98,8 @@ footer{border-top:2px solid var(--ink);margin-top:48px;padding:32px 0 28px}
         <circle cx="13" cy="32" r="5" fill="currentColor"/>
         <line x1="18" y1="32" x2="28" y2="32" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
         <circle cx="33" cy="32" r="6" fill="none" stroke="currentColor" stroke-width="3.4"/>
-        <line x1="39" y1="32" x2="46" y2="32" stroke="#D8401E" stroke-width="3.4" stroke-linecap="round"/>
-        <path d="M45 26 L55 32 L45 38 Z" fill="#D8401E"/>
+        <line x1="39" y1="32" x2="46" y2="32" stroke="var(--ember)" stroke-width="3.4" stroke-linecap="round"/>
+        <path d="M45 26 L55 32 L45 38 Z" fill="var(--ember)"/>
       </svg>
       Posta
     </a>
@@ -297,6 +299,7 @@ footer{border-top:2px solid var(--ink);margin-top:48px;padding:32px 0 28px}
   var themeKey='posta-theme';
   function applyTheme(theme){
     document.documentElement.setAttribute('data-theme',theme);
+    document.documentElement.classList.toggle('dark', theme==='dark');
     localStorage.setItem(themeKey,theme);
     localStorage.setItem('posta_theme',theme==='dark'?'dark':'paper');
     if(themeToggle){

@@ -1,34 +1,36 @@
 /**
- * Posta — Design tokens
- * Tema oscuro (operativo, default) + tema papel (marca)
+ * Posta — tokens del panel.
+ * Misma base que la landing: noche plana y hueso claro, sin sello postal.
  */
 
 :root,
 .theme-dark,
 [data-theme="dark"] {
-  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Space Mono", ui-monospace, monospace;
-  --radius-posta: 5px;
+  --font-display: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --radius-posta: 12px;
 
-  --bg: #141210;
-  --panel: #1c1814;
-  --panel-2: #1f1b17;
-  --line: #2e2820;
-  --text: #ede6d8;
-  --text-muted: #b8ab98;
-  --text-faint: #7a6f60;
-  --accent: #5c87eb;
-  --stamp: #e8431f;
-  --ok: #3fae63;
-  --warn: #e69a2e;
-  --danger: #e5564f;
+  --bg: #101218;
+  --panel: #171a22;
+  --panel-2: #1e222c;
+  --line: #2c3140;
+  --text: #f3f0e8;
+  --text-muted: #a39e94;
+  --text-faint: #6e6a63;
+  --accent: #dff56a;
+  --stamp: #f3f0e8;
+  --cta-ink: #12141a;
+  --ok: #7dcea0;
+  --warn: #e6b15a;
+  --danger: #e07a72;
 
-  --st-pending: #a99b85;
-  --st-assigned: #5c87eb;
-  --st-delivering: #e69a2e;
-  --st-delivered: #3fae63;
-  --st-cancelled: #e5564f;
+  --st-pending: #8d887f;
+  --st-assigned: #dff56a;
+  --st-delivering: #e6b15a;
+  --st-delivered: #7dcea0;
+  --st-cancelled: #e07a72;
 
   --surface-bg: var(--bg);
   --surface-panel: var(--panel);
@@ -44,14 +46,14 @@
   --color-danger: var(--danger);
 
   --logo-ink: var(--text);
-  --btn-secondary-border: var(--text);
+  --btn-secondary-border: var(--line);
   --card-shadow: none;
   --card-border-width: 1px;
   --badge-blend: normal;
   --input-bg: var(--panel-2);
-  --ink-soft: #c9bead;
+  --ink-soft: #c9c3b8;
   --edge-2: var(--line);
-  --route-2: #9a9085;
+  --route-2: #9aa3b5;
   --ink: var(--text);
   --paper: var(--panel-2);
   --paper-2: var(--panel);
@@ -60,28 +62,29 @@
 
 .theme-paper,
 [data-theme="paper"] {
-  --paper: #efe7d8;
-  --paper-2: #f6f0e4;
-  --paper-3: #e7ddcb;
-  --edge: #d8ccb5;
-  --edge-2: #c5b79c;
-  --ink: #1c1814;
-  --ink-soft: #544a3c;
-  --muted: #897c68;
-  --faint: #a99b85;
-  --stamp: #d8401e;
-  --stamp-deep: #a82e13;
-  --route: #2b3a55;
-  --route-2: #5a6b85;
-  --ok: #2e6b45;
-  --warn: #b5670e;
-  --danger: #b0301c;
+  --paper: #f3f0e8;
+  --paper-2: #faf8f4;
+  --paper-3: #ebe6dc;
+  --edge: #ddd6c8;
+  --edge-2: #cfc6b6;
+  --ink: #1a1714;
+  --ink-soft: #4e493f;
+  --muted: #4a453d;
+  --faint: #6f6a62;
+  --stamp: #1a1714;
+  --stamp-deep: #1a1714;
+  --cta-ink: #f6f1e6;
+  --route: #3d6212;
+  --route-2: #5c7a3a;
+  --ok: #2f6b45;
+  --warn: #9a6410;
+  --danger: #a33b32;
 
-  --st-pending: #7a6e59;
-  --st-assigned: #2b3a55;
-  --st-delivering: #b5670e;
-  --st-delivered: #2e6b45;
-  --st-cancelled: #b0301c;
+  --st-pending: #6d675e;
+  --st-assigned: #3d6212;
+  --st-delivering: #9a6410;
+  --st-delivered: #2f6b45;
+  --st-cancelled: #a33b32;
 
   --bg: var(--paper);
   --panel: var(--paper-2);
@@ -106,11 +109,11 @@
   --color-danger: var(--danger);
 
   --logo-ink: var(--ink);
-  --btn-secondary-border: var(--ink);
-  --card-shadow: 4px 5px 0 rgba(28, 24, 20, 0.1);
-  --card-border-width: 1.4px;
-  --badge-blend: multiply;
-  --input-bg: var(--paper);
+  --btn-secondary-border: var(--edge);
+  --card-shadow: none;
+  --card-border-width: 1px;
+  --badge-blend: normal;
+  --input-bg: var(--paper-2);
 
   color-scheme: light;
 }

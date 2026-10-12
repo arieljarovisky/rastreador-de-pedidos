@@ -442,7 +442,7 @@ export default function RepartidorDashboard({
                     </div>
                     <button
                       onClick={() => handleAcceptOrder(order.id)}
-                      className="w-full py-1.5 bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] uppercase tracking-wider rounded-[5px] transition"
+                      className="w-full py-1.5 bg-[var(--color-cta)] hover:brightness-110 text-[var(--cta-ink)] font-mono font-bold text-[10px] uppercase tracking-wider rounded-[5px] transition"
                     >
                       Tomar y Asignar Pedido
                     </button>
@@ -555,7 +555,7 @@ export default function RepartidorDashboard({
                             });
                           }
                         }}
-                        className="flex-1 py-2 bg-[var(--color-cta)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[#F6F0E4] font-mono font-bold text-xs rounded-[5px] transition flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                        className="flex-1 py-2 bg-[var(--color-cta)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--cta-ink)] font-mono font-bold text-xs rounded-[5px] transition flex items-center justify-center gap-1.5 uppercase tracking-wider"
                       >
                         <Play className="w-4 h-4" /> Iniciar Viaje de Entrega
                       </button>

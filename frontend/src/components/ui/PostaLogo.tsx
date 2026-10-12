@@ -14,8 +14,8 @@ export default function PostaLogo({
   iconOnly = false,
   className = '',
 }: PostaLogoProps) {
-  const ink = variant === 'paper' ? '#1C1814' : '#E9EDF4';
-  const stamp = variant === 'paper' ? '#D8401E' : '#E8431F';
+  const ink = variant === 'paper' ? '#1A1714' : '#F3F0E8';
+  const stamp = variant === 'paper' ? '#E23B16' : '#FF5A2A';
 
   return (
     <div className={`flex items-center gap-2 min-w-0 ${className}`} aria-label="Posta">
@@ -28,7 +28,7 @@ export default function PostaLogo({
       </svg>
       {showWordmark && !iconOnly && (
         <span
-          className="font-display font-bold tracking-[-0.03em] text-[var(--color-text)] truncate"
+          className="font-display font-medium tracking-[-0.04em] text-[var(--color-text)] truncate"
           style={{ fontSize: Math.max(14, size * 0.5) }}
         >
           Posta

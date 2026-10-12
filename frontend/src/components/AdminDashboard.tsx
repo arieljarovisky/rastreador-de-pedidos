@@ -137,7 +137,7 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
               e.stopPropagation();
               onAssign(order.id);
             }}
-            className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
+            className="bg-[var(--color-cta)] hover:brightness-110 text-[var(--cta-ink)] font-mono font-bold text-[8px] px-2 py-1 rounded-[var(--radius-posta)] uppercase tracking-wider"
           >
             Gestionar
           </button>
@@ -1555,7 +1555,7 @@ export default function AdminDashboard({
                   <button
                     type="submit"
                     disabled={formLoading}
-                    className="bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold px-4 py-2 rounded-[var(--radius-posta)] text-[11px] uppercase tracking-wider transition disabled:opacity-50"
+                    className="bg-[var(--color-cta)] hover:brightness-110 text-[var(--cta-ink)] font-mono font-bold px-4 py-2 rounded-[var(--radius-posta)] text-[11px] uppercase tracking-wider transition disabled:opacity-50"
                   >
                     {formLoading ? 'Registrando...' : 'Confirmar envío'}
                   </button>
@@ -1957,7 +1957,7 @@ export default function AdminDashboard({
                 <button
                   onClick={() => setShowCreateForm(true)}
                   id="btn-toggle-create-form"
-                  className="px-2 py-1 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[#F6F0E4] font-mono font-bold text-[10px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shrink-0"
+                  className="px-2 py-1 rounded-[5px] bg-[var(--color-cta)] hover:brightness-110 text-[var(--cta-ink)] font-mono font-bold text-[10px] uppercase tracking-wider transition flex items-center gap-1 shadow-md shrink-0"
                 >
                   <Plus className="w-3 h-3" /> Cargar envío
                 </button>
@@ -2161,7 +2161,7 @@ export default function AdminDashboard({
           <button
             onClick={() => setStatusFilter(OrderStatus.DELIVERING)}
             className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
-              statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-white shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+              statusFilter === OrderStatus.DELIVERING ? 'bg-[var(--color-accent)] text-[var(--cta-ink)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
             Ruta
@@ -2169,7 +2169,7 @@ export default function AdminDashboard({
           <button
             onClick={() => setStatusFilter(OrderStatus.DELIVERED)}
             className={`flex-1 min-w-0 py-1 px-0.5 text-center font-bold uppercase tracking-wider rounded transition ${
-              statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[#F6F0E4] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+              statusFilter === OrderStatus.DELIVERED ? 'bg-[var(--color-ok)] text-[var(--cta-ink)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
             }`}
           >
             Listos
@@ -2275,7 +2275,7 @@ export default function AdminDashboard({
                   <button
                     type="button"
                     onClick={() => openAssignModal(selectedOrder.id)}
-                    className="px-2 py-1 bg-[var(--color-cta)] text-[#F6F0E4] font-mono font-bold text-[8px] uppercase rounded-[var(--radius-posta)]"
+                    className="px-2 py-1 bg-[var(--color-cta)] text-[var(--cta-ink)] font-mono font-bold text-[8px] uppercase rounded-[var(--radius-posta)]"
                   >
                     Gestionar
                   </button>
@@ -2388,7 +2388,7 @@ export default function AdminDashboard({
               title={showDeliveredOnMap ? 'Ocultar entregados en el mapa' : 'Mostrar entregados en el mapa'}
               className={`w-full flex items-center justify-center gap-1.5 rounded-[var(--radius-posta)] px-2.5 py-2 border shadow-lg backdrop-blur-md transition text-[10px] font-semibold ${
                 showDeliveredOnMap
-                  ? 'bg-[var(--color-ok)]/90 border-[var(--color-ok)] text-[#F6F0E4] hover:brightness-110'
+                  ? 'bg-[var(--color-ok)]/90 border-[var(--color-ok)] text-[var(--cta-ink)] hover:brightness-110'
                   : 'bg-[var(--surface-panel)]/95 border-[var(--surface-border)]/80 text-[var(--color-text-muted)] hover:border-[var(--color-ok)]'
               }`}
             >
@@ -2413,7 +2413,7 @@ export default function AdminDashboard({
                   Filtros
                 </span>
                 {activeMapFiltersCount > 0 && (
-                  <span className="shrink-0 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-[var(--color-accent)] text-[9px] font-bold text-white flex items-center justify-center">
+                  <span className="shrink-0 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-[var(--color-accent)] text-[9px] font-bold text-[var(--cta-ink)] flex items-center justify-center">
                     {activeMapFiltersCount}
                   </span>
                 )}
