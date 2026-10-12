@@ -189,6 +189,7 @@ export default function SellerOrdersRegistry({
     if (!includePersonal) return [];
     return personalEntries
       .filter((entry) => {
+        if (entry.orderId) return false;
         if (sellerId && entry.sellerId !== sellerId) return false;
         if (!personalMatchesStatus(entry.status, statusFilter)) return false;
         if (dateFromKey || dateToKey) {
@@ -614,7 +615,7 @@ export default function SellerOrdersRegistry({
             </h2>
           </div>
           <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
-            Envíos Posta y paquetes personales en la misma lista.
+            Envíos de Mercado Libre, Tienda Nube y etiquetas con foto, con la misma fecha de entrega.
             {historyLoading ? ' · Cargando historial…' : ''}
             {personalLoading ? ' · Cargando personales…' : ''}
           </p>
@@ -695,7 +696,7 @@ export default function SellerOrdersRegistry({
         )}
         {sellerId && (
           <p className="text-[10px] text-[var(--color-text-faint)]">
-            Los paquetes personales no tienen vendedor: se ocultan al filtrar por uno.
+            Las etiquetas con foto de este vendedor aparecen como envíos, en el día en que hay que entregarlas.
           </p>
         )}
       </div>

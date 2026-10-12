@@ -1853,6 +1853,24 @@ export async function updateOrderStatus(
     }
   }
 
+  if (
+    updated.externalSource === 'foto' &&
+    updated.externalOrderId &&
+    (status === OrderStatus.DELIVERED || status === OrderStatus.CANCELLED)
+  ) {
+    const scanStatus = status === OrderStatus.DELIVERED ? 'delivered' : 'cancelled';
+    await pool
+      .query(
+        `UPDATE driver_scan_entries
+         SET status = ?, delivered_at = ?
+         WHERE id = ?`,
+        [scanStatus, scanStatus === 'delivered' ? now : null, updated.externalOrderId]
+      )
+      .catch((err) => {
+        console.warn('[driver-scan] no se pudo reflejar el estado en la etiqueta foto:', err);
+      });
+  }
+
   return {
     ...updated,
     repartidorId: assignedRepartidorId,

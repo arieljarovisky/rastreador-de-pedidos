@@ -66,7 +66,9 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
     hourCycle: 'h23',
     timeZone: 'America/Argentina/Buenos_Aires',
   });
-  const canBatchLabel = !(order.externalSource === 'mercadolibre' && order.externalOrderId);
+  const canBatchLabel =
+    order.externalSource !== 'foto' &&
+    !(order.externalSource === 'mercadolibre' && order.externalOrderId);
 
   return (
     <tr
@@ -2627,21 +2629,30 @@ export default function AdminDashboard({
                   )}
                   {(() => {
                     const isMl = selectedOrder.externalSource === 'mercadolibre' && !!selectedOrder.externalOrderId;
+                    const isPhoto = selectedOrder.externalSource === 'foto';
                     return (
                       <button
                         type="button"
                         onClick={() => void onOpenShippingLabel?.(selectedOrder.id)}
                         className="flex items-start gap-1.5 text-[var(--color-text-muted)] bg-[var(--surface-panel-2)] border border-[var(--surface-border)]/80 hover:border-[var(--color-accent)]/50 p-2 rounded mt-1 text-[10px] font-sans text-left w-full transition-colors cursor-pointer"
-                        title={isMl ? 'Ver etiqueta de envío de Mercado Libre' : 'Ver etiqueta de envío'}
+                        title={
+                          isPhoto
+                            ? 'Ver la foto de la etiqueta'
+                            : isMl
+                              ? 'Ver etiqueta de envío de Mercado Libre'
+                              : 'Ver etiqueta de envío'
+                        }
                       >
                         <FileText className="w-3 h-3 text-[var(--color-accent)] shrink-0 mt-0.5" />
                         <span>
                           {selectedOrder.notes ||
                             (isMl
                               ? `Mercado Libre · Orden #${selectedOrder.externalOrderId}`
-                              : `Etiqueta · ${selectedOrder.id}`)}
+                              : isPhoto
+                                ? 'Etiqueta fotografiada'
+                                : `Etiqueta · ${selectedOrder.id}`)}
                           <span className="block text-[var(--color-accent)] mt-0.5 font-semibold">
-                            Ver etiqueta de envío →
+                            {isPhoto ? 'Ver foto de la etiqueta →' : 'Ver etiqueta de envío →'}
                           </span>
                         </span>
                       </button>

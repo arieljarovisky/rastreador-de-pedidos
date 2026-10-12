@@ -62,6 +62,23 @@ export default function MarketplaceSourceIcon({
     );
   }
 
+  if (source === 'foto') {
+    return (
+      <span
+        title="Etiqueta foto"
+        className={
+          className ??
+          `${SIZE[size]} inline-flex items-center justify-center rounded-[3px] bg-[var(--surface-panel-2)] border border-[var(--surface-border)] text-[9px] shrink-0`
+        }
+      >
+        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 8h3l2-2h6l2 2h3v11H4V8z" />
+          <circle cx="12" cy="13" r="3" />
+        </svg>
+      </span>
+    );
+  }
+
   if (source === 'woocommerce') {
     return (
       <img

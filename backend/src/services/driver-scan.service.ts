@@ -4,10 +4,22 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { pool } from '../config/database.js';
-import { User, UserRole } from '../types/index.js';
-import { getActiveOperationalDateKey } from '../utils/delivery-deadline.js';
+import { OrderStatus, User, UserRole } from '../types/index.js';
+import {
+  computeDeliveryDeadline,
+  getActiveOperationalDateKey,
+} from '../utils/delivery-deadline.js';
 import { isAgencyAdmin } from '../utils/roles.js';
-import { assertSellerInAgency } from './users.service.js';
+import { getAgencyDeparture } from './agencies.service.js';
+import { resolveClosedDateKeys } from './closed-days.service.js';
+import { geocodeAddress } from './geocode.service.js';
+import { emitOrderUpdated } from '../realtime/io.js';
+import {
+  assertSellerInAgency,
+  getUserById,
+  resolveSalesCutoffHour,
+  resolveWorksOnHolidays,
+} from './users.service.js';
 import {
   getIntegration,
   listMercadoLibreIntegrationsForAgencyScan,
@@ -40,6 +52,8 @@ export interface DriverScanEntry {
   address: string | null;
   clientPhone: string | null;
   hasPhoto: boolean;
+  /** Pedido Posta creado para que la etiqueta se entregue como un envío de Mercado Libre. */
+  orderId?: string | null;
   scannedAt: string;
   deliveredAt: string | null;
   alreadyRegistered: boolean;
@@ -60,6 +74,9 @@ interface DbDriverScanRow extends RowDataPacket {
   address?: string | null;
   client_phone?: string | null;
   photo_path?: string | null;
+  order_id?: string | null;
+  lat?: number | string | null;
+  lng?: number | string | null;
   scanned_at: Date | string;
   delivered_at: Date | string | null;
 }
@@ -104,6 +121,7 @@ function mapRow(row: DbDriverScanRow, alreadyRegistered = false): DriverScanEntr
     address: row.address?.trim() ? row.address.trim() : null,
     clientPhone: row.client_phone?.trim() ? row.client_phone.trim() : null,
     hasPhoto: Boolean(row.photo_path?.trim()),
+    orderId: row.order_id?.trim() ? row.order_id.trim() : null,
     scannedAt: toIso(row.scanned_at) ?? new Date().toISOString(),
     deliveredAt: toIso(row.delivered_at),
     alreadyRegistered,
@@ -170,7 +188,234 @@ export async function attachDriverScanPhoto(
   const filename = `${entryId}.jpg`;
   await writeFile(path.join(scanPhotoDir, filename), image);
   await pool.query('UPDATE driver_scan_entries SET photo_path = ? WHERE id = ?', [filename, entryId]);
+  await ensurePhotoLabelOrder(entryId);
   return loadEntry(entryId);
+}
+
+const PHOTO_ORDER_SOURCE = 'foto';
+const promotingPhotoOrders = new Map<string, Promise<string | null>>();
+
+function coord(value: number | string | null | undefined): number | null {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Una etiqueta fotografiada pasa a ser un pedido Posta: mismo corte de ventas
+ * y mismo día de entrega que un envío de Mercado Libre, asignado al repartidor
+ * que sacó la foto.
+ */
+export async function ensurePhotoLabelOrder(entryId: string): Promise<string | null> {
+  const inflight = promotingPhotoOrders.get(entryId);
+  if (inflight) return inflight;
+  const job = promotePhotoLabelOrder(entryId).finally(() => {
+    promotingPhotoOrders.delete(entryId);
+  });
+  promotingPhotoOrders.set(entryId, job);
+  return job;
+}
+
+async function promotePhotoLabelOrder(entryId: string): Promise<string | null> {
+  await ensureDriverScanEntriesTable();
+  const [rows] = await pool.query<DbDriverScanRow[]>(
+    'SELECT * FROM driver_scan_entries WHERE id = ? LIMIT 1',
+    [entryId]
+  );
+  const row = rows[0];
+  if (!row?.photo_path?.trim()) return null;
+  if (row.order_id?.trim()) return row.order_id.trim();
+
+  const repartidor = await getUserById(row.repartidor_id);
+  if (!repartidor || repartidor.role !== UserRole.REPARTIDOR) return null;
+
+  const address = row.address?.trim() ? row.address.trim().slice(0, 500) : '';
+  let lat: number | null = null;
+  let lng: number | null = null;
+  if (address) {
+    try {
+      const geo = await geocodeAddress(address);
+      if (geo) {
+        lat = geo.lat;
+        lng = geo.lng;
+      }
+    } catch (err) {
+      console.warn('[driver-scan] geocode foto:', err);
+    }
+  }
+  const departure = lat == null || lng == null ? await getAgencyDeparture(row.agency_id) : null;
+  if (lat == null || lng == null) {
+    lat = departure?.lat ?? coord(row.lat);
+    lng = departure?.lng ?? coord(row.lng);
+  }
+  if (lat == null || lng == null) {
+    console.warn('[driver-scan] foto sin coordenadas', entryId);
+    return null;
+  }
+
+  const scannedAt = new Date(row.scanned_at);
+  const soldAt = Number.isNaN(scannedAt.getTime()) ? new Date() : scannedAt;
+  const clientName = row.client_name?.trim() || 'Etiqueta sin QR';
+  const orderAddress = address || departure?.address || 'Dirección en la foto de la etiqueta';
+
+  const {
+    createOrder,
+    assignOrderToScanningRepartidor,
+    findOrderByExternalForAgency,
+    updateOrderStatus,
+  } = await import('./orders.service.js');
+
+  try {
+    let order = await createOrder(repartidor, {
+      clientName,
+      clientPhone: row.client_phone?.trim() || undefined,
+      address: orderAddress,
+      lat,
+      lng,
+      notes: 'Etiqueta fotografiada, sin código QR.',
+      sellerId: row.seller_id?.trim() || undefined,
+      externalSource: PHOTO_ORDER_SOURCE,
+      externalOrderId: row.id,
+      soldAt,
+      historyComment: 'Etiqueta sin QR. La foto es la etiqueta de envío.',
+    });
+    order = await assignOrderToScanningRepartidor(
+      repartidor,
+      order.id,
+      'Asignado al repartidor que fotografió la etiqueta'
+    );
+    if (row.status === 'delivered' || row.status === 'cancelled') {
+      order = await updateOrderStatus(
+        repartidor,
+        order.id,
+        row.status === 'delivered' ? OrderStatus.DELIVERED : OrderStatus.CANCELLED,
+        undefined,
+        row.status === 'delivered' ? 'Entregado con la etiqueta foto' : 'Cancelado'
+      );
+    }
+    await pool.query('UPDATE driver_scan_entries SET order_id = ? WHERE id = ?', [order.id, row.id]);
+    emitOrderUpdated(order, order.sellerId ?? row.seller_id ?? null);
+    return order.id;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'ERROR';
+    if (message === 'EXTERNAL_ORDER_EXISTS') {
+      const existing = await findOrderByExternalForAgency(row.agency_id, PHOTO_ORDER_SOURCE, row.id);
+      if (existing) {
+        await pool.query('UPDATE driver_scan_entries SET order_id = ? WHERE id = ?', [
+          existing.id,
+          row.id,
+        ]);
+        return existing.id;
+      }
+    }
+    console.warn('[driver-scan] no se pudo crear el pedido de la foto', entryId, err);
+    return null;
+  }
+}
+
+/** Convierte etiquetas con foto que todavía no son pedidos. Pocas por vez para no frenar el listado. */
+export async function promotePendingPhotoLabels(user: User): Promise<void> {
+  await ensureDriverScanEntriesTable();
+  const params: unknown[] = [];
+  let scope = '';
+  if (isAgencyAdmin(user.role) && user.agencyId) {
+    scope = 'AND agency_id = ?';
+    params.push(user.agencyId);
+  } else if (user.role === UserRole.STORE_ADMIN) {
+    scope = 'AND seller_id = ?';
+    params.push(user.id);
+  } else if (user.role === UserRole.REPARTIDOR) {
+    scope = 'AND repartidor_id = ?';
+    params.push(user.id);
+  } else {
+    return;
+  }
+  const [rows] = await pool.query<Array<{ id: string } & DbDriverScanRow>>(
+    `SELECT id FROM driver_scan_entries
+     WHERE photo_path IS NOT NULL AND photo_path <> ''
+       AND (order_id IS NULL OR order_id = '')
+       ${scope}
+     ORDER BY scanned_at DESC
+     LIMIT 3`,
+    params
+  );
+  for (const row of rows) {
+    await ensurePhotoLabelOrder(row.id);
+  }
+}
+
+async function syncLinkedPhotoOrder(entryId: string): Promise<void> {
+  await ensureDriverScanEntriesTable();
+  const [rows] = await pool.query<DbDriverScanRow[]>(
+    'SELECT * FROM driver_scan_entries WHERE id = ? LIMIT 1',
+    [entryId]
+  );
+  const row = rows[0];
+  if (!row?.photo_path?.trim()) return;
+  if (!row.order_id?.trim()) {
+    await ensurePhotoLabelOrder(entryId);
+    return;
+  }
+
+  const address = row.address?.trim() ? row.address.trim().slice(0, 500) : '';
+  let lat: number | null = null;
+  let lng: number | null = null;
+  if (address) {
+    try {
+      const geo = await geocodeAddress(address);
+      if (geo) {
+        lat = geo.lat;
+        lng = geo.lng;
+      }
+    } catch {
+      // se conserva el pin anterior
+    }
+  }
+
+  const sellerId = row.seller_id?.trim() || null;
+  const scannedAt = new Date(row.scanned_at);
+  const soldAt = Number.isNaN(scannedAt.getTime()) ? new Date() : scannedAt;
+  const deadlineHour = await resolveSalesCutoffHour({
+    sellerId,
+    agencyId: row.agency_id,
+  });
+  const worksOnHolidays = await resolveWorksOnHolidays({
+    sellerId,
+    agencyId: row.agency_id,
+  });
+  const closedDateKeys = await resolveClosedDateKeys({
+    agencyId: row.agency_id,
+    sellerId,
+  });
+  const deliveryDeadline = computeDeliveryDeadline(soldAt, deadlineHour, {
+    worksOnHolidays,
+    closedDateKeys,
+  });
+
+  await pool.query(
+    `UPDATE orders
+     SET client_name = ?,
+         client_phone = ?,
+         address = ?,
+         seller_id = ?,
+         delivery_deadline = ?,
+         lat = COALESCE(?, lat),
+         lng = COALESCE(?, lng),
+         updated_at = ?
+     WHERE id = ? AND external_source = ?`,
+    [
+      row.client_name?.trim() || 'Etiqueta sin QR',
+      row.client_phone?.trim() || '',
+      address || 'Dirección en la foto de la etiqueta',
+      sellerId,
+      deliveryDeadline,
+      lat,
+      lng,
+      new Date(),
+      row.order_id.trim(),
+      PHOTO_ORDER_SOURCE,
+    ]
+  );
 }
 
 export async function getDriverScanPhotoPath(user: User, entryId: string): Promise<string> {
@@ -262,7 +507,7 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
       const [cols] = await pool.query<Array<{ COLUMN_NAME: string } & RowDataPacket>>(
         `SELECT COLUMN_NAME FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'driver_scan_entries'
-           AND COLUMN_NAME IN ('client_name', 'address', 'client_phone', 'seller_id', 'photo_path')`
+           AND COLUMN_NAME IN ('client_name', 'address', 'client_phone', 'seller_id', 'photo_path', 'order_id')`
       );
       const have = new Set(cols.map((c) => c.COLUMN_NAME));
       if (!have.has('client_name')) {
@@ -291,6 +536,14 @@ export function ensureDriverScanEntriesTable(): Promise<void> {
       if (!have.has('photo_path')) {
         await pool.query(
           'ALTER TABLE driver_scan_entries ADD COLUMN photo_path VARCHAR(255) NULL AFTER client_phone'
+        );
+      }
+      if (!have.has('order_id')) {
+        await pool.query(
+          'ALTER TABLE driver_scan_entries ADD COLUMN order_id VARCHAR(36) NULL AFTER photo_path'
+        );
+        await pool.query(
+          'ALTER TABLE driver_scan_entries ADD INDEX idx_driver_scan_order (order_id)'
         );
       }
     })().catch((err) => {
@@ -677,6 +930,27 @@ export async function updateDriverScanEntryStatus(
     [status, deliveredAt, entryId]
   );
 
+  const orderId = existing.order_id?.trim();
+  if (orderId && (status === 'delivered' || status === 'cancelled')) {
+    try {
+      const actor =
+        user.role === UserRole.REPARTIDOR ? user : await getUserById(existing.repartidor_id);
+      if (actor) {
+        const { updateOrderStatus } = await import('./orders.service.js');
+        const order = await updateOrderStatus(
+          actor,
+          orderId,
+          status === 'delivered' ? OrderStatus.DELIVERED : OrderStatus.CANCELLED,
+          undefined,
+          status === 'delivered' ? 'Entregado con la etiqueta foto' : 'Cancelado'
+        );
+        emitOrderUpdated(order, order.sellerId ?? existing.seller_id ?? null);
+      }
+    } catch (err) {
+      console.warn('[driver-scan] no se pudo actualizar el pedido de la foto', err);
+    }
+  }
+
   return loadEntry(entryId);
 }
 
@@ -728,6 +1002,7 @@ export async function updateDriverScanEntryDetails(
     [clientName, address, clientPhone, sellerId, entryId, user.id]
   );
 
+  await syncLinkedPhotoOrder(entryId);
   return loadEntry(entryId);
 }
 

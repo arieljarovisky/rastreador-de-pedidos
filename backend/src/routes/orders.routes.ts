@@ -36,6 +36,7 @@ import {
   syncFlexScansForRepartidor,
 } from '../services/marketplace-import.service.js';
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
+import { getDriverScanPhotoPath, promotePendingPhotoLabels } from '../services/driver-scan.service.js';
 import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
 import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
 import { pool } from '../config/database.js';
@@ -123,6 +124,9 @@ router.post('/flex-sync', authenticate, requireRoles(UserRole.REPARTIDOR), async
 router.get('/', authenticate, async (req: Request, res: Response) => {
   const { limit, offset } = parseLimitOffset(req);
   const includeArchived = parseIncludeArchived(req);
+  await promotePendingPhotoLabels(req.user!).catch((err) => {
+    console.warn('[orders] foto sin pedido:', err);
+  });
   const orders = await listOrdersForUser(req.user!, { mode: 'list', limit, offset, includeArchived });
   res.json(orders);
   scheduleOrdersBackgroundSync(req.user!, orders);
@@ -175,6 +179,9 @@ router.get(
         : undefined;
     const q = typeof req.query.q === 'string' ? req.query.q : undefined;
 
+    await promotePendingPhotoLabels(req.user!).catch((err) => {
+      console.warn('[orders/registry] foto sin pedido:', err);
+    });
     const result = await listOrdersRegistry(req.user!, {
       sellerId,
       externalSource,
@@ -432,6 +439,24 @@ router.get('/:id/shipping-label', authenticate, async (req: Request, res: Respon
   const sellerId = await getSellerIdForOrder(order.id);
   if (!canViewOrder(req.user!, order, sellerId ?? undefined)) {
     res.status(403).json({ error: 'No tienes permiso para ver este pedido.' });
+    return;
+  }
+
+  if (order.externalSource === 'foto' && order.externalOrderId) {
+    try {
+      const filePath = await getDriverScanPhotoPath(req.user!, order.externalOrderId);
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Content-Disposition', `inline; filename="etiqueta-${order.id}.jpg"`);
+      res.sendFile(filePath);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ERROR';
+      if (message === 'NOT_FOUND') {
+        res.status(404).json({ error: 'Esta etiqueta no tiene foto.' });
+        return;
+      }
+      console.error('[orders] foto de etiqueta:', err);
+      res.status(500).json({ error: 'No se pudo abrir la foto de la etiqueta.' });
+    }
     return;
   }
 

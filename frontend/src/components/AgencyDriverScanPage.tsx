@@ -27,6 +27,7 @@ export interface AgencyDriverScanEntry {
   address?: string | null;
   clientPhone?: string | null;
   hasPhoto?: boolean;
+  orderId?: string | null;
   scannedAt: string;
   deliveredAt: string | null;
 }
@@ -293,6 +294,9 @@ export default function AgencyDriverScanPage({
                     <td className="px-3 py-2 font-mono text-[var(--color-text)] whitespace-nowrap">
                       {entry.hasPhoto ? 'Foto · ' : ''}
                       {entry.scanCode.startsWith('FOTO-') ? 'Sin QR' : formatScanCodeLabel(entry.scanCode)}
+                      {entry.orderId ? (
+                        <span className="block text-[10px] text-[var(--color-accent)]">{entry.orderId}</span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 text-[var(--color-text)] max-w-[18rem]">
                       {entry.address?.trim() ? (
