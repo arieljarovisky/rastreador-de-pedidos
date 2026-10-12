@@ -2,6 +2,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -31,6 +32,8 @@ import { useLiveFleetVersion } from '../../utils/liveFleet';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import { SellerHomeStackParamList, SellerStackParamList } from '../../navigation/types';
 import { api } from '../../api';
+import { API_BASE } from '../../config';
+import LabelPhotoViewer from '../../components/ui/LabelPhotoViewer';
 
 type Props = CompositeScreenProps<
   NativeStackScreenProps<SellerHomeStackParamList, 'SellerOrders'>,
@@ -64,6 +67,7 @@ export default function SellerOrdersScreen({ navigation }: Props) {
   const [mapExpanded, setMapExpanded] = useState(true);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [assignedLabels, setAssignedLabels] = useState<DriverScanEntry[]>([]);
+  const [openPhotoId, setOpenPhotoId] = useState<string | null>(null);
   const now = useFreshnessTick();
   const fleetTick = useLiveFleetVersion();
 
@@ -194,6 +198,13 @@ export default function SellerOrdersScreen({ navigation }: Props) {
         />
       </ListTabBar>
 
+      <LabelPhotoViewer
+        visible={Boolean(openPhotoId)}
+        uri={openPhotoId ? `${API_BASE}/api/driver-scan/${openPhotoId}/photo` : null}
+        token={token}
+        onClose={() => setOpenPhotoId(null)}
+      />
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} />
@@ -224,6 +235,18 @@ export default function SellerOrdersScreen({ navigation }: Props) {
                 <Text style={styles.labelsTitle}>Etiquetas asociadas</Text>
                 {pendingLabels.map((entry) => (
                   <View key={entry.id} style={styles.labelCard}>
+                    {entry.hasPhoto && token ? (
+                      <Pressable onPress={() => setOpenPhotoId(entry.id)}>
+                        <Image
+                          source={{
+                            uri: `${API_BASE}/api/driver-scan/${entry.id}/photo`,
+                            headers: { Authorization: `Bearer ${token}` },
+                          }}
+                          style={styles.labelPhoto}
+                        />
+                        <Text style={styles.labelPhotoHint}>Tocá para verla en grande</Text>
+                      </Pressable>
+                    ) : null}
                     <Text style={styles.labelName} numberOfLines={1}>
                       {entry.clientName?.trim() || 'Sin nombre'}
                     </Text>
@@ -347,6 +370,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     color: colors.textMuted,
+  },
+  labelPhoto: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceAlt,
+  },
+  labelPhotoHint: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textFaint,
+    marginTop: 4,
+    marginBottom: spacing.xs,
   },
   labelCard: {
     backgroundColor: colors.surface,

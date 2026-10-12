@@ -33,6 +33,7 @@ import MonoLabel from '../components/ui/MonoLabel';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
 import SellerPickerSheet, { SellerOption } from '../components/ui/SellerPickerSheet';
+import LabelPhotoViewer from '../components/ui/LabelPhotoViewer';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import { formatScanCodeLabel, stripAddressReference } from '../utils/scanCodeLabel';
 import { RepartidorHomeStackParamList, RepartidorStackParamList } from '../navigation/types';
@@ -124,6 +125,7 @@ export default function OrdersScreen({ navigation }: Props) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sellers, setSellers] = useState<SellerOption[]>([]);
   const [sellerEditEntry, setSellerEditEntry] = useState<DriverScanEntry | null>(null);
+  const [openPhotoId, setOpenPhotoId] = useState<string | null>(null);
 
   const loadPersonal = useCallback(
     async (opts?: { soft?: boolean }) => {
@@ -413,13 +415,16 @@ export default function OrdersScreen({ navigation }: Props) {
         <View style={styles.personalCardTop}>
           <View style={styles.personalCardText}>
             {item.hasPhoto && token ? (
-              <Image
-                source={{
-                  uri: `${API_BASE}/api/driver-scan/${item.id}/photo`,
-                  headers: { Authorization: `Bearer ${token}` },
-                }}
-                style={styles.personalPhoto}
-              />
+              <Pressable onPress={() => setOpenPhotoId(item.id)}>
+                <Image
+                  source={{
+                    uri: `${API_BASE}/api/driver-scan/${item.id}/photo`,
+                    headers: { Authorization: `Bearer ${token}` },
+                  }}
+                  style={styles.personalPhoto}
+                />
+                <Text style={styles.personalPhotoHint}>Tocá para verla en grande</Text>
+              </Pressable>
             ) : null}
             <Text style={styles.personalCode} numberOfLines={1}>
               {item.clientName?.trim() || 'Sin nombre'}
@@ -551,6 +556,13 @@ export default function OrdersScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <LabelPhotoViewer
+        visible={Boolean(openPhotoId)}
+        uri={openPhotoId ? `${API_BASE}/api/driver-scan/${openPhotoId}/photo` : null}
+        token={token}
+        onClose={() => setOpenPhotoId(null)}
+      />
 
       <SellerPickerSheet
         visible={Boolean(sellerEditEntry)}
@@ -877,8 +889,12 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 140,
     borderRadius: 10,
-    marginBottom: spacing.sm,
     backgroundColor: colors.surfaceAlt,
+  },
+  personalPhotoHint: {
+    ...typography.body(12, colors.textFaint),
+    marginTop: 4,
+    marginBottom: spacing.sm,
   },
   personalCode: {
     ...typography.body(14, colors.text),
