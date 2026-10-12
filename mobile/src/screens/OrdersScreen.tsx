@@ -24,12 +24,10 @@ import { API_BASE } from '../config';
 import { DriverScanEntry, Order, OrderStatus, RouteStop } from '../types';
 import { colors, roleAccents, spacing, typography } from '../theme';
 import OrderCard from '../components/OrderCard';
-import RepartidorMlConnectBar from '../components/RepartidorMlConnectBar';
 import ConnectionBadge from '../components/ui/ConnectionBadge';
 import EmptyState from '../components/ui/EmptyState';
 import ListTabBar from '../components/ui/ListTabBar';
 import ListTabButton from '../components/ui/ListTabButton';
-import MonoLabel from '../components/ui/MonoLabel';
 import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
 import SellerPickerSheet, { SellerOption } from '../components/ui/SellerPickerSheet';
@@ -43,13 +41,6 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RepartidorStackParamList>
 >;
 type Tab = 'assigned' | 'available' | 'personal';
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-}
 
 function formatScanTime(iso: string): string {
   try {
@@ -186,7 +177,6 @@ export default function OrdersScreen({ navigation }: Props) {
   );
 
   const data = tab === 'assigned' ? myAssigned : available;
-  const displayName = user?.name ?? 'Repartidor';
   const showStartRoute = tab === 'assigned' && readyToDeliver.length > 0 && !deliveringOrder;
   const showContinueRoute = tab === 'assigned' && deliveringOrder != null;
   const showPlanRoute =
@@ -573,30 +563,15 @@ export default function OrdersScreen({ navigation }: Props) {
       />
 
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.avatar, { backgroundColor: `${accent}18`, borderColor: `${accent}44` }]}>
-            <Text style={[styles.avatarText, { color: accent }]}>{initials(displayName)}</Text>
-          </View>
-          <View style={styles.headerText}>
-            <MonoLabel color={colors.textFaint}>Repartidor</MonoLabel>
-            <Text style={typography.displayTitle(20)} numberOfLines={1}>
-              {displayName}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.headerRight}>
-          <Pressable
-            style={[styles.scanBtn, { backgroundColor: `${accent}18`, borderColor: `${accent}44` }]}
-            onPress={() => navigation.navigate('ScanLabel')}
-            hitSlop={8}
-          >
-            <PostaIcon name="scan" size={20} color={accent} />
-          </Pressable>
-          <ConnectionBadge connected={connected} />
-        </View>
+        <Pressable
+          style={[styles.scanBtn, { backgroundColor: `${accent}18`, borderColor: `${accent}44` }]}
+          onPress={() => navigation.navigate('ScanLabel')}
+          hitSlop={8}
+        >
+          <PostaIcon name="scan" size={20} color={accent} />
+        </Pressable>
+        <ConnectionBadge connected={connected} />
       </View>
-
-      <RepartidorMlConnectBar />
 
       <ListTabBar>
         <ListTabButton
@@ -782,37 +757,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  headerLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    minWidth: 0,
-  },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: 'SpaceMono_700Bold',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  headerText: { flex: 1, minWidth: 0 },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.sm,
   },
   scanBtn: {
