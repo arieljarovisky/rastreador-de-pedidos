@@ -111,7 +111,7 @@ function RiderScreen() {
         <circle cx="28" cy="150" r="5" fill="#1a1714" />
         <circle cx="196" cy="48" r="6" fill="#e23b16" />
         <g className="rider-dot">
-          <circle r="6" fill="#dff56a" stroke="#1a1714" strokeWidth="2" />
+          <circle r="6" fill="#ff5a2a" stroke="#1a1714" strokeWidth="2" />
         </g>
       </svg>
       <div className="mt-auto space-y-2 text-xs">
@@ -144,7 +144,7 @@ function Phone({ className = '' }: { className?: string }) {
       onScreenTap={() => {}}
       dynamicIslandContent={
         <div className="flex w-full items-center gap-2 text-left text-white">
-          <span className="size-1.5 shrink-0 rounded-full bg-[#dff56a]" />
+          <span className="size-1.5 shrink-0 rounded-full bg-[#ff5a2a]" />
           <div className="min-w-0 leading-tight">
             <div className="truncate text-[11px] font-medium">Lucía Paz · en viaje</div>
             <div className="truncate text-[10px] text-white/65">Rivadavia 4100 · 6 min</div>

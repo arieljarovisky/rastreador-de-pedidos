@@ -6,7 +6,7 @@ import { isStaleLocation } from './locationFreshness';
 import { spreadOverlappingMarkers } from './markerSpread';
 
 const COLORS = {
-  repartidor: '#DFF56A',
+  repartidor: '#FF5A2A',
   delivering: '#E6B15A',
   assigned: '#9AA3B5',
   pending: '#8D887F',

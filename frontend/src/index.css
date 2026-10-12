@@ -322,7 +322,7 @@
 
   .posta-tab-active {
     background: var(--color-accent);
-    color: #f6f0e4;
+    color: var(--cta-ink);
   }
 
   [data-theme="paper"] .posta-tab-active {
@@ -1888,13 +1888,13 @@
   --secondary-foreground: #1a1714;
   --muted: #ebe6dc;
   --muted-foreground: #6d675e;
-  --accent: #3d6212;
+  --accent: #e23b16;
   --accent-foreground: #f6f1e6;
   --destructive: #a33b32;
   --border: #ddd6c8;
   --input: #ddd6c8;
-  --ring: #3d6212;
-  --chart-1: #3d6212;
+  --ring: #e23b16;
+  --chart-1: #e23b16;
   --chart-2: #9a6410;
   --chart-3: #2f6b45;
   --chart-4: #6d675e;
@@ -1907,7 +1907,7 @@
   --sidebar-accent: #ebe6dc;
   --sidebar-accent-foreground: #1a1714;
   --sidebar-border: #ddd6c8;
-  --sidebar-ring: #3d6212;
+  --sidebar-ring: #e23b16;
 }
 
 .dark,
@@ -1924,13 +1924,13 @@
   --secondary-foreground: #f3f0e8;
   --muted: #1e222c;
   --muted-foreground: #a39e94;
-  --accent: #dff56a;
+  --accent: #ff5a2a;
   --accent-foreground: #12141a;
   --destructive: #e07a72;
   --border: #2c3140;
   --input: #2c3140;
-  --ring: #dff56a;
-  --chart-1: #dff56a;
+  --ring: #ff5a2a;
+  --chart-1: #ff5a2a;
   --chart-2: #e6b15a;
   --chart-3: #7dcea0;
   --chart-4: #9aa3b5;
@@ -1942,7 +1942,7 @@
   --sidebar-accent: #1e222c;
   --sidebar-accent-foreground: #f3f0e8;
   --sidebar-border: #2c3140;
-  --sidebar-ring: #dff56a;
+  --sidebar-ring: #ff5a2a;
 }
 
 /* El bloque de arriba reutiliza --muted como superficie. El texto del tema claro no puede depender de esa variable. */
@@ -1958,8 +1958,8 @@
   --color-text-faint: #5c564c;
   --foreground: #1a1714;
   --muted-foreground: #4a453d;
-  --accent: #3d6212;
-  --color-accent: #3d6212;
+  --accent: #e23b16;
+  --color-accent: #e23b16;
 }
 
 /* Microetiquetas del panel: misma voz que la landing, sin mono en mayúsculas. */

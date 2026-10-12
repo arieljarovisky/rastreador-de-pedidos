@@ -5,8 +5,8 @@ import { readLiveLocation, useLiveFleetVersion } from '../utils/liveFleet';
 
 const MAP_COLORS = {
   destination: '#FF5A2A',
-  driver: '#DFF56A',
-  route: '#DFF56A',
+  driver: '#FF5A2A',
+  route: '#FF5A2A',
 };
 
 interface Props {

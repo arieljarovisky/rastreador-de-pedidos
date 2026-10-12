@@ -4,24 +4,24 @@
 import type { PostaTheme } from './usePostaTheme.ts';
 
 export const POSTA_MAP_DARK = {
-  route: '#DFF56A',
+  route: '#FF5A2A',
   destination: '#FF5A2A',
-  departure: '#DFF56A',
-  departureRing: 'rgba(223, 245, 106, 0.25)',
+  departure: '#FF5A2A',
+  departureRing: 'rgba(255, 90, 42, 0.25)',
   pickup: '#9AA3B5',
 } as const;
 
 export const POSTA_MAP_PAPER = {
-  route: '#3D6212',
+  route: '#E23B16',
   destination: '#E23B16',
-  departure: '#3D6212',
-  departureRing: 'rgba(61, 98, 18, 0.2)',
+  departure: '#E23B16',
+  departureRing: 'rgba(226, 59, 22, 0.2)',
   pickup: '#6D675E',
 } as const;
 
 export const POSTA_STATUS_DARK = {
   pending: '#8D887F',
-  assigned: '#DFF56A',
+  assigned: '#FF5A2A',
   delivering: '#E6B15A',
   delivered: '#7DCEA0',
   cancelled: '#E07A72',
@@ -29,7 +29,7 @@ export const POSTA_STATUS_DARK = {
 
 export const POSTA_STATUS_PAPER = {
   pending: '#6D675E',
-  assigned: '#3D6212',
+  assigned: '#E23B16',
   delivering: '#9A6410',
   delivered: '#2F6B45',
   cancelled: '#A33B32',
