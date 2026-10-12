@@ -78,10 +78,10 @@ const PLAN_POINTS = [
 ];
 
 const SHOPS = [
-  { name: 'Mercado Libre', sub: 'Flex', mark: 'ML', note: 'Traé los envíos Flex de a uno o en masa. Los webhooks mantienen todo sincronizado.' },
-  { name: 'Tienda Nube', sub: 'Express', mark: 'TN', note: 'Sincronizá tus pedidos Express y seguilos dentro de Posta, junto al resto.' },
-  { name: 'Shopify', sub: 'Domicilio', mark: 'Sh', note: 'Cada venta con envío a domicilio aparece sola, lista para asignar.' },
-  { name: 'WooCommerce', sub: 'Domicilio', mark: 'Woo', note: 'Pegás las claves de tu tienda y los pedidos pagos se importan solos.' },
+  { name: 'Mercado Libre', sub: 'Flex', logo: '/mercadolibre-logo.png', note: 'Traé los envíos Flex de a uno o en masa. Los webhooks mantienen todo sincronizado.' },
+  { name: 'Tienda Nube', sub: 'Express', logo: '/tiendanube-logo.png', note: 'Sincronizá tus pedidos Express y seguilos dentro de Posta, junto al resto.' },
+  { name: 'Shopify', sub: 'Domicilio', logo: '/shopify-logo.svg', note: 'Cada venta con envío a domicilio aparece sola, lista para asignar.' },
+  { name: 'WooCommerce', sub: 'Domicilio', logo: '/woocommerce-logo.svg', note: 'Pegás las claves de tu tienda y los pedidos pagos se importan solos.' },
 ];
 
 function Logo({ className = '' }: { className?: string }) {
@@ -539,8 +539,10 @@ export function LandingPage() {
             <HaloCard key={shop.name} aria-label={shop.name} padding="lg" translucent={false} interactive={false}>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-serif-display text-3xl italic">{shop.mark}</p>
-                  <h3 className="mt-2 text-lg">{shop.name}</h3>
+                  <span className="grid h-12 w-14 place-items-center rounded-xl bg-white">
+                    <img src={shop.logo} alt="" className="max-h-8 max-w-10 object-contain" />
+                  </span>
+                  <h3 className="mt-3 text-lg">{shop.name}</h3>
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{shop.sub}</p>
                 </div>
                 <HaloBadge live>Conectado</HaloBadge>
