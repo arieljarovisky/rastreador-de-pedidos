@@ -22,6 +22,7 @@ interface AgencyOrdersState {
   assignSeller: (orderId: string, sellerId: string) => Promise<Order>;
   updateStatus: (orderId: string, status: OrderStatus, comment?: string) => Promise<Order>;
   cancelOrder: (orderId: string) => Promise<Order>;
+  restoreOrder: (orderId: string) => Promise<Order>;
   deleteOrder: (orderId: string) => Promise<void>;
   archiveOrder: (orderId: string, archived: boolean) => Promise<Order>;
 }
@@ -127,6 +128,16 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
     [token, refreshAll]
   );
 
+  const restoreOrder = useMemo(
+    () => async (orderId: string) => {
+      if (!token) throw new Error('Sin sesión');
+      const order = await api.restoreCancelledOrder(token, orderId);
+      await refreshAll();
+      return order;
+    },
+    [token, refreshAll]
+  );
+
   const cancelOrder = useMemo(
     () => async (orderId: string) => {
       if (!token) throw new Error('Sin sesión');
@@ -174,6 +185,7 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
       assignSeller,
       updateStatus,
       cancelOrder,
+      restoreOrder,
       deleteOrder,
       archiveOrder,
     }),
@@ -194,6 +206,7 @@ export function AgencyOrdersProvider({ children }: { children: React.ReactNode }
       assignSeller,
       updateStatus,
       cancelOrder,
+      restoreOrder,
       deleteOrder,
       archiveOrder,
     ]

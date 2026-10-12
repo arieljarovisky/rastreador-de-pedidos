@@ -41,6 +41,7 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
     assignSeller,
     updateStatus,
     cancelOrder,
+    restoreOrder,
     deleteOrder,
     archiveOrder,
   } = useAgencyOrdersContext();
@@ -337,6 +338,30 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
               />
             )}
           </View>
+        )}
+
+        {order.status === OrderStatus.CANCELLED && (
+          <Button
+            label="Volver a activar"
+            loading={busy}
+            onPress={() =>
+              Alert.alert(
+                'Volver a activar',
+                `¿Reactivar ${order.id}? Vuelve al estado que tenía antes de cancelarse.`,
+                [
+                  { text: 'No', style: 'cancel' },
+                  {
+                    text: 'Reactivar',
+                    onPress: () =>
+                      run(async () => {
+                        await restoreOrder(order.id);
+                      }),
+                  },
+                ]
+              )
+            }
+            style={{ marginTop: spacing.lg }}
+          />
         )}
 
         {!isOpen && !order.archived && (

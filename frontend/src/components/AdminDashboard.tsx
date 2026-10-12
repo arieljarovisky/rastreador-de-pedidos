@@ -192,6 +192,7 @@ interface AdminDashboardProps {
   onAssignOrderSeller?: (orderId: string, sellerId: string) => Promise<void>;
   onDeleteOrder?: (orderId: string) => Promise<void>;
   onArchiveOrder?: (orderId: string, archived: boolean) => Promise<void>;
+  onRestoreOrder?: (orderId: string) => Promise<void>;
   onScheduleOrderToday?: (orderId: string) => Promise<void>;
   userRole?: UserRole;
   onOpenShippingLabel?: (orderId: string) => Promise<void>;
@@ -328,6 +329,7 @@ export default function AdminDashboard({
   onAssignOrderSeller,
   onDeleteOrder,
   onArchiveOrder,
+  onRestoreOrder,
   onScheduleOrderToday,
   userRole = UserRole.STORE_ADMIN,
   onOpenShippingLabel,
@@ -1258,6 +1260,25 @@ export default function AdminDashboard({
             } catch {
               // El error ya se muestra en handleUpdateOrderStatus
             }
+          });
+        },
+      });
+    }
+
+    if (agency && order.status === OrderStatus.CANCELLED && onRestoreOrder) {
+      items.push({
+        id: 'restore',
+        label: 'Volver a activar',
+        onClick: () => {
+          void confirm({
+            title: 'Volver a activar',
+            message: `¿Reactivar el pedido ${order.id}?\n\nVuelve al estado que tenía antes de cancelarse.`,
+            variant: 'warning',
+            confirmText: 'Reactivar',
+            cancelText: 'Volver',
+          }).then((ok) => {
+            if (!ok) return;
+            void onRestoreOrder(order.id);
           });
         },
       });
@@ -2859,6 +2880,29 @@ export default function AdminDashboard({
                         })()}
                       </div>
                     )
+                  )}
+
+                  {selectedOrder.status === OrderStatus.CANCELLED &&
+                    isAgencyAdmin(userRole) &&
+                    onRestoreOrder && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void confirm({
+                          title: 'Volver a activar',
+                          message: `¿Reactivar el pedido ${selectedOrder.id}?\n\nVuelve al estado que tenía antes de cancelarse.`,
+                          variant: 'warning',
+                          confirmText: 'Reactivar',
+                          cancelText: 'Volver',
+                        }).then((ok) => {
+                          if (!ok) return;
+                          void onRestoreOrder(selectedOrder.id);
+                        });
+                      }}
+                      className="w-full text-center py-1 border border-[var(--color-accent)]/30 hover:border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-bold text-[10px] uppercase tracking-wider rounded transition"
+                    >
+                      Volver a activar
+                    </button>
                   )}
 
                   {/* Estado del pedido: entregar (no-ML) y cancelar */}

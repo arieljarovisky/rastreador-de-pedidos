@@ -18,6 +18,7 @@ interface RegistroPageProps {
     repartidorId?: string,
     comment?: string
   ) => Promise<void>;
+  onRestoreOrder?: (orderId: string) => Promise<void>;
   onMarkOrdersDelivered?: (orderIds: string[]) => Promise<{
     updated: number;
     skipped: number;
@@ -34,6 +35,7 @@ export default function RegistroPage({
   userRole,
   initialSellerId = null,
   onUpdateOrderStatus,
+  onRestoreOrder,
   onMarkOrdersDelivered,
   onSelectOrder,
 }: RegistroPageProps) {
@@ -46,6 +48,7 @@ export default function RegistroPage({
         userRole={userRole}
         initialSellerId={initialSellerId}
         onUpdateOrderStatus={onUpdateOrderStatus}
+        onRestoreOrder={onRestoreOrder}
         onMarkOrdersDelivered={onMarkOrdersDelivered}
         onSelectOrder={onSelectOrder}
       />

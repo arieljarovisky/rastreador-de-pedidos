@@ -489,6 +489,13 @@ export const api = {
   },
 
   /** Vendedor: cancelar (pending) u otros cambios permitidos. */
+  restoreCancelledOrder(token: string, orderId: string): Promise<Order> {
+    return request<Order>(`/api/orders/${orderId}/restore`, {
+      method: 'POST',
+      token,
+    });
+  },
+
   cancelOrder(token: string, orderId: string, comment?: string): Promise<Order> {
     return request<Order>(`/api/orders/${orderId}/status`, {
       method: 'PUT',

@@ -8,6 +8,7 @@ import {
   createOrder,
   updateOrderStatus,
   markOrdersDelivered,
+  restoreCancelledOrder,
   addOrderIncident,
   reportOrderLocation,
   reportOrderLocationsBatch,
@@ -658,6 +659,31 @@ router.post('/mark-delivered', authenticate, async (req: Request, res: Response)
       return;
     }
     throw err;
+  }
+});
+
+router.post('/:id/restore', authenticate, requireAgencyAdmin(), async (req: Request, res: Response) => {
+  try {
+    const order = await restoreCancelledOrder(req.user!, req.params.id);
+    const sellerId = await getSellerIdForOrder(order.id);
+    emitOrderUpdated(order, sellerId);
+    res.json(order);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Pedido no encontrado.' });
+      return;
+    }
+    if (message === 'FORBIDDEN') {
+      res.status(403).json({ error: 'No tenés permiso para reactivar este pedido.' });
+      return;
+    }
+    if (message === 'NOT_CANCELLED') {
+      res.status(400).json({ error: 'Este pedido no está cancelado.' });
+      return;
+    }
+    console.error('[orders] restore', err);
+    res.status(500).json({ error: 'No se pudo reactivar el pedido.' });
   }
 });
 

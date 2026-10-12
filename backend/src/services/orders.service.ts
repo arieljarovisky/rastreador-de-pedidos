@@ -1944,6 +1944,89 @@ export async function updateOrderStatus(
   };
 }
 
+function statusBeforeCancellation(order: Order): OrderStatus {
+  for (let i = order.history.length - 1; i >= 0; i -= 1) {
+    const status = order.history[i]?.status;
+    if (
+      status === OrderStatus.PENDING ||
+      status === OrderStatus.ASSIGNED ||
+      status === OrderStatus.DELIVERING
+    ) {
+      return status;
+    }
+  }
+  return order.repartidorId ? OrderStatus.ASSIGNED : OrderStatus.PENDING;
+}
+
+/** La agencia deshace una cancelación y el pedido vuelve al estado anterior. */
+export async function restoreCancelledOrder(user: User, orderId: string): Promise<Order> {
+  if (!isAgencyAdmin(user.role)) throw new Error('FORBIDDEN');
+
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error('NOT_FOUND');
+  if (!belongsToUserAgency(user, order.agencyId)) throw new Error('FORBIDDEN');
+  if (order.status !== OrderStatus.CANCELLED) throw new Error('NOT_CANCELLED');
+
+  let nextStatus = statusBeforeCancellation(order);
+  let assignedRepartidorId = order.repartidorId;
+
+  if (
+    (nextStatus === OrderStatus.ASSIGNED || nextStatus === OrderStatus.DELIVERING) &&
+    !assignedRepartidorId
+  ) {
+    nextStatus = OrderStatus.PENDING;
+  }
+  if (nextStatus === OrderStatus.PENDING) {
+    assignedRepartidorId = null;
+  }
+
+  if (nextStatus === OrderStatus.DELIVERING && assignedRepartidorId) {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT id FROM orders
+       WHERE repartidor_id = ? AND status = ? AND id <> ?
+       LIMIT 1`,
+      [assignedRepartidorId, OrderStatus.DELIVERING, orderId]
+    );
+    if (rows.length > 0) nextStatus = OrderStatus.ASSIGNED;
+  }
+
+  const now = new Date();
+  const label =
+    nextStatus === OrderStatus.PENDING
+      ? 'pendiente'
+      : nextStatus === OrderStatus.ASSIGNED
+        ? 'asignado'
+        : 'en viaje';
+
+  await pool.query(
+    `UPDATE orders
+     SET status = ?, repartidor_id = ?, archived = 0, updated_at = ?
+     WHERE id = ?`,
+    [nextStatus, assignedRepartidorId, now, orderId]
+  );
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [orderId, nextStatus, user.name, `Reactivado. Volvió a ${label}.`, now]
+  );
+
+  if (order.externalSource === 'foto' && order.externalOrderId) {
+    await pool
+      .query(
+        `UPDATE driver_scan_entries
+         SET status = 'pending', delivered_at = NULL
+         WHERE id = ?`,
+        [order.externalOrderId]
+      )
+      .catch((err) => {
+        console.warn('[driver-scan] no se pudo reactivar la etiqueta foto:', err);
+      });
+  }
+
+  const updated = await getOrderById(orderId);
+  if (!updated) throw new Error('NOT_FOUND');
+  return updated;
+}
+
 const MAX_BULK_DELIVER = 200;
 
 /** Marca varios envíos como entregados. Mercado Libre y los ya cerrados se omiten. */

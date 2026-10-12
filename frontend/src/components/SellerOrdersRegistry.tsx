@@ -45,6 +45,7 @@ interface SellerOrdersRegistryProps {
     repartidorId?: string,
     comment?: string
   ) => Promise<void>;
+  onRestoreOrder?: (orderId: string) => Promise<void>;
   onMarkOrdersDelivered?: (orderIds: string[]) => Promise<{
     updated: number;
     skipped: number;
@@ -125,6 +126,7 @@ export default function SellerOrdersRegistry({
   userRole,
   initialSellerId = null,
   onUpdateOrderStatus,
+  onRestoreOrder,
   onMarkOrdersDelivered,
   onSelectOrder,
 }: SellerOrdersRegistryProps) {
@@ -400,6 +402,27 @@ export default function SellerOrdersRegistry({
       personal: includePersonal ? personalBase.length : 0,
     };
   }, [postaStats, includePersonal, personalEntries, marketplaceSource]);
+
+  const restoreCancelled = async (order: Order) => {
+    if (!onRestoreOrder) return;
+    const ok = await confirm({
+      title: 'Volver a activar',
+      message: `¿Reactivar el pedido ${order.id}?\n\nVuelve al estado que tenía antes de cancelarse.`,
+      variant: 'warning',
+      confirmText: 'Reactivar',
+      cancelText: 'Volver',
+    });
+    if (!ok) return;
+    setBusyId(order.id);
+    try {
+      await onRestoreOrder(order.id);
+      void loadRegistryPage();
+    } catch {
+      // El aviso lo muestra quien llama a la API.
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const markPostaDelivered = async (order: Order) => {
     if (order.externalSource === 'mercadolibre') {
@@ -933,6 +956,15 @@ export default function SellerOrdersRegistry({
                             >
                               <CheckCircle2 className="w-3 h-3" />
                               Entregado
+                            </button>
+                          ) : order.status === OrderStatus.CANCELLED && agency && onRestoreOrder ? (
+                            <button
+                              type="button"
+                              disabled={busyId === order.id}
+                              onClick={() => void restoreCancelled(order)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-mono font-bold text-[9px] uppercase tracking-wider hover:bg-[var(--color-accent)]/15 disabled:opacity-50"
+                            >
+                              Reactivar
                             </button>
                           ) : (
                             <span className="text-[var(--color-text-faint)]">—</span>

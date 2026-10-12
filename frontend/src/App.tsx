@@ -2166,6 +2166,24 @@ export default function App() {
     }
   };
 
+  const handleRestoreOrder = async (orderId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(apiUrl(`/api/orders/${orderId}/restore`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'No se pudo reactivar el pedido');
+      mergeOrder(body as Order);
+      void fetchData();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'No se pudo reactivar el pedido';
+      void showAlert({ title: 'No se pudo reactivar', message, variant: 'error' });
+      throw e;
+    }
+  };
+
   const handleArchiveOrder = async (orderId: string, archived: boolean) => {
     if (!token) return;
     try {
@@ -2652,6 +2670,7 @@ export default function App() {
                       onAssignOrderSeller={handleAssignOrderSeller}
                       onDeleteOrder={handleDeleteOrder}
                       onArchiveOrder={handleArchiveOrder}
+                      onRestoreOrder={handleRestoreOrder}
                       onScheduleOrderToday={handleScheduleOrderToday}
                       userRole={user.role}
                       onOpenShippingLabel={handleOpenShippingLabel}
@@ -2724,6 +2743,7 @@ export default function App() {
                   userRole={user.role}
                   initialSellerId={registroSellerId}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onRestoreOrder={handleRestoreOrder}
                   onMarkOrdersDelivered={handleMarkOrdersDelivered}
                   onSelectOrder={(orderId) => {
                     setActiveOrderId(orderId);
