@@ -74,6 +74,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const [pendingAddressEntry, setPendingAddressEntry] = useState<DriverScanEntry | null>(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const [ocrReading, setOcrReading] = useState(false);
+  const [captureMode, setCaptureMode] = useState(false);
   const [sellers, setSellers] = useState<SellerOption[]>([]);
   const [sellersReady, setSellersReady] = useState(false);
   const [assignment, setAssignment] = useState<ScanAssignment | null>(null);
@@ -81,6 +82,58 @@ export default function ScanLabelScreen({ navigation }: Props) {
   const lastCodeRef = useRef<string | null>(null);
   const busyRef = useRef(false);
   const cameraRef = useRef<CameraView>(null);
+  const captureWaiter = useRef<{
+    resolve: (uri: string) => void;
+    reject: (err: Error) => void;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!captureMode || !captureWaiter.current) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const waiter = captureWaiter.current;
+        if (!waiter || cancelled) return;
+        const shoot = async () => {
+          const photo = await cameraRef.current?.takePictureAsync({
+            quality: 0.55,
+            skipProcessing: true,
+          });
+          if (!photo?.uri) throw new Error('NO_PHOTO');
+          return photo.uri;
+        };
+        try {
+          waiter.resolve(await shoot());
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          if (cancelled || captureWaiter.current !== waiter) return;
+          try {
+            waiter.resolve(await shoot());
+          } catch {
+            waiter.reject(
+              new Error('No se pudo sacar la foto. Alejá un poco el celular e intentá de nuevo.')
+            );
+          }
+        } finally {
+          if (captureWaiter.current === waiter) captureWaiter.current = null;
+          setCaptureMode(false);
+        }
+      })();
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [captureMode]);
+
+  const takeStill = useCallback(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        captureWaiter.current = { resolve, reject };
+        setCaptureMode(true);
+      }),
+    []
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -118,23 +171,19 @@ export default function ScanLabelScreen({ navigation }: Props) {
     );
   }, []);
 
-  /** Foto + OCR de la etiqueta mientras sigue en el encuadre. */
+  /** Foto + OCR de la etiqueta. El lector de QR se apaga antes: en Android no conviven. */
   const captureLabelFields = useCallback(async () => {
     setOcrReading(true);
     try {
-      const photo = await cameraRef.current?.takePictureAsync({
-        quality: 0.85,
-        shutterSound: false,
-      });
-      if (!photo?.uri) return { address: null as string | null, clientName: null as string | null };
-      return await recognizeLabelFromPhoto(photo.uri);
+      const uri = await takeStill();
+      return await recognizeLabelFromPhoto(uri);
     } catch (err) {
       console.warn('[ocr] capture failed:', err);
       return { address: null as string | null, clientName: null as string | null };
     } finally {
       setOcrReading(false);
     }
-  }, []);
+  }, [takeStill]);
 
   const savePersonal = useCallback(
     async (
@@ -285,16 +334,12 @@ export default function ScanLabelScreen({ navigation }: Props) {
     setProcessing(true);
     setOcrReading(true);
     try {
-      const photo = await cameraRef.current?.takePictureAsync({
-        quality: 0.7,
-        shutterSound: false,
-      });
-      if (!photo?.uri) throw new Error('No se pudo sacar la foto de la etiqueta.');
-      const ocr = await recognizeLabelFromPhoto(photo.uri);
+      const photoUri = await takeStill();
+      const ocr = await recognizeLabelFromPhoto(photoUri);
       const location = await currentLocation();
       const code = `FOTO-${Date.now().toString(36)}`;
       setLastResult('Guardando foto de la etiqueta…');
-      await savePersonal(code, location, ocr, { ...scanOptions(), photoUri: photo.uri });
+      await savePersonal(code, location, ocr, { ...scanOptions(), photoUri });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo guardar la foto.';
       setLastResult(null);
@@ -304,7 +349,7 @@ export default function ScanLabelScreen({ navigation }: Props) {
       setProcessing(false);
       busyRef.current = false;
     }
-  }, [token, assignment, pendingAddressEntry, ocrReading, savePersonal, scanOptions]);
+  }, [token, assignment, pendingAddressEntry, ocrReading, savePersonal, scanOptions, takeStill]);
 
   if (!permission) {
     return (
@@ -406,9 +451,12 @@ export default function ScanLabelScreen({ navigation }: Props) {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ['qr', 'code128', 'datamatrix'] }}
+        mode="picture"
+        barcodeScannerSettings={
+          captureMode ? undefined : { barcodeTypes: ['qr', 'code128', 'datamatrix'] }
+        }
         onBarcodeScanned={
-          processing || pendingAddressEntry || ocrReading
+          captureMode || processing || pendingAddressEntry || ocrReading
             ? undefined
             : (scan) => {
                 if (scan.type !== 'qr') return;
