@@ -18,6 +18,9 @@ interface ProfileOrder {
   sellerName: string | null;
   createdAt: string;
   updatedAt: string;
+  receivedFirstName: string | null;
+  receivedLastName: string | null;
+  receivedDni: string | null;
   labelSaved: boolean;
 }
 
@@ -191,6 +194,9 @@ export default function RepartidorProfilePanel({
                             {formatWhen(order.updatedAt)}
                             {order.sellerName ? ` · ${order.sellerName}` : ''}
                             {order.labelSaved ? ' · etiqueta guardada' : ''}
+                            {order.receivedFirstName && order.receivedLastName
+                              ? ` · Recibió ${order.receivedFirstName} ${order.receivedLastName}${order.receivedDni ? ` · DNI ${order.receivedDni}` : ''}`
+                              : ''}
                           </p>
                         </div>
                         <button

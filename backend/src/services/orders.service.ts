@@ -176,6 +176,9 @@ function rowToOrder(
       ? new Date(row.delivery_deadline).toISOString()
       : undefined,
     notes: row.notes ?? undefined,
+    receivedFirstName: row.received_first_name ?? null,
+    receivedLastName: row.received_last_name ?? null,
+    receivedDni: row.received_dni ?? null,
     externalSource: row.external_source ?? null,
     externalOrderId: row.external_order_id ?? null,
     shippingType: row.shipping_type ?? null,
@@ -189,7 +192,9 @@ function rowToOrder(
 const ORDER_SELECT = `
   SELECT o.id, o.agency_id, o.seller_id, o.external_source, o.external_order_id, o.shipping_type,
          o.client_name, o.client_phone, o.address, o.lat, o.lng,
-         o.status, o.archived, o.repartidor_id, o.notes, o.created_at, o.updated_at, o.delivery_deadline,
+         o.status, o.archived, o.repartidor_id, o.notes,
+         o.received_first_name, o.received_last_name, o.received_dni,
+         o.created_at, o.updated_at, o.delivery_deadline,
          o.ml_shipment_status, o.ml_shipment_substatus,
          r.name AS repartidor_name,
          s.name AS seller_name
@@ -1742,12 +1747,28 @@ export async function assignOrderToSeller(
   return updated;
 }
 
+const RECIPIENT_NAME = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]{1,79}$/;
+
+export function parseDeliveryRecipient(
+  raw: unknown
+): { firstName: string; lastName: string; dni: string } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const body = raw as Record<string, unknown>;
+  const firstName = typeof body.firstName === 'string' ? body.firstName.trim().replace(/\s+/g, ' ') : '';
+  const lastName = typeof body.lastName === 'string' ? body.lastName.trim().replace(/\s+/g, ' ') : '';
+  const dni = typeof body.dni === 'string' ? body.dni.replace(/\D/g, '') : '';
+  if (!RECIPIENT_NAME.test(firstName) || !RECIPIENT_NAME.test(lastName)) return null;
+  if (!/^\d{7,8}$/.test(dni)) return null;
+  return { firstName, lastName, dni };
+}
+
 export async function updateOrderStatus(
   user: User,
   orderId: string,
   status: OrderStatus,
   repartidorId?: string,
-  comment?: string
+  comment?: string,
+  recipientRaw?: unknown
 ): Promise<Order> {
   const order = await getOrderById(orderId);
   if (!order) throw new Error('NOT_FOUND');
@@ -1755,6 +1776,16 @@ export async function updateOrderStatus(
   // Mercado Libre se confirma solo por sync/webhook; nadie lo marca a mano en Posta.
   if (status === OrderStatus.DELIVERED && order.externalSource === 'mercadolibre') {
     throw new Error('MANUAL_DELIVER_ML_FORBIDDEN');
+  }
+
+  let recipient: { firstName: string; lastName: string; dni: string } | null = null;
+  if (status === OrderStatus.DELIVERED && order.externalSource !== 'mercadolibre') {
+    const parsed = parseDeliveryRecipient(recipientRaw);
+    if (user.role === UserRole.REPARTIDOR) {
+      if (recipientRaw == null) throw new Error('RECIPIENT_REQUIRED');
+      if (!parsed) throw new Error('RECIPIENT_INVALID');
+    }
+    recipient = parsed;
   }
 
   const sellerId = await getSellerIdForOrder(orderId);
@@ -1820,14 +1851,37 @@ export async function updateOrderStatus(
     }
   }
 
-  await pool.query(
-    'UPDATE orders SET status = ?, repartidor_id = ?, updated_at = ? WHERE id = ?',
-    [status, assignedRepartidorId, now, orderId]
-  );
+  const receiptNote = recipient
+    ? `Recibió ${recipient.firstName} ${recipient.lastName} · DNI ${recipient.dni}`
+    : '';
+  const historyComment = [comment?.trim(), receiptNote].filter(Boolean).join('. ');
+
+  if (recipient) {
+    await pool.query(
+      `UPDATE orders
+       SET status = ?, repartidor_id = ?, updated_at = ?,
+           received_first_name = ?, received_last_name = ?, received_dni = ?
+       WHERE id = ?`,
+      [
+        status,
+        assignedRepartidorId,
+        now,
+        recipient.firstName,
+        recipient.lastName,
+        recipient.dni,
+        orderId,
+      ]
+    );
+  } else {
+    await pool.query(
+      'UPDATE orders SET status = ?, repartidor_id = ?, updated_at = ? WHERE id = ?',
+      [status, assignedRepartidorId, now, orderId]
+    );
+  }
 
   await pool.query(
     `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
-    [orderId, status, user.name, comment ?? '', now]
+    [orderId, status, user.name, historyComment, now]
   );
 
   if (status === OrderStatus.DELIVERING) {

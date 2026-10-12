@@ -23,7 +23,12 @@ import {
 import { getDeliverySummaryForUser } from '../services/delivery-dashboard.service.js';
 import { createNotification } from '../services/notifications.service.js';
 import { getMercadoLibreShippingLabelPdf, extractMlOrderIdFromNotes } from '../services/mercadolibre.service.js';
-import { findSavedOrderLabel, saveOrderLabel } from '../services/label-archive.service.js';
+import {
+  findSavedOrderLabel,
+  isOrderLabelUnavailable,
+  markOrderLabelUnavailable,
+  saveOrderLabel,
+} from '../services/label-archive.service.js';
 import {
   generatePostaShippingLabelPdf,
   generatePostaShippingLabelsSheetPdf,
@@ -377,6 +382,14 @@ async function sendMercadoLibreLabel(
   sellerId: string
 ): Promise<void> {
   if (await sendSavedLabel(res, order.id)) return;
+  if (await isOrderLabelUnavailable(order.id)) {
+    res.status(409).json({
+      error:
+        'Mercado Libre ya no entrega esta etiqueta y no había quedado guardada antes de marcarla entregada.',
+      code: 'ML_ALREADY_DELIVERED',
+    });
+    return;
+  }
   try {
     const pdf = await getMercadoLibreShippingLabelPdf(sellerId, order.externalOrderId!, {
       alternateRef: extractMlOrderIdFromNotes(order.notes),
@@ -391,6 +404,9 @@ async function sendMercadoLibreLabel(
   } catch (err) {
     if (await sendSavedLabel(res, order.id)) return;
     const code = err instanceof Error ? err.message : 'ML_LABEL_UNAVAILABLE';
+    if (code === 'ML_ALREADY_DELIVERED') {
+      await markOrderLabelUnavailable(order.id, code);
+    }
     if (code === 'ML_ALREADY_DELIVERED' || code === 'ML_LABEL_NOT_READY') {
       try {
         const synced = await syncMercadoLibreOrderLiveStatus(null, order);
@@ -646,14 +662,21 @@ router.post('/mark-delivered', authenticate, async (req: Request, res: Response)
 });
 
 router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
-  const { status, repartidorId, comment } = req.body;
+    const { status, repartidorId, comment, recipient } = req.body;
   if (!status) {
     res.status(400).json({ error: 'El estado es requerido.' });
     return;
   }
 
   try {
-    const order = await updateOrderStatus(req.user!, req.params.id, status as OrderStatus, repartidorId, comment);
+    const order = await updateOrderStatus(
+      req.user!,
+      req.params.id,
+      status as OrderStatus,
+      repartidorId,
+      comment,
+      recipient
+    );
 
     if (status === OrderStatus.ASSIGNED && repartidorId && req.user!.role !== UserRole.REPARTIDOR) {
       try {
@@ -705,6 +728,16 @@ router.put('/:id/status', authenticate, async (req: Request, res: Response) => {
     }
     if (message === 'FORBIDDEN') {
       res.status(403).json({ error: 'Este pedido no está asignado a ti.' });
+      return;
+    }
+    if (message === 'RECIPIENT_REQUIRED' || message === 'RECIPIENT_INVALID') {
+      res.status(400).json({
+        error:
+          message === 'RECIPIENT_REQUIRED'
+            ? 'Para entregar este pedido cargá nombre, apellido y DNI de quien lo recibe.'
+            : 'Revisá el nombre, el apellido y el DNI (7 u 8 números).',
+        code: message,
+      });
       return;
     }
     if (message === 'MANUAL_DELIVER_ML_FORBIDDEN') {

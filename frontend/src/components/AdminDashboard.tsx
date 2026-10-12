@@ -2604,6 +2604,12 @@ export default function AdminDashboard({
                     <MarketplaceSourceIcon source={selectedOrder.externalSource} size="md" />
                   </h3>
                   <p className="text-[10px] text-[var(--color-text-muted)] font-sans mt-0.5">Destinatario: {selectedOrder.clientName}</p>
+                  {selectedOrder.receivedFirstName && selectedOrder.receivedLastName && (
+                    <p className="text-[10px] text-[var(--color-text-muted)] font-sans mt-0.5">
+                      Recibió: {selectedOrder.receivedFirstName} {selectedOrder.receivedLastName}
+                      {selectedOrder.receivedDni ? ` · DNI ${selectedOrder.receivedDni}` : ''}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => handleSelectOrder(null)}

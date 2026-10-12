@@ -18,7 +18,11 @@ interface OrdersState {
   updateStatus: (
     orderId: string,
     status: OrderStatus,
-    opts?: { repartidorId?: string; comment?: string }
+    opts?: {
+      repartidorId?: string;
+      comment?: string;
+      recipient?: { firstName: string; lastName: string; dni: string };
+    }
   ) => Promise<Order>;
   getOrder: (orderId: string) => Order | undefined;
 }
@@ -51,7 +55,11 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
       async (
         orderId: string,
         status: OrderStatus,
-        opts?: { repartidorId?: string; comment?: string }
+        opts?: {
+          repartidorId?: string;
+          comment?: string;
+          recipient?: { firstName: string; lastName: string; dni: string };
+        }
       ): Promise<Order> => {
         if (!token) throw new Error('Sin sesión');
         const updated = await api.updateOrderStatus(token, orderId, status, opts);

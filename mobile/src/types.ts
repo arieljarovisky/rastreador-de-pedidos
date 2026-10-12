@@ -89,6 +89,9 @@ export interface Order {
   history: OrderHistoryEvent[];
   locationHistory: LocationHistoryPoint[];
   notes?: string;
+  receivedFirstName?: string | null;
+  receivedLastName?: string | null;
+  receivedDni?: string | null;
   externalSource?: string | null;
   externalOrderId?: string | null;
   shippingType?: string | null;

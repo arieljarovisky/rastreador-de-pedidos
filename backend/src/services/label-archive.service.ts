@@ -23,6 +23,25 @@ export async function saveOrderLabel(
 }
 
 /** Etiqueta ya guardada en disco: la foto o el PDF de Mercado Libre. */
+/** ML ya no entrega el PDF (envío entregado y nunca se había bajado). */
+export async function markOrderLabelUnavailable(orderId: string, reason: string): Promise<void> {
+  const id = safeOrderId(orderId);
+  if (!id) return;
+  await mkdir(labelDir, { recursive: true });
+  await writeFile(path.join(labelDir, `${id}.unavailable`), reason.slice(0, 240));
+}
+
+export async function isOrderLabelUnavailable(orderId: string): Promise<boolean> {
+  const id = safeOrderId(orderId);
+  if (!id) return false;
+  try {
+    await access(path.join(labelDir, `${id}.unavailable`));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function findSavedOrderLabel(
   orderId: string
 ): Promise<{ filePath: string; contentType: string; ext: 'pdf' | 'jpg' } | null> {

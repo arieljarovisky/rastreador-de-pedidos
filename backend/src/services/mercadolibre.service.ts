@@ -1,11 +1,14 @@
 import { createHash, randomBytes } from 'crypto';
+import type { RowDataPacket } from 'mysql2';
 import { env } from '../config/env.js';
 import { sleep } from '../utils/sleep.js';
 import type { Order } from '../types/index.js';
 import { OrderStatus } from '../types/index.js';
+import { pool } from '../config/database.js';
 import {
   findOrderByExternal,
   findOrderByExternalGlobal,
+  getSellerIdForOrder,
 } from './orders.service.js';
 import {
   getIntegration,
@@ -1444,6 +1447,39 @@ export async function getMercadoLibreShippingLabelPdf(
   throw new Error('ML_LABEL_UNAVAILABLE');
 }
 
+export async function saveMercadoLibreLabelNow(input: {
+  orderId: string;
+  sellerUserId: string;
+  externalOrderId: string;
+  notes?: string | null;
+}): Promise<'saved' | 'exists' | 'unavailable' | 'failed'> {
+  const { orderId, sellerUserId, externalOrderId, notes } = input;
+  if (!orderId || !sellerUserId || !externalOrderId) return 'failed';
+  const {
+    findSavedOrderLabel,
+    isOrderLabelUnavailable,
+    markOrderLabelUnavailable,
+    saveOrderLabel,
+  } = await import('./label-archive.service.js');
+  if (await findSavedOrderLabel(orderId)) return 'exists';
+  if (await isOrderLabelUnavailable(orderId)) return 'unavailable';
+  try {
+    const pdf = await getMercadoLibreShippingLabelPdf(sellerUserId, externalOrderId, {
+      alternateRef: extractMlOrderIdFromNotes(notes),
+    });
+    await saveOrderLabel(orderId, pdf, 'pdf');
+    return 'saved';
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'ERROR';
+    if (message === 'ML_ALREADY_DELIVERED') {
+      await markOrderLabelUnavailable(orderId, message);
+      return 'unavailable';
+    }
+    console.warn('[label-archive] ML', orderId, message);
+    return 'failed';
+  }
+}
+
 /** Baja el PDF oficial y lo deja en disco. No interrumpe el alta del pedido si ML todavía no lo entrega. */
 export function queueMercadoLibreLabelArchive(input: {
   orderId: string;
@@ -1451,17 +1487,81 @@ export function queueMercadoLibreLabelArchive(input: {
   externalOrderId: string;
   notes?: string | null;
 }): void {
-  const { orderId, sellerUserId, externalOrderId, notes } = input;
-  if (!orderId || !sellerUserId || !externalOrderId) return;
-  void (async () => {
-    const { findSavedOrderLabel, saveOrderLabel } = await import('./label-archive.service.js');
-    if (await findSavedOrderLabel(orderId)) return;
-    const pdf = await getMercadoLibreShippingLabelPdf(sellerUserId, externalOrderId, {
-      alternateRef: extractMlOrderIdFromNotes(notes),
-    });
-    await saveOrderLabel(orderId, pdf, 'pdf');
-  })().catch((err: unknown) => {
-    const message = err instanceof Error ? err.message : 'ERROR';
-    console.warn('[label-archive] ML', orderId, message);
+  void saveMercadoLibreLabelNow(input).catch((err: unknown) => {
+    console.warn('[label-archive] ML', input.orderId, err);
   });
+}
+
+let deliveredLabelBackfillTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Recorre envíos de Mercado Libre ya entregados y guarda el PDF oficial
+ * mientras ML todavía lo entrega. Los que ML ya no imprime quedan marcados.
+ */
+export async function archiveDeliveredMercadoLibreLabels(options?: {
+  agencyId?: string;
+  limit?: number;
+}): Promise<{ saved: number; unavailable: number; failed: number }> {
+  const limit = Math.min(Math.max(options?.limit ?? 8, 1), 20);
+  const params: string[] = [];
+  let agencySql = '';
+  if (options?.agencyId) {
+    agencySql = ' AND o.agency_id = ?';
+    params.push(options.agencyId);
+  }
+  const [rows] = await pool.query<
+    Array<{ id: string; external_order_id: string; notes: string | null; seller_id: string | null } & RowDataPacket>
+  >(
+    `SELECT o.id, o.external_order_id, o.notes, o.seller_id
+     FROM orders o
+     WHERE o.external_source = 'mercadolibre'
+       AND o.status = 'delivered'
+       AND o.external_order_id IS NOT NULL
+       ${agencySql}
+     ORDER BY o.updated_at DESC
+     LIMIT 80`,
+    params
+  );
+
+  let saved = 0;
+  let unavailable = 0;
+  let failed = 0;
+  let tried = 0;
+  for (const row of rows) {
+    if (tried >= limit) break;
+    const { findSavedOrderLabel, isOrderLabelUnavailable } = await import('./label-archive.service.js');
+    if (await findSavedOrderLabel(row.id)) continue;
+    if (await isOrderLabelUnavailable(row.id)) continue;
+    tried += 1;
+    const sellerUserId = (await getSellerIdForOrder(row.id)) ?? row.seller_id;
+    if (!sellerUserId) {
+      failed += 1;
+      continue;
+    }
+    const result = await saveMercadoLibreLabelNow({
+      orderId: row.id,
+      sellerUserId,
+      externalOrderId: row.external_order_id,
+      notes: row.notes,
+    });
+    if (result === 'saved' || result === 'exists') saved += 1;
+    else if (result === 'unavailable') unavailable += 1;
+    else failed += 1;
+    await sleep(350);
+  }
+  if (tried > 0) {
+    console.log('[label-archive] entregados ML', { saved, unavailable, failed, tried });
+  }
+  return { saved, unavailable, failed };
+}
+
+export function startDeliveredMercadoLibreLabelBackfill(): void {
+  if (deliveredLabelBackfillTimer) return;
+  const run = () => {
+    void archiveDeliveredMercadoLibreLabels({ limit: 6 }).catch((err: unknown) => {
+      console.warn('[label-archive] backfill', err);
+    });
+  };
+  setTimeout(run, 8_000);
+  deliveredLabelBackfillTimer = setInterval(run, 3 * 60_000);
 }

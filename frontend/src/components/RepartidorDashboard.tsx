@@ -33,7 +33,13 @@ interface RepartidorDashboardProps {
   departurePoint?: LocationPoint | null;
   pickupPoints?: PickupPoint[];
   onSelectOrder: (orderId: string | null) => void;
-  onUpdateOrderStatus: (orderId: string, status: OrderStatus, repartidorId?: string, comment?: string) => Promise<void>;
+  onUpdateOrderStatus: (
+    orderId: string,
+    status: OrderStatus,
+    repartidorId?: string,
+    comment?: string,
+    recipient?: { firstName: string; lastName: string; dni: string }
+  ) => Promise<void>;
   onAddOrderIncident?: (orderId: string, comment: string) => Promise<void>;
   onReportLocation: (orderId: string, lat: number, lng: number) => Promise<void>;
   onReportUserLocation: (lat: number, lng: number) => Promise<void>;
@@ -72,6 +78,12 @@ export default function RepartidorDashboard({
   const [syncingOrders, setSyncingOrders] = useState(false);
   const [incidentDraft, setIncidentDraft] = useState('');
   const [savingIncident, setSavingIncident] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptFirst, setReceiptFirst] = useState('');
+  const [receiptLast, setReceiptLast] = useState('');
+  const [receiptDni, setReceiptDni] = useState('');
+  const [receiptError, setReceiptError] = useState('');
+  const [savingReceipt, setSavingReceipt] = useState(false);
   const lastGpsSentAt = useRef(0);
 
   const reportFleetGps = useCallback(
@@ -192,15 +204,44 @@ export default function RepartidorDashboard({
 
       if (count >= 5) {
         clearInterval(interval);
-        await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERED, undefined, 'Pedido entregado en destino final (Simulación completa)');
         setCurrentCoords(null);
+        setReceiptOpen(true);
         void showAlert({
           title: 'Simulación completada',
-          message: 'El pedido fue entregado exitosamente.',
+          message: 'Cargá nombre, apellido y DNI de quien recibe para confirmar la entrega.',
           variant: 'success',
         });
       }
     }, 1500);
+  };
+
+  const confirmReceipt = async () => {
+    if (!selectedOrder) return;
+    const firstName = receiptFirst.trim().replace(/\s+/g, ' ');
+    const lastName = receiptLast.trim().replace(/\s+/g, ' ');
+    const dni = receiptDni.replace(/\D/g, '');
+    const nameOk = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'.-]{1,79}$/;
+    if (!nameOk.test(firstName) || !nameOk.test(lastName) || !/^\d{7,8}$/.test(dni)) {
+      setReceiptError('Completá nombre, apellido y un DNI de 7 u 8 números.');
+      return;
+    }
+    setSavingReceipt(true);
+    setReceiptError('');
+    try {
+      await onUpdateOrderStatus(
+        selectedOrder.id,
+        OrderStatus.DELIVERED,
+        undefined,
+        'Entregado en mano por repartidor',
+        { firstName, lastName, dni }
+      );
+      setReceiptOpen(false);
+      onSelectOrder(null);
+    } catch (e) {
+      setReceiptError(e instanceof Error ? e.message : 'No se pudo confirmar la entrega.');
+    } finally {
+      setSavingReceipt(false);
+    }
   };
 
   const handleAcceptOrder = async (orderId: string) => {
@@ -564,17 +605,12 @@ export default function RepartidorDashboard({
                     {selectedOrder.status === OrderStatus.DELIVERING &&
                       selectedOrder.externalSource !== 'mercadolibre' && (
                       <button
-                        onClick={async () => {
-                          try {
-                            await onUpdateOrderStatus(selectedOrder.id, OrderStatus.DELIVERED, undefined, 'Entregado en mano por repartidor');
-                            onSelectOrder(null);
-                          } catch (e) {
-                            void showAlert({
-                              title: 'Error',
-                              message: e instanceof Error ? e.message : 'No se pudo confirmar la entrega.',
-                              variant: 'error',
-                            });
-                          }
+                        onClick={() => {
+                          setReceiptFirst('');
+                          setReceiptLast('');
+                          setReceiptDni('');
+                          setReceiptError('');
+                          setReceiptOpen(true);
                         }}
                         className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/10 uppercase tracking-wider"
                       >
@@ -680,6 +716,69 @@ export default function RepartidorDashboard({
           )}
         </div>
       </div>
+      {receiptOpen && selectedOrder && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-4 sm:items-center">
+          <form
+            className="w-full max-w-sm rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel)] p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void confirmReceipt();
+            }}
+          >
+            <p className="text-sm font-medium text-[var(--color-text)]">Quién recibe</p>
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+              Para entregar {selectedOrder.id} cargá nombre, apellido y DNI.
+            </p>
+            <label className="mt-3 block text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">
+              Nombre
+              <input
+                value={receiptFirst}
+                onChange={(event) => setReceiptFirst(event.target.value)}
+                className="mt-1 w-full rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] px-3 py-2 text-sm text-[var(--color-text)]"
+                autoComplete="off"
+              />
+            </label>
+            <label className="mt-2 block text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">
+              Apellido
+              <input
+                value={receiptLast}
+                onChange={(event) => setReceiptLast(event.target.value)}
+                className="mt-1 w-full rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] px-3 py-2 text-sm text-[var(--color-text)]"
+                autoComplete="off"
+              />
+            </label>
+            <label className="mt-2 block text-[10px] uppercase tracking-wider text-[var(--color-text-faint)]">
+              DNI
+              <input
+                value={receiptDni}
+                inputMode="numeric"
+                maxLength={8}
+                onChange={(event) => setReceiptDni(event.target.value.replace(/\D/g, '').slice(0, 8))}
+                className="mt-1 w-full rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] px-3 py-2 text-sm text-[var(--color-text)]"
+                autoComplete="off"
+              />
+            </label>
+            {receiptError && <p className="mt-2 text-xs text-[var(--color-danger)]">{receiptError}</p>}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                disabled={savingReceipt}
+                onClick={() => setReceiptOpen(false)}
+                className="flex-1 rounded-[var(--radius-posta)] border border-[var(--surface-border)] py-2 text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={savingReceipt}
+                className="flex-1 rounded-[var(--radius-posta)] bg-[var(--color-ok)] py-2 text-xs font-medium text-[var(--cta-ink)] disabled:opacity-50"
+              >
+                {savingReceipt ? 'Guardando…' : 'Entregar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

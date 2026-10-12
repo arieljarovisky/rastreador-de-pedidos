@@ -2007,7 +2007,8 @@ export default function App() {
     orderId: string,
     status: OrderStatus,
     repartidorId?: string,
-    comment?: string
+    comment?: string,
+    recipient?: { firstName: string; lastName: string; dni: string }
   ) => {
     if (!token) return;
     try {
@@ -2017,7 +2018,7 @@ export default function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status, repartidorId, comment }),
+        body: JSON.stringify({ status, repartidorId, comment, recipient }),
       });
 
       if (!res.ok) {

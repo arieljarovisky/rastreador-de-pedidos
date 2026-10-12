@@ -40,6 +40,7 @@ import {
   mapMercadoLibreShipmentToOrderStatus,
   resolveMercadoLibreFlexDeliveryDeadline,
   queueMercadoLibreLabelArchive,
+  saveMercadoLibreLabelNow,
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import {
@@ -362,6 +363,16 @@ export async function syncMercadoLibreOrderAfterImport(
       const comment = repartidorId
         ? `Importado desde Mercado Libre Flex · ${statusLabel} · repartidor sincronizado`
         : `Importado desde Mercado Libre Flex · ${statusLabel}`;
+
+      if (targetStatus === OrderStatus.DELIVERED && flex.externalId) {
+        const sellerForLabel = (await getSellerIdForOrder(currentOrder.id)) ?? mlUserId;
+        await saveMercadoLibreLabelNow({
+          orderId: currentOrder.id,
+          sellerUserId: sellerForLabel,
+          externalOrderId: flex.externalId,
+          notes: currentOrder.notes,
+        });
+      }
 
       const updated = await applyMercadoLibreSyncState(currentOrder.id, {
         status: targetStatus,

@@ -357,12 +357,21 @@ export const api = {
     token: string,
     orderId: string,
     status: OrderStatus,
-    opts: { repartidorId?: string; comment?: string } = {}
+    opts: {
+      repartidorId?: string;
+      comment?: string;
+      recipient?: { firstName: string; lastName: string; dni: string };
+    } = {}
   ): Promise<Order> {
     return request<Order>(`/api/orders/${orderId}/status`, {
       method: 'PUT',
       token,
-      body: { status, repartidorId: opts.repartidorId, comment: opts.comment },
+      body: {
+        status,
+        repartidorId: opts.repartidorId,
+        comment: opts.comment,
+        recipient: opts.recipient,
+      },
     });
   },
 

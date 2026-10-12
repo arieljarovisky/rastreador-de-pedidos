@@ -24,6 +24,7 @@ import PostaIcon from '../components/icons/PostaIcons';
 import IconActionChip from '../components/ui/IconActionChip';
 import IconLabelRow from '../components/ui/IconLabelRow';
 import { RepartidorStackParamList } from '../navigation/types';
+import DeliveryReceiptSheet, { DeliveryReceipt } from '../components/DeliveryReceiptSheet';
 
 type Props = NativeStackScreenProps<RepartidorStackParamList, 'OrderDetail'>;
 
@@ -34,6 +35,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const { getOrder, updateStatus, coords, permissionDenied, deliveringOrder } =
     useOrdersContext();
   const [busy, setBusy] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   useTrackOrder(token, orderId);
 
@@ -95,18 +97,22 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
   const handleStart = () =>
     run(OrderStatus.DELIVERING, { comment: 'Viaje iniciado' });
 
-  const handleDeliver = () =>
-    Alert.alert('Confirmar entrega', `¿Marcar ${order.id} como entregado?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Entregar',
-        style: 'default',
-        onPress: () =>
-          run(OrderStatus.DELIVERED, { comment: 'Entregado en destino' }).then(() =>
-            navigation.goBack()
-          ),
-      },
-    ]);
+  const handleDeliver = () => setReceiptOpen(true);
+
+  const confirmDeliver = async (receipt: DeliveryReceipt) => {
+    setBusy(true);
+    try {
+      await updateStatus(order.id, OrderStatus.DELIVERED, {
+        comment: 'Entregado en destino',
+        recipient: receipt,
+      });
+      setReceiptOpen(false);
+      navigation.goBack();
+    } catch (err) {
+      setBusy(false);
+      throw err instanceof Error ? err : new Error('No se pudo actualizar.');
+    }
+  };
 
   const callClient = () => {
     if (!order.clientPhone) return;
@@ -290,8 +296,27 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <Text style={styles.doneText}>Pedido entregado</Text>
             </View>
           )}
+          {order.status === OrderStatus.DELIVERED &&
+            order.receivedFirstName &&
+            order.receivedLastName && (
+            <View style={styles.notesBox}>
+              <MonoLabel color={colors.textFaint}>Recibió</MonoLabel>
+              <Text style={styles.notesText}>
+                {order.receivedFirstName} {order.receivedLastName}
+                {order.receivedDni ? ` · DNI ${order.receivedDni}` : ''}
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
+      <DeliveryReceiptSheet
+        visible={receiptOpen}
+        orderId={order.id}
+        onClose={() => {
+          if (!busy) setReceiptOpen(false);
+        }}
+        onConfirm={confirmDeliver}
+      />
     </View>
   );
 }

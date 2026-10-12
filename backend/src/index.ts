@@ -10,6 +10,7 @@ import { startTiendaNubeExpressAutoImportScheduler } from './services/tn-express
 import { startShopifyAutoImportScheduler } from './services/shopify-auto-import.scheduler.js';
 import { startWooCommerceAutoImportScheduler } from './services/woocommerce-auto-import.scheduler.js';
 import { replayMercadoLibreMissedFeeds, getMercadoLibreWebhookUrl } from './services/mercadolibre-webhook.service.js';
+import { startDeliveredMercadoLibreLabelBackfill } from './services/mercadolibre.service.js';
 import { getTiendaNubeOrderWebhookUrl } from './services/tiendanube.service.js';
 import { getShopifyOrderWebhookUrl } from './services/shopify.service.js';
 import { getWooCommerceOrderWebhookUrl } from './services/woocommerce.service.js';
@@ -37,6 +38,7 @@ async function start(): Promise<void> {
   setupSocket(server);
   startDeliveryScheduler();
   startMercadoLibreFlexAutoImportScheduler();
+  startDeliveredMercadoLibreLabelBackfill();
   startTiendaNubeExpressAutoImportScheduler();
   startShopifyAutoImportScheduler();
   startWooCommerceAutoImportScheduler();

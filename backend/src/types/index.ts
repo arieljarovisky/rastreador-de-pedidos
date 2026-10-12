@@ -96,6 +96,10 @@ export interface Order {
   history: OrderHistoryEvent[];
   locationHistory: LocationHistoryPoint[];
   notes?: string;
+  /** Quien recibió el paquete, si el repartidor lo cargó al entregar. */
+  receivedFirstName?: string | null;
+  receivedLastName?: string | null;
+  receivedDni?: string | null;
   externalSource?: string | null;
   externalOrderId?: string | null;
   shippingType?: string | null;
@@ -169,6 +173,9 @@ export interface DbOrderRow {
   repartidor_id: string | null;
   repartidor_name: string | null;
   notes: string | null;
+  received_first_name?: string | null;
+  received_last_name?: string | null;
+  received_dni?: string | null;
   created_at: Date;
   updated_at: Date;
   delivery_deadline: Date | null;

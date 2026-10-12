@@ -34,6 +34,19 @@ export async function runMigrations(): Promise<void> {
   if (!(await columnExists('orders', 'shipping_type'))) {
     await pool.query('ALTER TABLE orders ADD COLUMN shipping_type VARCHAR(32) NULL AFTER external_order_id');
   }
+  if (!(await columnExists('orders', 'received_first_name'))) {
+    await pool.query(
+      'ALTER TABLE orders ADD COLUMN received_first_name VARCHAR(80) NULL AFTER notes'
+    );
+  }
+  if (!(await columnExists('orders', 'received_last_name'))) {
+    await pool.query(
+      'ALTER TABLE orders ADD COLUMN received_last_name VARCHAR(80) NULL AFTER received_first_name'
+    );
+  }
+  if (!(await columnExists('orders', 'received_dni'))) {
+    await pool.query('ALTER TABLE orders ADD COLUMN received_dni VARCHAR(16) NULL AFTER received_last_name');
+  }
 
   const [indexRows] = await pool.query<Array<{ INDEX_NAME: string } & import('mysql2').RowDataPacket>>(
     `SELECT INDEX_NAME FROM information_schema.STATISTICS
