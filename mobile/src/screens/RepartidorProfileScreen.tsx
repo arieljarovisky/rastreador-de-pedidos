@@ -20,6 +20,7 @@ import Button from '../components/Button';
 import { RepartidorProfileStackParamList } from '../navigation/types';
 import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import { connectMarketplace, oauthErrorMessage } from '../oauth/connectMarketplace';
+import RepartidorEarnings from '../components/RepartidorEarnings';
 
 type Props = NativeStackScreenProps<RepartidorProfileStackParamList, 'RepartidorProfile'>;
 
@@ -30,6 +31,7 @@ export default function RepartidorProfileScreen(_props: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [statsReload, setStatsReload] = useState(0);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -49,6 +51,7 @@ export default function RepartidorProfileScreen(_props: Props) {
 
   const refresh = async () => {
     setRefreshing(true);
+    setStatsReload((value) => value + 1);
     await load();
     setRefreshing(false);
   };
@@ -93,14 +96,6 @@ export default function RepartidorProfileScreen(_props: Props) {
     ]);
   };
 
-  if (loading && !status) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
-  }
-
   return (
     <ScrollView
       contentContainerStyle={[
@@ -115,13 +110,17 @@ export default function RepartidorProfileScreen(_props: Props) {
       <Text style={styles.sub}>{user?.username}</Text>
       {user?.agencyName ? <Text style={styles.sub}>Agencia: {user.agencyName}</Text> : null}
 
+      {token ? <RepartidorEarnings token={token} reloadKey={statsReload} /> : null}
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Mercado Libre Flex</Text>
         <Text style={styles.hint}>
           Conectá tu cuenta para que tus escaneos en Mercado Envíos Flex se sincronicen con Posta. Si
           varios repartidores escanean el mismo paquete, queda asignado al último.
         </Text>
-        {!status?.mercadolibre.configured ? (
+        {loading && !status ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.md }} />
+        ) : !status?.mercadolibre.configured ? (
           <Text style={styles.warn}>ML no está configurado en el servidor de Posta.</Text>
         ) : status.mercadolibre.connected ? (
           <>
@@ -148,13 +147,7 @@ export default function RepartidorProfileScreen(_props: Props) {
 }
 
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  container: { padding: spacing.xl },
+  container: { padding: spacing.xl, backgroundColor: colors.bg, flexGrow: 1 },
   name: { fontSize: 22, fontWeight: '700', color: colors.text },
   sub: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   card: {
