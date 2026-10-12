@@ -1945,6 +1945,23 @@
   --sidebar-ring: #dff56a;
 }
 
+/* El bloque de arriba reutiliza --muted como superficie. El texto del tema claro no puede depender de esa variable. */
+[data-theme="paper"],
+.theme-paper {
+  --text: #1a1714;
+  --text-muted: #4a453d;
+  --text-faint: #5c564c;
+  --ink: #1a1714;
+  --ink-soft: #3f3a34;
+  --color-text: #1a1714;
+  --color-text-muted: #4a453d;
+  --color-text-faint: #5c564c;
+  --foreground: #1a1714;
+  --muted-foreground: #4a453d;
+  --accent: #3d6212;
+  --color-accent: #3d6212;
+}
+
 /* Microetiquetas del panel: misma voz que la landing, sin mono en mayúsculas. */
 .font-mono.font-bold.uppercase {
   font-family: var(--font-body);

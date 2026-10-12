@@ -90,19 +90,19 @@
   --panel: var(--paper-2);
   --panel-2: var(--paper-3);
   --line: var(--edge);
-  --text: var(--ink);
-  --text-muted: var(--muted);
-  --text-faint: var(--faint);
-  --accent: var(--route);
+  --text: #1a1714;
+  --text-muted: #4a453d;
+  --text-faint: #5c564c;
+  --accent: #3d6212;
 
   --surface-bg: var(--paper);
   --surface-panel: var(--paper-2);
   --surface-panel-2: var(--paper-3);
   --surface-border: var(--edge);
-  --color-text: var(--ink);
-  --color-text-muted: var(--muted);
-  --color-text-faint: var(--faint);
-  --color-accent: var(--route);
+  --color-text: #1a1714;
+  --color-text-muted: #4a453d;
+  --color-text-faint: #5c564c;
+  --color-accent: #3d6212;
   --color-cta: var(--stamp);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
