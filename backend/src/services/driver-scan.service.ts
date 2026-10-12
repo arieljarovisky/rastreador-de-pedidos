@@ -206,6 +206,8 @@ async function archiveScanPhoto(orderId: string, photoFilename: string | null | 
   }
 }
 const promotingPhotoOrders = new Map<string, Promise<string | null>>();
+/** Evita que una foto se convierta en pedido mientras la están borrando del registro. */
+const deletingScanEntries = new Set<string>();
 
 function coord(value: number | string | null | undefined): number | null {
   if (value == null || value === '') return null;
@@ -235,6 +237,7 @@ async function promotePhotoLabelOrder(entryId: string): Promise<string | null> {
     [entryId]
   );
   const row = rows[0];
+  if (deletingScanEntries.has(entryId)) return null;
   if (!row?.photo_path?.trim()) return null;
   if (row.order_id?.trim()) return row.order_id.trim();
 
@@ -276,6 +279,8 @@ async function promotePhotoLabelOrder(entryId: string): Promise<string | null> {
     findOrderByExternalForAgency,
     updateOrderStatus,
   } = await import('./orders.service.js');
+
+  if (deletingScanEntries.has(entryId)) return null;
 
   try {
     let order = await createOrder(repartidor, {
@@ -1020,28 +1025,81 @@ export async function updateDriverScanEntryDetails(
   return loadEntry(entryId);
 }
 
-/** Elimina un registro personal: el repartidor el propio, la agencia cualquiera de su flota. */
+/**
+ * El pedido creado desde la foto queda cancelado al borrar el registro,
+ * salvo que ya se haya entregado.
+ */
+async function cancelOrderForDeletedScan(user: User, row: DbDriverScanRow): Promise<void> {
+  const { findOrderByExternalForAgency, getOrderById, updateOrderStatus } = await import(
+    './orders.service.js'
+  );
+
+  let orderId = row.order_id?.trim() || '';
+  if (!orderId) {
+    const [fresh] = await pool.query<DbDriverScanRow[]>(
+      'SELECT order_id FROM driver_scan_entries WHERE id = ? LIMIT 1',
+      [row.id]
+    );
+    orderId = fresh[0]?.order_id?.trim() || '';
+  }
+  if (!orderId) {
+    const existing = await findOrderByExternalForAgency(row.agency_id, PHOTO_ORDER_SOURCE, row.id);
+    orderId = existing?.id ?? '';
+  }
+  if (!orderId) return;
+
+  const order = await getOrderById(orderId);
+  if (!order || order.status === OrderStatus.CANCELLED || order.status === OrderStatus.DELIVERED) {
+    return;
+  }
+
+  const updated = await updateOrderStatus(
+    user,
+    orderId,
+    OrderStatus.CANCELLED,
+    undefined,
+    'Eliminado del registro del repartidor'
+  );
+  emitOrderUpdated(updated, updated.sellerId ?? row.seller_id ?? null);
+}
+
+/** Elimina un registro personal y cancela el envío que había generado. */
 export async function deleteDriverScanEntry(user: User, entryId: string): Promise<void> {
   await ensureDriverScanEntriesTable();
 
+  let row: DbDriverScanRow | undefined;
   if (user.role === UserRole.REPARTIDOR) {
     assertRepartidor(user);
-    const [result] = await pool.query<ResultSetHeader>(
-      'DELETE FROM driver_scan_entries WHERE id = ? AND repartidor_id = ?',
+    const [rows] = await pool.query<DbDriverScanRow[]>(
+      'SELECT * FROM driver_scan_entries WHERE id = ? AND repartidor_id = ? LIMIT 1',
       [entryId, user.id]
     );
-    if (result.affectedRows === 0) throw new Error('NOT_FOUND');
-    return;
-  }
-
-  if (isAgencyAdmin(user.role) && user.agencyId) {
-    const [result] = await pool.query<ResultSetHeader>(
-      'DELETE FROM driver_scan_entries WHERE id = ? AND agency_id = ?',
+    row = rows[0];
+  } else if (isAgencyAdmin(user.role) && user.agencyId) {
+    const [rows] = await pool.query<DbDriverScanRow[]>(
+      'SELECT * FROM driver_scan_entries WHERE id = ? AND agency_id = ? LIMIT 1',
       [entryId, user.agencyId]
     );
-    if (result.affectedRows === 0) throw new Error('NOT_FOUND');
-    return;
+    row = rows[0];
+  } else {
+    throw new Error('FORBIDDEN');
   }
+  if (!row) throw new Error('NOT_FOUND');
 
-  throw new Error('FORBIDDEN');
+  deletingScanEntries.add(entryId);
+  try {
+    const inflight = promotingPhotoOrders.get(entryId);
+    if (inflight) await inflight.catch(() => undefined);
+    await cancelOrderForDeletedScan(user, row);
+
+    const [result] = await pool.query<ResultSetHeader>(
+      user.role === UserRole.REPARTIDOR
+        ? 'DELETE FROM driver_scan_entries WHERE id = ? AND repartidor_id = ?'
+        : 'DELETE FROM driver_scan_entries WHERE id = ? AND agency_id = ?',
+      [entryId, user.role === UserRole.REPARTIDOR ? user.id : user.agencyId]
+    );
+    if (result.affectedRows === 0) throw new Error('NOT_FOUND');
+  } finally {
+    deletingScanEntries.delete(entryId);
+  }
 }

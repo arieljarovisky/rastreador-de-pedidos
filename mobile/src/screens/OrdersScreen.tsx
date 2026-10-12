@@ -32,7 +32,6 @@ import Button from '../components/Button';
 import PostaIcon from '../components/icons/PostaIcons';
 import SellerPickerSheet, { SellerOption } from '../components/ui/SellerPickerSheet';
 import LabelPhotoViewer from '../components/ui/LabelPhotoViewer';
-import { TAB_BAR_CLEARANCE } from '../constants/layout';
 import { formatScanCodeLabel, stripAddressReference } from '../utils/scanCodeLabel';
 import { RepartidorHomeStackParamList, RepartidorStackParamList } from '../navigation/types';
 
@@ -182,6 +181,7 @@ export default function OrdersScreen({ navigation }: Props) {
   const showPlanRoute =
     (tab === 'assigned' && myAssigned.length > 0) || (tab === 'personal' && personalPending > 0);
   const routeActions = (showPlanRoute ? 1 : 0) + (showStartRoute || showContinueRoute ? 1 : 0);
+  const listBottomPad = spacing.lg + routeActions * 56;
 
   const handlePlanRoute = () => {
     if (!token || planningRoute) return;
@@ -321,12 +321,13 @@ export default function OrdersScreen({ navigation }: Props) {
       await api.deleteDriverScanEntry(token, pendingDeleteEntry.id);
       setPersonalEntries((prev) => prev.filter((e) => e.id !== pendingDeleteEntry.id));
       setPendingDeleteEntry(null);
+      void refresh();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'No se pudo eliminar el paquete.');
     } finally {
       setUpdatingEntryId(null);
     }
-  }, [token, pendingDeleteEntry]);
+  }, [token, pendingDeleteEntry, refresh]);
 
   const promptPersonalAddress = (entry: DriverScanEntry) => {
     if (!token) return;
@@ -517,7 +518,7 @@ export default function OrdersScreen({ navigation }: Props) {
                 (pendingDeleteEntry
                   ? formatScanCodeLabel(pendingDeleteEntry.scanCode)
                   : '')}
-              " del registro? Esta acción no se puede deshacer.
+              " del registro? También se cancela el envío en Mis envíos. Esta acción no se puede deshacer.
             </Text>
             {deleteError ? <Text style={styles.deleteModalError}>{deleteError}</Text> : null}
             <View style={styles.deleteModalActions}>
@@ -650,7 +651,7 @@ export default function OrdersScreen({ navigation }: Props) {
             contentContainerStyle={[
               styles.list,
               personalEntries.length === 0 && styles.listEmpty,
-              { paddingBottom: TAB_BAR_CLEARANCE + spacing.lg + routeActions * 64 },
+              { paddingBottom: listBottomPad },
             ]}
             refreshControl={
               <RefreshControl
@@ -687,9 +688,7 @@ export default function OrdersScreen({ navigation }: Props) {
           contentContainerStyle={[
             styles.list,
             data.length === 0 && styles.listEmpty,
-            {
-              paddingBottom: TAB_BAR_CLEARANCE + spacing.lg + routeActions * 64,
-            },
+            { paddingBottom: listBottomPad },
           ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={accent} />
@@ -720,7 +719,7 @@ export default function OrdersScreen({ navigation }: Props) {
       )}
 
       {showPlanRoute || showStartRoute || showContinueRoute ? (
-        <View style={[styles.routeBar, { paddingBottom: TAB_BAR_CLEARANCE + spacing.sm, gap: spacing.sm }]}>
+        <View style={[styles.routeBar, { paddingBottom: spacing.sm, gap: spacing.sm }]}>
           {showPlanRoute ? (
             <Button
               label="Armar recorrido"
@@ -813,7 +812,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
