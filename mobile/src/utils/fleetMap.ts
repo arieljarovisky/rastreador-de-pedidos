@@ -6,10 +6,10 @@ import { isStaleLocation } from './locationFreshness';
 import { spreadOverlappingMarkers } from './markerSpread';
 
 const COLORS = {
-  repartidor: '#5C87EB',
-  delivering: '#E69A2E',
-  assigned: '#9B7EDE',
-  pending: '#A99B85',
+  repartidor: '#DFF56A',
+  delivering: '#E6B15A',
+  assigned: '#9AA3B5',
+  pending: '#8D887F',
 };
 
 /** Marcadores para mapa de flota del vendedor (repartidores asignados + pedidos activos). */

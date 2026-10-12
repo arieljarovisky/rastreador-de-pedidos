@@ -14,10 +14,10 @@ const VARIANTS: Record<
   Variant,
   { bg: string; fg: string; border?: string; borderWidth?: number }
 > = {
-  primary: { bg: colors.stamp, fg: '#FFFFFF' },
-  secondary: { bg: 'transparent', fg: colors.text, border: colors.text, borderWidth: 1.5 },
-  success: { bg: colors.green, fg: '#04140d' },
-  amber: { bg: colors.amber, fg: '#1a1203' },
+  primary: { bg: colors.stamp, fg: colors.ctaInk },
+  secondary: { bg: 'transparent', fg: colors.text, border: colors.border, borderWidth: 1 },
+  success: { bg: colors.green, fg: colors.ctaInk },
+  amber: { bg: colors.amber, fg: colors.ctaInk },
   danger: { bg: colors.redBg, fg: colors.red, border: colors.red, borderWidth: 1 },
   ghost: { bg: 'transparent', fg: colors.textMuted, border: colors.border, borderWidth: 1 },
 };
@@ -51,9 +51,9 @@ export default function Button({
   if (paperTheme) {
     if (variant === 'primary') {
       bg = paper.stamp;
-      fg = '#FFFFFF';
+      fg = paper.ctaInk;
     } else if (variant === 'secondary' || variant === 'ghost') {
-      border = paper.ink;
+      border = paper.edge;
       fg = paper.ink;
     }
   }
@@ -85,7 +85,7 @@ export default function Button({
 const styles = StyleSheet.create({
   btn: {
     minHeight: 44,
-    borderRadius: radius.posta,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,

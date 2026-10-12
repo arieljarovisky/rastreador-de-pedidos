@@ -15,7 +15,7 @@ export default function PostaLogo({
   variant = 'dark',
 }: PostaLogoProps) {
   const ink = variant === 'paper' ? paper.ink : colors.text;
-  const stamp = variant === 'paper' ? paper.stamp : colors.stamp;
+  const stamp = variant === 'paper' ? paper.ember : colors.ember;
 
   return (
     <View style={styles.row}>

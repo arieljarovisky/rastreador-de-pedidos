@@ -46,7 +46,7 @@ interface Props {
 export default function PostaIcon({
   name,
   size = 20,
-  color = '#EDE6D8',
+  color = '#F3F0E8',
   strokeWidth = 1.75,
 }: Props) {
   const common = {

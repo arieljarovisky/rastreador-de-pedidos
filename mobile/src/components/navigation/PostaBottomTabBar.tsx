@@ -86,7 +86,12 @@ export default function PostaBottomTabBar({
                     shadows.fab,
                   ]}
                 >
-                  <PostaIcon name={centerIcon} size={26} color="#F6F0E4" strokeWidth={2} />
+                  <PostaIcon
+                    name={centerIcon}
+                    size={26}
+                    color={agencyMode ? palette.markText : colors.ctaInk}
+                    strokeWidth={2}
+                  />
                 </View>
                 <Text style={[styles.centerLabel, { color: inactive }, isFocused && { color: accentColor }]}>
                   {centerLabel}

@@ -25,16 +25,16 @@ const styles = StyleSheet.create({
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 4,
-    borderWidth: 1.5,
+    borderRadius: radius.pill,
+    borderWidth: 1,
     alignSelf: 'flex-start',
   },
   text: {
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0,
+    textTransform: 'none',
     lineHeight: 13,
   },
 });

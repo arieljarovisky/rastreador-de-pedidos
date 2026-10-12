@@ -1970,7 +1970,9 @@
   letter-spacing: -0.011em;
 }
 
-.rounded-\[5px\],
-.rounded-\[4px\] {
+button.rounded-\[5px\],
+button.rounded-\[4px\],
+a.rounded-\[5px\],
+a.rounded-\[4px\] {
   border-radius: 999px;
 }

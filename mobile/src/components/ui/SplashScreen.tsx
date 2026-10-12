@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     width: 280,
     height: 280,
     borderRadius: 140,
-    backgroundColor: colors.accent,
+    backgroundColor: 'transparent',
   },
   glowBottom: {
     position: 'absolute',
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: colors.stamp,
+    backgroundColor: 'transparent',
   },
   content: {
     alignItems: 'center',
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: 'rgba(28, 24, 20, 0.72)',
+    backgroundColor: 'rgba(23, 26, 34, 0.92)',
   },
   tagline: {
     marginTop: spacing.lg,

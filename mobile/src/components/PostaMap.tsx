@@ -129,7 +129,7 @@ const MAP_SHELL_HTML = `<!DOCTYPE html>
         html:
           '<div style="width:22px;height:22px;border-radius:50%;background:' +
           color +
-          ';border:2px solid #EDE6D8;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
+          ';border:2px solid #F3F0E8;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;">' +
           '<span style="color:#1C1814;font-weight:700;font-size:' +
           fontSize +
           'px;line-height:14px;font-family:sans-serif;">' +

@@ -4,9 +4,9 @@ import PostaMap, { MapMarker, MapPoint } from './PostaMap';
 import { readLiveLocation, useLiveFleetVersion } from '../utils/liveFleet';
 
 const MAP_COLORS = {
-  destination: '#E8431F',
-  driver: '#5C87EB',
-  route: '#E69A2E',
+  destination: '#FF5A2A',
+  driver: '#DFF56A',
+  route: '#DFF56A',
 };
 
 interface Props {

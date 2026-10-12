@@ -15,8 +15,8 @@ export default function PaperCard({ children, style }: Props) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: paper.panel,
-    borderColor: paper.ink,
-    borderWidth: 1.4,
+    borderColor: paper.edge,
+    borderWidth: 1,
     borderRadius: radius.posta,
     ...paperCardShadow(),
   },
