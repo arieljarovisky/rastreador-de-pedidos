@@ -177,17 +177,17 @@ export default function RepartidorProfilePanel({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-b border-[var(--surface-border)] px-4 py-3">
-          <OperationalDatePicker
-            layout="field"
-            label="Desde"
-            empty={!dateFromKey}
-            placeholder="Sin fecha"
-            value={dateFromKey || dateToKey || getOperationalDateKey()}
-            onChange={setDateFromKey}
-            maxDateKey={dateToKey || undefined}
-          />
-          <div className="relative min-w-0">
+        <div className="space-y-2 border-b border-[var(--surface-border)] px-4 py-3">
+          <div className="grid grid-cols-2 gap-2">
+            <OperationalDatePicker
+              layout="field"
+              label="Desde"
+              empty={!dateFromKey}
+              placeholder="Sin fecha"
+              value={dateFromKey || dateToKey || getOperationalDateKey()}
+              onChange={setDateFromKey}
+              maxDateKey={dateToKey || undefined}
+            />
             <OperationalDatePicker
               layout="field"
               label="Hasta"
@@ -197,20 +197,20 @@ export default function RepartidorProfilePanel({
               onChange={setDateToKey}
               minDateKey={dateFromKey || undefined}
             />
-            {(dateFromKey || dateToKey) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setDateFromKey('');
-                  setDateToKey('');
-                }}
-                title="Limpiar fechas"
-                className="absolute right-2 top-[1.85rem] p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--surface-panel)] transition"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
+          {(dateFromKey || dateToKey) && (
+            <button
+              type="button"
+              onClick={() => {
+                setDateFromKey('');
+                setDateToKey('');
+              }}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] px-3 py-2 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:border-[var(--color-accent)]/40 hover:text-[var(--color-accent)]"
+            >
+              <X className="size-3.5" />
+              Quitar filtros
+            </button>
+          )}
         </div>
 
         {loading && (

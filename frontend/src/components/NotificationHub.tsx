@@ -6,7 +6,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AppNotification, Order } from '../types.js';
-import { Bell, ShieldAlert, Check, CheckCheck, Trash2, X, Volume2, ChevronRight, MapPin, Bike, Clock, AlertTriangle, Siren, Megaphone } from 'lucide-react';
+import { Bell, Check, Trash2, X, ChevronRight, MapPin, Bike, Clock, AlertTriangle, Siren, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useModal } from '../context/ModalContext.tsx';
 import { getUndeliveredTodayOrders } from '../utils/deliverySummary.js';
@@ -141,8 +141,7 @@ export default function NotificationHub({
   onOpenOrder,
   onOpenMap,
 }: NotificationHubProps) {
-  const { alert: showAlert, confirm } = useModal();
-  const [permission, setPermission] = useState<NotificationPermission>('default');
+  const { confirm } = useModal();
   const [activeBanner, setActiveBanner] = useState<AppNotification | null>(null);
   /** Evita re-anunciar la misma alerta cuando el poll/socket refresca el array. */
   const lastAnnouncedIdRef = useRef<string | null>(null);
@@ -151,12 +150,6 @@ export default function NotificationHub({
     () => getUndeliveredTodayOrders(orders),
     [orders]
   );
-
-  useEffect(() => {
-    if ('Notification' in window) {
-      setPermission(Notification.permission);
-    }
-  }, []);
 
   // Escuchar nuevas notificaciones para disparar efectos visuales y sonoros
   useEffect(() => {
@@ -198,30 +191,6 @@ export default function NotificationHub({
     }, 5000);
     return () => clearTimeout(timer);
   }, [notifications]);
-
-  const requestPermission = async () => {
-    if (!('Notification' in window)) {
-      void showAlert({
-        title: 'No compatible',
-        message: 'Las notificaciones del sistema no están soportadas en este navegador.',
-        variant: 'warning',
-      });
-      return;
-    }
-    try {
-      const status = await window.Notification.requestPermission();
-      setPermission(status);
-      if (status === 'granted') {
-        playNotificationSound();
-        new window.Notification('¡Posta!', {
-          body: 'Notificaciones push del sistema activadas correctamente.',
-          icon: '/icon-posta.svg',
-        });
-      }
-    } catch (e) {
-      console.error('Error solicitando permisos de notificación:', e);
-    }
-  };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -281,7 +250,6 @@ export default function NotificationHub({
   return (
     <div className="h-full w-full flex flex-col min-h-0">
       {toastBanner}
-      {/* Widget lateral de Configuración de Notificaciones PWA (HIGH DENSITY) */}
       <div className="bg-[var(--surface-panel)]/80 border border-[var(--surface-border)] rounded-[var(--radius-posta)] backdrop-blur-sm flex flex-col flex-1 overflow-hidden" id="pwa-notification-config">
         {showCollapseButton && onToggleCollapse && (
           <button
@@ -296,53 +264,8 @@ export default function NotificationHub({
         )}
 
         <div className="p-3.5 flex flex-col flex-1 overflow-hidden min-h-0">
-        <div className="flex items-center gap-2 mb-3 shrink-0">
-          <div className="w-8 h-8 rounded bg-blue-500/10 border border-[var(--color-accent)]/20 flex items-center justify-center text-[var(--color-accent)]">
-            <Bell className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="font-bold text-xs lg:text-sm text-[var(--ink-soft)]">Notificaciones PWA</h3>
-            <p className="text-[10px] text-[var(--color-text-muted)] font-mono">Estado: {permission === 'granted' ? 'PERMITIDO' : permission === 'denied' ? 'DENEGADO' : 'PENDIENTE'}</p>
-          </div>
-          <div className="ml-auto flex items-center gap-0.5">
-            <button
-              onClick={playNotificationSound}
-              title="Probar sonido de timbre"
-              className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)] p-1.5 rounded hover:bg-[var(--surface-panel)] transition"
-            >
-              <Volume2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {permission !== 'granted' ? (
-          <div className="bg-[var(--surface-panel-2)] border border-[var(--surface-border)] rounded p-2.5 mb-3 shrink-0">
-            <div className="flex items-start gap-2">
-              <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--ink-soft)]">Permiso requerido</p>
-                <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5 leading-normal">
-                  Activa alertas nativas para recibir avisos de pedidos en tiempo real.
-                </p>
-                <button
-                  onClick={requestPermission}
-                  id="btn-request-notifications"
-                  className="mt-2 w-full text-center py-1 bg-[var(--color-cta)] hover:brightness-110 text-[var(--cta-ink)] font-mono font-bold text-[9px] uppercase tracking-wider rounded-[5px] transition"
-                >
-                  Activar Alertas
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded p-2 text-[var(--color-ok)] text-[10px] font-medium mb-3 shrink-0 leading-normal">
-            <CheckCheck className="w-4 h-4 text-[var(--color-ok)] shrink-0" />
-            <span>Suscripción PWA activa. Alertas instantáneas configuradas.</span>
-          </div>
-        )}
-
         {/* Listado de últimas notificaciones del usuario */}
-        <div className="border-t border-[var(--surface-border)]/80 pt-3 flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex items-center justify-between mb-2 shrink-0">
             <span className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider font-mono">Buzón de Alertas ({unreadCount})</span>
             <div className="flex items-center gap-2">

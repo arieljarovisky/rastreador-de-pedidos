@@ -15,7 +15,6 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard.tsx'));
 const OperationsDashboard = lazy(() => import('./components/OperationsDashboard.tsx'));
 const SettingsPage = lazy(() => import('./components/SettingsPage.tsx'));
 const ShippingAccountPage = lazy(() => import('./components/ShippingAccountPage.tsx'));
-const DriverSettlementPage = lazy(() => import('./components/DriverSettlementPage.tsx'));
 const RegistroPage = lazy(() => import('./components/RegistroPage.tsx'));
 const RepartidoresPage = lazy(() => import('./components/RepartidoresPage.tsx'));
 const RepartidorDashboard = lazy(() => import('./components/RepartidorDashboard.tsx'));
@@ -198,11 +197,12 @@ function prefetchSignedInShell() {
     const tab = localStorage.getItem(ACTIVE_TAB_KEY);
     if (tab === 'dashboard') void import('./components/AdminDashboard.tsx');
     else if (tab === 'settings') void import('./components/SettingsPage.tsx');
-    else if (tab === 'account') {
-      void import('./components/ShippingAccountPage.tsx');
+    else if (tab === 'account') void import('./components/ShippingAccountPage.tsx');
+    else if (tab === 'registro') void import('./components/RegistroPage.tsx');
+    else if (tab === 'repartidores') {
+      void import('./components/RepartidoresPage.tsx');
       void import('./components/DriverSettlementPage.tsx');
-    } else if (tab === 'registro') void import('./components/RegistroPage.tsx');
-    else if (tab === 'repartidores') void import('./components/RepartidoresPage.tsx');
+    }
     else if (tab === 'prices') void import('./components/PriceListsPage.tsx');
     else if (tab === 'platform') void import('./components/PlatformOwnerPanel.tsx');
     else void import('./components/OperationsDashboard.tsx');
@@ -265,7 +265,6 @@ export default function App() {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [registroSellerId, setRegistroSellerId] = useState<string | null>(null);
   const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
-  const [accountSection, setAccountSection] = useState<'sellers' | 'drivers'>('sellers');
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
@@ -2732,47 +2731,13 @@ export default function App() {
 
             {mobileTab === 'account' && token && (
               <div className="flex-1 min-w-0 w-full min-h-[calc(100dvh-8rem)] xl:min-h-[calc(100dvh-6rem)] flex flex-col">
-                {isAgencyAdmin(user.role) && (
-                  <div className="shrink-0 flex gap-1 p-2 border-b border-[var(--surface-border)] bg-[var(--surface-panel-2)]/40">
-                    <button
-                      type="button"
-                      onClick={() => setAccountSection('sellers')}
-                      className={`flex-1 px-3 py-1.5 rounded-[5px] border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
-                        accountSection === 'sellers'
-                          ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                          : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                      }`}
-                    >
-                      Vendedores
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAccountSection('drivers')}
-                      className={`flex-1 px-3 py-1.5 rounded-[5px] border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
-                        accountSection === 'drivers'
-                          ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                          : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-                      }`}
-                    >
-                      Repartidores
-                    </button>
-                  </div>
-                )}
                 <div className="flex-1 min-h-0">
                   <Suspense fallback={<LazyFallback />}>
-                    {isAgencyAdmin(user.role) && accountSection === 'drivers' ? (
-                      <DriverSettlementPage
-                        token={token}
-                        user={user}
-                        repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
-                      />
-                    ) : (
-                      <ShippingAccountPage
-                        token={token}
-                        user={user}
-                        sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
-                      />
-                    )}
+                    <ShippingAccountPage
+                      token={token}
+                      user={user}
+                      sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+                    />
                   </Suspense>
                 </div>
               </div>
@@ -2804,6 +2769,7 @@ export default function App() {
                 <Suspense fallback={<LazyFallback />}>
                   <RepartidoresPage
                     token={token}
+                    user={user}
                     repartidores={repartidores}
                     deliveryZones={deliveryZones}
                   />

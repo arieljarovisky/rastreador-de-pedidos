@@ -24,6 +24,10 @@ interface DriverSettlementPageProps {
   token: string;
   user: User;
   repartidores?: Array<{ id: string; name: string }>;
+  /** Si se define, oculta el selector y fija el filtro ('' = todos). */
+  lockedRepartidorId?: string;
+  /** Cabecera más compacta dentro de la pestaña Repartidores. */
+  embedded?: boolean;
 }
 
 function formatArs(amount: number): string {
@@ -69,23 +73,32 @@ export default function DriverSettlementPage({
   token,
   user,
   repartidores = [],
+  lockedRepartidorId,
+  embedded = false,
 }: DriverSettlementPageProps) {
   const isAgency = isAgencyAdmin(user.role);
   const monthDefaults = useMemo(() => currentMonthRange(), []);
   const [dateFrom, setDateFrom] = useState(monthDefaults.dateFrom);
   const [dateTo, setDateTo] = useState(monthDefaults.dateTo);
-  const [selectedRepartidorId, setSelectedRepartidorId] = useState('');
+  const [selectedRepartidorId, setSelectedRepartidorId] = useState(lockedRepartidorId ?? '');
   const [summary, setSummary] = useState<DriverSettlementSummary | null>(null);
   const [ledger, setLedger] = useState<DriverLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [paymentRepartidorId, setPaymentRepartidorId] = useState('');
+  const [paymentRepartidorId, setPaymentRepartidorId] = useState(lockedRepartidorId || '');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const todayKey = getActiveOperationalDateKey();
+  const lockRepartidor = lockedRepartidorId !== undefined;
+
+  useEffect(() => {
+    if (!lockRepartidor) return;
+    setSelectedRepartidorId(lockedRepartidorId);
+    if (lockedRepartidorId) setPaymentRepartidorId(lockedRepartidorId);
+  }, [lockRepartidor, lockedRepartidorId]);
 
   const applyMonthPreset = (offset: number) => {
     const range = monthRangeForOffset(offset);
@@ -207,8 +220,14 @@ export default function DriverSettlementPage({
     }
   };
 
-  const accountTitle = selectedRepartidorId
-    ? `Liquidación · ${summary?.repartidorName ?? 'Repartidor'}`
+  const lockedName =
+    selectedRepartidorId
+      ? summary?.repartidorName ||
+        repartidores.find((r) => r.id === selectedRepartidorId)?.name ||
+        'Repartidor'
+      : null;
+  const accountTitle = lockedName
+    ? `Liquidación · ${lockedName}`
     : 'Liquidación de repartidores';
 
   return (
@@ -216,15 +235,23 @@ export default function DriverSettlementPage({
       <div className="shrink-0 p-3 sm:p-4 border-b border-[var(--surface-border)] space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-              Posta · Flota
-            </p>
-            <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--ink-soft)] mt-0.5 flex items-center gap-2">
+            {!embedded && (
+              <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Posta · Flota
+              </p>
+            )}
+            <h1
+              className={`${
+                embedded ? 'text-base sm:text-lg' : 'text-lg sm:text-xl mt-0.5'
+              } font-display font-bold text-[var(--ink-soft)] flex items-center gap-2`}
+            >
               <Bike className="w-5 h-5 text-[var(--color-accent)] shrink-0" />
               {accountTitle}
             </h1>
             <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
-              Cada entrega acumula el pago configurado por zona. Registrá acá cuando liquides al repartidor.
+              {embedded
+                ? 'Devengado por entregas y liquidaciones registradas del período.'
+                : 'Cada entrega acumula el pago configurado por zona. Registrá acá cuando liquides al repartidor.'}
             </p>
           </div>
           <button
@@ -275,7 +302,7 @@ export default function DriverSettlementPage({
 
           <div
             className={`grid gap-3 p-3 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50 ${
-              isAgency
+              isAgency && !lockRepartidor
                 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
                 : 'grid-cols-1 sm:grid-cols-2'
             }`}
@@ -295,7 +322,7 @@ export default function DriverSettlementPage({
               maxDateKey={todayKey}
               onChange={handleDateToChange}
             />
-            {isAgency && (
+            {isAgency && !lockRepartidor && (
               <label className="flex flex-col gap-1.5 min-w-0 w-full sm:col-span-2 lg:col-span-1">
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] shrink-0 flex items-center gap-1.5 h-[1.125rem]">
                   Repartidor
@@ -482,21 +509,23 @@ export default function DriverSettlementPage({
                 <p className="text-[10px] text-[var(--color-text-muted)]">
                   Anotá el pago que le hiciste al repartidor (transferencia, efectivo, etc.).
                 </p>
-                <label className="flex flex-col gap-0.5">
-                  <span className="mono-label">Repartidor</span>
-                  <select
-                    className={inputClass}
-                    value={paymentRepartidorId}
-                    onChange={(e) => setPaymentRepartidorId(e.target.value)}
-                  >
-                    <option value="">Elegir repartidor</option>
-                    {repartidores.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {!(lockRepartidor && selectedRepartidorId) && (
+                  <label className="flex flex-col gap-0.5">
+                    <span className="mono-label">Repartidor</span>
+                    <select
+                      className={inputClass}
+                      value={paymentRepartidorId}
+                      onChange={(e) => setPaymentRepartidorId(e.target.value)}
+                    >
+                      <option value="">Elegir repartidor</option>
+                      {repartidores.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <label className="flex flex-col gap-0.5">
                   <span className="mono-label">Monto (ARS)</span>
                   <input
