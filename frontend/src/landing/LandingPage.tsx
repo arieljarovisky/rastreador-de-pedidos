@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { Menu, Moon, Sun, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { DirectionAwareTabs } from '@/components/ui/direction-aware-tabs';
@@ -233,6 +233,17 @@ function DispatchClock() {
   return <span className="ml-auto hidden font-mono text-[11px] tabular-nums text-muted-foreground lg:inline">{clock}</span>;
 }
 
+function scrollToHash(hash: string) {
+  const id = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (!id) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (window.history.replaceState) {
+    window.history.replaceState(null, '', `#${id}`);
+  }
+}
+
 export function LandingPage() {
   const [dark, setDark] = useState(readDark);
   const [open, setOpen] = useState(false);
@@ -261,6 +272,15 @@ export function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   function toggleTheme() {
     const next = dark ? 'light' : 'dark';
     document.documentElement.classList.toggle('dark', next === 'dark');
@@ -268,6 +288,17 @@ export function LandingPage() {
     localStorage.setItem('posta-theme', next);
     localStorage.setItem('posta_theme', next === 'dark' ? 'dark' : 'paper');
     setDark(!dark);
+  }
+
+  function handleMenuLinkClick(href: string, event: MouseEvent<HTMLAnchorElement>) {
+    if (!href.startsWith('#')) {
+      setOpen(false);
+      return;
+    }
+    event.preventDefault();
+    setOpen(false);
+    // Esperar a que el menú cierre y libere el scroll del body.
+    window.setTimeout(() => scrollToHash(href), 80);
   }
 
   const roleTabs = [
@@ -409,7 +440,7 @@ export function LandingPage() {
                 key="menu-backdrop"
                 type="button"
                 aria-label="Cerrar menú"
-                className="fixed inset-0 z-30 bg-black/55 md:hidden"
+                className="fixed inset-0 z-[45] bg-black/55 md:hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -418,37 +449,24 @@ export function LandingPage() {
               />
               <motion.div
                 key="menu-panel"
-                className="relative z-40 mx-4 overflow-hidden rounded-3xl border border-border bg-background md:hidden"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+                className="absolute left-4 right-4 top-full z-[50] mt-1 overflow-hidden rounded-3xl border border-border bg-background shadow-lg md:hidden"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
               >
-                <motion.nav
-                  aria-label="Secciones"
-                  className="flex flex-col p-3"
-                  initial="closed"
-                  animate="open"
-                  variants={{
-                    open: { transition: { staggerChildren: 0.045, delayChildren: 0.06 } },
-                    closed: {},
-                  }}
-                >
+                <nav aria-label="Secciones" className="flex flex-col p-3">
                   {MENU_LINKS.map((item) => (
-                    <motion.a
+                    <a
                       key={item.href}
                       href={item.href}
-                      variants={{
-                        closed: { opacity: 0, y: 10 },
-                        open: { opacity: 1, y: 0 },
-                      }}
                       className="rounded-2xl px-3 py-2.5 text-sm hover:bg-foreground/5"
-                      onClick={() => setOpen(false)}
+                      onClick={(event) => handleMenuLinkClick(item.href, event)}
                     >
                       {item.label}
-                    </motion.a>
+                    </a>
                   ))}
-                </motion.nav>
+                </nav>
               </motion.div>
             </>
           )}

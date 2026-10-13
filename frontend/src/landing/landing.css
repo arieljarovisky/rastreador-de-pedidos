@@ -125,6 +125,11 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 5.5rem;
+}
+
+.cabina section[id] {
+  scroll-margin-top: 5.5rem;
 }
 
 body {
