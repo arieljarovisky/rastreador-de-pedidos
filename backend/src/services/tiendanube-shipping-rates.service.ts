@@ -12,6 +12,7 @@ export interface TnShippingRatesRequest {
     postal_code?: string;
     zipcode?: string;
     city?: string;
+    locality?: string;
     province?: string;
     country?: string;
   };
@@ -85,7 +86,10 @@ export async function quoteTiendaNubePostaExpressRates(
     payload.destination?.zipcode ??
     null;
 
-  const resolved = await resolvePostalCodeForAgency(seller.agencyId, postal);
+  const resolved = await resolvePostalCodeForAgency(seller.agencyId, postal, {
+    city: payload.destination?.city ?? null,
+    locality: payload.destination?.locality ?? null,
+  });
   if (!resolved) {
     return { ok: false, status: 422, reason: 'postal_code_unresolved' };
   }

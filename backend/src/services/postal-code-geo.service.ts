@@ -3,6 +3,7 @@ import { pool } from '../config/database.js';
 import { geocodeAddress } from './geocode.service.js';
 import { findPricingZoneForPoint } from './delivery-zones.service.js';
 import { canonicalizePricingZoneKey } from './price-lists.service.js';
+import { ambaPointForPlaceName, ambaPointForPostalCode } from '../config/amba-postal-codes.js';
 
 export interface PostalCodeGeoResolved {
   postalCode: string;
@@ -75,13 +76,36 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
 
 /**
  * Resuelve CP → lat/lng y zona de pricing de la agencia.
- * Usa cache para responder en <2s en el callback de TN.
+ * El AMBA se resuelve en memoria: Nominatim no entra en el checkout.
  */
 export async function resolvePostalCodeForAgency(
   agencyId: string,
-  rawPostalCode: string | null | undefined
+  rawPostalCode: string | null | undefined,
+  hints?: { city?: string | null; locality?: string | null }
 ): Promise<PostalCodeGeoResolved | null> {
   const postalCode = normalizeArgentinePostalCode(rawPostalCode);
+  const local =
+    (postalCode ? ambaPointForPostalCode(postalCode) : null) ??
+    ambaPointForPlaceName(hints?.locality) ??
+    ambaPointForPlaceName(hints?.city);
+
+  if (local) {
+    const zone = await findPricingZoneForPoint(agencyId, local.lat, local.lng);
+    const zoneKey = zone ? canonicalizePricingZoneKey(zone.id) : null;
+    if (postalCode) {
+      void writeCache(postalCode, local.lat, local.lng, zoneKey).catch((err) => {
+        console.warn('[postal-code] No se pudo guardar el CP en cache:', err);
+      });
+    }
+    return {
+      postalCode: postalCode ?? local.barrioId,
+      lat: local.lat,
+      lng: local.lng,
+      zoneKey,
+      fromCache: false,
+    };
+  }
+
   if (!postalCode) return null;
 
   const cached = await readCache(postalCode);

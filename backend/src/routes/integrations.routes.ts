@@ -837,7 +837,13 @@ router.post('/tiendanube/shipping/rates', async (req: Request, res: Response) =>
   try {
     const result = await quoteTiendaNubePostaExpressRates(req.body as TnShippingRatesRequest);
     if (!result.ok) {
-      console.log('[tn-rates] 422', { reason: result.reason, store_id: req.body?.store_id });
+      const destination = req.body?.destination ?? {};
+      console.log('[tn-rates] 422', {
+        reason: result.reason,
+        store_id: req.body?.store_id,
+        postal_code: destination.postal_code ?? destination.zipcode ?? null,
+        city: destination.city ?? destination.locality ?? null,
+      });
       res.status(422).json({ error: result.reason });
       return;
     }
