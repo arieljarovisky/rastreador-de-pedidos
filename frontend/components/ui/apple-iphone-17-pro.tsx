@@ -166,6 +166,13 @@ const DYNAMIC_ISLAND_SIZES = {
 
 function getIslandMotionAnimate(size: DynamicIslandSize) {
   const c = DYNAMIC_ISLAND_SIZES[size]
+  if (size === "expanded") {
+    return {
+      width: "calc(100% - 18px)",
+      borderRadius: c.borderRadius,
+      height: c.height,
+    }
+  }
   if (size === "large" || size === "ultra") {
     return {
       width: "calc(100% - 28px)",
@@ -276,8 +283,10 @@ export function IPhone17ProMax({
                 handleDynamicIslandTap()
               }}
             >
-              {/* Status Bar */}
-              {showStatusBar && (
+              {/* Status Bar — hidden when island covers the top edge */}
+              {showStatusBar &&
+                (internalDynamicIslandSize === "default" ||
+                  internalDynamicIslandSize === "compact") && (
                 <div className="absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-6 pt-4 font-medium text-black text-xs">
                   {/* Left side - Time */}
                   <div className="mt-1 ml-1 flex w-14 items-center gap-1">

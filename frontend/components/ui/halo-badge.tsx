@@ -84,13 +84,16 @@ const layoutTransition = {
 /** Variants that use gradient rim + frosted surface (ghost/link stay minimal). */
 const CHROMED_BADGE_VARIANTS = new Set<
   NonNullable<VariantProps<typeof badgeVariants>["variant"]>
->(["default", "secondary", "destructive", "outline"])
+>(["default", "secondary", "destructive", "success", "outline"])
 
 function badgeRimVariant(
   variant: NonNullable<VariantProps<typeof badgeVariants>["variant"]>
 ): RimVariant {
   if (variant === "destructive") {
     return "destructive"
+  }
+  if (variant === "success") {
+    return "success"
   }
   return "default"
 }
@@ -194,19 +197,20 @@ function BadgeRimPillBlobs({
 }
 
 const chromedLabelClasses: Record<
-  "default" | "secondary" | "destructive" | "outline",
+  "default" | "secondary" | "destructive" | "success" | "outline",
   string
 > = {
   default: "text-primary",
   secondary: "text-muted-foreground",
   destructive:
     "text-destructive aria-invalid:text-destructive dark:aria-invalid:text-destructive",
+  success: "text-[var(--color-ok)]",
   outline: "text-foreground",
 }
 
 /** Border tints (same `color-mix` system as `HaloSwitch` shell). */
 const chromedBorderClasses: Record<
-  "default" | "secondary" | "destructive" | "outline",
+  "default" | "secondary" | "destructive" | "success" | "outline",
   string
 > = {
   default:
@@ -215,6 +219,8 @@ const chromedBorderClasses: Record<
     "border-[color-mix(in_oklch,var(--border)_72%,oklch(0.88_0.06_300))]",
   destructive:
     "border-[color-mix(in_oklch,var(--border)_65%,oklch(0.86_0.09_22))]",
+  success:
+    "border-[color-mix(in_oklch,var(--border)_65%,var(--color-ok))]",
   outline:
     "border-[color-mix(in_oklch,var(--border)_72%,oklch(0.88_0.06_300))]",
 }

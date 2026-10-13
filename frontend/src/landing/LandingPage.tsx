@@ -682,7 +682,7 @@ export function LandingPage() {
                   <h3 className="mt-3 text-lg">{shop.name}</h3>
                   <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{shop.sub}</p>
                 </div>
-                <HaloBadge live>Conectado</HaloBadge>
+                <HaloBadge live variant="success">Conectado</HaloBadge>
               </div>
               <p className="mt-4 text-sm text-muted-foreground">{shop.note}</p>
             </HaloCard>
