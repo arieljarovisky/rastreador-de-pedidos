@@ -64,7 +64,7 @@ router.get('/track', async (req: Request, res: Response) => {
     res.status(400).json({
       error: 'INVALID_REF',
       message:
-        'Ingresá tu código Posta (PST…) o el número de pedido/envío de la tienda donde compraste.',
+        'Ingresá tu código Posta (PST…) o el número de pedido/envío.',
     });
     return;
   }
@@ -86,7 +86,7 @@ router.get('/track', async (req: Request, res: Response) => {
       res.status(409).json({
         error: 'AMBIGUOUS_REF',
         message:
-          'Encontramos más de un envío con ese número. Elegí la tienda (Tienda Nube, Shopify, etc.) o usá el número completo del correo de compra.',
+          'Encontramos más de un envío con ese número. Usá el código Posta (PST…) o el número completo que figura en el correo de compra.',
       });
       return;
     }
@@ -94,7 +94,7 @@ router.get('/track', async (req: Request, res: Response) => {
       res.status(404).json({
         error: 'NOT_FOUND',
         message:
-          'No encontramos un envío con ese número. Verificá el ID de tu pedido en el correo o en la tienda donde compraste.',
+          'No encontramos un envío con ese número. Verificá el código Posta (PST…) o el ID de tu pedido en el correo de compra.',
       });
       return;
     }

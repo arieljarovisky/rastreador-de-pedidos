@@ -11,8 +11,6 @@ import { apiUrl } from '../api.ts';
 import { OrderStatus } from '../types.ts';
 import { applyPostaTheme, readPostaTheme, usePostaTheme } from '../theme/usePostaTheme.ts';
 
-type TrackingSource = 'all' | 'mercadolibre' | 'tiendanube' | 'shopify' | 'woocommerce';
-
 interface PublicTrackingData {
   status: OrderStatus;
   updatedAt: string;
@@ -35,37 +33,12 @@ const STATUS_HINTS: Partial<Record<OrderStatus, string>> = {
   [OrderStatus.CANCELLED]: 'Este envío fue cancelado.',
 };
 
-const SOURCE_OPTIONS: Array<{ value: TrackingSource; label: string }> = [
-  { value: 'all', label: 'Todas las tiendas' },
-  { value: 'mercadolibre', label: 'Mercado Libre' },
-  { value: 'tiendanube', label: 'Tienda Nube' },
-  { value: 'shopify', label: 'Shopify' },
-  { value: 'woocommerce', label: 'WooCommerce' },
-];
-
 function readRefFromUrl(): string {
   try {
     return new URLSearchParams(window.location.search).get('ref')?.trim() ?? '';
   } catch {
     return '';
   }
-}
-
-function readSourceFromUrl(): TrackingSource {
-  try {
-    const value = new URLSearchParams(window.location.search).get('source')?.trim().toLowerCase();
-    if (
-      value === 'mercadolibre' ||
-      value === 'tiendanube' ||
-      value === 'shopify' ||
-      value === 'woocommerce'
-    ) {
-      return value;
-    }
-  } catch {
-    /* ignore */
-  }
-  return 'all';
 }
 
 function formatDateTime(iso: string): string {
@@ -77,22 +50,20 @@ function formatDateTime(iso: string): string {
   });
 }
 
-function buildTrackUrl(ref: string, source: TrackingSource): string {
+function buildTrackUrl(ref: string): string {
   const params = new URLSearchParams({ ref });
-  if (source !== 'all') params.set('source', source);
   return apiUrl(`/api/public/track?${params.toString()}`);
 }
 
 export default function PublicTrackingPage() {
   const theme = usePostaTheme();
   const [refInput, setRefInput] = useState(() => readRefFromUrl());
-  const [source, setSource] = useState<TrackingSource>(() => readSourceFromUrl());
   const [tracking, setTracking] = useState<PublicTrackingData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastQuery, setLastQuery] = useState<{ ref: string; source: TrackingSource } | null>(null);
+  const [lastQuery, setLastQuery] = useState<string | null>(null);
 
-  const fetchTracking = useCallback(async (ref: string, sourceFilter: TrackingSource, silent = false) => {
+  const fetchTracking = useCallback(async (ref: string, silent = false) => {
     const trimmed = ref.trim();
     if (!trimmed) {
       setError('Ingresá el número de tu pedido o envío.');
@@ -105,7 +76,7 @@ export default function PublicTrackingPage() {
     }
 
     try {
-      const res = await fetch(buildTrackUrl(trimmed, sourceFilter));
+      const res = await fetch(buildTrackUrl(trimmed));
       const contentType = res.headers.get('content-type') ?? '';
       if (!contentType.includes('application/json')) {
         throw new Error('INVALID_RESPONSE');
@@ -121,13 +92,12 @@ export default function PublicTrackingPage() {
       }
 
       setTracking(data);
-      setLastQuery({ ref: trimmed, source: sourceFilter });
+      setLastQuery(trimmed);
       setError(null);
 
       const url = new URL(window.location.href);
       url.searchParams.set('ref', trimmed);
-      if (sourceFilter === 'all') url.searchParams.delete('source');
-      else url.searchParams.set('source', sourceFilter);
+      url.searchParams.delete('source');
       window.history.replaceState({}, '', url.toString());
     } catch {
       if (!silent) {
@@ -145,13 +115,13 @@ export default function PublicTrackingPage() {
 
   useEffect(() => {
     const initial = readRefFromUrl();
-    if (initial) void fetchTracking(initial, readSourceFromUrl());
+    if (initial) void fetchTracking(initial);
   }, [fetchTracking]);
 
   useEffect(() => {
     if (!tracking || tracking.status !== OrderStatus.DELIVERING || !lastQuery) return;
     const interval = window.setInterval(() => {
-      void fetchTracking(lastQuery.ref, lastQuery.source, true);
+      void fetchTracking(lastQuery, true);
     }, 20_000);
     return () => window.clearInterval(interval);
   }, [tracking?.status, lastQuery, fetchTracking]);
@@ -172,7 +142,7 @@ export default function PublicTrackingPage() {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    void fetchTracking(refInput, source);
+    void fetchTracking(refInput);
   };
 
   const toggleTheme = () => {
@@ -206,8 +176,8 @@ export default function PublicTrackingPage() {
             Seguí tu envío en vivo
           </h1>
           <p className="text-sm text-[var(--text-muted)] max-w-xl">
-            Ingresá tu código Posta (PST…) o el número de pedido/envío de Mercado Libre, Tienda Nube,
-            Shopify o WooCommerce para ver el estado y la ubicación del repartidor.
+            Ingresá tu código Posta (PST…) o el número de pedido/envío para ver el estado y la
+            ubicación del repartidor.
           </p>
         </div>
 
@@ -215,38 +185,19 @@ export default function PublicTrackingPage() {
           onSubmit={handleSubmit}
           className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 sm:p-5 space-y-3 shadow-sm"
         >
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,11rem)]">
-            <div className="space-y-1.5">
-              <label htmlFor="order-ref" className="mono-label block">
-                Código Posta o N° de pedido
-              </label>
-              <input
-                id="order-ref"
-                type="text"
-                autoComplete="off"
-                placeholder="Ej: PST4K8M2N9Q o 2000012345678"
-                value={refInput}
-                onChange={(e) => setRefInput(e.target.value)}
-                className="w-full rounded-lg border border-[var(--line)] bg-[var(--panel-2)] px-3 py-2.5 text-sm font-mono text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="order-source" className="mono-label block">
-                Tienda
-              </label>
-              <select
-                id="order-source"
-                value={source}
-                onChange={(e) => setSource(e.target.value as TrackingSource)}
-                className="w-full rounded-lg border border-[var(--line)] bg-[var(--panel-2)] px-3 py-2.5 text-sm text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
-              >
-                {SOURCE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="space-y-1.5">
+            <label htmlFor="order-ref" className="mono-label block">
+              Código Posta o N° de pedido
+            </label>
+            <input
+              id="order-ref"
+              type="text"
+              autoComplete="off"
+              placeholder="Ej: PST4K8M2N9Q o 2000012345678"
+              value={refInput}
+              onChange={(e) => setRefInput(e.target.value)}
+              className="w-full rounded-lg border border-[var(--line)] bg-[var(--panel-2)] px-3 py-2.5 text-sm font-mono text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
+            />
           </div>
           <button
             type="submit"
@@ -257,8 +208,8 @@ export default function PublicTrackingPage() {
             Buscar
           </button>
           <p className="text-[11px] text-[var(--text-faint)] leading-relaxed">
-            El código Posta llega en el seguimiento de la tienda o en el correo de compra. En Mercado Libre
-            también sirve el ID de venta o envío. Si hay varios resultados, elegí la tienda.
+            El código Posta llega en el seguimiento de la tienda o en el correo de compra. En Mercado
+            Libre también sirve el ID de venta o envío.
           </p>
         </form>
 
@@ -286,7 +237,7 @@ export default function PublicTrackingPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => lastQuery && void fetchTracking(lastQuery.ref, lastQuery.source)}
+                  onClick={() => lastQuery && void fetchTracking(lastQuery)}
                   className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-[var(--text-muted)] hover:text-[var(--accent)] transition"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
