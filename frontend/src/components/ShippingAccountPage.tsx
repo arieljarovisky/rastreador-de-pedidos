@@ -580,38 +580,6 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
               </section>
             )}
 
-            {summary.zoneRates.length > 0 && (
-              <section className="border border-[var(--surface-border)] rounded-[var(--radius-posta)] overflow-hidden">
-                <div className="px-3 py-2 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
-                  <h2 className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)]">
-                    Tarifas vigentes por zona
-                  </h2>
-                  <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5">
-                    Configurá los precios en Precios → Listas de precios.
-                  </p>
-                </div>
-                <div className="divide-y divide-[var(--surface-border)]/60">
-                  {summary.zoneRates.map((zone) => (
-                    <div key={zone.zoneId} className="px-3 py-2.5">
-                      <p className="text-sm font-medium text-[var(--ink-soft)] mb-1">{zone.zoneName}</p>
-                      <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
-                        <p><span className="text-[var(--color-text-muted)]">Flex:</span> {formatArs(zone.flex)}</p>
-                        <p><span className="text-[var(--color-text-muted)]">Express:</span> {formatArs(zone.express)}</p>
-                        <p><span className="text-[var(--color-text-muted)]">Estándar:</span> {formatArs(zone.standard)}</p>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="px-3 py-2.5 bg-[var(--surface-panel-2)]/30">
-                    <p className="text-sm font-medium text-[var(--ink-soft)] mb-1">Fuera de zona</p>
-                    <div className="grid grid-cols-3 gap-2 text-[10px] font-mono">
-                      <p><span className="text-[var(--color-text-muted)]">Flex:</span> {formatArs(summary.defaultRates.flex)}</p>
-                      <p><span className="text-[var(--color-text-muted)]">Express:</span> {formatArs(summary.defaultRates.express)}</p>
-                      <p><span className="text-[var(--color-text-muted)]">Estándar:</span> {formatArs(summary.defaultRates.standard)}</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            )}
           </>
         ) : null}
       </div>

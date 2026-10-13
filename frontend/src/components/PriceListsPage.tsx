@@ -489,7 +489,7 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
           )}
         </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-end gap-2">
           <div className="inline-flex p-1 rounded-[var(--radius-posta)] border border-[var(--surface-border)] bg-[var(--surface-panel-2)]/50">
             <button
               type="button"
@@ -546,7 +546,7 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
             type="button"
             disabled={repricing || saving}
             onClick={() => void handleRepriceCharges()}
-            className="inline-flex items-center gap-1.5 self-end px-3 py-1.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:bg-[var(--surface-panel)] disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-posta)] border border-[var(--surface-border)] text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-soft)] hover:bg-[var(--surface-panel)] disabled:opacity-40"
             title="Recalcula los cargos facturados del período con las tarifas actuales por zona"
           >
             {repricing ? (
@@ -700,40 +700,31 @@ export default function PriceListsPage({ token }: PriceListsPageProps) {
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
               {/* Zone strip */}
               <div className="shrink-0 border-b border-[var(--surface-border)] bg-[var(--surface-panel-2)]/30 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="mono-label">Zona a editar</p>
-                  {selectedZone ? (
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-[var(--color-text-muted)]">
-                      <span
-                        className="h-2 w-2 rounded-full shrink-0"
-                        style={{ background: selectedZone.color }}
-                      />
-                      {selectedZone.name}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin">
-                  {zoneOptions.map((z) => {
-                    const active = selectedZoneKey === z.key;
-                    return (
-                      <button
-                        key={z.key}
-                        type="button"
-                        onClick={() => setSelectedZoneKey(z.key)}
-                        className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-posta)] border text-xs font-medium transition ${
-                          active
-                            ? 'bg-[var(--surface-panel)] border-[var(--surface-border)] text-[var(--ink-soft)] ring-1 ring-[var(--color-accent)]/30'
-                            : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--surface-panel)]/70 hover:text-[var(--ink-soft)]'
-                        }`}
-                      >
-                        <span
+                <div className="flex items-center gap-3 min-w-0">
+                  <p className="mono-label shrink-0">Zona a editar</p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin min-w-0">
+                    {zoneOptions.map((z) => {
+                      const active = selectedZoneKey === z.key;
+                      return (
+                        <button
+                          key={z.key}
+                          type="button"
+                          onClick={() => setSelectedZoneKey(z.key)}
+                          className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-posta)] border text-xs font-medium transition ${
+                            active
+                              ? 'bg-[var(--surface-panel)] border-[var(--surface-border)] text-[var(--ink-soft)] ring-1 ring-[var(--color-accent)]/30'
+                              : 'border-transparent text-[var(--color-text-muted)] hover:bg-[var(--surface-panel)]/70 hover:text-[var(--ink-soft)]'
+                          }`}
+                        >
+                          <span
                             className="h-2 w-2 rounded-full shrink-0"
                             style={{ background: z.color }}
                           />
-                        {z.name}
-                      </button>
-                    );
-                  })}
+                          {z.name}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
