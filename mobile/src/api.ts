@@ -563,6 +563,37 @@ export const api = {
     return request<IntegrationsStatus>('/api/integrations/status', { token });
   },
 
+  getSellerCustomerRates(token: string): Promise<{
+    currency: 'ARS';
+    zones: Array<{
+      zoneKey: string;
+      zoneName: string;
+      customerPrice: number | null;
+      postaPrice: number;
+    }>;
+  }> {
+    return request('/api/seller/customer-shipping-rates', { token });
+  },
+
+  saveSellerCustomerRates(
+    token: string,
+    zones: Array<{ zoneKey: string; customerPrice: number | null }>
+  ): Promise<{
+    currency: 'ARS';
+    zones: Array<{
+      zoneKey: string;
+      zoneName: string;
+      customerPrice: number | null;
+      postaPrice: number;
+    }>;
+  }> {
+    return request('/api/seller/customer-shipping-rates', {
+      method: 'PUT',
+      token,
+      body: { zones },
+    });
+  },
+
   getRepartidorMlStatus(token: string): Promise<RepartidorMercadoLibreStatus> {
     return request<RepartidorMercadoLibreStatus>('/api/integrations/repartidor/status', { token });
   },

@@ -27,6 +27,7 @@ import billingRoutes from './routes/billing.routes.js';
 import driverSettlementRoutes from './routes/driver-settlement.routes.js';
 import driverScanRoutes from './routes/driver-scan.routes.js';
 import priceListsRoutes from './routes/price-lists.routes.js';
+import sellerCustomerRatesRoutes from './routes/seller-customer-rates.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import mercadopagoRoutes from './routes/mercadopago.routes.js';
 import subscriptionsRoutes from './routes/subscriptions.routes.js';
@@ -142,6 +143,7 @@ app.use('/api/driver-settlement', authenticate, requireAgencySubscription, drive
 app.use('/api/driver-scan', authenticate, requireAgencySubscription, driverScanRoutes);
 app.use('/api/route-plan', authenticate, requireAgencySubscription, routePlanRoutes);
 app.use('/api/price-lists', authenticate, requireAgencySubscription, priceListsRoutes);
+app.use('/api/seller/customer-shipping-rates', authenticate, requireAgencySubscription, sellerCustomerRatesRoutes);
 app.use('/api/mercadopago', mercadopagoRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/platform', platformRoutes);

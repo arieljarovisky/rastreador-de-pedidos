@@ -21,6 +21,7 @@ import Button from '../../components/Button';
 import PostaInput from '../../components/ui/PostaInput';
 import MarketplaceSourceLogo from '../../components/MarketplaceSourceLogo';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
+import SellerCustomerRates from '../../components/SellerCustomerRates';
 import { SellerSettingsStackParamList, SellerStackParamList } from '../../navigation/types';
 import {
   PLATFORM_LABELS,
@@ -255,6 +256,8 @@ export default function SellerSettingsScreen({ navigation }: Props) {
           }
         />
       </Section>
+
+      {token ? <SellerCustomerRates token={token} /> : null}
 
       <Section title="Puntos de colecta">
         {pickups.length === 0 ? (

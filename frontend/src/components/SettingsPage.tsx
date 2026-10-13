@@ -31,6 +31,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import MarketplaceIntegrations, { type MarketplacePlatform } from './MarketplaceIntegrations.tsx';
+import SellerCustomerRatesPanel from './SellerCustomerRatesPanel.tsx';
 import RepartidorProfilePanel from './RepartidorProfilePanel.tsx';
 import AgencyPaymentsPanel from './AgencyPaymentsPanel.tsx';
 import SellerPickupPanel from './SellerPickupPanel.tsx';
@@ -2452,6 +2453,9 @@ export default function SettingsPage({
               Tus envíos y puntos de colecta se sincronizan con esta agencia.
             </p>
           </section>
+        )}
+        {userRole === UserRole.STORE_ADMIN && token && (
+          <SellerCustomerRatesPanel token={token} />
         )}
         {userRole === UserRole.STORE_ADMIN &&
           onRefreshIntegrationStatus &&

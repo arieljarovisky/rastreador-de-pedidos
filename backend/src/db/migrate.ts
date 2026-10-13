@@ -856,6 +856,19 @@ export async function runMigrations(): Promise<void> {
     `);
   }
 
+  if (!(await tableExists('seller_customer_shipping_rates'))) {
+    await pool.query(`
+      CREATE TABLE seller_customer_shipping_rates (
+        user_id VARCHAR(36) NOT NULL,
+        zone_key VARCHAR(64) NOT NULL,
+        customer_price DECIMAL(12,2) NOT NULL,
+        updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        PRIMARY KEY (user_id, zone_key),
+        CONSTRAINT fk_scsr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
   // Logo y tipografía de etiqueta por vendedor (branding de la etiqueta de envío propia de Posta).
   if (!(await columnExists('users', 'logo_image'))) {
     await pool.query('ALTER TABLE users ADD COLUMN logo_image MEDIUMBLOB NULL AFTER delivery_deadline_hour');

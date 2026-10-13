@@ -2,6 +2,7 @@ import { findTiendaNubeIntegrationByStoreId } from './integrations.service.js';
 import { getUserById } from './users.service.js';
 import { resolvePostalCodeForAgency } from './postal-code-geo.service.js';
 import { resolveShippingAmountForOrder } from './price-lists.service.js';
+import { resolveSellerCustomerPrice } from './seller-customer-rates.service.js';
 import { UserRole } from '../types/index.js';
 
 export interface TnShippingRatesRequest {
@@ -57,6 +58,8 @@ function deliveryWindow(): { min: string; max: string } {
 
 /**
  * Cotiza Posta Express para el callback de Shipping Carrier de TN.
+ * `price` es el importe que el vendedor eligió para sus clientes; si no eligió, la tarifa Express de Posta.
+ * `price_merchant` es lo que Posta le cobra al vendedor.
  * Fuera de cobertura AMBA → 422 (Posta no aparece en checkout).
  */
 export async function quoteTiendaNubePostaExpressRates(
@@ -102,6 +105,14 @@ export async function quoteTiendaNubePostaExpressRates(
     return { ok: false, status: 422, reason: 'rate_unavailable' };
   }
 
+  let customerAmount = amount;
+  try {
+    const custom = await resolveSellerCustomerPrice(seller.id, resolved.zoneKey);
+    if (custom != null) customerAmount = custom;
+  } catch (err) {
+    console.warn('[tn-rates] Precio del vendedor no disponible, se usa la tarifa de Posta:', err);
+  }
+
   const currency = (payload.currency ?? 'ARS').toUpperCase();
   const { min, max } = deliveryWindow();
 
@@ -111,7 +122,7 @@ export async function quoteTiendaNubePostaExpressRates(
       {
         name: 'Posta Express',
         code: 'express',
-        price: amount,
+        price: customerAmount,
         price_merchant: amount,
         currency,
         type: 'ship',
