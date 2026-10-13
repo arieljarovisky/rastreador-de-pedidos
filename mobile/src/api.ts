@@ -209,12 +209,18 @@ export const api = {
   scanImportMercadoLibre(
     token: string,
     code: string,
-    location?: { lat: number; lng: number }
+    location?: { lat: number; lng: number },
+    repartidorId?: string
   ): Promise<MlScanImportResult> {
     return request<MlScanImportResult>('/api/integrations/mercadolibre/scan-import', {
       method: 'POST',
       token,
-      body: { code, lat: location?.lat, lng: location?.lng },
+      body: {
+        code,
+        lat: location?.lat,
+        lng: location?.lng,
+        ...(repartidorId ? { repartidorId } : {}),
+      },
       timeoutMs: 60_000,
     });
   },
@@ -223,12 +229,18 @@ export const api = {
   scanOrderLabel(
     token: string,
     code: string,
-    location?: { lat: number; lng: number }
+    location?: { lat: number; lng: number },
+    repartidorId?: string
   ): Promise<OrderScanResult> {
     return request<OrderScanResult>('/api/orders/scan', {
       method: 'POST',
       token,
-      body: { code, lat: location?.lat, lng: location?.lng },
+      body: {
+        code,
+        lat: location?.lat,
+        lng: location?.lng,
+        ...(repartidorId ? { repartidorId } : {}),
+      },
       timeoutMs: 30_000,
     });
   },

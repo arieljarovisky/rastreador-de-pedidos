@@ -6,6 +6,7 @@ import {
   findOrderByExternalGlobal,
   getSellerIdForOrder,
   assignOrderToScanningRepartidor,
+  assignOrderToRepartidorByAgencyScan,
   recordMercadoLibreLabelScan,
   assertOrderAccessibleForLabelScan,
   updateOrderStatus,
@@ -1401,28 +1402,58 @@ async function notifySellerOnLabelScan(
   });
 }
 
-/** Asigna el pedido al repartidor que escaneó (colecta Flex → Mis envíos). */
-async function assignScannedOrderToRepartidorIfNeeded(user: User, order: Order): Promise<Order> {
-  if (user.role !== UserRole.REPARTIDOR) return order;
+/** Asigna el pedido al repartidor que escaneó, o al indicado por agencia/encargado. */
+async function assignScannedOrderToRepartidorIfNeeded(
+  user: User,
+  order: Order,
+  targetRepartidorId?: string
+): Promise<Order> {
   try {
-    const updated = await assignOrderToScanningRepartidor(
-      user,
-      order.id,
-      'Asignado por escaneo de etiqueta ML'
-    );
-    if (updated.repartidorId === user.id && updated.repartidorId !== order.repartidorId) {
-      await createNotification({
-        id: `n_scan_assign_${Date.now()}_${order.id}`,
-        userId: user.id,
-        title: 'Pedido asignado',
-        body: `Se te asignó el envío ${updated.id} (${updated.clientName}) por escaneo de etiqueta.`,
-        type: 'order_assigned',
-        orderId: updated.id,
-      });
+    if (user.role === UserRole.REPARTIDOR) {
+      const updated = await assignOrderToScanningRepartidor(
+        user,
+        order.id,
+        'Asignado por escaneo de etiqueta ML'
+      );
+      if (updated.repartidorId === user.id && updated.repartidorId !== order.repartidorId) {
+        await createNotification({
+          id: `n_scan_assign_${Date.now()}_${order.id}`,
+          userId: user.id,
+          title: 'Pedido asignado',
+          body: `Se te asignó el envío ${updated.id} (${updated.clientName}) por escaneo de etiqueta.`,
+          type: 'order_assigned',
+          orderId: updated.id,
+        });
+      }
+      return updated;
     }
-    return updated;
+
+    if (isAgencyAdmin(user.role) && targetRepartidorId?.trim()) {
+      const updated = await assignOrderToRepartidorByAgencyScan(
+        user,
+        order.id,
+        targetRepartidorId.trim(),
+        'Asignado por escaneo de encargado'
+      );
+      if (updated.repartidorId && updated.repartidorId !== order.repartidorId) {
+        await createNotification({
+          id: `n_scan_assign_${Date.now()}_${order.id}`,
+          userId: updated.repartidorId,
+          title: 'Pedido asignado',
+          body: `Se te asignó el envío ${updated.id} (${updated.clientName}) por escaneo de etiqueta.`,
+          type: 'order_assigned',
+          orderId: updated.id,
+        });
+      }
+      return updated;
+    }
+
+    return order;
   } catch (err) {
-    if (err instanceof Error && err.message === 'NOT_AVAILABLE') return order;
+    if (err instanceof Error && (err.message === 'NOT_AVAILABLE' || err.message === 'REPARTIDOR_NOT_FOUND')) {
+      if (err.message === 'REPARTIDOR_NOT_FOUND') throw err;
+      return order;
+    }
     throw err;
   }
 }
@@ -1486,11 +1517,15 @@ export async function importMercadoLibreByScanForAgency(
   user: User,
   code: string,
   sellerId?: string,
-  scanLocation?: ScanLocation
+  scanLocation?: ScanLocation,
+  repartidorId?: string
 ): Promise<MercadoLibreScanImportResult> {
   const canScan = isAgencyAdmin(user.role) || user.role === UserRole.REPARTIDOR;
   if (!canScan || !user.agencyId) {
     throw new Error('FORBIDDEN');
+  }
+  if (isAgencyAdmin(user.role) && !repartidorId?.trim()) {
+    throw new Error('REPARTIDOR_REQUIRED');
   }
 
   const candidates = parseMercadoLibreScanCode(code);
@@ -1511,7 +1546,7 @@ export async function importMercadoLibreByScanForAgency(
       lat: scanLocation?.lat,
       lng: scanLocation?.lng,
     });
-    updated = await assignScannedOrderToRepartidorIfNeeded(user, updated);
+    updated = await assignScannedOrderToRepartidorIfNeeded(user, updated, repartidorId);
     const assignedSellerId = await getSellerIdForOrder(updated.id);
     emitOrderUpdated(updated, assignedSellerId);
     await notifySellerOnLabelScan(
@@ -1658,7 +1693,7 @@ export async function importMercadoLibreByScanForAgency(
       historyLat: scanLocation?.lat,
       historyLng: scanLocation?.lng,
     });
-    order = await assignScannedOrderToRepartidorIfNeeded(user, order);
+    order = await assignScannedOrderToRepartidorIfNeeded(user, order, repartidorId);
 
     const assignedSellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, assignedSellerId);

@@ -1602,6 +1602,25 @@ export async function assignOrderToRepartidorFromMarketplace(
 }
 
 /**
+ * Agencia/encargado escanea y asigna el pedido a un repartidor de su flota.
+ */
+export async function assignOrderToRepartidorByAgencyScan(
+  actor: User,
+  orderId: string,
+  repartidorId: string,
+  comment = 'Asignado por escaneo de encargado'
+): Promise<Order> {
+  if (!isAgencyAdmin(actor.role) || !actor.agencyId) {
+    throw new Error('FORBIDDEN');
+  }
+  const repartidor = await getRepartidorById(repartidorId);
+  if (!repartidor || repartidor.agencyId !== actor.agencyId) {
+    throw new Error('REPARTIDOR_NOT_FOUND');
+  }
+  return assignOrderToScanningRepartidor(repartidor, orderId, comment);
+}
+
+/**
  * Asigna (o reasigna) un pedido al repartidor que escaneÃ³ en Mercado EnvÃ­os Flex.
  * Varios repartidores pueden escanear la misma etiqueta; gana el Ãºltimo escaneo.
  */

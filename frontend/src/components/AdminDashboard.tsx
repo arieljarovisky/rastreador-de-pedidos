@@ -1920,7 +1920,7 @@ export default function AdminDashboard({
                 {userRole === UserRole.LOGISTICS_ADMIN && (
                   <>
                     <Settings className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" />
-                    Posta Logística
+                    Posta Encargado
                   </>
                 )}
               </h2>

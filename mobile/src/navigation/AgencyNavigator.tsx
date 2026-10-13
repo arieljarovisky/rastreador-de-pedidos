@@ -12,6 +12,7 @@ import AgencySettingsScreen from '../screens/agency/AgencySettingsScreen';
 import AgencyNotificationsScreen from '../screens/agency/AgencyNotificationsScreen';
 import AgencyBalancesScreen from '../screens/agency/AgencyBalancesScreen';
 import AgencyPriceListsScreen from '../screens/agency/AgencyPriceListsScreen';
+import AgencyScanLabelScreen from '../screens/agency/AgencyScanLabelScreen';
 import PostaBottomTabBar from '../components/navigation/PostaBottomTabBar';
 import {
   AgencyHomeStackParamList,
@@ -22,6 +23,11 @@ import {
   AgencyTabParamList,
 } from './types';
 import { fonts } from '../theme';
+import { View } from 'react-native';
+
+function AgencyScanTabPlaceholder() {
+  return <View style={{ flex: 1 }} />;
+}
 
 const Tab = createBottomTabNavigator<AgencyTabParamList>();
 const Stack = createNativeStackNavigator<AgencyStackParamList>();
@@ -105,9 +111,13 @@ function AgencyTabs() {
           {...props}
           accentColor={t.sello}
           variant="agency"
+          centerIndex={2}
+          centerIcon="scan"
+          centerLabel="Escanear"
           tabs={{
             Home: { icon: 'panel', label: 'Panel' },
             Orders: { icon: 'package', label: 'Pedidos' },
+            Scan: { icon: 'scan', label: 'Escanear' },
             Map: { icon: 'map', label: 'Mapa' },
             Settings: { icon: 'building', label: 'Agencia' },
           }}
@@ -116,6 +126,16 @@ function AgencyTabs() {
     >
       <Tab.Screen name="Home" component={AgencyHomeNavigator} />
       <Tab.Screen name="Orders" component={AgencyOrdersNavigator} />
+      <Tab.Screen
+        name="Scan"
+        component={AgencyScanTabPlaceholder}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.getParent()?.navigate('AgencyScanLabel');
+          },
+        })}
+      />
       <Tab.Screen name="Map" component={AgencyMapNavigator} />
       <Tab.Screen name="Settings" component={AgencySettingsNavigator} />
     </Tab.Navigator>
@@ -139,6 +159,11 @@ export default function AgencyNavigator() {
           name="AgencyOrderDetail"
           component={AgencyOrderDetailScreen}
           options={{ title: 'Detalle del envío' }}
+        />
+        <Stack.Screen
+          name="AgencyScanLabel"
+          component={AgencyScanLabelScreen}
+          options={{ headerShown: false, animation: 'slide_from_bottom' }}
         />
         <Stack.Screen
           name="AgencyNotifications"

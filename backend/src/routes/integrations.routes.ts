@@ -1009,11 +1009,12 @@ router.post('/woocommerce/webhooks/orders', async (req: Request, res: Response) 
 });
 
 router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR), async (req: Request, res: Response) => {
-  const { code, sellerId, lat, lng } = req.body as {
+  const { code, sellerId, lat, lng, repartidorId } = req.body as {
     code?: string;
     sellerId?: string;
     lat?: unknown;
     lng?: unknown;
+    repartidorId?: string;
   };
   if (!code?.trim()) {
     res.status(400).json({ error: 'Escaneá o ingresá el código de la etiqueta.' });
@@ -1025,11 +1026,20 @@ router.post('/mercadolibre/scan-import', authenticate, requireRoles(...AGENCY_AD
       req.user!,
       code.trim(),
       sellerId,
-      parseScanLocation(lat, lng)
+      parseScanLocation(lat, lng),
+      typeof repartidorId === 'string' ? repartidorId : undefined
     );
     res.status(result.alreadyImported ? 200 : 201).json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
+    if (message === 'REPARTIDOR_REQUIRED') {
+      res.status(400).json({ error: 'Elegí un repartidor para asignar el paquete.' });
+      return;
+    }
+    if (message === 'REPARTIDOR_NOT_FOUND') {
+      res.status(400).json({ error: 'Repartidor no encontrado en tu agencia.' });
+      return;
+    }
     if (message === 'ML_SCAN_INVALID') {
       res.status(400).json({
         error: 'El código escaneado no es válido. Usá la etiqueta de Mercado Libre Flex.',

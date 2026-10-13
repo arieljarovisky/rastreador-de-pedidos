@@ -3,10 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
+import {
+  formatOperationalDateLabel,
+  formatOperationalDateShort,
+  formatOperationalWeekday,
+  operationalDateKeyFromIso,
+} from '../utils/deliverySummary.js';
 
 interface ProfileOrder {
   id: string;
@@ -18,6 +24,7 @@ interface ProfileOrder {
   sellerName: string | null;
   createdAt: string;
   updatedAt: string;
+  deliveryDeadline?: string | null;
   receivedFirstName: string | null;
   receivedLastName: string | null;
   receivedDni: string | null;
@@ -49,6 +56,11 @@ function formatWhen(iso: string): string {
   } catch {
     return '';
   }
+}
+
+function orderDayKey(order: ProfileOrder): string {
+  const stamp = order.deliveryDeadline || order.createdAt || order.updatedAt;
+  return operationalDateKeyFromIso(stamp);
 }
 
 export default function RepartidorProfilePanel({
@@ -89,6 +101,20 @@ export default function RepartidorProfilePanel({
       .finally(() => setLoading(false));
     return () => ac.abort();
   }, [token, repartidorId]);
+
+  const ordersByDay = useMemo(() => {
+    if (!data?.orders.length) return [] as Array<{ dateKey: string; orders: ProfileOrder[] }>;
+    const map = new Map<string, ProfileOrder[]>();
+    for (const order of data.orders) {
+      const key = orderDayKey(order);
+      const list = map.get(key);
+      if (list) list.push(order);
+      else map.set(key, [order]);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
+      .map(([dateKey, orders]) => ({ dateKey, orders }));
+  }, [data]);
 
   async function openLabel(orderId: string) {
     setOpeningId(orderId);
@@ -175,42 +201,65 @@ export default function RepartidorProfilePanel({
               {data.orders.length === 0 ? (
                 <p className="text-sm text-[var(--color-text-muted)]">Este repartidor todavía no tiene pedidos.</p>
               ) : (
-                <ul className="space-y-2">
-                  {data.orders.map((order) => (
-                    <li
-                      key={order.id}
-                      className="rounded-[var(--radius-posta)] border border-[var(--surface-border)] px-3 py-2.5"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-                            {order.externalSource && <MarketplaceSourceIcon source={order.externalSource} size="md" />}
-                            {order.clientName}
+                <div className="space-y-5">
+                  {ordersByDay.map(({ dateKey, orders }) => (
+                    <section key={dateKey}>
+                      <div className="mb-2 flex items-baseline justify-between gap-2 border-b border-[var(--surface-border)] pb-1.5">
+                        <div>
+                          <p className="text-sm font-medium text-[var(--color-text)]">
+                            {formatOperationalDateLabel(dateKey)}
                           </p>
-                          <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">{order.address}</p>
-                          <p className="mt-1 text-[11px] text-[var(--color-text-faint)]">
-                            {STATUS_LABEL[order.status] ?? order.status}
-                            {' · '}
-                            {formatWhen(order.updatedAt)}
-                            {order.sellerName ? ` · ${order.sellerName}` : ''}
-                            {order.labelSaved ? ' · etiqueta guardada' : ''}
-                            {order.receivedFirstName && order.receivedLastName
-                              ? ` · Recibió ${order.receivedFirstName} ${order.receivedLastName}${order.receivedDni ? ` · DNI ${order.receivedDni}` : ''}`
-                              : ''}
+                          <p className="text-[11px] text-[var(--color-text-muted)]">
+                            {formatOperationalWeekday(dateKey)} · {formatOperationalDateShort(dateKey)}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          disabled={openingId === order.id}
-                          onClick={() => void openLabel(order.id)}
-                          className="shrink-0 rounded-[var(--radius-posta)] border border-[var(--surface-border)] px-2.5 py-1.5 text-[11px] hover:border-[var(--color-accent)]"
-                        >
-                          {openingId === order.id ? 'Abriendo…' : 'Ver etiqueta'}
-                        </button>
+                        <p className="shrink-0 text-[11px] tabular-nums text-[var(--color-text-faint)]">
+                          {orders.length} etiqueta{orders.length === 1 ? '' : 's'}
+                        </p>
                       </div>
-                    </li>
+                      <ul className="space-y-2">
+                        {orders.map((order) => (
+                          <li
+                            key={order.id}
+                            className="rounded-[var(--radius-posta)] border border-[var(--surface-border)] px-3 py-2.5"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                                  {order.externalSource && (
+                                    <MarketplaceSourceIcon source={order.externalSource} size="md" />
+                                  )}
+                                  {order.clientName}
+                                </p>
+                                <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
+                                  {order.address}
+                                </p>
+                                <p className="mt-1 text-[11px] text-[var(--color-text-faint)]">
+                                  {STATUS_LABEL[order.status] ?? order.status}
+                                  {' · '}
+                                  {formatWhen(order.updatedAt)}
+                                  {order.sellerName ? ` · ${order.sellerName}` : ''}
+                                  {order.labelSaved ? ' · etiqueta guardada' : ''}
+                                  {order.receivedFirstName && order.receivedLastName
+                                    ? ` · Recibió ${order.receivedFirstName} ${order.receivedLastName}${order.receivedDni ? ` · DNI ${order.receivedDni}` : ''}`
+                                    : ''}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={openingId === order.id}
+                                onClick={() => void openLabel(order.id)}
+                                className="shrink-0 rounded-[var(--radius-posta)] border border-[var(--surface-border)] px-2.5 py-1.5 text-[11px] hover:border-[var(--color-accent)]"
+                              >
+                                {openingId === order.id ? 'Abriendo…' : 'Ver etiqueta'}
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           </>

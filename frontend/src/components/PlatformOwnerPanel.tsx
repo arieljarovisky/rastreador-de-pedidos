@@ -83,7 +83,7 @@ async function platformFetch<T>(
 
 function roleLabel(role: UserRole): string {
   if (role === UserRole.SUPER_ADMIN) return 'Dueño agencia';
-  if (role === UserRole.LOGISTICS_ADMIN) return 'Logística';
+  if (role === UserRole.LOGISTICS_ADMIN) return 'Encargado';
   if (role === UserRole.STORE_ADMIN) return 'Vendedor';
   return 'Repartidor';
 }
@@ -1052,7 +1052,7 @@ export default function PlatformOwnerPanel({ token }: PlatformOwnerPanelProps) {
                         >
                           <option value={UserRole.STORE_ADMIN}>Vendedor</option>
                           <option value={UserRole.REPARTIDOR}>Repartidor</option>
-                          <option value={UserRole.LOGISTICS_ADMIN}>Logística</option>
+                          <option value={UserRole.LOGISTICS_ADMIN}>Encargado</option>
                           <option value={UserRole.SUPER_ADMIN}>Dueño agencia</option>
                         </select>
                       </div>

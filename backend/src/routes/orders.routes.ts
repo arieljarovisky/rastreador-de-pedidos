@@ -16,6 +16,7 @@ import {
   getSellerIdForOrder,
   assignOrderToSeller,
   assignOrderToScanningRepartidor,
+  assignOrderToRepartidorByAgencyScan,
   deleteOrder,
   archiveAllFinishedOrders,
   setOrderArchived,
@@ -45,7 +46,7 @@ import {
 import { emitOrderUpdated, emitOrderLocation, emitRepartidorLocation, emitOrderDeleted } from '../realtime/io.js';
 import { getDriverScanPhotoPath, promotePendingPhotoLabels } from '../services/driver-scan.service.js';
 import { logRepartidorGps } from '../utils/repartidorGpsLog.js';
-import { AGENCY_ADMIN_ROLES } from '../utils/roles.js';
+import { AGENCY_ADMIN_ROLES, isAgencyAdmin } from '../utils/roles.js';
 import { pool } from '../config/database.js';
 import { RowDataPacket } from 'mysql2';
 
@@ -511,13 +512,13 @@ router.get('/:id/shipping-label', authenticate, async (req: Request, res: Respon
   res.send(pdf);
 });
 
-/** Escaneo de la etiqueta propia de Posta: reclama el pedido para el repartidor que escanea. */
+/** Escaneo de la etiqueta propia de Posta: reclama el pedido para el repartidor (o lo asigna un encargado/agencia). */
 router.post(
   '/scan',
   authenticate,
   requireRoles(...AGENCY_ADMIN_ROLES, UserRole.REPARTIDOR),
   async (req: Request, res: Response) => {
-    const { code } = req.body as { code?: string };
+    const { code, repartidorId } = req.body as { code?: string; repartidorId?: string };
     const trimmed = typeof code === 'string' ? code.trim() : '';
     if (!trimmed) {
       res.status(400).json({ error: 'Escaneá o ingresá el código de la etiqueta.' });
@@ -546,22 +547,41 @@ router.post(
       }
 
       const previousRepartidorId = order.repartidorId;
-      const updated = await assignOrderToScanningRepartidor(
-        req.user!,
-        order.id,
-        'Asignado por escaneo de etiqueta'
-      );
+      const actor = req.user!;
+      let updated: Order;
+
+      if (isAgencyAdmin(actor.role)) {
+        const targetId = typeof repartidorId === 'string' ? repartidorId.trim() : '';
+        if (!targetId) {
+          res.status(400).json({ error: 'Elegí un repartidor para asignar el paquete.' });
+          return;
+        }
+        updated = await assignOrderToRepartidorByAgencyScan(
+          actor,
+          order.id,
+          targetId,
+          'Asignado por escaneo de encargado'
+        );
+      } else {
+        updated = await assignOrderToScanningRepartidor(
+          actor,
+          order.id,
+          'Asignado por escaneo de etiqueta'
+        );
+      }
 
       const newlyAssigned =
-        req.user!.role === UserRole.REPARTIDOR &&
-        updated.repartidorId === req.user!.id &&
-        updated.repartidorId !== previousRepartidorId;
+        !!updated.repartidorId &&
+        updated.repartidorId !== previousRepartidorId &&
+        (actor.role === UserRole.REPARTIDOR
+          ? updated.repartidorId === actor.id
+          : updated.repartidorId === (typeof repartidorId === 'string' ? repartidorId.trim() : ''));
 
-      if (newlyAssigned) {
+      if (newlyAssigned && updated.repartidorId) {
         emitOrderUpdated(updated, sellerId);
         await createNotification({
           id: `n_scan_assign_${Date.now()}_${updated.id}`,
-          userId: req.user!.id,
+          userId: updated.repartidorId,
           title: 'Pedido asignado',
           body: `Se te asignó el envío ${updated.id} (${updated.clientName}) por escaneo de etiqueta.`,
           type: 'order_assigned',
@@ -578,6 +598,14 @@ router.post(
       }
       if (message === 'NOT_AVAILABLE') {
         res.status(400).json({ error: 'Este pedido no pertenece a tu agencia.' });
+        return;
+      }
+      if (message === 'REPARTIDOR_NOT_FOUND') {
+        res.status(400).json({ error: 'Repartidor no encontrado en tu agencia.' });
+        return;
+      }
+      if (message === 'FORBIDDEN') {
+        res.status(403).json({ error: 'No tenés permiso para asignar este pedido.' });
         return;
       }
       console.error('[orders/scan] error:', err);

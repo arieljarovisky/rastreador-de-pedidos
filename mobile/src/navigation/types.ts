@@ -66,6 +66,7 @@ export type AgencySettingsStackParamList = {
 export type AgencyTabParamList = {
   Home: NavigatorScreenParams<AgencyHomeStackParamList>;
   Orders: NavigatorScreenParams<AgencyOrdersStackParamList>;
+  Scan: undefined;
   Map: NavigatorScreenParams<AgencyMapStackParamList>;
   Settings: NavigatorScreenParams<AgencySettingsStackParamList>;
 };
@@ -73,6 +74,7 @@ export type AgencyTabParamList = {
 export type AgencyStackParamList = {
   MainTabs: NavigatorScreenParams<AgencyTabParamList>;
   AgencyOrderDetail: { orderId: string };
+  AgencyScanLabel: undefined;
   AgencyNotifications: undefined;
   AgencyBalances: undefined;
   AgencyPriceLists: undefined;

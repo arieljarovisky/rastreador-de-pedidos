@@ -658,6 +658,39 @@ export async function listSellers(agencyId: string): Promise<User[]> {
   return Promise.all(sellers.map((seller) => enrichUser(seller)));
 }
 
+/** Encargados (logistics_admin) de la agencia — mismo acceso operativo que el dueño. */
+export async function listLogisticsAdmins(agencyId: string): Promise<User[]> {
+  await ensureUserDisabledAtColumn();
+  const [rows] = await pool.query<(DbUserRow & RowDataPacket)[]>(
+    `SELECT ${USER_COLUMNS} FROM users
+     WHERE role = ? AND agency_id = ? AND disabled_at IS NULL
+     ORDER BY name`,
+    [UserRole.LOGISTICS_ADMIN, agencyId]
+  );
+  return rows.map(rowToUser);
+}
+
+export async function deleteLogisticsAdmin(
+  id: string,
+  agencyId?: string | null
+): Promise<void> {
+  const user = await getUserById(id);
+  if (!user || user.role !== UserRole.LOGISTICS_ADMIN) {
+    throw new Error('NOT_FOUND');
+  }
+  if (agencyId && user.agencyId !== agencyId) {
+    throw new Error('NOT_FOUND');
+  }
+  await pool.query('DELETE FROM notifications WHERE user_id = ?', [id]);
+  const [result] = await pool.query<ResultSetHeader>(
+    'DELETE FROM users WHERE id = ? AND role = ?',
+    [id, UserRole.LOGISTICS_ADMIN]
+  );
+  if (result.affectedRows === 0) {
+    throw new Error('NOT_FOUND');
+  }
+}
+
 export async function assertSellerInAgency(sellerId: string, agencyId: string): Promise<User> {
   const seller = await getUserById(sellerId);
   if (!seller || seller.role !== UserRole.STORE_ADMIN || seller.agencyId !== agencyId) {

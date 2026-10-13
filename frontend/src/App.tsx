@@ -116,7 +116,7 @@ function roleLabel(role: UserRole): string {
     case UserRole.SUPER_ADMIN:
       return 'Administrador';
     case UserRole.LOGISTICS_ADMIN:
-      return 'Logística';
+      return 'Encargado';
     case UserRole.STORE_ADMIN:
       return 'Vendedor';
     case UserRole.REPARTIDOR:
@@ -242,6 +242,7 @@ export default function App() {
   repartidoresRef.current = repartidores;
   const ordersKeyRef = useRef('');
   const [sellers, setSellers] = useState<User[]>([]);
+  const [encargados, setEncargados] = useState<User[]>([]);
   const [departurePoint, setDeparturePoint] = useState<LocationPoint | null>(null);
   const [deliveryDeadlineHour, setDeliveryDeadlineHour] = useState(13);
   const [agencyMaxDeadlineHour, setAgencyMaxDeadlineHour] = useState(13);
@@ -550,6 +551,14 @@ export default function App() {
           })
         : Promise.resolve();
 
+      const encargadosPromise =
+        currentUser?.role === UserRole.SUPER_ADMIN
+          ? fetch(apiUrl('/api/accounts/logistics-admins'), { headers }).then(async (res) => {
+              if (!res.ok) return;
+              setEncargados(await res.json());
+            })
+          : Promise.resolve();
+
       const repMlPromise =
         currentUser?.role === UserRole.REPARTIDOR
           ? fetch(apiUrl('/api/integrations/repartidor/status'), { headers }).then(async (res) => {
@@ -590,6 +599,7 @@ export default function App() {
         opsPromise,
         repsPromise,
         sellersPromise,
+        encargadosPromise,
         repMlPromise,
         integrationsPromise,
         brandingPromise,
@@ -1192,6 +1202,41 @@ export default function App() {
     }
     const created = await res.json();
     setRepartidores((prev) => dedupeRepartidores([...prev, created]));
+  };
+
+  const handleCreateEncargado = async (data: {
+    username: string;
+    password: string;
+    name: string;
+  }) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/logistics-admins'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo crear el encargado');
+    }
+    const created = await res.json();
+    setEncargados((prev) => [...prev, created]);
+  };
+
+  const handleDeleteEncargado = async (id: string) => {
+    if (!token) return;
+    const res = await fetch(apiUrl(`/api/accounts/logistics-admins/${id}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'No se pudo eliminar el encargado');
+    }
+    setEncargados((prev) => prev.filter((e) => e.id !== id));
   };
 
   const handleUpdateRepartidorZone = async (repartidorId: string, deliveryZone: string | null) => {
@@ -2847,6 +2892,13 @@ export default function App() {
                   onUpdateRepartidorZone={isAgencyAdmin(user.role) ? handleUpdateRepartidorZone : undefined}
                   onDeleteRepartidor={isAgencyAdmin(user.role) ? handleDeleteRepartidor : undefined}
                   onClearRepartidorSession={isAgencyAdmin(user.role) ? handleClearRepartidorSession : undefined}
+                  encargados={encargados}
+                  onCreateEncargado={
+                    user.role === UserRole.SUPER_ADMIN ? handleCreateEncargado : undefined
+                  }
+                  onDeleteEncargado={
+                    user.role === UserRole.SUPER_ADMIN ? handleDeleteEncargado : undefined
+                  }
                   onCreatePickupPoint={handleCreatePickupPoint}
                   onUpdatePickupPoint={handleUpdatePickupPoint}
                   onDeletePickupPoint={handleDeletePickupPoint}

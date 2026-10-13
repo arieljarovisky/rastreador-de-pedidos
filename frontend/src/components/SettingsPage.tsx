@@ -160,6 +160,10 @@ interface SettingsPageProps {
   onUpdateRepartidorZone?: (repartidorId: string, deliveryZone: string | null) => Promise<void>;
   onDeleteRepartidor?: (id: string) => Promise<{ finalizedOrders: number }>;
   onClearRepartidorSession?: (id: string) => Promise<void>;
+  /** Encargados con el mismo acceso que la agencia (solo dueño). */
+  encargados?: User[];
+  onCreateEncargado?: (data: { username: string; password: string; name: string }) => Promise<void>;
+  onDeleteEncargado?: (id: string) => Promise<void>;
   onCreatePickupPoint?: (data: {
     label?: string;
     address: string;
@@ -245,6 +249,9 @@ export default function SettingsPage({
   onUpdateRepartidorZone,
   onDeleteRepartidor,
   onClearRepartidorSession,
+  encargados = [],
+  onCreateEncargado,
+  onDeleteEncargado,
   onCreatePickupPoint,
   onUpdatePickupPoint,
   onDeletePickupPoint,
@@ -355,6 +362,14 @@ export default function SettingsPage({
   const [repartidorFormMessage, setRepartidorFormMessage] = useState<string | null>(null);
   const [deletingRepartidorId, setDeletingRepartidorId] = useState<string | null>(null);
   const [clearingSessionRepartidorId, setClearingSessionRepartidorId] = useState<string | null>(null);
+
+  const [showEncargadoForm, setShowEncargadoForm] = useState(false);
+  const [encargadoName, setEncargadoName] = useState('');
+  const [encargadoUsername, setEncargadoUsername] = useState('');
+  const [encargadoPassword, setEncargadoPassword] = useState('');
+  const [encargadoFormLoading, setEncargadoFormLoading] = useState(false);
+  const [encargadoFormMessage, setEncargadoFormMessage] = useState<string | null>(null);
+  const [deletingEncargadoId, setDeletingEncargadoId] = useState<string | null>(null);
 
   const [showZoneForm, setShowZoneForm] = useState(false);
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
@@ -1120,12 +1135,17 @@ export default function SettingsPage({
       )}
 
 
-      {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone) && (
+      {agency && (onCreateSeller || onCreateRepartidor || onDeleteRepartidor || onCreateDeliveryZone || onCreateEncargado) && (
         <section className="paper-card p-0 flex flex-col mt-3 w-full">
             <div className="shrink-0 px-3 py-2 border-b border-[var(--surface-border)] bg-[var(--paper)]/40 flex flex-wrap items-center justify-between gap-2">
               <span className="mono-label">Flota y cobertura</span>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-mono text-[var(--color-text-muted)]">
                 <span>{sellers.length} vendedor{sellers.length !== 1 ? 'es' : ''}</span>
+                {onCreateEncargado && (
+                  <span>
+                    {encargados.length} encargado{encargados.length !== 1 ? 's' : ''}
+                  </span>
+                )}
                 <span>{repartidorZonesList.length} zonas reparto</span>
                 <span>{repartidores.length} repartidores</span>
                 <span className="text-[var(--color-accent)]">{repsWithZone} con zona</span>
@@ -1912,6 +1932,164 @@ export default function SettingsPage({
                     }`}
                   >
                     {zoneFormMessage}
+                  </p>
+                )}
+              </form>
+            )}
+          </SettingsFleetColumn>
+        )}
+
+        {(onCreateEncargado || onDeleteEncargado) && (
+          <SettingsFleetColumn>
+            <SettingsSectionHeader
+              icon={<UserPlus className="w-3.5 h-3.5 text-[var(--color-accent)]" />}
+              accentClass="bg-[var(--color-accent)]/10"
+              title="Encargados"
+              meta={`${encargados.length} con acceso de agencia`}
+              action={
+                onCreateEncargado ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowEncargadoForm(!showEncargadoForm)}
+                    className={btnGhost}
+                  >
+                    {showEncargadoForm ? 'Cerrar' : '+ Nuevo'}
+                  </button>
+                ) : undefined
+              }
+            />
+            <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+              Mismo acceso que la agencia: pedidos, flota y escaneo desde la app para asignar paquetes a
+              repartidores.
+            </p>
+            {encargados.length > 0 && !showEncargadoForm && (
+              <ul className="space-y-1">
+                {encargados.map((enc) => (
+                  <li
+                    key={enc.id}
+                    className={`flex items-center justify-between gap-2 text-[11px] rounded-[5px] px-2.5 py-2 border ${listItemClass}`}
+                  >
+                    <span className="min-w-0 truncate">
+                      <span className="font-medium text-[var(--ink-soft)]">{enc.name}</span>
+                      <span className="text-[var(--color-text-muted)]"> @{enc.username}</span>
+                    </span>
+                    {onDeleteEncargado && (
+                      <button
+                        type="button"
+                        disabled={deletingEncargadoId === enc.id}
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: 'Eliminar encargado',
+                            message: `¿Eliminar a ${enc.name} (@${enc.username})? Perderá el acceso a la agencia.`,
+                            variant: 'danger',
+                            confirmText: 'Eliminar',
+                            cancelText: 'Cancelar',
+                          });
+                          if (!ok) return;
+                          setDeletingEncargadoId(enc.id);
+                          setEncargadoFormMessage(null);
+                          try {
+                            await onDeleteEncargado(enc.id);
+                            setEncargadoFormMessage('Encargado eliminado correctamente.');
+                          } catch (err: unknown) {
+                            setEncargadoFormMessage(
+                              err instanceof Error ? err.message : 'Error al eliminar encargado.'
+                            );
+                          } finally {
+                            setDeletingEncargadoId(null);
+                          }
+                        }}
+                        className="text-[var(--color-danger)] hover:text-red-300 disabled:opacity-50 p-1 shrink-0"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {encargadoFormMessage && !showEncargadoForm && (
+              <p
+                className={`mt-3 text-[10px] font-mono ${
+                  encargadoFormMessage.includes('correctamente')
+                    ? 'text-[var(--color-ok)]'
+                    : 'text-[var(--color-danger)]'
+                }`}
+              >
+                {encargadoFormMessage}
+              </p>
+            )}
+            {showEncargadoForm && onCreateEncargado && (
+              <form
+                className="space-y-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setEncargadoFormLoading(true);
+                  setEncargadoFormMessage(null);
+                  try {
+                    const email = encargadoUsername.trim();
+                    if (!isValidEmail(email)) {
+                      setEncargadoFormMessage('El usuario del encargado debe ser un correo electrónico válido.');
+                      return;
+                    }
+                    await onCreateEncargado({
+                      name: encargadoName,
+                      username: email,
+                      password: encargadoPassword,
+                    });
+                    setEncargadoFormMessage('Encargado creado correctamente.');
+                    setEncargadoName('');
+                    setEncargadoUsername('');
+                    setEncargadoPassword('');
+                    setShowEncargadoForm(false);
+                  } catch (err: unknown) {
+                    setEncargadoFormMessage(
+                      err instanceof Error ? err.message : 'Error al crear encargado.'
+                    );
+                  } finally {
+                    setEncargadoFormLoading(false);
+                  }
+                }}
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <input
+                    required
+                    value={encargadoName}
+                    onChange={(e) => setEncargadoName(e.target.value)}
+                    placeholder="Nombre del encargado"
+                    className={inputClass}
+                  />
+                  <input
+                    required
+                    type="email"
+                    value={encargadoUsername}
+                    onChange={(e) => setEncargadoUsername(e.target.value)}
+                    placeholder="Email (usuario)"
+                    className={inputClass}
+                  />
+                  <input
+                    required
+                    type="password"
+                    minLength={6}
+                    value={encargadoPassword}
+                    onChange={(e) => setEncargadoPassword(e.target.value)}
+                    placeholder="Contraseña"
+                    className={inputClass}
+                  />
+                </div>
+                <button type="submit" disabled={encargadoFormLoading} className={btnPrimary}>
+                  {encargadoFormLoading ? 'Creando…' : 'Crear encargado'}
+                </button>
+                {encargadoFormMessage && (
+                  <p
+                    className={`text-[10px] font-mono ${
+                      encargadoFormMessage.includes('correctamente')
+                        ? 'text-[var(--color-ok)]'
+                        : 'text-[var(--color-danger)]'
+                    }`}
+                  >
+                    {encargadoFormMessage}
                   </p>
                 )}
               </form>
