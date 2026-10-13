@@ -4,13 +4,15 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, X } from 'lucide-react';
 import { apiUrl } from '../api.ts';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
+import OperationalDatePicker from './OperationalDatePicker.tsx';
 import {
   formatOperationalDateLabel,
   formatOperationalDateShort,
   formatOperationalWeekday,
+  getOperationalDateKey,
   operationalDateKeyFromIso,
 } from '../utils/deliverySummary.js';
 
@@ -80,12 +82,18 @@ export default function RepartidorProfilePanel({
   const [loading, setLoading] = useState(true);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [labelError, setLabelError] = useState<string | null>(null);
+  const [dateFromKey, setDateFromKey] = useState('');
+  const [dateToKey, setDateToKey] = useState('');
 
   useEffect(() => {
     const ac = new AbortController();
     setLoading(true);
     setError(null);
-    void fetch(apiUrl(`/api/accounts/repartidores/${repartidorId}/profile`), {
+    const params = new URLSearchParams();
+    if (dateFromKey) params.set('dateFrom', dateFromKey);
+    if (dateToKey) params.set('dateTo', dateToKey);
+    const qs = params.toString();
+    void fetch(apiUrl(`/api/accounts/repartidores/${repartidorId}/profile${qs ? `?${qs}` : ''}`), {
       headers: { Authorization: `Bearer ${token}` },
       signal: ac.signal,
     })
@@ -100,7 +108,7 @@ export default function RepartidorProfilePanel({
       })
       .finally(() => setLoading(false));
     return () => ac.abort();
-  }, [token, repartidorId]);
+  }, [token, repartidorId, dateFromKey, dateToKey]);
 
   const ordersByDay = useMemo(() => {
     if (!data?.orders.length) return [] as Array<{ dateKey: string; orders: ProfileOrder[] }>;
@@ -169,6 +177,42 @@ export default function RepartidorProfilePanel({
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-2 border-b border-[var(--surface-border)] px-4 py-3">
+          <OperationalDatePicker
+            layout="field"
+            label="Desde"
+            empty={!dateFromKey}
+            placeholder="Sin fecha"
+            value={dateFromKey || dateToKey || getOperationalDateKey()}
+            onChange={setDateFromKey}
+            maxDateKey={dateToKey || undefined}
+          />
+          <div className="relative min-w-0">
+            <OperationalDatePicker
+              layout="field"
+              label="Hasta"
+              empty={!dateToKey}
+              placeholder="Sin fecha"
+              value={dateToKey || dateFromKey || getOperationalDateKey()}
+              onChange={setDateToKey}
+              minDateKey={dateFromKey || undefined}
+            />
+            {(dateFromKey || dateToKey) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFromKey('');
+                  setDateToKey('');
+                }}
+                title="Limpiar fechas"
+                className="absolute right-2 top-[1.85rem] p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-accent)] hover:bg-[var(--surface-panel)] transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {loading && (
           <div className="flex flex-1 items-center justify-center text-[var(--color-text-muted)]">
             <Loader2 className="size-5 animate-spin" />
@@ -199,7 +243,11 @@ export default function RepartidorProfilePanel({
             )}
             <div className="flex-1 overflow-y-auto px-4 py-3">
               {data.orders.length === 0 ? (
-                <p className="text-sm text-[var(--color-text-muted)]">Este repartidor todavía no tiene pedidos.</p>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  {dateFromKey || dateToKey
+                    ? 'No hay pedidos en el rango de fechas elegido.'
+                    : 'Este repartidor todavía no tiene pedidos.'}
+                </p>
               ) : (
                 <div className="space-y-5">
                   {ordersByDay.map(({ dateKey, orders }) => (

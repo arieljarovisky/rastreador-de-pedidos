@@ -240,11 +240,40 @@ function belongsToUserAgency(user: User, agencyId: string | null | undefined): b
 /** Pedidos que hizo un repartidor de la agencia, del más reciente al más viejo. */
 export async function listRepartidorOrders(
   agencyId: string,
-  repartidorId: string
+  repartidorId: string,
+  options?: { dateFrom?: string; dateTo?: string }
 ): Promise<Order[]> {
+  const where = ['o.agency_id = ?', 'o.repartidor_id = ?'];
+  const params: unknown[] = [agencyId, repartidorId];
+
+  const dateFrom = options?.dateFrom?.trim();
+  const dateTo = options?.dateTo?.trim();
+  const fromOk = Boolean(dateFrom && /^\d{4}-\d{2}-\d{2}$/.test(dateFrom));
+  const toOk = Boolean(dateTo && /^\d{4}-\d{2}-\d{2}$/.test(dateTo));
+  // Mismo criterio que el perfil: día operativo por delivery_deadline (fallback created_at).
+  const dayExpr = 'COALESCE(o.delivery_deadline, o.created_at)';
+  if (fromOk || toOk) {
+    if (fromOk && toOk) {
+      const startKey = dateFrom! <= dateTo! ? dateFrom! : dateTo!;
+      const endKey = dateFrom! <= dateTo! ? dateTo! : dateFrom!;
+      const { start } = getOperationalDayBounds(startKey);
+      const { end } = getOperationalDayBounds(endKey);
+      where.push(`${dayExpr} >= ? AND ${dayExpr} < ?`);
+      params.push(start, end);
+    } else if (fromOk) {
+      const { start } = getOperationalDayBounds(dateFrom!);
+      where.push(`${dayExpr} >= ?`);
+      params.push(start);
+    } else if (toOk) {
+      const { end } = getOperationalDayBounds(dateTo!);
+      where.push(`${dayExpr} < ?`);
+      params.push(end);
+    }
+  }
+
   const [rows] = await pool.query<OrderWithRepartidorRow[]>(
-    `${ORDER_SELECT} WHERE o.agency_id = ? AND o.repartidor_id = ? ORDER BY o.updated_at DESC LIMIT 400`,
-    [agencyId, repartidorId]
+    `${ORDER_SELECT} WHERE ${where.join(' AND ')} ORDER BY o.updated_at DESC LIMIT 400`,
+    params
   );
   return enrichOrders(rows, 'list');
 }

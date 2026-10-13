@@ -293,7 +293,18 @@ router.get('/repartidores/:id/profile', authenticate, requireAgencyAdmin(), asyn
     await promotePendingPhotoLabels(req.user).catch((err: unknown) => {
       console.warn('[repartidor-profile] fotos pendientes', err);
     });
-    const orders = await listRepartidorOrders(req.user.agencyId, repartidor.id);
+    const dateFrom =
+      typeof req.query.dateFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dateFrom.trim())
+        ? req.query.dateFrom.trim()
+        : undefined;
+    const dateTo =
+      typeof req.query.dateTo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.dateTo.trim())
+        ? req.query.dateTo.trim()
+        : undefined;
+    const orders = await listRepartidorOrders(req.user.agencyId, repartidor.id, {
+      dateFrom,
+      dateTo,
+    });
     const saved = await Promise.all(orders.map((order) => findSavedOrderLabel(order.id)));
     res.json({
       repartidor: {
