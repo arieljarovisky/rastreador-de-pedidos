@@ -102,6 +102,8 @@ export interface Order {
   receivedDni?: string | null;
   externalSource?: string | null;
   externalOrderId?: string | null;
+  /** Código único para /seguimiento (null en Mercado Libre). */
+  publicTrackingCode?: string | null;
   shippingType?: string | null;
   /** Último status de envío ML Flex (ej. shipped). */
   mlShipmentStatus?: string | null;
@@ -162,6 +164,7 @@ export interface DbOrderRow {
   seller_id: string | null;
   external_source: string | null;
   external_order_id: string | null;
+  public_tracking_code?: string | null;
   shipping_type: string | null;
   client_name: string;
   client_phone: string;

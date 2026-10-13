@@ -22,10 +22,29 @@ const VERSION_API = 'https://envios-erp.up.railway.app/api/app/version';
 
 const NAV = [
   { href: '#porque', label: 'Por qué' },
+  { href: '#nosotros', label: 'Nosotros' },
   { href: '#roles', label: 'Roles' },
   { href: '#recorrido', label: 'Recorrido' },
   { href: '#descargar', label: 'App' },
   { href: '#precios', label: 'Tarifas' },
+];
+
+const ABOUT_PILLARS = [
+  {
+    n: '01',
+    title: 'De la calle, no del PowerPoint',
+    body: 'Diseñamos mirando agencias reales de CABA y GBA: motos en la avenida, WhatsApp a mil y planillas que no cierran.',
+  },
+  {
+    n: '02',
+    title: 'Una sola verdad operativa',
+    body: 'Si el pedido cambió de estado, lo ven todos. Agencia, vendedor y repartidor trabajan sobre el mismo mapa.',
+  },
+  {
+    n: '03',
+    title: 'Hecho en Buenos Aires',
+    body: 'Zonas, horarios y distancias locales. Posta nació para la última milla del AMBA, no para un mercado genérico.',
+  },
 ];
 
 const MENU_LINKS = [
@@ -565,6 +584,37 @@ export function LandingPage() {
         </div>
       </section>
 
+      <section id="nosotros" className="mx-auto max-w-6xl px-5 py-20 lg:px-8">
+        <div className="grid items-start gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-ember">Quiénes somos</p>
+            <h2 className="mt-3 max-w-xl font-serif-display text-5xl italic leading-[0.95] sm:text-6xl">
+              Somos la cabina detrás de tu flota.
+            </h2>
+            <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground">
+              Posta es un equipo de Buenos Aires que construye la hoja de ruta en vivo para agencias, vendedores y repartidores.
+              No armamos otro ERP: armamos la pantalla que necesitás cuando el pedido ya salió a la calle.
+            </p>
+            <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground">
+              Arrancamos porque vimos la misma escena una y otra vez: etiquetas por WhatsApp, ubicaciones a ojo y nadie que sepa
+              dónde está cada moto. Posta ordena eso sin sacar a tu gente del ritmo del día.
+            </p>
+            <a href="#demo" className="mt-8 inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
+              Conocé el producto en 30 min
+            </a>
+          </div>
+          <div className="space-y-4">
+            {ABOUT_PILLARS.map((pillar) => (
+              <HaloCard key={pillar.n} aria-label={pillar.title} padding="lg" translucent={false} interactive={false}>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-ember">{pillar.n}</p>
+                <h3 className="mt-3 text-lg tracking-tight">{pillar.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{pillar.body}</p>
+              </HaloCard>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section id="roles" className="mx-auto max-w-6xl px-5 py-16 lg:px-8">
         <p className="text-[11px] uppercase tracking-[0.22em] text-ember">Para quién es</p>
         <h2 className="mt-3 max-w-xl font-serif-display text-5xl italic leading-[0.95] sm:text-6xl">Tres roles, una misma calle.</h2>
@@ -712,6 +762,7 @@ export function LandingPage() {
             <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Producto</p>
             <ul className="mt-3 space-y-2 text-sm">
               <li><a href="#porque">Por qué Posta</a></li>
+              <li><a href="#nosotros">Quiénes somos</a></li>
               <li><a href="#roles">Roles</a></li>
               <li><a href="#recorrido">Recorrido</a></li>
               <li><a href="#integraciones">Integraciones</a></li>

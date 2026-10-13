@@ -33,6 +33,11 @@ import {
 import { getAgencyDeliveryDeadlineHour, listAgenciesDeadlineHours } from './agencies.service.js';
 import { ML_RESCHEDULE_SUBSTATUS_LIST } from '../utils/ml-reschedule.js';
 import { resolveClosedDateKeys } from './closed-days.service.js';
+import {
+  generatePublicTrackingCode,
+  looksLikePublicTrackingCode,
+  normalizePublicTrackingCode,
+} from '../utils/public-tracking-code.js';
 
 interface HistoryRow extends RowDataPacket {
   order_id: string;
@@ -181,6 +186,7 @@ function rowToOrder(
     receivedDni: row.received_dni ?? null,
     externalSource: row.external_source ?? null,
     externalOrderId: row.external_order_id ?? null,
+    publicTrackingCode: row.public_tracking_code ?? null,
     shippingType: row.shipping_type ?? null,
     mlShipmentStatus: row.ml_shipment_status ?? null,
     mlShipmentSubstatus: row.ml_shipment_substatus ?? null,
@@ -190,7 +196,8 @@ function rowToOrder(
 }
 
 const ORDER_SELECT = `
-  SELECT o.id, o.agency_id, o.seller_id, o.external_source, o.external_order_id, o.shipping_type,
+  SELECT o.id, o.agency_id, o.seller_id, o.external_source, o.external_order_id, o.public_tracking_code,
+         o.shipping_type,
          o.client_name, o.client_phone, o.address, o.lat, o.lng,
          o.status, o.archived, o.repartidor_id, o.notes,
          o.received_first_name, o.received_last_name, o.received_dni,
@@ -637,16 +644,21 @@ export async function createOrder(
     }
   }
 
+  const publicTrackingCode =
+    data.externalSource === 'mercadolibre' ? null : await allocatePublicTrackingCode();
+
   await pool.query(
-    `INSERT INTO orders (id, agency_id, seller_id, external_source, external_order_id, shipping_type,
-       client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at, delivery_deadline)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+    `INSERT INTO orders (id, agency_id, seller_id, external_source, external_order_id, public_tracking_code,
+       shipping_type, client_name, client_phone, address, lat, lng, status, repartidor_id, notes,
+       created_at, updated_at, delivery_deadline)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
     [
       newId,
       agencyId,
       sellerId,
       data.externalSource ?? null,
       data.externalOrderId ?? null,
+      publicTrackingCode,
       data.shippingType ?? null,
       data.clientName,
       data.clientPhone ?? '',
@@ -754,8 +766,33 @@ async function findOrdersByExternalGlobal(
   return enrichOrders(rows);
 }
 
+async function allocatePublicTrackingCode(): Promise<string> {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const code = generatePublicTrackingCode();
+    const [rows] = await pool.query<Array<{ id: string } & RowDataPacket>>(
+      'SELECT id FROM orders WHERE public_tracking_code = ? LIMIT 1',
+      [code]
+    );
+    if (!rows[0]) return code;
+  }
+  throw new Error('PUBLIC_TRACKING_CODE_ALLOCATION_FAILED');
+}
+
+export async function findOrderByPublicTrackingCode(code: string): Promise<Order | null> {
+  const normalized = normalizePublicTrackingCode(code);
+  if (!normalized) return null;
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT} WHERE o.public_tracking_code = ? LIMIT 1`,
+    [normalized]
+  );
+  if (!rows[0]) return null;
+  const orders = await enrichOrders([rows[0]]);
+  return orders[0] ?? null;
+}
+
 /**
  * Busca un pedido público por referencia de comprador:
+ * - Código Posta (PST…) para pedidos que no son Mercado Libre
  * - Mercado Libre: ID de envío o número de venta
  * - Tienda Nube / Shopify / WooCommerce: ID externo o "Pedido #…" en notas
  */
@@ -771,6 +808,23 @@ export async function findOrderByPublicRef(
   const sources: PublicTrackingSource[] = sourceFilter
     ? [sourceFilter]
     : [...PUBLIC_TRACKING_SOURCES];
+
+  if (looksLikePublicTrackingCode(trimmed) || trimmed.toUpperCase().startsWith('PST')) {
+    const byCode = await findOrderByPublicTrackingCode(trimmed);
+    if (byCode) {
+      if (
+        sourceFilter &&
+        byCode.externalSource &&
+        byCode.externalSource !== sourceFilter
+      ) {
+        return { status: 'not_found' };
+      }
+      return { status: 'found', order: byCode };
+    }
+    if (looksLikePublicTrackingCode(trimmed)) {
+      return { status: 'not_found' };
+    }
+  }
 
   const tryMl = sources.includes('mercadolibre') && digits.length >= 8;
   if (tryMl) {

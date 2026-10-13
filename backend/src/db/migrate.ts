@@ -953,4 +953,48 @@ export async function runMigrations(): Promise<void> {
       console.log(`[migrate] Eliminadas ${globalCount} notificación(es) globales (user_id=all).`);
     }
   }
+
+  // Código único de seguimiento público (no ML). El comprador lo usa en /seguimiento.
+  if (!(await columnExists('orders', 'public_tracking_code'))) {
+    await pool.query(
+      'ALTER TABLE orders ADD COLUMN public_tracking_code VARCHAR(16) NULL AFTER external_order_id'
+    );
+  }
+  try {
+    await pool.query(
+      'CREATE UNIQUE INDEX uk_orders_public_tracking_code ON orders (public_tracking_code)'
+    );
+  } catch {
+    // índice ya existe
+  }
+
+  const { generatePublicTrackingCode } = await import('../utils/public-tracking-code.js');
+  const [missingCodes] = await pool.query<Array<{ id: string } & RowDataPacket>>(
+    `SELECT id FROM orders
+     WHERE public_tracking_code IS NULL
+       AND (external_source IS NULL OR external_source <> 'mercadolibre')
+     LIMIT 2000`
+  );
+  let backfilled = 0;
+  for (const row of missingCodes) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const code = generatePublicTrackingCode();
+      try {
+        const [result] = await pool.query(
+          `UPDATE orders SET public_tracking_code = ? WHERE id = ? AND public_tracking_code IS NULL`,
+          [code, row.id]
+        );
+        const affected = (result as { affectedRows?: number }).affectedRows ?? 0;
+        if (affected > 0) {
+          backfilled += 1;
+          break;
+        }
+      } catch {
+        // colisión de código único: reintentar
+      }
+    }
+  }
+  if (backfilled > 0) {
+    console.log(`[migrate] Asignados ${backfilled} código(s) de seguimiento público.`);
+  }
 }
