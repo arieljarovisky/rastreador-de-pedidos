@@ -93,6 +93,7 @@ const PLANS = [
   { key: 'Flota chica', title: 'Hasta 10', price: '20.000', body: 'Para agencias que arrancan o operan con hasta diez repartidores.', featured: false },
   { key: 'Flota mediana', title: 'Hasta 20', price: '35.000', body: 'Para agencias en crecimiento con hasta veinte repartidores activos.', featured: true },
   { key: 'Flota grande', title: 'Más de 20', price: '50.000', body: 'Para operaciones con más de veinte repartidores en la misma agencia.', featured: false },
+  { key: 'A medida', title: 'A medida', price: null, body: 'Para flotas grandes, varias sedes o necesidades específicas. Armamos el plan con vos.', featured: false },
 ];
 
 const PLAN_POINTS = [
@@ -210,6 +211,7 @@ function Phone({ className = '', height }: { className?: string; height?: string
 }
 
 function PlanBody({ plan }: { plan: (typeof PLANS)[number] }) {
+  const custom = plan.price == null;
   return (
     <div className="flex h-full flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-3">
@@ -218,10 +220,16 @@ function PlanBody({ plan }: { plan: (typeof PLANS)[number] }) {
       </div>
       <h3 className="font-serif-display text-4xl italic">{plan.title}</h3>
       <p className="text-sm text-muted-foreground">{plan.body}</p>
-      <p className="text-3xl tracking-tight">
-        ${plan.price}
-        <span className="ml-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">por mes · ARS</span>
-      </p>
+      {custom ? (
+        <p className="text-3xl tracking-tight">
+          Precio a consultar
+        </p>
+      ) : (
+        <p className="text-3xl tracking-tight">
+          ${plan.price}
+          <span className="ml-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">por mes · ARS</span>
+        </p>
+      )}
       <ul className="space-y-2 text-sm">
         {PLAN_POINTS.map((point) => (
           <li key={point} className="flex gap-2">
@@ -230,8 +238,11 @@ function PlanBody({ plan }: { plan: (typeof PLANS)[number] }) {
           </li>
         ))}
       </ul>
-      <a href="/app" className="mt-auto inline-flex text-sm underline underline-offset-4">
-        Probar 14 días gratis
+      <a
+        href={custom ? '#demo' : '/app'}
+        className="mt-auto inline-flex text-sm underline underline-offset-4"
+      >
+        {custom ? 'Consultar' : 'Probar 14 días gratis'}
       </a>
     </div>
   );
@@ -724,7 +735,7 @@ export function LandingPage() {
       </section>
 
       <section id="precios" className="px-5 py-20 lg:px-8">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-[11px] uppercase tracking-[0.22em] text-ember">Tarifas</p>
             <h2 className="mt-3 font-serif-display text-5xl italic leading-[0.95]">Mismas funciones. Pagás según tu flota.</h2>
@@ -732,7 +743,7 @@ export function LandingPage() {
               Mapa en vivo, app repartidor, integraciones y cobros con Mercado Pago. El precio mensual depende de cuántos repartidores tenés.
             </p>
           </div>
-          <div className="mt-12 grid gap-4 lg:grid-cols-3">
+          <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {PLANS.map((plan) => (
               <HaloCard
                 key={plan.key}
