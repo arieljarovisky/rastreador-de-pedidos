@@ -91,19 +91,6 @@ function formatShipmentDate(iso: string): string {
   return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function webhookLabel(platform: MarketplacePlatform): string {
-  switch (platform) {
-    case 'mercadolibre':
-      return 'Webhook ML';
-    case 'tiendanube':
-      return 'Webhook TN';
-    case 'shopify':
-      return 'Webhook Shopify';
-    case 'woocommerce':
-      return 'Webhook Woo';
-  }
-}
-
 function PlatformCard({
   title,
   subtitle,
@@ -113,7 +100,6 @@ function PlatformCard({
   showMissingCredentials = false,
   connected,
   accountName,
-  webhookUrl,
   autoSync = false,
   shipments,
   shipmentsLoading,
@@ -157,7 +143,6 @@ function PlatformCard({
   showMissingCredentials?: boolean;
   connected: boolean;
   accountName: string | null;
-  webhookUrl?: string;
   autoSync?: boolean;
   shipments: MarketplaceShipmentPreview[];
   shipmentsLoading: boolean;
@@ -243,12 +228,6 @@ function PlatformCard({
           {!configured && showMissingCredentials && (
             <p className="text-[10px] text-[var(--color-warn)] mt-0.5">
               Falta configurar credenciales en el servidor.
-            </p>
-          )}
-          {configured && webhookUrl && (
-            <p className="text-[10px] text-[var(--color-text-muted)] mt-1 break-all">
-              {webhookLabel(platform)}:{' '}
-              <span className="text-[var(--ink-soft)] font-mono">{webhookUrl}</span>
             </p>
           )}
         </div>
@@ -1004,7 +983,6 @@ export default function MarketplaceIntegrations({
           }
           connected={status?.mercadolibre.connected ?? false}
           accountName={status?.mercadolibre.account?.nickname ?? null}
-          webhookUrl={status?.mercadolibre.webhookUrl}
           shipments={mlShipments}
           shipmentsLoading={mlLoading}
           importLoading={mlImporting}
@@ -1042,7 +1020,6 @@ export default function MarketplaceIntegrations({
           accountName={
             status?.tiendanube.account?.nickname ?? status?.tiendanube.account?.externalStoreId ?? null
           }
-          webhookUrl={status?.tiendanube.orderWebhookUrl}
           autoSync={status?.tiendanube.autoSync ?? status?.tiendanube.connected ?? false}
           shipments={tnShipments}
           shipmentsLoading={tnLoading}
@@ -1077,7 +1054,6 @@ export default function MarketplaceIntegrations({
           accountName={
             status?.shopify?.account?.nickname ?? status?.shopify?.account?.externalStoreId ?? null
           }
-          webhookUrl={status?.shopify?.orderWebhookUrl}
           autoSync={status?.shopify?.autoSync ?? status?.shopify?.connected ?? false}
           shipments={shopifyShipments}
           shipmentsLoading={shopifyLoading}
@@ -1120,7 +1096,6 @@ export default function MarketplaceIntegrations({
             status?.woocommerce?.account?.externalStoreId ??
             null
           }
-          webhookUrl={status?.woocommerce?.orderWebhookUrl}
           autoSync={status?.woocommerce?.autoSync ?? status?.woocommerce?.connected ?? false}
           shipments={wooShipments}
           shipmentsLoading={wooLoading}
