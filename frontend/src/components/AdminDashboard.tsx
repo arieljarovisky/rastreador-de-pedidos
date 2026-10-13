@@ -2648,6 +2648,22 @@ export default function AdminDashboard({
                     📦 Envío {selectedOrder.id}
                     <MarketplaceSourceIcon source={selectedOrder.externalSource} size="md" />
                   </h3>
+                  {selectedOrder.publicTrackingCode && (
+                    <p className="text-[10px] text-[var(--color-text-muted)] font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
+                      Seguimiento:{' '}
+                      <button
+                        type="button"
+                        className="text-[var(--color-accent)] font-semibold hover:underline"
+                        title="Copiar link de seguimiento"
+                        onClick={() => {
+                          const url = `${window.location.origin}/seguimiento?ref=${encodeURIComponent(selectedOrder.publicTrackingCode!)}`;
+                          void navigator.clipboard?.writeText(url);
+                        }}
+                      >
+                        {selectedOrder.publicTrackingCode}
+                      </button>
+                    </p>
+                  )}
                   <p className="text-[10px] text-[var(--color-text-muted)] font-sans mt-0.5">Destinatario: {selectedOrder.clientName}</p>
                   {selectedOrder.receivedFirstName && selectedOrder.receivedLastName && (
                     <p className="text-[10px] text-[var(--color-text-muted)] font-sans mt-0.5">

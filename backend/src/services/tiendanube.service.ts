@@ -787,6 +787,70 @@ export function isTiendaNubeConfigured(): boolean {
  * Marca un pedido de Tienda Nube como entregado creando un tracking event con status "delivered".
  * Según la API de TN, esto actualiza automáticamente el fulfillment order a DELIVERED.
  */
+/**
+ * Publica el código/URL de seguimiento Posta en el fulfillment de TN
+ * y notifica al comprador (notify_customer).
+ */
+export async function pushTiendaNubePublicTracking(
+  sellerId: string,
+  externalOrderId: string,
+  tracking: { code: string; url: string }
+): Promise<{ success: boolean; error?: string }> {
+  const integration = await getIntegration(sellerId, 'tiendanube');
+  if (!integration) return { success: false, error: 'TN_NOT_CONNECTED' };
+
+  const storeId = integration.externalStoreId;
+  if (!storeId) return { success: false, error: 'TN_NO_STORE_ID' };
+
+  try {
+    const order = await fetchTiendaNubeOrder(storeId, integration.accessToken, externalOrderId);
+    const fulfillments = getOrderFulfillments(order);
+    if (fulfillments.length === 0) {
+      return { success: false, error: 'TN_NO_FULFILLMENTS' };
+    }
+
+    const deliverable = fulfillments.find((f) => !fulfillmentIsPickup(f));
+    const fulfillmentId = deliverable?.id ?? fulfillments[0]?.id;
+    if (!fulfillmentId) return { success: false, error: 'TN_NO_FULFILLMENT_ID' };
+
+    const payload = {
+      tracking_info: {
+        code: tracking.code,
+        url: tracking.url,
+        notify_customer: true,
+      },
+    };
+
+    const res = await fetch(
+      `${TN_API}/${storeId}/orders/${externalOrderId}/fulfillment-orders/${fulfillmentId}`,
+      {
+        method: 'PATCH',
+        headers: tnHeaders(integration.accessToken),
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      console.error(
+        `[TN] Error al publicar tracking ${tracking.code}:`,
+        res.status,
+        errorText.slice(0, 300)
+      );
+      return { success: false, error: 'TN_TRACKING_PUSH_FAILED' };
+    }
+
+    console.log(`[TN] Tracking ${tracking.code} publicado para pedido ${externalOrderId}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[TN] Error al publicar tracking:', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'TN_UNKNOWN_ERROR',
+    };
+  }
+}
+
 export async function markTiendaNubeOrderAsDelivered(
   sellerId: string,
   externalOrderId: string

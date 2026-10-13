@@ -299,6 +299,16 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
           <Meta label="Origen" value={order.externalSource ?? 'Manual'} />
         </View>
 
+        {order.publicTrackingCode ? (
+          <View style={styles.notesBox}>
+            <Text style={styles.notesLabel}>Código de seguimiento</Text>
+            <Text style={styles.notesText}>{order.publicTrackingCode}</Text>
+            <Text style={[styles.notesText, { marginTop: 4, opacity: 0.75 }]}>
+              {`https://enviosposta.com.ar/seguimiento?ref=${order.publicTrackingCode}`}
+            </Text>
+          </View>
+        ) : null}
+
         {isOpen && (
           <View style={styles.actions}>
             <Button label="Cómo llegar" variant="secondary" onPress={openInMaps} />

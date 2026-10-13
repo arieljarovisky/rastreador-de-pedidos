@@ -37,7 +37,8 @@ function normalizeRef(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim().replace(/^#/, '');
   if (!trimmed || trimmed.length < 3 || trimmed.length > 32) return null;
-  if (!/\d/.test(trimmed)) return null;
+  // Códigos Posta (PST…) o números de pedido/envío de marketplaces.
+  if (!/\d/.test(trimmed) && !/^PST/i.test(trimmed)) return null;
   return trimmed;
 }
 
@@ -63,7 +64,7 @@ router.get('/track', async (req: Request, res: Response) => {
     res.status(400).json({
       error: 'INVALID_REF',
       message:
-        'Ingresá el número de tu pedido o envío (Mercado Libre, Tienda Nube, Shopify o WooCommerce).',
+        'Ingresá tu código Posta (PST…) o el número de pedido/envío de la tienda donde compraste.',
     });
     return;
   }

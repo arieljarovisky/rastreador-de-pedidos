@@ -54,6 +54,7 @@ import {
   type ShopifyDateRange,
   type ShopifyHomeShipment,
 } from './shopify.service.js';
+import { pushPublicTrackingToMarketplace } from './marketplace-tracking-push.service.js';
 import {
   listWooCommerceHomeShipments,
   type WooDateRange,
@@ -1027,6 +1028,7 @@ export async function importTiendaNubeExpressShipment(
 
     const sellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, sellerId);
+    void pushPublicTrackingToMarketplace(order);
 
     if (options?.notify !== false) {
       await createNotification({
@@ -1090,6 +1092,7 @@ async function importStandardHomeShipment(
 
     const sellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, sellerId);
+    void pushPublicTrackingToMarketplace(order);
 
     if (options?.notify !== false) {
       await createNotification({

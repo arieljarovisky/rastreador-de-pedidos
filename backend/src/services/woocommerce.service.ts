@@ -475,3 +475,59 @@ export async function deleteWooCommerceRemoteWebhooks(integration: StoreIntegrat
     }
   }
 }
+
+/**
+ * Envía al comprador el código/URL Posta vía nota de cliente en WooCommerce
+ * y guarda meta de tracking para plugins/compatibilidad.
+ */
+export async function pushWooCommercePublicTracking(
+  sellerId: string,
+  externalOrderId: string,
+  tracking: { code: string; url: string }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const integration = await getValidWooCommerceIntegration(sellerId);
+    const creds = getWooCredentials(integration);
+
+    await wooFetch(
+      creds.storeUrl,
+      creds.consumerKey,
+      creds.consumerSecret,
+      `/orders/${externalOrderId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          meta_data: [
+            { key: '_posta_tracking_code', value: tracking.code },
+            { key: '_posta_tracking_url', value: tracking.url },
+            { key: '_tracking_number', value: tracking.code },
+            { key: '_tracking_url', value: tracking.url },
+          ],
+        }),
+      }
+    );
+
+    await wooFetch(
+      creds.storeUrl,
+      creds.consumerKey,
+      creds.consumerSecret,
+      `/orders/${externalOrderId}/notes`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          note: `Tu envío ya tiene seguimiento Posta.\nCódigo: ${tracking.code}\nSeguí tu paquete: ${tracking.url}`,
+          customer_note: true,
+        }),
+      }
+    );
+
+    console.log(`[WooCommerce] Tracking ${tracking.code} publicado para pedido ${externalOrderId}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[WooCommerce] Error al publicar tracking:', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'WOO_UNKNOWN_ERROR',
+    };
+  }
+}

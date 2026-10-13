@@ -237,6 +237,16 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
           />
         </View>
 
+        {order.publicTrackingCode ? (
+          <View style={styles.notesBox}>
+            <MonoLabel color={colors.textFaint}>Código de seguimiento</MonoLabel>
+            <Text style={styles.notesText}>{order.publicTrackingCode}</Text>
+            <Text style={[styles.notesText, { marginTop: 4, color: colors.textMuted, fontSize: 12 }]}>
+              {`https://enviosposta.com.ar/seguimiento?ref=${order.publicTrackingCode}`}
+            </Text>
+          </View>
+        ) : null}
+
         {order.sellerName ? (
           <View style={styles.sellerRow}>
             <MonoLabel color={colors.textFaint}>Vendedor</MonoLabel>

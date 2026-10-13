@@ -69,11 +69,12 @@ function drawLabelContent(
       width: LABEL_CONTENT_WIDTH,
     });
   }
+  const headerRight = order.publicTrackingCode || order.id;
   doc
     .font(fonts.bold)
     .fontSize(11)
     .fillColor('#1a1a1a')
-    .text(order.id, LABEL_MARGIN, LABEL_MARGIN, { width: LABEL_CONTENT_WIDTH, align: 'right' });
+    .text(headerRight, LABEL_MARGIN, LABEL_MARGIN, { width: LABEL_CONTENT_WIDTH, align: 'right' });
 
   doc
     .moveTo(LABEL_MARGIN, LABEL_MARGIN + headerHeight)
@@ -122,6 +123,21 @@ function drawLabelContent(
     : null;
   if (shippingLabel) {
     doc.font(fonts.bold).fontSize(9).fillColor('#5a6b62').text(`Envío: ${shippingLabel}`, LABEL_MARGIN, y);
+    y += 14;
+  }
+
+  if (order.publicTrackingCode) {
+    doc.font(fonts.bold).fontSize(9).fillColor('#5a6b62').text('SEGUIMIENTO', LABEL_MARGIN, y);
+    y += 13;
+    doc
+      .font(fonts.bold)
+      .fontSize(12)
+      .fillColor('#1a1a1a')
+      .text(order.publicTrackingCode, LABEL_MARGIN, y, { width: LABEL_CONTENT_WIDTH });
+    if (order.id !== order.publicTrackingCode) {
+      y += 16;
+      doc.font(fonts.regular).fontSize(8).fillColor('#5a6b62').text(order.id, LABEL_MARGIN, y);
+    }
   }
 }
 

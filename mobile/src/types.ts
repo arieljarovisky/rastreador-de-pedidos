@@ -94,6 +94,8 @@ export interface Order {
   receivedDni?: string | null;
   externalSource?: string | null;
   externalOrderId?: string | null;
+  /** Código único para /seguimiento (null en Mercado Libre). */
+  publicTrackingCode?: string | null;
   shippingType?: string | null;
   archived?: boolean;
   mlShipmentStatus?: string | null;

@@ -206,8 +206,8 @@ export default function PublicTrackingPage() {
             Seguí tu envío en vivo
           </h1>
           <p className="text-sm text-[var(--text-muted)] max-w-xl">
-            Ingresá el número de tu pedido o envío de Mercado Libre, Tienda Nube, Shopify o WooCommerce
-            para ver el estado y la ubicación del repartidor.
+            Ingresá tu código Posta (PST…) o el número de pedido/envío de Mercado Libre, Tienda Nube,
+            Shopify o WooCommerce para ver el estado y la ubicación del repartidor.
           </p>
         </div>
 
@@ -218,13 +218,13 @@ export default function PublicTrackingPage() {
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,11rem)]">
             <div className="space-y-1.5">
               <label htmlFor="order-ref" className="mono-label block">
-                N° de pedido o envío
+                Código Posta o N° de pedido
               </label>
               <input
                 id="order-ref"
                 type="text"
                 autoComplete="off"
-                placeholder="Ej: 2000012345678 o #1001"
+                placeholder="Ej: PST4K8M2N9Q o 2000012345678"
                 value={refInput}
                 onChange={(e) => setRefInput(e.target.value)}
                 className="w-full rounded-lg border border-[var(--line)] bg-[var(--panel-2)] px-3 py-2.5 text-sm font-mono text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)]"
@@ -257,8 +257,8 @@ export default function PublicTrackingPage() {
             Buscar
           </button>
           <p className="text-[11px] text-[var(--text-faint)] leading-relaxed">
-            Usá el número del correo de compra o del detalle del pedido. En Mercado Libre también sirve el
-            ID de envío. Si hay varios resultados, elegí la tienda.
+            El código Posta llega en el seguimiento de la tienda o en el correo de compra. En Mercado Libre
+            también sirve el ID de venta o envío. Si hay varios resultados, elegí la tienda.
           </p>
         </form>
 

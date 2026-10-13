@@ -630,3 +630,111 @@ export async function ensureShopifyOrderWebhooks(integration: StoreIntegration):
     },
   });
 }
+
+/**
+ * Publica el tracking Posta en Shopify (fulfillment + notifyCustomer)
+ * o, si no hay fulfillment orders abiertos, deja una nota en el pedido.
+ */
+export async function pushShopifyPublicTracking(
+  sellerId: string,
+  externalOrderId: string,
+  tracking: { code: string; url: string }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const integration = await getValidShopifyIntegration(sellerId);
+    const shopDomain = integration.externalStoreId;
+    if (!shopDomain) return { success: false, error: 'SHOPIFY_NOT_CONNECTED' };
+
+    const orderGid = String(externalOrderId).startsWith('gid://')
+      ? String(externalOrderId)
+      : `gid://shopify/Order/${externalOrderId}`;
+
+    const foData = await shopifyGraphql<{
+      order: {
+        id: string;
+        fulfillmentOrders: {
+          nodes: Array<{ id: string; status: string }>;
+        };
+      } | null;
+    }>(
+      shopDomain,
+      integration.accessToken,
+      `query ($id: ID!) {
+        order(id: $id) {
+          id
+          fulfillmentOrders(first: 10) {
+            nodes { id status }
+          }
+        }
+      }`,
+      { id: orderGid }
+    );
+
+    if (!foData.order) return { success: false, error: 'SHOPIFY_ORDER_NOT_FOUND' };
+
+    const openFo = foData.order.fulfillmentOrders.nodes.find((n) =>
+      ['OPEN', 'IN_PROGRESS', 'SCHEDULED'].includes((n.status || '').toUpperCase())
+    );
+
+    if (openFo) {
+      const createData = await shopifyGraphql<{
+        fulfillmentCreateV2: {
+          userErrors: Array<{ message?: string }>;
+        };
+      }>(
+        shopDomain,
+        integration.accessToken,
+        `mutation ($fulfillment: FulfillmentV2Input!) {
+          fulfillmentCreateV2(fulfillment: $fulfillment) {
+            userErrors { message }
+          }
+        }`,
+        {
+          fulfillment: {
+            notifyCustomer: true,
+            trackingInfo: {
+              company: 'Posta',
+              number: tracking.code,
+              url: tracking.url,
+            },
+            lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: openFo.id }],
+          },
+        }
+      );
+
+      const errors = createData.fulfillmentCreateV2?.userErrors ?? [];
+      if (errors.length > 0) {
+        console.warn('[Shopify] fulfillmentCreateV2 errors:', errors);
+      } else {
+        console.log(`[Shopify] Tracking ${tracking.code} publicado para ${externalOrderId}`);
+        return { success: true };
+      }
+    }
+
+    // Fallback: nota en el pedido (visible en admin; el comprador ve el tracking de la tienda si hay fulfillment).
+    await shopifyGraphql(
+      shopDomain,
+      integration.accessToken,
+      `mutation ($input: OrderInput!) {
+        orderUpdate(input: $input) {
+          userErrors { message }
+        }
+      }`,
+      {
+        input: {
+          id: orderGid,
+          note: `Seguimiento Posta: ${tracking.code}\n${tracking.url}`,
+        },
+      }
+    );
+
+    console.log(`[Shopify] Nota de tracking ${tracking.code} en pedido ${externalOrderId}`);
+    return { success: true };
+  } catch (err) {
+    console.error('[Shopify] Error al publicar tracking:', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'SHOPIFY_UNKNOWN_ERROR',
+    };
+  }
+}

@@ -585,7 +585,7 @@ export function LandingPage() {
       </section>
 
       <section id="nosotros" className="mx-auto max-w-6xl px-5 py-20 lg:px-8">
-        <div className="grid items-start gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <p className="text-[11px] uppercase tracking-[0.22em] text-ember">Quiénes somos</p>
             <h2 className="mt-3 max-w-xl font-serif-display text-5xl italic leading-[0.95] sm:text-6xl">
@@ -603,15 +603,30 @@ export function LandingPage() {
               Conocé el producto en 30 min
             </a>
           </div>
-          <div className="space-y-4">
-            {ABOUT_PILLARS.map((pillar) => (
-              <HaloCard key={pillar.n} aria-label={pillar.title} padding="lg" translucent={false} interactive={false}>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-ember">{pillar.n}</p>
-                <h3 className="mt-3 text-lg tracking-tight">{pillar.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{pillar.body}</p>
-              </HaloCard>
-            ))}
-          </div>
+          <figure className="mx-auto w-full max-w-sm lg:mx-0 lg:ml-auto">
+            <div className="overflow-hidden rounded-[2rem] border border-border bg-foreground/5">
+              <img
+                src="/ariel-jarovisky.jpg"
+                alt="Ariel Jarovisky, fundador de Posta"
+                className="aspect-[4/5] w-full object-cover object-[center_18%]"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption className="mt-4">
+              <p className="font-serif-display text-3xl italic leading-none">Ariel Jarovisky</p>
+              <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-ember">Fundador</p>
+            </figcaption>
+          </figure>
+        </div>
+        <div className="mt-12 grid gap-4 lg:grid-cols-3">
+          {ABOUT_PILLARS.map((pillar) => (
+            <HaloCard key={pillar.n} aria-label={pillar.title} padding="lg" translucent={false} interactive={false}>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-ember">{pillar.n}</p>
+              <h3 className="mt-3 text-lg tracking-tight">{pillar.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{pillar.body}</p>
+            </HaloCard>
+          ))}
         </div>
       </section>
 

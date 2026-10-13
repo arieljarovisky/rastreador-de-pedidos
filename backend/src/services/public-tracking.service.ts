@@ -6,6 +6,7 @@ import {
   type PublicTrackingSource,
 } from './orders.service.js';
 import { getRepartidorById } from './users.service.js';
+import { buildPublicTrackingUrl } from '../utils/public-tracking-code.js';
 
 export interface PublicTrackingTimelineEvent {
   status: OrderStatus;
@@ -27,6 +28,7 @@ export interface PublicTrackingResult {
     label: string;
     value: string;
   };
+  trackingUrl?: string | null;
   /** @deprecated Usar `source` + `reference`. Se mantiene por compatibilidad. */
   mercadolibre: {
     shipmentId: string | null;
@@ -53,6 +55,7 @@ const SOURCE_LABELS: Record<string, string> = {
   shopify: 'Shopify',
   woocommerce: 'WooCommerce',
   manual: 'Pedido',
+  foto: 'Pedido',
 };
 
 const MAX_TRAIL_POINTS = 80;
@@ -108,6 +111,10 @@ function buildReference(order: Order): PublicTrackingResult['reference'] {
   const source = order.externalSource ?? 'manual';
   const sourceLabel = SOURCE_LABELS[source] ?? 'Pedido';
 
+  if (order.publicTrackingCode) {
+    return { label: 'Código Posta', value: order.publicTrackingCode };
+  }
+
   if (source === 'mercadolibre') {
     const mlOrderId = extractMlOrderIdFromNotes(order.notes);
     if (mlOrderId) {
@@ -145,6 +152,9 @@ export function toPublicTracking(order: Order): PublicTrackingResult {
     timeline: buildTimeline(order),
     source,
     reference: buildReference(order),
+    trackingUrl: order.publicTrackingCode
+      ? buildPublicTrackingUrl(order.publicTrackingCode)
+      : null,
     mercadolibre: {
       shipmentId: source === 'mercadolibre' ? order.externalOrderId ?? null : null,
       orderId: source === 'mercadolibre' ? mlOrderId : null,
