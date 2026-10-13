@@ -1,8 +1,8 @@
 {
-  "version": "1.4.1",
-  "minVersion": "1.4.1",
-  "versionCode": 19,
-  "minVersionCode": 19,
-  "message": "Hay una nueva versión de Posta. Actualizá para seguir usando la app con las últimas mejoras.",
-  "downloadUrl": "https://expo.dev/artifacts/eas/aIJTY4vilORXfj149rNpf76mMVY-hGPiaJc7CGWx7wI.apk"
+  "version": "1.4.2",
+  "minVersion": "1.4.2",
+  "versionCode": 20,
+  "minVersionCode": 20,
+  "message": "Posta 1.4.2: escaneo para admins de logistica, lectura de etiquetas y mejoras recientes",
+  "downloadUrl": "https://expo.dev/artifacts/eas/hrfxQJQtFF7lW3-rqjpzbhthD_11H_5MjBbkEK7Y3Ls.apk"
 }
