@@ -706,7 +706,7 @@ export async function findOrderByExternalGlobal(
   return orders[0] ?? null;
 }
 
-/** Busca un pedido ML por ID de envÃ­o o nÃºmero de venta (en notas). */
+/** Busca un pedido ML por ID de envío o número de venta (en notas). */
 export async function findMercadoLibreOrderByPublicRef(ref: string): Promise<Order | null> {
   const trimmed = ref.trim();
   if (!trimmed) return null;
@@ -727,6 +727,111 @@ export async function findMercadoLibreOrderByPublicRef(ref: string): Promise<Ord
   if (!rows[0]) return null;
   const orders = await enrichOrders([rows[0]]);
   return orders[0] ?? null;
+}
+
+const PUBLIC_TRACKING_SOURCES = ['mercadolibre', 'tiendanube', 'shopify', 'woocommerce'] as const;
+export type PublicTrackingSource = (typeof PUBLIC_TRACKING_SOURCES)[number];
+
+export function isPublicTrackingSource(value: string): value is PublicTrackingSource {
+  return (PUBLIC_TRACKING_SOURCES as readonly string[]).includes(value);
+}
+
+export type FindPublicOrderResult =
+  | { status: 'found'; order: Order }
+  | { status: 'ambiguous' }
+  | { status: 'not_found' };
+
+async function findOrdersByExternalGlobal(
+  externalSource: string,
+  externalOrderId: string,
+  limit = 2
+): Promise<Order[]> {
+  const [rows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT} WHERE o.external_source = ? AND o.external_order_id = ? LIMIT ?`,
+    [externalSource, externalOrderId, limit]
+  );
+  if (rows.length === 0) return [];
+  return enrichOrders(rows);
+}
+
+/**
+ * Busca un pedido público por referencia de comprador:
+ * - Mercado Libre: ID de envío o número de venta
+ * - Tienda Nube / Shopify / WooCommerce: ID externo o "Pedido #…" en notas
+ */
+export async function findOrderByPublicRef(
+  ref: string,
+  options?: { source?: PublicTrackingSource }
+): Promise<FindPublicOrderResult> {
+  const trimmed = ref.trim().replace(/^#/, '');
+  if (!trimmed) return { status: 'not_found' };
+
+  const digits = trimmed.replace(/\D/g, '');
+  const sourceFilter = options?.source;
+  const sources: PublicTrackingSource[] = sourceFilter
+    ? [sourceFilter]
+    : [...PUBLIC_TRACKING_SOURCES];
+
+  const tryMl = sources.includes('mercadolibre') && digits.length >= 8;
+  if (tryMl) {
+    const ml = await findMercadoLibreOrderByPublicRef(trimmed);
+    if (ml) return { status: 'found', order: ml };
+    if (sourceFilter === 'mercadolibre') return { status: 'not_found' };
+  }
+
+  const ecommerceSources = sources.filter((s) => s !== 'mercadolibre');
+  if (ecommerceSources.length === 0) return { status: 'not_found' };
+
+  const idCandidates = [...new Set([trimmed, digits].filter((c) => c.length >= 3))];
+  for (const source of ecommerceSources) {
+    for (const candidate of idCandidates) {
+      const matches = await findOrdersByExternalGlobal(source, candidate, 2);
+      if (matches.length > 1) return { status: 'ambiguous' };
+      if (matches[0]) return { status: 'found', order: matches[0] };
+    }
+  }
+
+  // Número visible del comprador (Pedido #123 / Pedido #1001) vive en notes.
+  const noteTokens = [...new Set([trimmed, digits].filter((c) => c.length >= 3))];
+  if (noteTokens.length === 0) return { status: 'not_found' };
+
+  const noteClauses: string[] = [];
+  const noteParams: Array<string | number> = [];
+  for (const token of noteTokens) {
+    noteClauses.push('o.notes LIKE ?', 'o.notes LIKE ?');
+    noteParams.push(`%Pedido #${token}%`, `%Pedido ${token} ·%`);
+  }
+
+  const placeholders = ecommerceSources.map(() => '?').join(', ');
+  const [noteRows] = await pool.query<OrderWithRepartidorRow[]>(
+    `${ORDER_SELECT}
+     WHERE o.external_source IN (${placeholders})
+       AND o.notes IS NOT NULL
+       AND (${noteClauses.join(' OR ')})
+     ORDER BY o.updated_at DESC
+     LIMIT 10`,
+    [...ecommerceSources, ...noteParams]
+  );
+
+  const exactMatches = noteRows.filter((row) =>
+    noteTokens.some((token) => notesMatchPublicOrderNumber(row.notes, token))
+  );
+  if (exactMatches.length > 1) return { status: 'ambiguous' };
+  if (!exactMatches[0]) return { status: 'not_found' };
+  const orders = await enrichOrders([exactMatches[0]]);
+  const order = orders[0];
+  return order ? { status: 'found', order } : { status: 'not_found' };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Coincide "Pedido #123" / "Pedido 123" sin capturar prefijos de otros números (#1234). */
+function notesMatchPublicOrderNumber(notes: string | null | undefined, token: string): boolean {
+  if (!notes || !token) return false;
+  const escaped = escapeRegExp(token);
+  return new RegExp(`Pedido\\s+#?${escaped}(?=\\s*·|\\s*$)`, 'i').test(notes);
 }
 
 export async function findOrderByExternalForAgency(

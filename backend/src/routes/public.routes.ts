@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { getPublicTrackingByMercadoLibreRef } from '../services/public-tracking.service.js';
+import { getPublicTrackingByRef } from '../services/public-tracking.service.js';
+import { isPublicTrackingSource } from '../services/orders.service.js';
 import {
   bookDemo,
   DemoBookingError,
@@ -34,11 +35,17 @@ function isRateLimited(key: string): boolean {
 
 function normalizeRef(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const digits = trimmed.replace(/\D/g, '');
-  if (digits.length < 8 || digits.length > 20) return null;
+  const trimmed = raw.trim().replace(/^#/, '');
+  if (!trimmed || trimmed.length < 3 || trimmed.length > 32) return null;
+  if (!/\d/.test(trimmed)) return null;
   return trimmed;
+}
+
+function normalizeSource(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const value = raw.trim().toLowerCase();
+  if (!value || value === 'all') return undefined;
+  return isPublicTrackingSource(value) ? value : undefined;
 }
 
 router.get('/track', async (req: Request, res: Response) => {
@@ -55,22 +62,42 @@ router.get('/track', async (req: Request, res: Response) => {
   if (!ref) {
     res.status(400).json({
       error: 'INVALID_REF',
-      message: 'Ingresá un número de venta o envío de Mercado Libre (mínimo 8 dígitos).',
+      message:
+        'Ingresá el número de tu pedido o envío (Mercado Libre, Tienda Nube, Shopify o WooCommerce).',
     });
     return;
   }
 
+  const sourceRaw = typeof req.query.source === 'string' ? req.query.source.trim().toLowerCase() : '';
+  if (sourceRaw && sourceRaw !== 'all' && !isPublicTrackingSource(sourceRaw)) {
+    res.status(400).json({
+      error: 'INVALID_SOURCE',
+      message: 'La tienda indicada no es válida.',
+    });
+    return;
+  }
+
+  const source = normalizeSource(req.query.source);
+
   try {
-    const tracking = await getPublicTrackingByMercadoLibreRef(ref);
-    if (!tracking) {
-      res.status(404).json({
-        error: 'NOT_FOUND',
+    const result = await getPublicTrackingByRef(ref, { source });
+    if (result.status === 'ambiguous') {
+      res.status(409).json({
+        error: 'AMBIGUOUS_REF',
         message:
-          'No encontramos un envío con ese número. Verificá el ID de tu venta o envío en Mercado Libre.',
+          'Encontramos más de un envío con ese número. Elegí la tienda (Tienda Nube, Shopify, etc.) o usá el número completo del correo de compra.',
       });
       return;
     }
-    res.json(tracking);
+    if (result.status === 'not_found') {
+      res.status(404).json({
+        error: 'NOT_FOUND',
+        message:
+          'No encontramos un envío con ese número. Verificá el ID de tu pedido en el correo o en la tienda donde compraste.',
+      });
+      return;
+    }
+    res.json(result.tracking);
   } catch (err) {
     console.error('[public/track]', err);
     res.status(500).json({
