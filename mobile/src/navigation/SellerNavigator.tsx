@@ -127,7 +127,7 @@ export default function SellerNavigator() {
         <Stack.Screen
           name="SellerShippingAccount"
           component={SellerShippingAccountScreen}
-          options={{ title: 'Cuenta de envíos' }}
+          options={{ title: 'Saldos' }}
         />
       </Stack.Navigator>
     </SellerOrdersProvider>

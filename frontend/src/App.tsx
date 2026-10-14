@@ -2531,8 +2531,12 @@ export default function App() {
               <AppNavLink active={mobileTab === 'dashboard'} onClick={() => setMobileTab('dashboard')} title="Mapa y pedidos">
                 Mapa
               </AppNavLink>
-              <AppNavLink active={mobileTab === 'account'} onClick={() => setMobileTab('account')} title="Vendedores y cuentas de envíos">
-                Vendedores
+              <AppNavLink
+                active={mobileTab === 'account'}
+                onClick={() => setMobileTab('account')}
+                title={user.role === UserRole.STORE_ADMIN ? 'Saldos de envíos' : 'Saldos de vendedores'}
+              >
+                {user.role === UserRole.STORE_ADMIN ? 'Saldos' : 'Vendedores'}
               </AppNavLink>
               {showRegistro && (
                 <AppNavLink active={mobileTab === 'registro'} onClick={() => setMobileTab('registro')} title="Historial por vendedor">
@@ -2614,7 +2618,9 @@ export default function App() {
           <>
             <MobileNavLink active={mobileTab === 'panel'} onClick={() => setMobileTab('panel')}>Hoy</MobileNavLink>
             <MobileNavLink active={mobileTab === 'dashboard'} onClick={() => setMobileTab('dashboard')}>Mapa</MobileNavLink>
-            <MobileNavLink active={mobileTab === 'account'} onClick={() => setMobileTab('account')}>Vendedores</MobileNavLink>
+            <MobileNavLink active={mobileTab === 'account'} onClick={() => setMobileTab('account')}>
+              {user.role === UserRole.STORE_ADMIN ? 'Saldos' : 'Vendedores'}
+            </MobileNavLink>
             {showRegistro && (
               <MobileNavLink active={mobileTab === 'registro'} onClick={() => setMobileTab('registro')}>Registro</MobileNavLink>
             )}

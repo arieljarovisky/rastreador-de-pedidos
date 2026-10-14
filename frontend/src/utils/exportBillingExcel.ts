@@ -254,7 +254,7 @@ function addSellersSheet(workbook: ExcelJS.Workbook, summary: BillingSummary) {
   addBrandHeader(
     sheet,
     'Saldos por vendedor',
-    `Período ${periodLabel(summary)} · Cuentas de envíos`,
+    `Período ${periodLabel(summary)} · Saldos`,
     4
   );
   autosize(sheet, [28, 18, 16, 16]);
@@ -408,7 +408,7 @@ export async function exportAgencyBillingExcel(
   workbook.created = new Date();
   workbook.company = 'Posta Envios';
 
-  addResumenSheet(workbook, summary, 'Cuentas de envíos · Agencia');
+  addResumenSheet(workbook, summary, 'Saldos · Agencia');
   addSellersSheet(workbook, summary);
   addShippingTypesSheet(workbook, summary);
   addMovimientosSheet(workbook, summary, ledger, true);
@@ -431,7 +431,7 @@ export async function exportSellerBillingExcel(
   workbook.created = new Date();
   workbook.company = 'Posta Envios';
 
-  addResumenSheet(workbook, summary, 'Mi cuenta de envíos', [
+  addResumenSheet(workbook, summary, 'Saldos', [
     { label: 'Vendedor', value: name, tone: 'route' },
   ]);
   addShippingTypesSheet(workbook, summary);
@@ -446,6 +446,6 @@ export async function exportSellerBillingExcel(
 
   await downloadWorkbook(
     workbook,
-    `posta-cuenta-${safeName}_${summary.dateFrom}_${summary.dateTo}.xlsx`
+    `posta-saldo-${safeName}_${summary.dateFrom}_${summary.dateTo}.xlsx`
   );
 }

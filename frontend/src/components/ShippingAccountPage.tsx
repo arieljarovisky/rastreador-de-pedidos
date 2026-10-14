@@ -116,7 +116,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
       ]);
       const summaryBody = await summaryRes.json().catch(() => ({}));
       const ledgerBody = await ledgerRes.json().catch(() => ({}));
-      if (!summaryRes.ok) throw new Error(summaryBody.error || 'No se pudo cargar la cuenta.');
+      if (!summaryRes.ok) throw new Error(summaryBody.error || 'No se pudieron cargar los saldos.');
       if (!ledgerRes.ok) throw new Error(ledgerBody.error || 'No se pudo cargar el historial.');
       setSummary(summaryBody as BillingSummary);
       setLedger(ledgerBody as BillingLedgerEntry[]);
@@ -127,7 +127,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
         }
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al cargar la cuenta.');
+      setError(err instanceof Error ? err.message : 'Error al cargar los saldos.');
     } finally {
       setLoading(false);
     }
@@ -261,10 +261,10 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
 
   const accountTitle =
     user.role === UserRole.STORE_ADMIN
-      ? 'Mi cuenta de envíos'
+      ? 'Saldos'
       : selectedSellerId
-        ? `Cuenta · ${summary?.sellerName ?? 'Vendedor'}`
-        : 'Cuentas de envíos';
+        ? `Saldo · ${summary?.sellerName ?? 'Vendedor'}`
+        : 'Saldos';
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden posta-surface" id="shipping-account-page">
@@ -382,7 +382,7 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-[var(--color-text-muted)]">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-xs font-mono">Cargando cuenta…</span>
+            <span className="text-xs font-mono">Cargando saldos…</span>
           </div>
         ) : summary ? (
           <>

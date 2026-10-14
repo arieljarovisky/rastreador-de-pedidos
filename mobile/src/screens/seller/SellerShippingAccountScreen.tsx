@@ -117,7 +117,7 @@ export default function SellerShippingAccountScreen(_props: Props) {
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />
       }
     >
-      <Text style={styles.title}>Mi cuenta de envíos</Text>
+      <Text style={styles.title}>Saldos</Text>
       <Text style={styles.subtitle}>Saldo y pagos a tu agencia</Text>
 
       {summary && (

@@ -282,7 +282,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
         style={{ marginTop: spacing.md }}
       />
       <Button
-        label="Cuenta de envíos"
+        label="Saldos"
         variant="ghost"
         onPress={() => navigation.navigate('SellerShippingAccount')}
         style={{ marginTop: spacing.sm }}
