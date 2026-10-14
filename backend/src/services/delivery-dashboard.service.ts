@@ -7,7 +7,6 @@ import {
   DELIVERY_SLA_HOUR,
   formatDeadlineHourLabel,
   getActiveOperationalDateKey,
-  getTodayDeadline,
   getOperationalDayBounds,
   deliveryDeadlineForOperationalDate,
   normalizeDeadlineHour,
@@ -185,80 +184,108 @@ async function notifyUserIfNeeded(
   });
 }
 
-async function loadAgencyDeadlineHour(agencyId: string): Promise<number> {
-  return getAgencyDeliveryDeadlineHour(agencyId);
+type DeliveryAlertKind = 'warning' | 'urgent' | 'missed';
+
+/** Hora ART del aviso. El límite es la entrega (21 hs), no el corte de ventas. */
+function deliveryAlertHour(kind: DeliveryAlertKind): number {
+  if (kind === 'warning') return Math.max(0, DELIVERY_SLA_HOUR - 3);
+  if (kind === 'urgent') return Math.max(0, DELIVERY_SLA_HOUR - 1);
+  return DELIVERY_SLA_HOUR;
+}
+
+function deliveryAlertCopy(
+  kind: DeliveryAlertKind,
+  undelivered: number,
+  audience: 'admin' | 'seller'
+): { type: AppNotification['type']; title: string; body: string } {
+  const n = undelivered;
+  const pedidos = `pedido${n === 1 ? '' : 's'}`;
+  const hourLabel = formatDeadlineHourLabel(DELIVERY_SLA_HOUR);
+
+  if (kind === 'warning') {
+    const body =
+      audience === 'admin'
+        ? `${n} ${pedidos} sin entregar. El límite de entrega es a las ${hourLabel} hs.`
+        : `Tenés ${n} ${pedidos} sin entregar. El límite de entrega es a las ${hourLabel} hs.`;
+    return { type: 'deadline_warning', title: 'Recordatorio de entrega', body };
+  }
+
+  if (kind === 'urgent') {
+    const body =
+      audience === 'admin'
+        ? `Queda 1 hora para el límite de entrega (${hourLabel}). ${n} ${pedidos} sin entregar.`
+        : `Queda 1 hora para el límite de entrega (${hourLabel}). Tenés ${n} ${pedidos} sin entregar.`;
+    return { type: 'deadline_urgent', title: 'Última hora', body };
+  }
+
+  const body =
+    audience === 'admin'
+      ? `Límite de las ${hourLabel}: ${n} ${pedidos} no entregado${n === 1 ? '' : 's'}.`
+      : `${n} ${pedidos} no se entregó${n === 1 ? '' : 'ron'} antes de las ${hourLabel}.`;
+  return { type: 'deadline_missed', title: audience === 'admin' ? 'Fuera de plazo' : 'Pedidos fuera de plazo', body };
 }
 
 /**
- * @param forHour Si se pasa, solo notifica a quien tenga el hito (-3h / -1h / corte) en esa hora ART.
+ * Avisa a las 18, 20 y 21 hs ART según pedidos del día todavía sin entregar.
+ * No usa el corte de ventas de la agencia ni del vendedor.
+ */
+async function sendDeliverySlaAlerts(
+  kind: DeliveryAlertKind,
+  dateKey: string,
+  agencyIds?: string[],
+  forHour?: number
+): Promise<void> {
+  const targetHour = deliveryAlertHour(kind);
+  if (forHour != null && forHour !== targetHour) return;
+
+  const [agencies] = await pool.query<Array<{ id: string } & RowDataPacket>>(
+    agencyIds?.length
+      ? `SELECT id FROM agencies WHERE id IN (${agencyIds.map(() => '?').join(',')})`
+      : 'SELECT id FROM agencies',
+    agencyIds?.length ? agencyIds : []
+  );
+
+  const deadlineAt = deliveryDeadlineForOperationalDate(dateKey, DELIVERY_SLA_HOUR);
+
+  for (const agency of agencies) {
+    const summary = buildSummary(
+      await queryOrderCounts(agency.id, dateKey),
+      deadlineAt,
+      dateKey,
+      DELIVERY_SLA_HOUR
+    );
+    if (summary.undelivered > 0) {
+      const adminCopy = deliveryAlertCopy(kind, summary.undelivered, 'admin');
+      const adminIds = await getAgencyAdminIds(agency.id);
+      for (const adminId of adminIds) {
+        await notifyUserIfNeeded(adminId, adminCopy.type, dateKey, adminCopy.title, adminCopy.body);
+      }
+    }
+
+    const sellerIds = await getSellerIds(agency.id);
+    for (const sellerId of sellerIds) {
+      const sellerSummary = buildSummary(
+        await queryOrderCounts(agency.id, dateKey, sellerId),
+        deadlineAt,
+        dateKey,
+        DELIVERY_SLA_HOUR
+      );
+      if (sellerSummary.undelivered === 0) continue;
+      const sellerCopy = deliveryAlertCopy(kind, sellerSummary.undelivered, 'seller');
+      await notifyUserIfNeeded(sellerId, sellerCopy.type, dateKey, sellerCopy.title, sellerCopy.body);
+    }
+  }
+}
+
+/**
+ * @param forHour Si se pasa, solo notifica cuando esa hora ART es 3 horas antes del límite de entrega.
  */
 export async function sendDeadlineWarnings(
   dateKey: string,
   agencyIds?: string[],
   forHour?: number
 ): Promise<void> {
-  const [agencies] = await pool.query<Array<{ id: string; name: string } & RowDataPacket>>(
-    agencyIds?.length
-      ? `SELECT id, name FROM agencies WHERE id IN (${agencyIds.map(() => '?').join(',')})`
-      : 'SELECT id, name FROM agencies',
-    agencyIds?.length ? agencyIds : []
-  );
-
-  for (const agency of agencies) {
-    const agencyHour = await loadAgencyDeadlineHour(agency.id);
-    const agencyWarningHour = Math.max(0, agencyHour - 3);
-
-    if (forHour == null || forHour === agencyWarningHour) {
-      const deadlineAt = getTodayDeadline(agencyHour);
-      const hourLabel = formatDeadlineHourLabel(agencyHour);
-      const summary = buildSummary(
-        await queryOrderCounts(agency.id, dateKey),
-        deadlineAt,
-        dateKey,
-        agencyHour
-      );
-      if (summary.undelivered > 0) {
-        const adminIds = await getAgencyAdminIds(agency.id);
-        const adminBody = `${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar. El corte es a las ${hourLabel} hs.`;
-        for (const adminId of adminIds) {
-          await notifyUserIfNeeded(
-            adminId,
-            'deadline_warning',
-            dateKey,
-            'Recordatorio de corte',
-            adminBody
-          );
-        }
-      }
-    }
-
-    const sellerIds = await getSellerIds(agency.id);
-    for (const sellerId of sellerIds) {
-      const sellerHour = await resolveSalesCutoffHour({
-        sellerId,
-        agencyId: agency.id,
-      });
-      const sellerWarningHour = Math.max(0, sellerHour - 3);
-      if (forHour != null && forHour !== sellerWarningHour) continue;
-
-      const sellerDeadlineAt = getTodayDeadline(sellerHour);
-      const hourLabel = formatDeadlineHourLabel(sellerHour);
-      const sellerSummary = buildSummary(
-        await queryOrderCounts(agency.id, dateKey, sellerId),
-        sellerDeadlineAt,
-        dateKey,
-        sellerHour
-      );
-      if (sellerSummary.undelivered === 0) continue;
-      await notifyUserIfNeeded(
-        sellerId,
-        'deadline_warning',
-        dateKey,
-        'Recordatorio de corte',
-        `Tenés ${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} sin entregar. Corte a las ${hourLabel} hs.`
-      );
-    }
-  }
+  await sendDeliverySlaAlerts('warning', dateKey, agencyIds, forHour);
 }
 
 export async function sendDeadlineUrgentAlerts(
@@ -266,67 +293,7 @@ export async function sendDeadlineUrgentAlerts(
   agencyIds?: string[],
   forHour?: number
 ): Promise<void> {
-  const [agencies] = await pool.query<Array<{ id: string } & RowDataPacket>>(
-    agencyIds?.length
-      ? `SELECT id FROM agencies WHERE id IN (${agencyIds.map(() => '?').join(',')})`
-      : 'SELECT id FROM agencies',
-    agencyIds?.length ? agencyIds : []
-  );
-
-  for (const agency of agencies) {
-    const agencyHour = await loadAgencyDeadlineHour(agency.id);
-    const agencyUrgentHour = Math.max(0, agencyHour - 1);
-
-    if (forHour == null || forHour === agencyUrgentHour) {
-      const deadlineAt = getTodayDeadline(agencyHour);
-      const hourLabel = formatDeadlineHourLabel(agencyHour);
-      const summary = buildSummary(
-        await queryOrderCounts(agency.id, dateKey),
-        deadlineAt,
-        dateKey,
-        agencyHour
-      );
-      if (summary.undelivered > 0) {
-        const adminIds = await getAgencyAdminIds(agency.id);
-        const adminBody = `Queda 1 hora para el corte (${hourLabel}). ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} sin entregar.`;
-        for (const adminId of adminIds) {
-          await notifyUserIfNeeded(
-            adminId,
-            'deadline_urgent',
-            dateKey,
-            'Última hora',
-            adminBody
-          );
-        }
-      }
-    }
-
-    const sellerIds = await getSellerIds(agency.id);
-    for (const sellerId of sellerIds) {
-      const sellerHour = await resolveSalesCutoffHour({
-        sellerId,
-        agencyId: agency.id,
-      });
-      const sellerUrgentHour = Math.max(0, sellerHour - 1);
-      if (forHour != null && forHour !== sellerUrgentHour) continue;
-
-      const sellerDeadlineAt = getTodayDeadline(sellerHour);
-      const sellerSummary = buildSummary(
-        await queryOrderCounts(agency.id, dateKey, sellerId),
-        sellerDeadlineAt,
-        dateKey,
-        sellerHour
-      );
-      if (sellerSummary.undelivered === 0) continue;
-      await notifyUserIfNeeded(
-        sellerId,
-        'deadline_urgent',
-        dateKey,
-        'Última hora',
-        `Queda 1 hora para el corte. Tenés ${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} sin entregar.`
-      );
-    }
-  }
+  await sendDeliverySlaAlerts('urgent', dateKey, agencyIds, forHour);
 }
 
 export async function sendDeadlineMissedAlerts(
@@ -334,64 +301,5 @@ export async function sendDeadlineMissedAlerts(
   agencyIds?: string[],
   forHour?: number
 ): Promise<void> {
-  const [agencies] = await pool.query<Array<{ id: string } & RowDataPacket>>(
-    agencyIds?.length
-      ? `SELECT id FROM agencies WHERE id IN (${agencyIds.map(() => '?').join(',')})`
-      : 'SELECT id FROM agencies',
-    agencyIds?.length ? agencyIds : []
-  );
-
-  for (const agency of agencies) {
-    const agencyHour = await loadAgencyDeadlineHour(agency.id);
-
-    if (forHour == null || forHour === agencyHour) {
-      const deadlineAt = getTodayDeadline(agencyHour);
-      const hourLabel = formatDeadlineHourLabel(agencyHour);
-      const summary = buildSummary(
-        await queryOrderCounts(agency.id, dateKey),
-        deadlineAt,
-        dateKey,
-        agencyHour
-      );
-      if (summary.undelivered > 0) {
-        const adminIds = await getAgencyAdminIds(agency.id);
-        const adminBody = `Corte de las ${hourLabel}: ${summary.undelivered} pedido${summary.undelivered === 1 ? '' : 's'} no entregado${summary.undelivered === 1 ? '' : 's'}.`;
-        for (const adminId of adminIds) {
-          await notifyUserIfNeeded(
-            adminId,
-            'deadline_missed',
-            dateKey,
-            'Corte de entrega',
-            adminBody
-          );
-        }
-      }
-    }
-
-    const sellerIds = await getSellerIds(agency.id);
-    for (const sellerId of sellerIds) {
-      const sellerHour = await resolveSalesCutoffHour({
-        sellerId,
-        agencyId: agency.id,
-      });
-      if (forHour != null && forHour !== sellerHour) continue;
-
-      const sellerDeadlineAt = getTodayDeadline(sellerHour);
-      const hourLabel = formatDeadlineHourLabel(sellerHour);
-      const sellerSummary = buildSummary(
-        await queryOrderCounts(agency.id, dateKey, sellerId),
-        sellerDeadlineAt,
-        dateKey,
-        sellerHour
-      );
-      if (sellerSummary.undelivered === 0) continue;
-      await notifyUserIfNeeded(
-        sellerId,
-        'deadline_missed',
-        dateKey,
-        'Pedidos fuera de plazo',
-        `${sellerSummary.undelivered} pedido${sellerSummary.undelivered === 1 ? '' : 's'} no se entregó${sellerSummary.undelivered === 1 ? '' : 'ron'} antes de las ${hourLabel}.`
-      );
-    }
-  }
+  await sendDeliverySlaAlerts('missed', dateKey, agencyIds, forHour);
 }

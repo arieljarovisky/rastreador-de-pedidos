@@ -1,4 +1,5 @@
 import {
+  DELIVERY_SLA_HOUR,
   getArHourMinute,
   getOperationalDateKey,
   isWeekendOperationalDate,
@@ -71,6 +72,6 @@ export function startDeliveryScheduler(): void {
     void tick();
   }, 60_000);
   console.log(
-    '[delivery-scheduler] Programador de corte activo (avisos por vendedor/agencia: -3h, -1h y hora de corte)'
+    `[delivery-scheduler] Programador de corte activo (límite de entrega ${DELIVERY_SLA_HOUR}:00: -3h, -1h y hora límite)`
   );
 }
