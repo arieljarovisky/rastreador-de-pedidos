@@ -187,7 +187,7 @@ export async function getPublicTrackingByRef(
   if (lookup.order.sellerId) {
     const contact = await getSellerContact(lookup.order.sellerId);
     if (sellerContactHasContent(contact)) {
-      tracking.seller = { name: lookup.order.sellerName, ...contact };
+      tracking.seller = { name: contact.displayName, ...contact };
     }
   }
   return { status: 'ok', tracking };

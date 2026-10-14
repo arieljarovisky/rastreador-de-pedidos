@@ -9,6 +9,8 @@ export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 export const ALLOWED_LOGO_MIME = ['image/png', 'image/jpeg'];
 
 export interface SellerContact {
+  /** Nombre que el vendedor elige para la etiqueta. Vacío = no se imprime. */
+  displayName: string | null;
   instagram: string | null;
   facebook: string | null;
   tiktok: string | null;
@@ -17,6 +19,7 @@ export interface SellerContact {
 }
 
 export const EMPTY_SELLER_CONTACT: SellerContact = {
+  displayName: null,
   instagram: null,
   facebook: null,
   tiktok: null,
@@ -34,7 +37,7 @@ async function ensureSellerBrandingColumns(): Promise<void> {
         `SELECT COLUMN_NAME FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
            AND COLUMN_NAME IN ('logo_image', 'logo_mime', 'logo_updated_at', 'label_font',
-             'seller_instagram', 'seller_facebook', 'seller_tiktok', 'seller_whatsapp', 'seller_store_address')`
+             'seller_display_name', 'seller_instagram', 'seller_facebook', 'seller_tiktok', 'seller_whatsapp', 'seller_store_address')`
       );
       const have = new Set(cols.map((c) => c.COLUMN_NAME));
       if (!have.has('logo_image')) {
@@ -68,6 +71,11 @@ async function ensureSellerBrandingColumns(): Promise<void> {
           'ALTER TABLE users ADD COLUMN seller_store_address VARCHAR(140) NULL AFTER seller_whatsapp'
         );
       }
+      if (!have.has('seller_display_name')) {
+        await pool.query(
+          'ALTER TABLE users ADD COLUMN seller_display_name VARCHAR(60) NULL AFTER seller_store_address'
+        );
+      }
     })().catch((err) => {
       brandingColumnsReady = null;
       throw err;
@@ -77,6 +85,7 @@ async function ensureSellerBrandingColumns(): Promise<void> {
 }
 
 type ContactRow = {
+  seller_display_name: string | null;
   seller_instagram: string | null;
   seller_facebook: string | null;
   seller_tiktok: string | null;
@@ -87,6 +96,7 @@ type ContactRow = {
 function contactFromRow(row: ContactRow | undefined): SellerContact {
   if (!row) return { ...EMPTY_SELLER_CONTACT };
   return {
+    displayName: row.seller_display_name?.trim() || null,
     instagram: row.seller_instagram?.trim() || null,
     facebook: row.seller_facebook?.trim() || null,
     tiktok: row.seller_tiktok?.trim() || null,
@@ -98,8 +108,20 @@ function contactFromRow(row: ContactRow | undefined): SellerContact {
 export function sellerContactHasContent(contact: SellerContact | null | undefined): boolean {
   if (!contact) return false;
   return Boolean(
-    contact.instagram || contact.facebook || contact.tiktok || contact.whatsapp || contact.storeAddress
+    contact.displayName ||
+      contact.instagram ||
+      contact.facebook ||
+      contact.tiktok ||
+      contact.whatsapp ||
+      contact.storeAddress
   );
+}
+
+function normalizeDisplayName(value: unknown): string | null {
+  const raw = readOptionalText(value);
+  if (!raw) return null;
+  if (raw.length > 60) throw new Error('CONTACT_TOO_LONG');
+  return raw;
 }
 
 function readOptionalText(value: unknown): string | null {
@@ -170,7 +192,7 @@ export async function getSellerBrandingSummary(sellerId: string): Promise<{
     >
   >(
     `SELECT (logo_image IS NOT NULL) AS has_logo, label_font, logo_updated_at,
-            seller_instagram, seller_facebook, seller_tiktok, seller_whatsapp, seller_store_address
+            seller_display_name, seller_instagram, seller_facebook, seller_tiktok, seller_whatsapp, seller_store_address
      FROM users WHERE id = ? AND role = ? LIMIT 1`,
     [sellerId, UserRole.STORE_ADMIN]
   );
@@ -192,6 +214,7 @@ export async function updateSellerContact(sellerId: string, body: unknown): Prom
   if (!body || typeof body !== 'object') throw new Error('INVALID_CONTACT');
   const input = body as Record<string, unknown>;
   const contact: SellerContact = {
+    displayName: normalizeDisplayName(input.displayName),
     instagram: normalizeSocialHandle(input.instagram),
     facebook: normalizeFacebook(input.facebook),
     tiktok: normalizeSocialHandle(input.tiktok),
@@ -201,9 +224,10 @@ export async function updateSellerContact(sellerId: string, body: unknown): Prom
   await ensureSellerBrandingColumns();
   await pool.query(
     `UPDATE users
-     SET seller_instagram = ?, seller_facebook = ?, seller_tiktok = ?, seller_whatsapp = ?, seller_store_address = ?
+     SET seller_display_name = ?, seller_instagram = ?, seller_facebook = ?, seller_tiktok = ?, seller_whatsapp = ?, seller_store_address = ?
      WHERE id = ? AND role = ?`,
     [
+      contact.displayName,
       contact.instagram,
       contact.facebook,
       contact.tiktok,

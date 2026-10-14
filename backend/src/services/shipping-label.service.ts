@@ -250,13 +250,14 @@ function drawLabelContent(
   });
   y += doc.heightOfString(order.address, { width: LABEL_CONTENT_WIDTH }) + 10;
 
-  if (order.sellerName) {
+  const storeName = branding?.contact?.displayName?.trim();
+  if (storeName) {
     doc.font(fonts.bold).fontSize(9).fillColor('#5a6b62').text('VENDEDOR / TIENDA', LABEL_MARGIN, y);
     y += 13;
-    doc.font(fonts.regular).fontSize(10).fillColor('#1a1a1a').text(order.sellerName, LABEL_MARGIN, y, {
+    doc.font(fonts.regular).fontSize(10).fillColor('#1a1a1a').text(storeName, LABEL_MARGIN, y, {
       width: LABEL_CONTENT_WIDTH,
     });
-    y += doc.heightOfString(order.sellerName, { width: LABEL_CONTENT_WIDTH }) + 10;
+    y += doc.heightOfString(storeName, { width: LABEL_CONTENT_WIDTH }) + 10;
   }
 
   const shippingLabel = order.shippingType

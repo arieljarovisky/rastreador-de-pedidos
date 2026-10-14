@@ -39,6 +39,7 @@ import { useModal } from './context/ModalContext.tsx';
 const CACHED_NOTIFICATIONS_LIMIT = 40;
 
 type SellerContactState = {
+  displayName: string | null;
   instagram: string | null;
   facebook: string | null;
   tiktok: string | null;
@@ -47,6 +48,7 @@ type SellerContactState = {
 };
 
 const EMPTY_SELLER_CONTACT: SellerContactState = {
+  displayName: null,
   instagram: null,
   facebook: null,
   tiktok: null,
@@ -1646,6 +1648,7 @@ export default function App() {
   };
 
   const handleUpdateSellerContact = async (contact: {
+    displayName: string;
     instagram: string;
     facebook: string;
     tiktok: string;

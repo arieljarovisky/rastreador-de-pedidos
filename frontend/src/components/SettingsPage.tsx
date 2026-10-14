@@ -141,6 +141,7 @@ interface SettingsPageProps {
   onDeleteSellerLogo?: () => Promise<void>;
   onUpdateSellerLabelFont?: (font: string) => Promise<void>;
   sellerContact?: {
+    displayName: string | null;
     instagram: string | null;
     facebook: string | null;
     tiktok: string | null;
@@ -148,6 +149,7 @@ interface SettingsPageProps {
     storeAddress: string | null;
   };
   onUpdateSellerContact?: (data: {
+    displayName: string;
     instagram: string;
     facebook: string;
     tiktok: string;
@@ -331,6 +333,7 @@ export default function SettingsPage({
   const [fontLoading, setFontLoading] = useState(false);
   const [fontMessage, setFontMessage] = useState<string | null>(null);
   const [contactDraft, setContactDraft] = useState({
+    displayName: sellerContact?.displayName ?? '',
     instagram: sellerContact?.instagram ?? '',
     facebook: sellerContact?.facebook ?? '',
     tiktok: sellerContact?.tiktok ?? '',
@@ -346,6 +349,7 @@ export default function SettingsPage({
 
   useEffect(() => {
     setContactDraft({
+      displayName: sellerContact?.displayName ?? '',
       instagram: sellerContact?.instagram ?? '',
       facebook: sellerContact?.facebook ?? '',
       tiktok: sellerContact?.tiktok ?? '',
@@ -1090,7 +1094,7 @@ export default function SettingsPage({
                     setContactMessage(null);
                     try {
                       await onUpdateSellerContact(contactDraft);
-                      setContactMessage('Redes y local actualizados.');
+                      setContactMessage('Datos de la etiqueta actualizados.');
                     } catch (err: unknown) {
                       setContactMessage(err instanceof Error ? err.message : 'Error al guardar.');
                     } finally {
@@ -1100,12 +1104,25 @@ export default function SettingsPage({
                 >
                   <div>
                     <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">
-                      Redes y dirección del local
+                      Nombre, redes y local
                     </p>
                     <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
-                      Todo es opcional. Si no tenés local o alguna red, dejá el campo vacío.
+                      En la etiqueta sale solo lo que completes. Si dejás el nombre vacío, no se imprime el de tu cuenta.
                     </p>
                   </div>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                      Nombre en la etiqueta
+                    </span>
+                    <input
+                      value={contactDraft.displayName}
+                      onChange={(e) => setContactDraft((prev) => ({ ...prev, displayName: e.target.value }))}
+                      placeholder="Como querés que figure la tienda"
+                      autoComplete="organization"
+                      maxLength={60}
+                      className={inputClass}
+                    />
+                  </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <label className="flex flex-col gap-1">
                       <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -1176,7 +1193,7 @@ export default function SettingsPage({
                   </label>
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="submit" disabled={contactLoading} className={btnGhost}>
-                      {contactLoading ? 'Guardando...' : 'Guardar redes y local'}
+                      {contactLoading ? 'Guardando...' : 'Guardar datos de la etiqueta'}
                     </button>
                   </div>
                   {contactMessage && (
