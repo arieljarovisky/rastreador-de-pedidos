@@ -7,6 +7,7 @@ import {
   DELIVERY_SLA_HOUR,
   formatDeadlineHourLabel,
   getActiveOperationalDateKey,
+  getOperationalDateKey,
   getOperationalDayBounds,
   deliveryDeadlineForOperationalDate,
   normalizeDeadlineHour,
@@ -221,7 +222,7 @@ function deliveryAlertCopy(
   const body =
     audience === 'admin'
       ? `Límite de las ${hourLabel}: ${n} ${pedidos} no entregado${n === 1 ? '' : 's'}.`
-      : `${n} ${pedidos} no se entregó${n === 1 ? '' : 'ron'} antes de las ${hourLabel}.`;
+      : `${n} ${pedidos} ${n === 1 ? 'no se entregó' : 'no se entregaron'} antes de las ${hourLabel}.`;
   return { type: 'deadline_missed', title: audience === 'admin' ? 'Fuera de plazo' : 'Pedidos fuera de plazo', body };
 }
 
@@ -302,4 +303,63 @@ export async function sendDeadlineMissedAlerts(
   forHour?: number
 ): Promise<void> {
   await sendDeliverySlaAlerts('missed', dateKey, agencyIds, forHour);
+}
+
+function countFromDeadlineBody(body: string): number | null {
+  const match = body.match(/(\d+)\s+pedidos?/i);
+  if (!match) return null;
+  const n = Number(match[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Reescribe alertas ya guardadas que usaban el corte de ventas.
+ * Mueve la hora visible a 18:00, 20:00 y 21:00 del mismo día.
+ */
+export async function rewriteLegacyDeliveryDeadlineNotifications(): Promise<number> {
+  const [rows] = await pool.query<
+    Array<{ id: string; title: string; body: string; type: string; created_at: Date; role: string | null } & RowDataPacket>
+  >(
+    `SELECT n.id, n.title, n.body, n.type, n.created_at, u.role
+     FROM notifications n
+     LEFT JOIN users u ON u.id = n.user_id
+     WHERE n.type IN ('deadline_warning', 'deadline_urgent', 'deadline_missed')`
+  );
+
+  let updated = 0;
+  for (const row of rows) {
+    const kind: DeliveryAlertKind =
+      row.type === 'deadline_warning' ? 'warning' : row.type === 'deadline_urgent' ? 'urgent' : 'missed';
+    const undelivered = countFromDeadlineBody(row.body);
+    if (undelivered == null) continue;
+
+    const audience = row.role === 'store_admin' ? 'seller' : 'admin';
+    const copy = deliveryAlertCopy(kind, undelivered, audience);
+    const createdAt = row.created_at instanceof Date ? row.created_at : new Date(row.created_at);
+    if (Number.isNaN(createdAt.getTime())) continue;
+
+    const target = deliveryDeadlineForOperationalDate(
+      getOperationalDateKey(createdAt),
+      deliveryAlertHour(kind)
+    );
+    const nextAt = new Date(target.getTime() + (createdAt.getTime() % 60_000));
+    const sameText = row.title === copy.title && row.body === copy.body;
+    const sameTime = Math.abs(createdAt.getTime() - nextAt.getTime()) < 1500;
+    if (sameText && sameTime) continue;
+
+    await pool.query(`UPDATE notifications SET title = ?, body = ?, created_at = ? WHERE id = ?`, [
+      copy.title,
+      copy.body,
+      nextAt,
+      row.id,
+    ]);
+    updated += 1;
+  }
+
+  if (updated > 0) {
+    console.log(
+      `[notifications] Reescritas ${updated} alertas viejas al límite de entrega de las ${formatDeadlineHourLabel(DELIVERY_SLA_HOUR)}.`
+    );
+  }
+  return updated;
 }

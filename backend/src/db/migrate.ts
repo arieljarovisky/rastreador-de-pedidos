@@ -1010,4 +1010,9 @@ export async function runMigrations(): Promise<void> {
   if (backfilled > 0) {
     console.log(`[migrate] Asignados ${backfilled} código(s) de seguimiento público.`);
   }
+
+  const { rewriteLegacyDeliveryDeadlineNotifications } = await import(
+    '../services/delivery-dashboard.service.js'
+  );
+  await rewriteLegacyDeliveryDeadlineNotifications();
 }
