@@ -60,6 +60,7 @@ import {
   saveSellerLogo,
   deleteSellerLogo,
   updateSellerLabelFont,
+  updateSellerContact,
   MAX_LOGO_BYTES,
 } from '../services/seller-branding.service.js';
 
@@ -888,6 +889,44 @@ router.delete(
   async (req: Request, res: Response) => {
     await deleteSellerLogo(req.user!.id);
     res.json({ hasLogo: false });
+  }
+);
+
+/** Vendedor: redes y dirección del local (opcionales, se imprimen al pie de la etiqueta). */
+router.put(
+  '/seller/branding/contact',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      await updateSellerContact(req.user!.id, req.body);
+      res.json(await getSellerBrandingSummary(req.user!.id));
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      if (code === 'INVALID_HANDLE') {
+        res.status(400).json({
+          error: 'Revisá el usuario. Usá letras, números, puntos o guiones bajos, sin el enlace completo.',
+        });
+        return;
+      }
+      if (code === 'INVALID_WHATSAPP') {
+        res.status(400).json({ error: 'El WhatsApp tiene que ser un número válido, con código de área.' });
+        return;
+      }
+      if (code === 'ADDRESS_TOO_SHORT') {
+        res.status(400).json({ error: 'La dirección del local es demasiado corta.' });
+        return;
+      }
+      if (code === 'ADDRESS_TOO_LONG' || code === 'CONTACT_TOO_LONG') {
+        res.status(400).json({ error: 'Uno de los datos es demasiado largo.' });
+        return;
+      }
+      if (code === 'INVALID_CONTACT') {
+        res.status(400).json({ error: 'Revisá las redes y la dirección del local.' });
+        return;
+      }
+      throw err;
+    }
   }
 );
 

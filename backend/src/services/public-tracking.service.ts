@@ -7,6 +7,11 @@ import {
 } from './orders.service.js';
 import { getRepartidorById } from './users.service.js';
 import { buildPublicTrackingUrl } from '../utils/public-tracking-code.js';
+import {
+  getSellerContact,
+  sellerContactHasContent,
+  type SellerContact,
+} from './seller-branding.service.js';
 
 export interface PublicTrackingTimelineEvent {
   status: OrderStatus;
@@ -34,6 +39,10 @@ export interface PublicTrackingResult {
     shipmentId: string | null;
     orderId: string | null;
   };
+  /** Datos públicos del vendedor, solo si cargó redes o dirección de local. */
+  seller?: {
+    name: string | null;
+  } & SellerContact;
 }
 
 export type GetPublicTrackingResult =
@@ -175,6 +184,12 @@ export async function getPublicTrackingByRef(
 
   const tracking = toPublicTracking(lookup.order);
   tracking.driver = await resolveDriverLocation(lookup.order);
+  if (lookup.order.sellerId) {
+    const contact = await getSellerContact(lookup.order.sellerId);
+    if (sellerContactHasContent(contact)) {
+      tracking.seller = { name: lookup.order.sellerName, ...contact };
+    }
+  }
   return { status: 'ok', tracking };
 }
 

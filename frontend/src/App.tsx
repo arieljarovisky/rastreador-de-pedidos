@@ -38,6 +38,22 @@ import { useModal } from './context/ModalContext.tsx';
 
 const CACHED_NOTIFICATIONS_LIMIT = 40;
 
+type SellerContactState = {
+  instagram: string | null;
+  facebook: string | null;
+  tiktok: string | null;
+  whatsapp: string | null;
+  storeAddress: string | null;
+};
+
+const EMPTY_SELLER_CONTACT: SellerContactState = {
+  instagram: null,
+  facebook: null,
+  tiktok: null,
+  whatsapp: null,
+  storeAddress: null,
+};
+
 function cacheNotifications(notifications: AppNotification[]) {
   const slim = notifications.slice(0, CACHED_NOTIFICATIONS_LIMIT).map((n) => ({
     id: n.id,
@@ -256,6 +272,7 @@ export default function App() {
     hasLogo: boolean;
     labelFont: string;
     logoUpdatedAt: string | null;
+    contact: SellerContactState;
   } | null>(null);
   const [sellerLogoPreviewUrl, setSellerLogoPreviewUrl] = useState<string | null>(null);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
@@ -1604,6 +1621,7 @@ export default function App() {
       hasLogo: false,
       labelFont: prev?.labelFont ?? 'helvetica',
       logoUpdatedAt: null,
+      contact: prev?.contact ?? EMPTY_SELLER_CONTACT,
     }));
   };
 
@@ -1623,7 +1641,28 @@ export default function App() {
       hasLogo: prev?.hasLogo ?? false,
       labelFont: data.labelFont,
       logoUpdatedAt: prev?.logoUpdatedAt ?? null,
+      contact: prev?.contact ?? EMPTY_SELLER_CONTACT,
     }));
+  };
+
+  const handleUpdateSellerContact = async (contact: {
+    instagram: string;
+    facebook: string;
+    tiktok: string;
+    whatsapp: string;
+    storeAddress: string;
+  }) => {
+    if (!token) return;
+    const res = await fetch(apiUrl('/api/accounts/seller/branding/contact'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(contact),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudieron guardar las redes y el local.');
+    }
+    setSellerBranding(await res.json());
   };
 
   const handleCreatePickupPoint = async (data: {
@@ -2854,6 +2893,10 @@ export default function App() {
                   }
                   onUpdateSellerLabelFont={
                     user.role === UserRole.STORE_ADMIN ? handleUpdateSellerLabelFont : undefined
+                  }
+                  sellerContact={sellerBranding?.contact ?? EMPTY_SELLER_CONTACT}
+                  onUpdateSellerContact={
+                    user.role === UserRole.STORE_ADMIN ? handleUpdateSellerContact : undefined
                   }
                   onCreateSeller={isAgencyAdmin(user.role) ? handleCreateSeller : undefined}
                   onFetchSellerDetail={isAgencyAdmin(user.role) ? handleFetchSellerDetail : undefined}

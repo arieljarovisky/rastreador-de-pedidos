@@ -140,6 +140,20 @@ interface SettingsPageProps {
   onUploadSellerLogo?: (file: File) => Promise<void>;
   onDeleteSellerLogo?: () => Promise<void>;
   onUpdateSellerLabelFont?: (font: string) => Promise<void>;
+  sellerContact?: {
+    instagram: string | null;
+    facebook: string | null;
+    tiktok: string | null;
+    whatsapp: string | null;
+    storeAddress: string | null;
+  };
+  onUpdateSellerContact?: (data: {
+    instagram: string;
+    facebook: string;
+    tiktok: string;
+    whatsapp: string;
+    storeAddress: string;
+  }) => Promise<void>;
   onCreateSeller?: (data: {
     username: string;
     password: string;
@@ -241,6 +255,8 @@ export default function SettingsPage({
   onUploadSellerLogo,
   onDeleteSellerLogo,
   onUpdateSellerLabelFont,
+  sellerContact,
+  onUpdateSellerContact,
   onCreateSeller,
   onFetchSellerDetail,
   onUpdateSeller,
@@ -314,10 +330,29 @@ export default function SettingsPage({
   const [fontDraft, setFontDraft] = useState(sellerLabelFont);
   const [fontLoading, setFontLoading] = useState(false);
   const [fontMessage, setFontMessage] = useState<string | null>(null);
+  const [contactDraft, setContactDraft] = useState({
+    instagram: sellerContact?.instagram ?? '',
+    facebook: sellerContact?.facebook ?? '',
+    tiktok: sellerContact?.tiktok ?? '',
+    whatsapp: sellerContact?.whatsapp ?? '',
+    storeAddress: sellerContact?.storeAddress ?? '',
+  });
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactMessage, setContactMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setFontDraft(sellerLabelFont);
   }, [sellerLabelFont]);
+
+  useEffect(() => {
+    setContactDraft({
+      instagram: sellerContact?.instagram ?? '',
+      facebook: sellerContact?.facebook ?? '',
+      tiktok: sellerContact?.tiktok ?? '',
+      whatsapp: sellerContact?.whatsapp ?? '',
+      storeAddress: sellerContact?.storeAddress ?? '',
+    });
+  }, [sellerContact]);
 
   useEffect(() => {
     return () => {
@@ -911,7 +946,7 @@ export default function SettingsPage({
         </section>
       )}
 
-      {isSeller && (onUploadSellerLogo || onUpdateSellerLabelFont) && (
+      {isSeller && (onUploadSellerLogo || onUpdateSellerLabelFont || onUpdateSellerContact) && (
         <section className={`${sectionClass} !p-2.5 mt-3`}>
           <div className="flex items-start gap-2.5">
             <div className="w-7 h-7 rounded-[5px] bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
@@ -923,7 +958,8 @@ export default function SettingsPage({
                   Logo y tipografía de tu etiqueta
                 </p>
                 <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
-                  Personalizá el encabezado de tu etiqueta de envío (PNG o JPG, máx. 2 MB).
+                  Personalizá el encabezado de tu etiqueta de envío (PNG o JPG, máx. 2 MB). Si tenés
+                  redes o un local, también podés mostrarlos al pie.
                 </p>
               </div>
 
@@ -1044,6 +1080,110 @@ export default function SettingsPage({
                 </button>
               </form>
               {fontMessage && <p className={msgClass(fontMessage.includes('actualizada'))}>{fontMessage}</p>}
+
+              {onUpdateSellerContact && (
+                <form
+                  className="space-y-2 border-t border-[var(--surface-border)] pt-3"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setContactLoading(true);
+                    setContactMessage(null);
+                    try {
+                      await onUpdateSellerContact(contactDraft);
+                      setContactMessage('Redes y local actualizados.');
+                    } catch (err: unknown) {
+                      setContactMessage(err instanceof Error ? err.message : 'Error al guardar.');
+                    } finally {
+                      setContactLoading(false);
+                    }
+                  }}
+                >
+                  <div>
+                    <p className="text-[11px] font-display font-semibold text-[var(--color-text)]">
+                      Redes y dirección del local
+                    </p>
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                      Todo es opcional. Si no tenés local o alguna red, dejá el campo vacío.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                        Instagram
+                      </span>
+                      <input
+                        value={contactDraft.instagram}
+                        onChange={(e) => setContactDraft((prev) => ({ ...prev, instagram: e.target.value }))}
+                        placeholder="@tutienda"
+                        autoComplete="off"
+                        maxLength={80}
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                        Facebook
+                      </span>
+                      <input
+                        value={contactDraft.facebook}
+                        onChange={(e) => setContactDraft((prev) => ({ ...prev, facebook: e.target.value }))}
+                        placeholder="tutienda"
+                        autoComplete="off"
+                        maxLength={120}
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                        TikTok
+                      </span>
+                      <input
+                        value={contactDraft.tiktok}
+                        onChange={(e) => setContactDraft((prev) => ({ ...prev, tiktok: e.target.value }))}
+                        placeholder="@tutienda"
+                        autoComplete="off"
+                        maxLength={80}
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                        WhatsApp
+                      </span>
+                      <input
+                        value={contactDraft.whatsapp}
+                        onChange={(e) => setContactDraft((prev) => ({ ...prev, whatsapp: e.target.value }))}
+                        placeholder="11 5555 4444"
+                        autoComplete="tel"
+                        inputMode="tel"
+                        maxLength={24}
+                        className={inputClass}
+                      />
+                    </label>
+                  </div>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                      Dirección del local
+                    </span>
+                    <input
+                      value={contactDraft.storeAddress}
+                      onChange={(e) => setContactDraft((prev) => ({ ...prev, storeAddress: e.target.value }))}
+                      placeholder="Av. Corrientes 1234, CABA"
+                      autoComplete="street-address"
+                      maxLength={140}
+                      className={inputClass}
+                    />
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="submit" disabled={contactLoading} className={btnGhost}>
+                      {contactLoading ? 'Guardando...' : 'Guardar redes y local'}
+                    </button>
+                  </div>
+                  {contactMessage && (
+                    <p className={msgClass(contactMessage.includes('actualizados'))}>{contactMessage}</p>
+                  )}
+                </form>
+              )}
             </div>
           </div>
         </section>

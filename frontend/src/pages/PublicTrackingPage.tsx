@@ -23,6 +23,14 @@ interface PublicTrackingData {
   source?: string;
   reference?: { label: string; value: string };
   mercadolibre?: { shipmentId: string | null; orderId: string | null };
+  seller?: {
+    name: string | null;
+    instagram: string | null;
+    facebook: string | null;
+    tiktok: string | null;
+    whatsapp: string | null;
+    storeAddress: string | null;
+  };
 }
 
 const STATUS_HINTS: Partial<Record<OrderStatus, string>> = {
@@ -48,6 +56,20 @@ function formatDateTime(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function socialHref(kind: 'instagram' | 'facebook' | 'tiktok', value: string): string | null {
+  const cleaned = value.trim().replace(/^@/, '');
+  if (!/^[A-Za-z0-9._\-/]+$/.test(cleaned)) return null;
+  const path = cleaned.split('/').map(encodeURIComponent).join('/');
+  if (kind === 'instagram') return `https://instagram.com/${path}`;
+  if (kind === 'tiktok') return `https://www.tiktok.com/@${path}`;
+  return `https://facebook.com/${path}`;
+}
+
+function whatsappHref(digits: string): string | null {
+  if (!/^\d{8,15}$/.test(digits)) return null;
+  return `https://wa.me/${digits}`;
 }
 
 function buildTrackUrl(ref: string): string {
@@ -257,6 +279,75 @@ export default function PublicTrackingPage() {
                 )}
               </p>
             </div>
+
+            {tracking.seller && (
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 sm:p-5 space-y-3">
+                <div className="space-y-1">
+                  <p className="mono-label">La tienda</p>
+                  {tracking.seller.name && (
+                    <p className="font-display font-bold text-base text-[var(--text)]">{tracking.seller.name}</p>
+                  )}
+                  {tracking.seller.storeAddress && (
+                    <p className="text-sm flex items-start gap-2 text-[var(--text-muted)]">
+                      <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-[var(--accent)]" />
+                      <span>{tracking.seller.storeAddress}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {tracking.seller.instagram && socialHref('instagram', tracking.seller.instagram) && (
+                    <a
+                      href={socialHref('instagram', tracking.seller.instagram) ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center min-h-11 rounded-full border border-[var(--line)] px-3 text-xs font-medium text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                    >
+                      Instagram
+                    </a>
+                  )}
+                  {tracking.seller.facebook && socialHref('facebook', tracking.seller.facebook) && (
+                    <a
+                      href={socialHref('facebook', tracking.seller.facebook) ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center min-h-11 rounded-full border border-[var(--line)] px-3 text-xs font-medium text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                    >
+                      Facebook
+                    </a>
+                  )}
+                  {tracking.seller.tiktok && socialHref('tiktok', tracking.seller.tiktok) && (
+                    <a
+                      href={socialHref('tiktok', tracking.seller.tiktok) ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center min-h-11 rounded-full border border-[var(--line)] px-3 text-xs font-medium text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                    >
+                      TikTok
+                    </a>
+                  )}
+                  {tracking.seller.whatsapp && whatsappHref(tracking.seller.whatsapp) && (
+                    <a
+                      href={whatsappHref(tracking.seller.whatsapp) ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center min-h-11 rounded-full border border-[var(--line)] px-3 text-xs font-medium text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                    >
+                      WhatsApp
+                    </a>
+                  )}
+                  {tracking.seller.storeAddress && (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tracking.seller.storeAddress)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center min-h-11 rounded-full border border-[var(--line)] px-3 text-xs font-medium text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                    >
+                      Ver local en el mapa
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
 
             <PublicTrackingMap
               destination={tracking.destination}

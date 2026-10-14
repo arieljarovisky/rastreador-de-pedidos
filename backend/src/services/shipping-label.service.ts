@@ -1,13 +1,14 @@
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import type { Order } from '../types/index.js';
-import type { LabelFont } from './seller-branding.service.js';
+import { sellerContactHasContent, type LabelFont, type SellerContact } from './seller-branding.service.js';
 
 export const POSTA_ORDER_QR_PREFIX = 'POSTA-ORDER:';
 
 export interface ShippingLabelBranding {
   logoBuffer?: Buffer | null;
   labelFont?: LabelFont;
+  contact?: SellerContact | null;
 }
 
 export type LabelSheetLayout = '2x2' | '2x1';
@@ -50,6 +51,55 @@ function pdfBufferFromDoc(doc: InstanceType<typeof PDFDocument>): Promise<Buffer
   });
 }
 
+function contactFooterLines(contact: SellerContact | null | undefined): string[] {
+  if (!sellerContactHasContent(contact) || !contact) return [];
+  const lines: string[] = [];
+  if (contact.storeAddress) lines.push(contact.storeAddress);
+  const socials: string[] = [];
+  if (contact.instagram) socials.push(`IG @${contact.instagram}`);
+  if (contact.facebook) socials.push(`FB ${contact.facebook}`);
+  if (contact.tiktok) socials.push(`TT @${contact.tiktok}`);
+  if (contact.whatsapp) socials.push(`WA ${contact.whatsapp}`);
+  if (socials.length > 0) lines.push(socials.join(' · '));
+  return lines;
+}
+
+function measureFooter(
+  doc: InstanceType<typeof PDFDocument>,
+  font: string,
+  lines: string[]
+): number {
+  if (lines.length === 0) return 0;
+  doc.font(font).fontSize(7);
+  let height = 8;
+  for (const line of lines) {
+    height += doc.heightOfString(line, { width: LABEL_CONTENT_WIDTH }) + 1;
+  }
+  return height;
+}
+
+function drawContactFooter(
+  doc: InstanceType<typeof PDFDocument>,
+  font: string,
+  lines: string[],
+  footerHeight: number
+): void {
+  if (lines.length === 0 || footerHeight <= 0) return;
+  let y = LABEL_HEIGHT - LABEL_MARGIN - footerHeight;
+  doc
+    .moveTo(LABEL_MARGIN, y)
+    .lineTo(LABEL_WIDTH - LABEL_MARGIN, y)
+    .strokeColor('#c5c9c6')
+    .lineWidth(0.6)
+    .stroke();
+  y += 4;
+  doc.font(font).fontSize(7).fillColor('#5a6b62');
+  for (const line of lines) {
+    doc.text(line, LABEL_MARGIN, y, { width: LABEL_CONTENT_WIDTH });
+    y += doc.heightOfString(line, { width: LABEL_CONTENT_WIDTH }) + 1;
+  }
+}
+
 function drawLabelContent(
   doc: InstanceType<typeof PDFDocument>,
   order: Order,
@@ -57,8 +107,11 @@ function drawLabelContent(
   branding: ShippingLabelBranding | undefined,
   fonts: { regular: string; bold: string }
 ): void {
+  const footerLines = contactFooterLines(branding?.contact);
+  const footerHeight = measureFooter(doc, fonts.regular, footerLines);
   const hasLogo = Boolean(branding?.logoBuffer);
   const headerHeight = hasLogo ? 42 : 24;
+  const qrSize = footerHeight > 0 ? 124 : 160;
 
   if (hasLogo && branding?.logoBuffer) {
     doc.image(branding.logoBuffer, LABEL_MARGIN, LABEL_MARGIN, {
@@ -83,12 +136,12 @@ function drawLabelContent(
     .lineWidth(1)
     .stroke();
 
-  const qrSize = 160;
   const qrX = (LABEL_WIDTH - qrSize) / 2;
-  const qrY = LABEL_MARGIN + headerHeight + 12;
+  const qrY = LABEL_MARGIN + headerHeight + (footerHeight > 0 ? 8 : 12);
   doc.image(qrPng, qrX, qrY, { width: qrSize, height: qrSize });
 
-  let y = qrY + qrSize + 16;
+  let y = qrY + qrSize + (footerHeight > 0 ? 8 : 16);
+  const contentBottom = LABEL_HEIGHT - LABEL_MARGIN - footerHeight - 4;
 
   doc.font(fonts.bold).fontSize(9).fillColor('#5a6b62').text('DESTINATARIO', LABEL_MARGIN, y);
   y += 13;
@@ -126,7 +179,7 @@ function drawLabelContent(
     y += 14;
   }
 
-  if (order.publicTrackingCode) {
+  if (order.publicTrackingCode && y < contentBottom) {
     doc.font(fonts.bold).fontSize(9).fillColor('#5a6b62').text('SEGUIMIENTO', LABEL_MARGIN, y);
     y += 13;
     doc
@@ -134,11 +187,13 @@ function drawLabelContent(
       .fontSize(12)
       .fillColor('#1a1a1a')
       .text(order.publicTrackingCode, LABEL_MARGIN, y, { width: LABEL_CONTENT_WIDTH });
-    if (order.id !== order.publicTrackingCode) {
+    if (order.id !== order.publicTrackingCode && y + 16 < contentBottom) {
       y += 16;
       doc.font(fonts.regular).fontSize(8).fillColor('#5a6b62').text(order.id, LABEL_MARGIN, y);
     }
   }
+
+  drawContactFooter(doc, fonts.regular, footerLines, footerHeight);
 }
 
 /** Genera el PDF de etiqueta propia de Posta (con QR) para pedidos que no vienen de Mercado Libre. */
