@@ -294,12 +294,26 @@ function scrollToHash(hash: string, behavior: ScrollBehavior = 'smooth') {
   el.scrollIntoView({ behavior, block: 'start' });
 }
 
+function scrollToDemo(behavior: ScrollBehavior = 'smooth') {
+  const el = document.getElementById('demo');
+  if (!el) return;
+  const scroller = document.scrollingElement ?? document.documentElement;
+  const top = el.getBoundingClientRect().top + scroller.scrollTop - 96;
+  scroller.scrollTo({ top: Math.max(0, top), behavior });
+}
+
+function isDemoEntry() {
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const hash = window.location.hash;
+  return hash === '#demo' || (path === DEMO_HREF && !hash);
+}
+
 function openDemo() {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   if (path !== DEMO_HREF) {
     window.history.pushState(null, '', DEMO_HREF);
   }
-  scrollToHash('demo');
+  scrollToDemo();
 }
 
 function openDemoFromClick(event: MouseEvent<HTMLAnchorElement>) {
@@ -349,17 +363,20 @@ export function LandingPage() {
   }, []);
 
   useLayoutEffect(() => {
-    const path = window.location.pathname.replace(/\/$/, '') || '/';
-    const hash = window.location.hash;
-    if (hash === '#demo' || (path === DEMO_HREF && !hash)) {
-      scrollToHash('demo', 'auto');
-    }
+    if (!isDemoEntry()) return;
+    const jump = () => scrollToDemo('auto');
+    jump();
+    const timers = [120, 500].map((ms) => window.setTimeout(jump, ms));
+    window.addEventListener('load', jump);
+    return () => {
+      timers.forEach((id) => window.clearTimeout(id));
+      window.removeEventListener('load', jump);
+    };
   }, []);
 
   useEffect(() => {
     const onPop = () => {
-      const path = window.location.pathname.replace(/\/$/, '') || '/';
-      if (window.location.hash === '#demo' || (path === DEMO_HREF && !window.location.hash)) scrollToHash('demo');
+      if (isDemoEntry()) scrollToDemo('auto');
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
