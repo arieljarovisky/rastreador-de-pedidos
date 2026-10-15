@@ -41,7 +41,6 @@ import {
   mapMercadoLibreShipmentToOrderStatus,
   resolveMercadoLibreFlexDeliveryDeadline,
   queueMercadoLibreLabelArchive,
-  saveMercadoLibreLabelNow,
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import {
@@ -365,16 +364,6 @@ export async function syncMercadoLibreOrderAfterImport(
       const comment = repartidorId
         ? `Importado desde Mercado Libre Flex · ${statusLabel} · repartidor sincronizado`
         : `Importado desde Mercado Libre Flex · ${statusLabel}`;
-
-      if (targetStatus === OrderStatus.DELIVERED && flex.externalId) {
-        const sellerForLabel = (await getSellerIdForOrder(currentOrder.id)) ?? mlUserId;
-        await saveMercadoLibreLabelNow({
-          orderId: currentOrder.id,
-          sellerUserId: sellerForLabel,
-          externalOrderId: flex.externalId,
-          notes: currentOrder.notes,
-        });
-      }
 
       const updated = await applyMercadoLibreSyncState(currentOrder.id, {
         status: targetStatus,
@@ -835,12 +824,6 @@ async function importMercadoLibreFlexShipment(
       const synced = await syncMercadoLibreOrderAfterImport(mlUserId, existing, shipment);
       const sellerId = await getSellerIdForOrder(synced.id);
       emitOrderUpdated(synced, sellerId);
-      queueMercadoLibreLabelArchive({
-        orderId: synced.id,
-        sellerUserId: sellerId ?? mlUserId,
-        externalOrderId: shipment.externalId,
-        notes: synced.notes,
-      });
       return { kind: 'synced', order: synced };
     }
 
@@ -884,12 +867,6 @@ async function importMercadoLibreFlexShipment(
     order = await syncMercadoLibreOrderAfterImport(mlUserId, order, shipment);
     const sellerId = await getSellerIdForOrder(order.id);
     emitOrderUpdated(order, sellerId);
-    queueMercadoLibreLabelArchive({
-      orderId: order.id,
-      sellerUserId: sellerId ?? mlUserId,
-      externalOrderId: shipment.externalId,
-      notes: order.notes,
-    });
     return { kind: 'imported', order };
   } catch (err) {
     const reason = err instanceof Error ? err.message : 'error desconocido';
@@ -1551,6 +1528,16 @@ export async function importMercadoLibreByScanForAgency(
     });
     updated = await assignScannedOrderToRepartidorIfNeeded(user, updated, repartidorId);
     const assignedSellerId = await getSellerIdForOrder(updated.id);
+    const labelSellerId = assignedSellerId || sellerIdForResult;
+    // Solo al escanear: bajar el PDF marca la etiqueta como impresa en ML.
+    if (labelSellerId) {
+      queueMercadoLibreLabelArchive({
+        orderId: updated.id,
+        sellerUserId: labelSellerId,
+        externalOrderId: updated.externalOrderId ?? shipmentId,
+        notes: updated.notes,
+      });
+    }
     emitOrderUpdated(updated, assignedSellerId);
     await notifySellerOnLabelScan(
       assignedSellerId ?? sellerIdForResult,
@@ -1699,6 +1686,13 @@ export async function importMercadoLibreByScanForAgency(
     order = await assignScannedOrderToRepartidorIfNeeded(user, order, repartidorId);
 
     const assignedSellerId = await getSellerIdForOrder(order.id);
+    // Solo al escanear: bajar el PDF marca la etiqueta como impresa en ML.
+    queueMercadoLibreLabelArchive({
+      orderId: order.id,
+      sellerUserId: assignedSellerId ?? validIntegration.userId,
+      externalOrderId: flex.externalId,
+      notes: order.notes,
+    });
     emitOrderUpdated(order, assignedSellerId);
     await notifySellerOnLabelScan(
       assignedSellerId ?? (isAgencyAccount ? null : validIntegration.userId),
