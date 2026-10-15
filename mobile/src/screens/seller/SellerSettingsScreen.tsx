@@ -22,6 +22,7 @@ import PostaInput from '../../components/ui/PostaInput';
 import MarketplaceSourceLogo from '../../components/MarketplaceSourceLogo';
 import { TAB_BAR_CLEARANCE } from '../../constants/layout';
 import SellerCustomerRates from '../../components/SellerCustomerRates';
+import TiendaNubeShippingMethodForm from '../../components/TiendaNubeShippingMethodForm';
 import { SellerSettingsStackParamList, SellerStackParamList } from '../../navigation/types';
 import {
   PLATFORM_LABELS,
@@ -192,6 +193,16 @@ export default function SellerSettingsScreen({ navigation }: Props) {
           onConnect={() => connect('tiendanube')}
           onDisconnect={() => disconnect('tiendanube')}
           onImport={() => navigation.navigate('ImportShipments', { platform: 'tiendanube' })}
+          connectedExtra={
+            token && status?.tiendanube.connected ? (
+              <TiendaNubeShippingMethodForm
+                token={token}
+                enabled={status.tiendanube.shippingEnabled === true}
+                methodName={status.tiendanube.shippingMethodName ?? 'Posta Express'}
+                onSaved={load}
+              />
+            ) : null
+          }
         />
         <IntegrationRow
           label="Shopify"
@@ -311,6 +322,7 @@ function IntegrationRow({
   onDisconnect,
   onImport,
   connectExtra,
+  connectedExtra,
 }: {
   label: string;
   platform: MarketplacePlatform;
@@ -322,6 +334,7 @@ function IntegrationRow({
   onDisconnect: () => void;
   onImport: () => void;
   connectExtra?: React.ReactNode;
+  connectedExtra?: React.ReactNode;
 }) {
   return (
     <View style={styles.integrationCard}>
@@ -339,6 +352,10 @@ function IntegrationRow({
       )}
       {connected && (account?.nickname || account?.storeName) ? (
         <Text style={styles.rowSub}>Cuenta: {account.nickname || account.storeName}</Text>
+      ) : null}
+      {connected && connectedExtra}
+      {!connected && platform === 'tiendanube' ? (
+        <Text style={styles.rowSub}>Al conectar, el envío Posta queda apagado hasta que lo actives.</Text>
       ) : null}
       <View style={styles.integrationActions}>
         {connected ? (

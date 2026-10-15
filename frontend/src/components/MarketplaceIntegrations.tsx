@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link2, Unlink, Download, RefreshCw, Loader2, Archive, Copy, Check } from 'lucide-react';
 import type { MarketplaceIntegrationStatus, MarketplaceShipmentPreview } from '../types.js';
+import { apiUrl } from '../api.ts';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.js';
 
 export type MarketplacePlatform = 'mercadolibre' | 'tiendanube' | 'shopify' | 'woocommerce';
@@ -40,6 +41,7 @@ export interface MarketplaceIntegrationsProps {
     expiresAt: string;
     pluginDownloadUrl: string;
   }>;
+  token: string;
 }
 
 const btnPrimary = 'btn-primary px-3 py-1.5 disabled:opacity-50';
@@ -91,6 +93,129 @@ function formatShipmentDate(iso: string): string {
   return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+function TnShippingMethodEditor({
+  token,
+  enabled,
+  methodName,
+  onSaved,
+}: {
+  token: string;
+  enabled: boolean;
+  methodName: string;
+  onSaved: () => Promise<void>;
+}) {
+  const [on, setOn] = useState(enabled);
+  const [name, setName] = useState(methodName);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageOk, setMessageOk] = useState(true);
+
+  useEffect(() => {
+    setOn(enabled);
+    setName(methodName);
+  }, [enabled, methodName]);
+
+  const save = async () => {
+    const methodNameTrimmed = name.trim().replace(/\s+/g, ' ');
+    if (methodNameTrimmed.length < 2) {
+      setMessageOk(false);
+      setMessage('El nombre del método tiene que tener entre 2 y 40 caracteres.');
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(apiUrl('/api/integrations/tiendanube/shipping-method'), {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ enabled: on, methodName: methodNameTrimmed }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string; methodName?: string };
+      if (!res.ok) throw new Error(body.error || 'No se pudo guardar el método de envío.');
+      const savedName = body.methodName ?? methodNameTrimmed;
+      setName(savedName);
+      setMessageOk(true);
+      setMessage(
+        on
+          ? `Listo. En el checkout se ve como «${savedName}».`
+          : 'Listo. Tus clientes no ven el envío Posta en el checkout.'
+      );
+      await onSaved();
+    } catch (err: unknown) {
+      setMessageOk(false);
+      setMessage(err instanceof Error ? err.message : 'No se pudo guardar el método de envío.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-[5px] border border-[var(--surface-border)] bg-[var(--paper)] p-2.5 flex flex-col gap-2">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-[var(--color-accent)]"
+          checked={on}
+          disabled={saving}
+          onChange={(e) => {
+            setOn(e.target.checked);
+            setMessage(null);
+          }}
+        />
+        <span>
+          <span className="block text-[11px] font-semibold text-[var(--color-text)]">
+            Mostrar envío Posta en el checkout
+          </span>
+          <span className="block text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+            Viene apagado. Si lo activás, tus clientes lo ven en AMBA con el nombre que elijas.
+          </span>
+        </span>
+      </label>
+      <label className="flex flex-col gap-0.5">
+        <span className="mono-label">Nombre del método de envío</span>
+        <input
+          type="text"
+          maxLength={40}
+          value={name}
+          disabled={saving}
+          placeholder="Posta Express"
+          className={dateInputClass}
+          onChange={(e) => {
+            setName(e.target.value);
+            setMessage(null);
+          }}
+        />
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className={btnPrimary}
+          disabled={saving || name.trim().length < 2}
+          onClick={() => void save()}
+        >
+          <span className="inline-flex items-center gap-1">
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+            {saving ? 'Guardando…' : 'Guardar método'}
+          </span>
+        </button>
+      </div>
+      {message ? (
+        <p
+          role="status"
+          className={`text-[10px] leading-relaxed ${
+            messageOk ? 'text-[var(--color-ok)]' : 'text-[var(--color-danger)]'
+          }`}
+        >
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function PlatformCard({
   title,
   subtitle,
@@ -134,6 +259,7 @@ function PlatformCard({
   wooPairingLoading = false,
   onCopyWooPairingCode,
   wooCodeCopied = false,
+  children,
 }: {
   title: string;
   subtitle: string;
@@ -177,6 +303,7 @@ function PlatformCard({
   wooPairingLoading?: boolean;
   onCopyWooPairingCode?: () => void;
   wooCodeCopied?: boolean;
+  children?: ReactNode;
 }) {
   const pending = shipments.filter(
     (s) => !s.alreadyImported && s.mlShipmentStatus !== 'delivered'
@@ -220,9 +347,9 @@ function PlatformCard({
           {connected && autoSync && (
             <p className="text-[10px] text-[var(--color-ok)] mt-0.5">Sync automático activo</p>
           )}
-          {connected && platform === 'tiendanube' && (
+          {!connected && platform === 'tiendanube' && (
             <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-              Posta Express aparece en el checkout de Tienda Nube según CP (solo AMBA).
+              Al conectar, el envío Posta queda apagado hasta que lo actives.
             </p>
           )}
           {!configured && showMissingCredentials && (
@@ -267,6 +394,8 @@ function PlatformCard({
           ) : null}
         </div>
       </div>
+
+      {connected && children}
 
       {!connected && platform === 'shopify' && onShopDomainChange && (
         <div className="flex flex-wrap items-end gap-2">
@@ -648,6 +777,7 @@ export default function MarketplaceIntegrations({
   onImport,
   onArchiveAllFinishedOrders,
   onCreateWooPairingCode,
+  token,
 }: MarketplaceIntegrationsProps) {
   const [mlShipments, setMlShipments] = useState<MarketplaceShipmentPreview[]>([]);
   const [tnShipments, setTnShipments] = useState<MarketplaceShipmentPreview[]>([]);
@@ -1003,7 +1133,7 @@ export default function MarketplaceIntegrations({
         />
         <PlatformCard
           title="Tienda Nube"
-          subtitle="Posta Express en checkout (AMBA) · sync + import por período"
+          subtitle="Envío en el checkout, apagado hasta que lo actives · sync + import"
           icon={
             <MarketplaceSourceIcon
               source="tiendanube"
@@ -1034,7 +1164,16 @@ export default function MarketplaceIntegrations({
           onRefreshShipments={() => void refreshTn()}
           onImportAll={() => void runImport('tiendanube')}
           onImportOne={(id) => void runImport('tiendanube', [id])}
-        />
+        >
+          {status?.tiendanube.connected ? (
+            <TnShippingMethodEditor
+              token={token}
+              enabled={status.tiendanube.shippingEnabled === true}
+              methodName={status.tiendanube.shippingMethodName ?? 'Posta Express'}
+              onSaved={onRefreshStatus}
+            />
+          ) : null}
+        </PlatformCard>
         <PlatformCard
           title="Shopify"
           subtitle="Envíos a domicilio · OAuth + sync por webhook"

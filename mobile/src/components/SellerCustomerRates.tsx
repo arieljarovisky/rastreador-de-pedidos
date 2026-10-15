@@ -83,8 +83,9 @@ export default function SellerCustomerRates({ token }: { token: string }) {
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Precios para tus clientes</Text>
       <Text style={styles.hint}>
-        Es lo que paga tu cliente por Posta Express en Tienda Nube. Si dejás una zona vacía, ve el mismo
-        importe que te cobra Posta. En Mercado Libre, Shopify y WooCommerce el precio se define en cada tienda.
+        Es lo que paga tu cliente por el envío Posta en Tienda Nube, si lo tenés activado. Si dejás una
+        zona vacía, ve el mismo importe que te cobra Posta. En Mercado Libre, Shopify y WooCommerce el
+        precio se define en cada tienda.
       </Text>
       {loading ? (
         <Text style={styles.hint}>Cargando precios…</Text>

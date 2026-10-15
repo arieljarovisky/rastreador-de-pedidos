@@ -563,6 +563,25 @@ export const api = {
     return request<IntegrationsStatus>('/api/integrations/status', { token });
   },
 
+  getTiendaNubeShippingMethod(token: string): Promise<{
+    connected: boolean;
+    enabled: boolean;
+    methodName: string;
+  }> {
+    return request('/api/integrations/tiendanube/shipping-method', { token });
+  },
+
+  saveTiendaNubeShippingMethod(
+    token: string,
+    body: { enabled: boolean; methodName: string }
+  ): Promise<{ connected: boolean; enabled: boolean; methodName: string }> {
+    return request('/api/integrations/tiendanube/shipping-method', {
+      method: 'PUT',
+      token,
+      body,
+    });
+  },
+
   getSellerCustomerRates(token: string): Promise<{
     currency: 'ARS';
     zones: Array<{

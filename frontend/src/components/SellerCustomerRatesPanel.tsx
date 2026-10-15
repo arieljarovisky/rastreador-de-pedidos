@@ -128,13 +128,13 @@ export default function SellerCustomerRatesPanel({ token }: { token: string }) {
             Precios para tus clientes
           </p>
           <p className="mono-label mt-0.5 truncate normal-case tracking-normal">
-            Checkout de Tienda Nube · Posta Express
+            Checkout de Tienda Nube · envío Posta
           </p>
         </div>
       </div>
 
       <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
-        Elegí cuánto paga tu cliente por Posta Express en cada zona. Si dejás una zona vacía, ve el
+        Elegí cuánto paga tu cliente por el envío Posta en cada zona. Si dejás una zona vacía, ve el
         mismo importe que te cobra Posta. Lo que Posta te factura al entregar no cambia.
       </p>
       <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed mt-1">

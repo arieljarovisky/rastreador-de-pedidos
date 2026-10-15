@@ -162,6 +162,8 @@ export interface MarketplaceIntegrationStatus {
     orderWebhookUrl?: string;
     shippingRatesUrl?: string;
     shippingCarrierReady?: boolean;
+    shippingEnabled?: boolean;
+    shippingMethodName?: string;
     account: MarketplaceIntegrationAccount | null;
   };
   shopify?: {

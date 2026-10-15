@@ -2631,6 +2631,7 @@ export default function SettingsPage({
               onImport={onImportMarketplaceShipments}
               onArchiveAllFinishedOrders={onArchiveAllFinishedOrders}
               onCreateWooPairingCode={onCreateWooPairingCode}
+              token={token}
             />
           )}
         {userRole === UserRole.STORE_ADMIN && onCreatePickupPoint && (

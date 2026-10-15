@@ -25,6 +25,8 @@ import {
   getTiendaNubeOrderWebhookUrl,
   getTiendaNubeShippingRatesUrl,
   isTiendaNubeConfigured,
+  readTiendaNubeShippingMethodSettings,
+  saveTiendaNubeShippingMethod,
 } from '../services/tiendanube.service.js';
 import {
   exchangeShopifyCode,
@@ -231,6 +233,7 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
   const tn = integrations.find((i) => i.platform === 'tiendanube');
   const shopify = integrations.find((i) => i.platform === 'shopify');
   const woo = integrations.find((i) => i.platform === 'woocommerce');
+  const tnShipping = readTiendaNubeShippingMethodSettings(tn?.metadata);
   res.json({
     mercadolibre: {
       configured: isMercadoLibreConfigured(),
@@ -248,6 +251,8 @@ router.get('/status', authenticate, requireRoles(UserRole.STORE_ADMIN), async (r
       shippingCarrierReady: Boolean(
         tn?.metadata && typeof tn.metadata.shippingCarrierId === 'number'
       ),
+      shippingEnabled: tnShipping.enabled,
+      shippingMethodName: tnShipping.methodName,
       privacyWebhooks: getTiendaNubePrivacyWebhookUrls(),
       account: tn ? integrationStatusPublic(tn) : null,
     },
@@ -394,6 +399,56 @@ router.get('/mercadolibre/callback', async (req: Request, res: Response) => {
     );
   }
 });
+
+router.get(
+  '/tiendanube/shipping-method',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    const integration = await getIntegration(req.user!.id, 'tiendanube');
+    const settings = readTiendaNubeShippingMethodSettings(integration?.metadata);
+    res.json({
+      connected: Boolean(integration),
+      enabled: settings.enabled,
+      methodName: settings.methodName,
+    });
+  }
+);
+
+router.put(
+  '/tiendanube/shipping-method',
+  authenticate,
+  requireRoles(UserRole.STORE_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const settings = await saveTiendaNubeShippingMethod(req.user!.id, {
+        enabled: req.body?.enabled,
+        methodName: req.body?.methodName,
+      });
+      res.json({ connected: true, ...settings });
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      if (code === 'TN_NOT_CONNECTED') {
+        res.status(400).json({ error: 'Conectá Tienda Nube para cambiar el envío Posta.' });
+        return;
+      }
+      if (code === 'TN_SHIPPING_NAME_INVALID') {
+        res.status(400).json({
+          error: 'El nombre del método tiene que tener entre 2 y 40 caracteres.',
+        });
+        return;
+      }
+      if (code === 'TN_SHIPPING_ENABLED_INVALID') {
+        res.status(400).json({ error: 'Indicá si el envío Posta está activado.' });
+        return;
+      }
+      console.error('[TN] shipping-method:', err);
+      res.status(502).json({
+        error: 'No se pudo actualizar el método de envío en Tienda Nube. Probá de nuevo en unos minutos.',
+      });
+    }
+  }
+);
 
 router.get('/tiendanube/connect', authenticate, requireRoles(UserRole.STORE_ADMIN), (req: Request, res: Response) => {
   if (!isTiendaNubeConfigured()) {

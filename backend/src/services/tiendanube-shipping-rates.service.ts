@@ -1,4 +1,5 @@
 import { findTiendaNubeIntegrationByStoreId } from './integrations.service.js';
+import { readTiendaNubeShippingMethodSettings } from './tiendanube.service.js';
 import { getUserById } from './users.service.js';
 import { resolvePostalCodeForAgency } from './postal-code-geo.service.js';
 import { resolveShippingAmountForOrder } from './price-lists.service.js';
@@ -76,6 +77,11 @@ export async function quoteTiendaNubePostaExpressRates(
     return { ok: false, status: 422, reason: 'store_not_connected' };
   }
 
+  const shippingMethod = readTiendaNubeShippingMethodSettings(integration.metadata);
+  if (!shippingMethod.enabled) {
+    return { ok: false, status: 422, reason: 'shipping_disabled' };
+  }
+
   const seller = await getUserById(integration.userId);
   if (!seller || seller.role !== UserRole.STORE_ADMIN || !seller.agencyId) {
     return { ok: false, status: 422, reason: 'seller_invalid' };
@@ -124,7 +130,7 @@ export async function quoteTiendaNubePostaExpressRates(
     ok: true,
     rates: [
       {
-        name: 'Posta Express',
+        name: shippingMethod.methodName,
         code: 'express',
         price: customerAmount,
         price_merchant: amount,
