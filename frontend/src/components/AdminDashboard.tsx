@@ -2229,11 +2229,11 @@ export default function AdminDashboard({
           </button>
         </div>
 
-        {/* LISTADO: scroll vertical; columnas fijas evitan scroll X */}
+        {/* LISTADO: scroll vertical + horizontal en móvil (swipe lateral) */}
         <div
           ref={ordersScrollRef}
           onScroll={onOrdersScroll}
-          className="mt-1.5 flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin rounded border border-[var(--surface-border)]"
+          className="mt-1.5 flex-1 min-h-0 overflow-auto overscroll-x-contain scrollbar-thin rounded border border-[var(--surface-border)] [-webkit-overflow-scrolling:touch]"
         >
           {filteredOrders.length === 0 ? (
             <div className="posta-empty">
@@ -2245,9 +2245,9 @@ export default function AdminDashboard({
               </p>
             </div>
           ) : (
-            <table className="w-full min-w-0 text-left border-collapse table-fixed">
+            <table className="w-full min-w-[44rem] text-left border-collapse table-fixed">
               <thead className="sticky top-0 z-10 bg-[var(--surface-panel-2)] border-b border-[var(--surface-border)]">
-                <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] [&>th]:min-w-0 [&>th]:overflow-hidden [&>th]:text-ellipsis [&>th]:whitespace-nowrap">
+                <tr className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)] [&>th]:overflow-hidden [&>th]:text-ellipsis [&>th]:whitespace-nowrap">
                   <th className="px-1.5 py-2 w-8">
                     {selectableFilteredOrders.length > 0 ? (
                       <input
@@ -2272,7 +2272,7 @@ export default function AdminDashboard({
                     <th className="px-2 py-2 font-bold w-[12%]">Vendedor</th>
                   )}
                   <th className="px-2 py-2 font-bold w-[5.75rem]">Repartidor</th>
-                  <th className="px-1.5 py-2 font-bold w-[4rem]">Fecha</th>
+                  <th className="px-1.5 py-2 font-bold w-[4.5rem]">Fecha</th>
                 </tr>
               </thead>
               <tbody>
