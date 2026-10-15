@@ -18,6 +18,9 @@ function appRoutePlugin(): Plugin {
           req.url = '/privacidad.html';
         } else if (pathOnly === '/seguimiento') {
           req.url = '/seguimiento.html';
+        } else if (pathOnly === '/demo') {
+          const query = raw.includes('?') ? raw.slice(raw.indexOf('?')) : '';
+          req.url = `/index.html${query}`;
         }
         next();
       });

@@ -5,7 +5,8 @@
     { "source": "/app", "destination": "/app.html" },
     { "source": "/app/(.*)", "destination": "/app.html" },
     { "source": "/privacidad", "destination": "/privacidad.html" },
-    { "source": "/seguimiento", "destination": "/seguimiento.html" }
+    { "source": "/seguimiento", "destination": "/seguimiento.html" },
+    { "source": "/demo", "destination": "/index.html" }
   ],
   "headers": [
     {

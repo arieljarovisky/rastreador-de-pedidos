@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useState, type MouseEvent } from 'react';
 import { Menu, Moon, Sun, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { DirectionAwareTabs } from '@/components/ui/direction-aware-tabs';
@@ -20,6 +20,8 @@ const APK_FALLBACK =
   'https://expo.dev/artifacts/eas/aIJTY4vilORXfj149rNpf76mMVY-hGPiaJc7CGWx7wI.apk';
 const VERSION_API = 'https://envios-erp.up.railway.app/api/app/version';
 
+const DEMO_HREF = '/demo';
+
 const NAV = [
   { href: '#porque', label: 'Por qué' },
   { href: '#nosotros', label: 'Nosotros' },
@@ -27,6 +29,7 @@ const NAV = [
   { href: '#recorrido', label: 'Recorrido' },
   { href: '#descargar', label: 'App' },
   { href: '#precios', label: 'Tarifas' },
+  { href: DEMO_HREF, label: 'Demo' },
 ];
 
 const ABOUT_PILLARS = [
@@ -258,7 +261,8 @@ function PlanBody({ plan }: { plan: (typeof PLANS)[number] }) {
         ))}
       </ul>
       <a
-        href={custom ? '#demo' : '/app'}
+        href={custom ? DEMO_HREF : '/app'}
+        onClick={custom ? openDemoFromClick : undefined}
         className="mt-auto inline-flex text-sm underline underline-offset-4"
       >
         {custom ? 'Consultar' : 'Probar 14 días gratis'}
@@ -282,15 +286,38 @@ function DispatchClock() {
   return <span className="ml-auto hidden font-mono text-[11px] tabular-nums text-muted-foreground lg:inline">{clock}</span>;
 }
 
-function scrollToHash(hash: string) {
+function scrollToHash(hash: string, behavior: ScrollBehavior = 'smooth') {
   const id = hash.startsWith('#') ? hash.slice(1) : hash;
   if (!id) return;
   const el = document.getElementById(id);
   if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (window.history.replaceState) {
-    window.history.replaceState(null, '', `#${id}`);
+  el.scrollIntoView({ behavior, block: 'start' });
+}
+
+function openDemo() {
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (path !== DEMO_HREF) {
+    window.history.pushState(null, '', DEMO_HREF);
   }
+  scrollToHash('demo');
+}
+
+function openDemoFromClick(event: MouseEvent<HTMLAnchorElement>) {
+  event.preventDefault();
+  openDemo();
+}
+
+function handleNavClick(href: string, event: MouseEvent<HTMLAnchorElement>) {
+  if (href === DEMO_HREF) {
+    openDemoFromClick(event);
+    return;
+  }
+  if (!href.startsWith('#')) return;
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (path !== DEMO_HREF) return;
+  event.preventDefault();
+  window.history.pushState(null, '', `/${href}`);
+  scrollToHash(href);
 }
 
 export function LandingPage() {
@@ -321,6 +348,23 @@ export function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  useLayoutEffect(() => {
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    const hash = window.location.hash;
+    if (hash === '#demo' || (path === DEMO_HREF && !hash)) {
+      scrollToHash('demo', 'auto');
+    }
+  }, []);
+
+  useEffect(() => {
+    const onPop = () => {
+      const path = window.location.pathname.replace(/\/$/, '') || '/';
+      if (window.location.hash === '#demo' || (path === DEMO_HREF && !window.location.hash)) scrollToHash('demo');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -340,14 +384,22 @@ export function LandingPage() {
   }
 
   function handleMenuLinkClick(href: string, event: MouseEvent<HTMLAnchorElement>) {
-    if (!href.startsWith('#')) {
+    if (href !== DEMO_HREF && !href.startsWith('#')) {
       setOpen(false);
       return;
     }
     event.preventDefault();
     setOpen(false);
     // Esperar a que el menú cierre y libere el scroll del body.
-    window.setTimeout(() => scrollToHash(href), 80);
+    window.setTimeout(() => {
+      if (href === DEMO_HREF) {
+        openDemo();
+        return;
+      }
+      const path = window.location.pathname.replace(/\/$/, '') || '/';
+      if (path === DEMO_HREF) window.history.pushState(null, '', `/${href}`);
+      scrollToHash(href);
+    }, 80);
   }
 
   const roleTabs = [
@@ -443,7 +495,12 @@ export function LandingPage() {
             <Logo />
             <nav className="hidden items-center gap-4 text-xs uppercase tracking-[0.16em] text-muted-foreground md:flex" aria-label="Secciones">
               {NAV.map((item) => (
-                <a key={item.href} href={item.href} className="hover:text-foreground">
+                <a
+                  key={item.href}
+                  href={item.href}
+                  onClick={(event) => handleNavClick(item.href, event)}
+                  className={item.href === DEMO_HREF ? 'text-ember hover:text-foreground' : 'hover:text-foreground'}
+                >
                   {item.label}
                 </a>
               ))}
@@ -509,7 +566,7 @@ export function LandingPage() {
                     <a
                       key={item.href}
                       href={item.href}
-                      className="rounded-2xl px-3 py-2.5 text-sm hover:bg-foreground/5"
+                      className={`rounded-2xl px-3 py-2.5 text-sm hover:bg-foreground/5${item.href === DEMO_HREF ? ' text-ember' : ''}`}
                       onClick={(event) => handleMenuLinkClick(item.href, event)}
                     >
                       {item.label}
@@ -556,7 +613,7 @@ export function LandingPage() {
               <HaloButton className="quiet-cta" render={<a href="/app" />} nativeButton={false}>
                 Entrar al panel
               </HaloButton>
-              <a href="#demo" className="inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
+              <a href={DEMO_HREF} onClick={openDemoFromClick} className="inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
                 Agendar demo
               </a>
             </div>
@@ -629,7 +686,7 @@ export function LandingPage() {
               Arrancamos porque vimos la misma escena una y otra vez: etiquetas por WhatsApp, ubicaciones a ojo y nadie que sepa
               dónde está cada moto. Posta ordena eso sin sacar a tu gente del ritmo del día.
             </p>
-            <a href="#demo" className="mt-8 inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
+            <a href={DEMO_HREF} onClick={openDemoFromClick} className="mt-8 inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
               Conocé el producto en 30 min
             </a>
           </div>
@@ -789,7 +846,7 @@ export function LandingPage() {
           <HaloButton className="quiet-cta" render={<a href="/app" />} nativeButton={false}>
             Iniciar sesión
           </HaloButton>
-          <a href="#demo" className="inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
+          <a href={DEMO_HREF} onClick={openDemoFromClick} className="inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
             Agendar demo
           </a>
         </div>
@@ -817,7 +874,7 @@ export function LandingPage() {
             <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Empezar</p>
             <ul className="mt-3 space-y-2 text-sm">
               <li><a href="#descargar">Instalar app</a></li>
-              <li><a href="#demo">Agendar demo</a></li>
+              <li><a href={DEMO_HREF} onClick={openDemoFromClick}>Agendar demo</a></li>
               <li><a href="/seguimiento">Seguí tu envío</a></li>
               <li><a href="/app">Iniciar sesión</a></li>
               <li><a href="#precios">Tarifas</a></li>
