@@ -286,8 +286,6 @@ router.get('/repartidores/:id/profile', authenticate, requireAgencyAdmin(), asyn
   }
 
   try {
-    const { archiveDeliveredMercadoLibreLabels } = await import('../services/mercadolibre.service.js');
-    void archiveDeliveredMercadoLibreLabels({ agencyId: req.user.agencyId, limit: 8 });
     const { promotePendingPhotoLabels } = await import('../services/driver-scan.service.js');
     const { listRepartidorOrders } = await import('../services/orders.service.js');
     const { findSavedOrderLabel } = await import('../services/label-archive.service.js');

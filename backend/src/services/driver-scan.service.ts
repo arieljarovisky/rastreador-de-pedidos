@@ -30,6 +30,7 @@ import {
   extractContactFromMlShipment,
   fetchMercadoLibreShipment,
   parseMercadoLibreScanCode,
+  queueMercadoLibreLabelArchive,
   registerMercadoLibreCourierShipment,
   resolveMercadoLibreFlexFromScan,
   tryGetValidMercadoLibreIntegration,
@@ -630,6 +631,33 @@ async function readContactWithIntegration(
 }
 
 /**
+ * Si el QR es de ML y ya hay pedido Posta, archiva el PDF al escanear
+ * (no en la importación automática: eso marca la etiqueta como impresa en ML).
+ */
+async function queueMlLabelArchiveFromScan(rawCode: string): Promise<void> {
+  const candidates = parseMercadoLibreScanCode(rawCode);
+  if (candidates.length === 0) return;
+  try {
+    const { findOrderByExternalGlobal, getSellerIdForOrder } = await import('./orders.service.js');
+    for (const candidate of candidates) {
+      const order = await findOrderByExternalGlobal('mercadolibre', candidate.id);
+      if (!order?.externalOrderId) continue;
+      const sellerUserId = (await getSellerIdForOrder(order.id)) ?? order.sellerId;
+      if (!sellerUserId) continue;
+      queueMercadoLibreLabelArchive({
+        orderId: order.id,
+        sellerUserId,
+        externalOrderId: order.externalOrderId,
+        notes: order.notes,
+      });
+      return;
+    }
+  } catch (err) {
+    console.warn('[label-archive] scan personal', err);
+  }
+}
+
+/**
  * Intenta obtener destinatario/dirección desde ML (token repartidor + vendedores de la agencia).
  * Prioriza el `sender_id` del QR (vendedor dueño) y el token de mensajería tras courier-shipment.
  * No falla el alta personal si ML no responde o el envío no es legible.
@@ -773,6 +801,7 @@ export async function createDriverScanEntry(
         existingRows[0].id,
       ]);
     }
+    void queueMlLabelArchiveFromScan(data.code);
     // Reescaneo: completar dirección si todavía no la tenemos.
     if (!existingRows[0].address?.trim()) {
       const contact =
@@ -826,11 +855,15 @@ export async function createDriverScanEntry(
          LIMIT 1`,
         [user.id, routeDate, scanCode]
       );
-      if (rows[0]) return loadEntry(rows[0].id, true);
+      if (rows[0]) {
+        void queueMlLabelArchiveFromScan(data.code);
+        return loadEntry(rows[0].id, true);
+      }
     }
     throw err;
   }
 
+  void queueMlLabelArchiveFromScan(data.code);
   return loadEntry(id, false);
 }
 

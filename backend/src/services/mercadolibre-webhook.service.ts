@@ -23,7 +23,6 @@ import {
   mapMercadoLibreShipmentToOrderStatus,
   parseMercadoLibreNotificationResource,
   resolveMercadoLibreFlexDeliveryDeadline,
-  queueMercadoLibreLabelArchive,
   type MercadoLibreFlexShipment,
   type MlFlexAssignment,
 } from './mercadolibre.service.js';
@@ -305,12 +304,6 @@ async function importFlexShipment(
     const synced = await syncMercadoLibreOrderAfterImport(integration.userId, existing, shipment);
     const sellerId = await getSellerIdForOrder(synced.id);
     emitOrderUpdated(synced, sellerId);
-    queueMercadoLibreLabelArchive({
-      orderId: synced.id,
-      sellerUserId: sellerId ?? integration.userId,
-      externalOrderId: shipment.externalId,
-      notes: synced.notes,
-    });
     flexScanLog('envío ya importado', { orderId: synced.id, mlShipmentId: shipment.externalId });
     return synced.id;
   }
@@ -359,12 +352,6 @@ async function importFlexShipment(
   order = await syncMercadoLibreOrderAfterImport(integration.userId, order, shipment);
 
   const sellerId = await getSellerIdForOrder(order.id);
-  queueMercadoLibreLabelArchive({
-    orderId: order.id,
-    sellerUserId: sellerId ?? integration.userId,
-    externalOrderId: shipment.externalId,
-    notes: order.notes,
-  });
   if (sellerId) {
     await notifySellerFlexEvent(
       sellerId,
