@@ -16,7 +16,7 @@ export function isAnalyticsEnabled() {
 
 export function initAnalytics() {
   if (!isAnalyticsEnabled() || typeof window === 'undefined') return;
-  if (document.getElementById('ga-gtag')) return;
+  if (typeof window.gtag === 'function') return;
 
   window.dataLayer = window.dataLayer || [];
   window.gtag = function gtag() {
