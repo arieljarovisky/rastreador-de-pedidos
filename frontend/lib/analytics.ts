@@ -7,7 +7,8 @@ declare global {
   }
 }
 
-const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID?.trim() ?? '';
+const MEASUREMENT_ID =
+  import.meta.env.VITE_GA_MEASUREMENT_ID?.trim() || 'G-53NS1Z2TH1';
 
 export function isAnalyticsEnabled() {
   return /^G-[A-Z0-9]+$/.test(MEASUREMENT_ID);
