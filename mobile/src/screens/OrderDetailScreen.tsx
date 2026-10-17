@@ -27,6 +27,7 @@ import { RepartidorStackParamList } from '../navigation/types';
 import DeliveryReceiptSheet, { DeliveryReceipt } from '../components/DeliveryReceiptSheet';
 import FailedDeliverySheet from '../components/FailedDeliverySheet';
 import { api } from '../api';
+import ShippingLabelButton from '../components/ShippingLabelButton';
 import { DELIVERY_INCIDENTS, incidentWhatsappText } from '../config/deliveryIncidents';
 import { whatsappPhone, whatsappUrl } from '../utils/whatsapp';
 
@@ -222,12 +223,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
         <Text style={typography.displayTitle(22)}>{order.clientName}</Text>
         <Text style={typography.body(14, colors.textMuted)}>{order.address}</Text>
 
-        {order.notes ? (
-          <View style={styles.notesBox}>
-            <MonoLabel color={colors.textFaint}>Notas</MonoLabel>
-            <Text style={styles.notesText}>{order.notes}</Text>
-          </View>
-        ) : null}
+        <ShippingLabelButton order={order} token={token} />
 
         <View style={styles.metaRow}>
           <Meta label="Teléfono" value={order.clientPhone || '—'} />

@@ -23,6 +23,7 @@ import StatusBadge from '../../components/StatusBadge';
 import OrderTrackingMap from '../../components/OrderTrackingMap';
 import IconLabelRow from '../../components/ui/IconLabelRow';
 import { AgencyStackParamList } from '../../navigation/types';
+import ShippingLabelButton from '../../components/ShippingLabelButton';
 
 type Props = NativeStackScreenProps<AgencyStackParamList, 'AgencyOrderDetail'>;
 
@@ -176,6 +177,8 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
         <Text style={styles.client}>{order.clientName}</Text>
         <Text style={styles.address}>{order.address}</Text>
 
+        <ShippingLabelButton order={order} token={token} />
+
         {order.sellerName ? (
           <View style={styles.metaBox}>
             <Text style={styles.metaLabel}>Vendedor</Text>
@@ -286,13 +289,6 @@ export default function AgencyOrderDetailScreen({ route, navigation }: Props) {
             style={{ marginTop: spacing.md }}
           />
         )}
-
-        {order.notes ? (
-          <View style={styles.notesBox}>
-            <Text style={styles.notesLabel}>Notas</Text>
-            <Text style={styles.notesText}>{order.notes}</Text>
-          </View>
-        ) : null}
 
         <View style={styles.metaRow}>
           <Meta label="Teléfono" value={order.clientPhone || '—'} />

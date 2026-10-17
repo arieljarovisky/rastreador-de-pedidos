@@ -22,7 +22,7 @@ import OrderTrackingMap from '../../components/OrderTrackingMap';
 import IconActionChip from '../../components/ui/IconActionChip';
 import IconLabelRow from '../../components/ui/IconLabelRow';
 import { SellerStackParamList } from '../../navigation/types';
-import { api } from '../../api';
+import ShippingLabelButton from '../../components/ShippingLabelButton';
 
 type Props = NativeStackScreenProps<SellerStackParamList, 'SellerOrderDetail'>;
 
@@ -111,30 +111,6 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
     if (url) Linking.openURL(url);
   };
 
-  const openMlLabel = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(api.mercadoLibreLabelUrl(order.id), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(
-          (body as { error?: string }).error ?? 'No se pudo obtener la etiqueta.'
-        );
-      }
-      Alert.alert(
-        'Etiqueta ML',
-        'La etiqueta se descargó correctamente. Para imprimirla, usá la web de Posta desde una computadora.'
-      );
-    } catch (err) {
-      Alert.alert(
-        'Etiqueta no disponible',
-        err instanceof Error ? err.message : 'Intentá de nuevo más tarde.'
-      );
-    }
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.mapPane}>
@@ -174,6 +150,8 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
         <Text style={styles.client}>{order.clientName}</Text>
         <Text style={styles.address}>{order.address}</Text>
 
+        <ShippingLabelButton order={order} token={token} />
+
         {order.repartidorName ? (
           <View style={styles.repBox}>
             <Text style={styles.repLabel}>Repartidor</Text>
@@ -188,13 +166,6 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
         ) : isActive ? (
           <View style={styles.repBox}>
             <Text style={styles.repPending}>Esperando asignación de logística</Text>
-          </View>
-        ) : null}
-
-        {order.notes ? (
-          <View style={styles.notesBox}>
-            <Text style={styles.notesLabel}>Notas</Text>
-            <Text style={styles.notesText}>{order.notes}</Text>
           </View>
         ) : null}
 
@@ -227,14 +198,6 @@ export default function SellerOrderDetailScreen({ route, navigation }: Props) {
               onPress={openInMaps}
               style={styles.half}
             />
-            {order.externalSource === 'mercadolibre' && (
-              <IconActionChip
-                icon="tag"
-                label="Etiqueta ML"
-                onPress={openMlLabel}
-                style={styles.half}
-              />
-            )}
           </View>
 
           {order.status === OrderStatus.PENDING && (
@@ -348,22 +311,6 @@ const styles = StyleSheet.create({
   repPending: { color: colors.textMuted, fontSize: 13 },
   actionRow: { flexDirection: 'row', gap: spacing.md },
   half: { flex: 1 },
-  notesBox: {
-    backgroundColor: colors.bg,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginTop: spacing.lg,
-  },
-  notesLabel: {
-    color: colors.textFaint,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  notesText: { color: colors.text, fontSize: 14, lineHeight: 20 },
   metaRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
   meta: {
     flex: 1,
