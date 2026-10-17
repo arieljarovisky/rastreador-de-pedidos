@@ -12,6 +12,7 @@ import { RollingNumber } from '@/components/ui/rolling-number';
 import SquigglyArrow from '@/components/ui/squiggle-arrow';
 import TextAnimate from '@/components/ui/text-animate';
 import { Typewriter } from '@/components/ui/typewriter';
+import { trackEvent } from '@/lib/analytics';
 import { DemoBooking } from './DemoBooking.tsx';
 
 const LIVE_STATES = ['pendiente.', 'asignado.', 'en viaje.', 'en la puerta.'];
@@ -123,6 +124,7 @@ function WhatsAppFloat() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Escribinos por WhatsApp al +54 9 11 6462-2053"
+      onClick={() => trackEvent('click_whatsapp')}
       className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_8px_24px_rgba(0,0,0,0.28)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#25D366]"
       style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
     >
@@ -262,7 +264,7 @@ function PlanBody({ plan }: { plan: (typeof PLANS)[number] }) {
       </ul>
       <a
         href={custom ? DEMO_HREF : '/app'}
-        onClick={custom ? openDemoFromClick : undefined}
+        onClick={custom ? openDemoFromClick : () => trackEvent('click_login', { location: 'pricing' })}
         className="mt-auto inline-flex text-sm underline underline-offset-4"
       >
         {custom ? 'Consultar' : 'Probar 14 días gratis'}
@@ -309,6 +311,7 @@ function isDemoEntry() {
 }
 
 function openDemo() {
+  trackEvent('click_demo');
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   if (path !== DEMO_HREF) {
     window.history.pushState(null, '', DEMO_HREF);
@@ -362,6 +365,27 @@ export function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const ids = ['porque', 'nosotros', 'roles', 'recorrido', 'integraciones', 'descargar', 'demo', 'precios', 'empezar'];
+    const seen = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = entry.target.id;
+          if (!entry.isIntersecting || !id || seen.has(id)) continue;
+          seen.add(id);
+          trackEvent('view_section', { section: id });
+        }
+      },
+      { threshold: 0.35 },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
+
   useLayoutEffect(() => {
     if (!isDemoEntry()) return;
     const jump = () => scrollToDemo('auto');
@@ -401,6 +425,8 @@ export function LandingPage() {
   }
 
   function handleMenuLinkClick(href: string, event: MouseEvent<HTMLAnchorElement>) {
+    if (href === '/seguimiento') trackEvent('click_tracking');
+    if (href === '/app') trackEvent('click_login', { location: 'menu' });
     if (href !== DEMO_HREF && !href.startsWith('#')) {
       setOpen(false);
       return;
@@ -524,7 +550,11 @@ export function LandingPage() {
             </nav>
             <DispatchClock />
           </div>
-          <a href="/seguimiento" className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground sm:inline">
+          <a
+            href="/seguimiento"
+            onClick={() => trackEvent('click_tracking')}
+            className="hidden text-xs uppercase tracking-[0.16em] text-muted-foreground hover:text-foreground sm:inline"
+          >
             Seguí tu envío
           </a>
           <button
@@ -627,7 +657,11 @@ export function LandingPage() {
               Posta sigue cada moto en tiempo real, arma la ruta por GPS y deja a tu agencia, tus tiendas y tus repartidores en la misma página.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <HaloButton className="quiet-cta" render={<a href="/app" />} nativeButton={false}>
+              <HaloButton
+                className="quiet-cta"
+                render={<a href="/app" onClick={() => trackEvent('click_login', { location: 'hero' })} />}
+                nativeButton={false}
+              >
                 Entrar al panel
               </HaloButton>
               <a href={DEMO_HREF} onClick={openDemoFromClick} className="inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
@@ -801,10 +835,18 @@ export function LandingPage() {
           <h2 className="mt-3 font-serif-display text-5xl italic leading-[0.95]">Instalá Posta en el celular.</h2>
           <p className="mt-4 text-muted-foreground">Android con APK directo. iPhone como app web desde Safari. Sin App Store ni Play Store.</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <HaloButton className="quiet-cta" render={<a href={apk} />} nativeButton={false}>
+            <HaloButton
+              className="quiet-cta"
+              render={<a href={apk} onClick={() => trackEvent('click_download_apk')} />}
+              nativeButton={false}
+            >
               Descargar APK
             </HaloButton>
-            <a href="/app" className="inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
+            <a
+              href="/app"
+              onClick={() => trackEvent('click_install_ios')}
+              className="inline-flex h-11 items-center rounded-full border border-border px-5 text-sm"
+            >
               Instalar en Safari
             </a>
           </div>
@@ -860,7 +902,11 @@ export function LandingPage() {
           Creá tu cuenta y empezá a coordinar tu logística en minutos. 14 días gratis, después pagás según tu cantidad de repartidores.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <HaloButton className="quiet-cta" render={<a href="/app" />} nativeButton={false}>
+          <HaloButton
+            className="quiet-cta"
+            render={<a href="/app" onClick={() => trackEvent('click_login', { location: 'cta' })} />}
+            nativeButton={false}
+          >
             Iniciar sesión
           </HaloButton>
           <a href={DEMO_HREF} onClick={openDemoFromClick} className="inline-flex h-11 items-center rounded-full border border-border px-5 text-sm">
@@ -892,8 +938,8 @@ export function LandingPage() {
             <ul className="mt-3 space-y-2 text-sm">
               <li><a href="#descargar">Instalar app</a></li>
               <li><a href={DEMO_HREF} onClick={openDemoFromClick}>Agendar demo</a></li>
-              <li><a href="/seguimiento">Seguí tu envío</a></li>
-              <li><a href="/app">Iniciar sesión</a></li>
+              <li><a href="/seguimiento" onClick={() => trackEvent('click_tracking')}>Seguí tu envío</a></li>
+              <li><a href="/app" onClick={() => trackEvent('click_login', { location: 'footer' })}>Iniciar sesión</a></li>
               <li><a href="#precios">Tarifas</a></li>
               <li><a href="/privacidad">Política de privacidad</a></li>
             </ul>

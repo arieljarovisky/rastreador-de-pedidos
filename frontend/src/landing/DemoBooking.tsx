@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { HaloButton } from '@/components/ui/halo-button';
 import { HaloCard } from '@/components/ui/halo-card';
 import { HaloInput } from '@/components/ui/halo-input';
+import { trackEvent } from '@/lib/analytics';
 
 const DEMO_API = 'https://envios-erp.up.railway.app/api/public/demo';
 
@@ -136,6 +137,7 @@ export function DemoBooking() {
         return;
       }
       setSuccess({ label: data.label, meetLink: data.meetLink, htmlLink: data.htmlLink });
+      trackEvent('generate_lead', { method: 'demo' });
     } catch {
       setStatus('Error de conexión.');
       setStatusError(true);

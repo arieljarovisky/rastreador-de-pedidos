@@ -1,9 +1,12 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
+import { initAnalytics } from '@/lib/analytics';
 import App from './App.tsx';
 import { ModalProvider } from './context/ModalContext.tsx';
 import './index.css';
 import { applyPostaTheme, readPostaTheme } from './theme/usePostaTheme.ts';
+
+initAnalytics();
 
 applyPostaTheme(readPostaTheme());
 
