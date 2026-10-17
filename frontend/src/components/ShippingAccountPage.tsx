@@ -57,6 +57,42 @@ function monthRangeForOffset(monthOffset = 0): { dateFrom: string; dateTo: strin
   };
 }
 
+function formatDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Semana calendario de lunes a domingo. offset 0 = semana en curso. */
+function weekRangeForOffset(weekOffset = 0): { dateFrom: string; dateTo: string } {
+  const now = new Date();
+  const day = now.getDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday + weekOffset * 7);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return {
+    dateFrom: formatDateKey(monday),
+    dateTo: formatDateKey(sunday),
+  };
+}
+
+function sameRange(
+  dateFrom: string,
+  dateTo: string,
+  range: { dateFrom: string; dateTo: string }
+): boolean {
+  return dateFrom === range.dateFrom && dateTo === range.dateTo;
+}
+
+function presetButtonClass(active: boolean): string {
+  return `px-2.5 py-1 rounded-lg border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
+    active
+      ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+      : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
+  }`;
+}
+
 function shippingTypeLabel(type: string): string {
   if (type === 'flex') return 'Mercado Libre Flex';
   if (type === 'express') return 'Tienda Nube Express';
@@ -87,18 +123,20 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
   const [exportingSellerId, setExportingSellerId] = useState<string | null>(null);
   const todayKey = getActiveOperationalDateKey();
 
-  const applyMonthPreset = (offset: number) => {
-    const range = monthRangeForOffset(offset);
+  const applyRange = (range: { dateFrom: string; dateTo: string }) => {
     setDateFrom(range.dateFrom);
     setDateTo(range.dateTo);
   };
 
-  const activePreset =
-    dateFrom === monthRangeForOffset(0).dateFrom && dateTo === monthRangeForOffset(0).dateTo
-      ? 'current'
-      : dateFrom === monthRangeForOffset(-1).dateFrom && dateTo === monthRangeForOffset(-1).dateTo
-        ? 'previous'
-        : null;
+  const activePreset = sameRange(dateFrom, dateTo, monthRangeForOffset(0))
+    ? 'current-month'
+    : sameRange(dateFrom, dateTo, monthRangeForOffset(-1))
+      ? 'previous-month'
+      : sameRange(dateFrom, dateTo, weekRangeForOffset(0))
+        ? 'current-week'
+        : sameRange(dateFrom, dateTo, weekRangeForOffset(-1))
+          ? 'previous-week'
+          : null;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -306,23 +344,29 @@ export default function ShippingAccountPage({ token, user, sellers = [] }: Shipp
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
-              onClick={() => applyMonthPreset(0)}
-              className={`px-2.5 py-1 rounded-lg border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
-                activePreset === 'current'
-                  ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                  : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-              }`}
+              onClick={() => applyRange(weekRangeForOffset(0))}
+              className={presetButtonClass(activePreset === 'current-week')}
+            >
+              Esta semana
+            </button>
+            <button
+              type="button"
+              onClick={() => applyRange(weekRangeForOffset(-1))}
+              className={presetButtonClass(activePreset === 'previous-week')}
+            >
+              Semana anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => applyRange(monthRangeForOffset(0))}
+              className={presetButtonClass(activePreset === 'current-month')}
             >
               Este mes
             </button>
             <button
               type="button"
-              onClick={() => applyMonthPreset(-1)}
-              className={`px-2.5 py-1 rounded-lg border text-[10px] font-mono font-bold uppercase tracking-wider transition ${
-                activePreset === 'previous'
-                  ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                  : 'border-[var(--surface-border)] bg-[var(--surface-panel-2)] text-[var(--color-text-muted)] hover:text-[var(--ink-soft)]'
-              }`}
+              onClick={() => applyRange(monthRangeForOffset(-1))}
+              className={presetButtonClass(activePreset === 'previous-month')}
             >
               Mes anterior
             </button>
