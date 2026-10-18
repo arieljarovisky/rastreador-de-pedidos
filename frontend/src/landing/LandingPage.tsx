@@ -746,7 +746,7 @@ export function LandingPage() {
               <img
                 src="/ariel-jarovisky.jpg"
                 alt="Ariel Jarovisky, fundador de Posta"
-                className="aspect-[4/5] w-full object-cover object-[center_18%]"
+                className="aspect-[4/5] w-full object-cover object-[center_12%]"
                 loading="lazy"
                 decoding="async"
               />
