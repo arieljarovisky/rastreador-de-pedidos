@@ -806,7 +806,7 @@ export default function MapComponent({
 
       const existing = markersRef.current[markerId];
       if (existing) {
-        animateMarkerTo(existing, displayPos, markerAnimRef.current, markerId);
+        animateMarkerTo(existing, displayPos, markerAnimRef.current, markerId, 2200);
         if (markerVisualKey.get(existing) !== visualKey) {
           applyIconIfChanged(existing, visualKey, createRepartidorIcon(rep.name, mapColors, stale));
         }

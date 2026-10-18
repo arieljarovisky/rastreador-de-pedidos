@@ -8,14 +8,27 @@ import { getOrderById } from './orders.service.js';
 import { appendRepartidorLocationHistory, getUserById, updateUserLocation } from './users.service.js';
 import { OrderStatus } from '../types/index.js';
 
-const TICK_MS = 4_000;
+const TICK_MS = 3_000;
 const START_DELAY_MS = 6_000;
-const STEP_RATIO = 0.11;
+const STEP_RATIO = 0.12;
+const MIN_STEP_M = 35;
+const MAX_STEP_M = 140;
+const ARRIVE_M = 85;
 const ARRIVE_EPS = 0.00085;
 const MIN_DELIVERING_PER_DRIVER = 2;
 const MIN_ASSIGNED = 8;
 const MIN_PENDING = 10;
 const HISTORY_PRUNE_EVERY = 40;
+const OSRM_TIMEOUT_MS = 3_500;
+
+type LatLng = { lat: number; lng: number };
+
+type DriverNav = {
+  orderId: string;
+  destLat: number;
+  destLng: number;
+  route: LatLng[];
+};
 
 type DemoOrderRow = {
   id: string;
@@ -34,13 +47,111 @@ type DriverRow = {
   current_lng: number | null;
 } & RowDataPacket;
 
+const navByDriver = new Map<string, DriverNav>();
+
+function hypotDeg(a: LatLng, b: LatLng): number {
+  return Math.hypot(b.lat - a.lat, b.lng - a.lng);
+}
+
+function metersBetween(a: LatLng, b: LatLng): number {
+  const r = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * r * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function nearestIndex(route: LatLng[], point: LatLng, fromIdx = 0): number {
+  let best = fromIdx;
+  let bestD = Infinity;
+  for (let i = fromIdx; i < route.length; i++) {
+    const d = hypotDeg(route[i]!, point);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function remainingMeters(route: LatLng[], from: LatLng): number {
+  if (route.length === 0) return 0;
+  const start = nearestIndex(route, from);
+  let total = metersBetween(from, route[start]!);
+  for (let i = start; i < route.length - 1; i++) {
+    total += metersBetween(route[i]!, route[i + 1]!);
+  }
+  return total;
+}
+
+function walkRoute(route: LatLng[], from: LatLng, meters: number): LatLng {
+  if (route.length === 0) return from;
+  const start = nearestIndex(route, from);
+  let left = meters;
+  let cursor = from;
+  for (let i = start; i < route.length; i++) {
+    const next = route[i]!;
+    const seg = metersBetween(cursor, next);
+    if (seg < 1e-3) {
+      cursor = next;
+      continue;
+    }
+    if (seg >= left || i === route.length - 1) {
+      const t = Math.min(1, left / seg);
+      return {
+        lat: cursor.lat + (next.lat - cursor.lat) * t,
+        lng: cursor.lng + (next.lng - cursor.lng) * t,
+      };
+    }
+    left -= seg;
+    cursor = next;
+  }
+  return route[route.length - 1]!;
+}
+
+async function fetchOsrmRoute(from: LatLng, to: LatLng): Promise<LatLng[]> {
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(OSRM_TIMEOUT_MS) });
+    if (!res.ok) throw new Error('osrm');
+    const data = (await res.json()) as {
+      code?: string;
+      routes?: { geometry?: { coordinates?: [number, number][] } }[];
+    };
+    const coords = data.routes?.[0]?.geometry?.coordinates;
+    if (data.code === 'Ok' && coords && coords.length >= 2) {
+      return coords.map(([lng, lat]) => ({ lat, lng }));
+    }
+  } catch {
+    // fallback: línea directa si OSRM no responde
+  }
+  return [from, to];
+}
+
+async function routeForDriver(driverId: string, from: LatLng, order: DemoOrderRow): Promise<LatLng[]> {
+  const destLat = Number(order.lat);
+  const destLng = Number(order.lng);
+  const prev = navByDriver.get(driverId);
+  if (
+    prev &&
+    prev.orderId === order.id &&
+    Math.abs(prev.destLat - destLat) < 1e-5 &&
+    Math.abs(prev.destLng - destLng) < 1e-5 &&
+    prev.route.length >= 2
+  ) {
+    return prev.route;
+  }
+  const route = await fetchOsrmRoute(from, { lat: destLat, lng: destLng });
+  navByDriver.set(driverId, { orderId: order.id, destLat, destLng, route });
+  return route;
+}
+
 let inFlight = false;
 let ticks = 0;
 let loggedReady = false;
-
-function jitter(): number {
-  return (Math.random() - 0.5) * 0.00018;
-}
 
 async function agencyExists(): Promise<boolean> {
   const [rows] = await pool.query<Array<{ id: string } & RowDataPacket>>(
@@ -69,19 +180,6 @@ async function loadAgencyOrders(): Promise<DemoOrderRow[]> {
     [DEMO_AGENCY_ID]
   );
   return rows;
-}
-
-async function lastKnownPoint(
-  orderId: string,
-  fallback: { lat: number; lng: number }
-): Promise<{ lat: number; lng: number }> {
-  const [rows] = await pool.query<Array<{ lat: number; lng: number } & RowDataPacket>>(
-    `SELECT lat, lng FROM order_location_history
-     WHERE order_id = ? ORDER BY created_at DESC LIMIT 1`,
-    [orderId]
-  );
-  if (rows[0]) return { lat: Number(rows[0].lat), lng: Number(rows[0].lng) };
-  return fallback;
 }
 
 async function emitLiveOrder(
@@ -218,18 +316,18 @@ async function moveDriver(driver: DriverRow, targets: DemoOrderRow[]): Promise<v
     lng: driver.current_lng != null ? Number(driver.current_lng) : -58.4306,
   };
 
-  const withDist = await Promise.all(
-    targets.map(async (order) => {
-      const last = await lastKnownPoint(order.id, current);
-      const dest = { lat: Number(order.lat), lng: Number(order.lng) };
-      const dist = Math.hypot(dest.lat - last.lat, dest.lng - last.lng);
-      return { order, last, dest, dist };
-    })
-  );
+  const withDist = targets.map((order) => {
+    const dest = { lat: Number(order.lat), lng: Number(order.lng) };
+    return { order, dest, dist: hypotDeg(current, dest) };
+  });
   withDist.sort((a, b) => a.dist - b.dist);
   const focus = withDist[0]!;
+  const from = current;
+  const route = await routeForDriver(driver.id, from, focus.order);
+  const remaining = remainingMeters(route, from);
 
-  if (focus.dist < ARRIVE_EPS) {
+  if (hypotDeg(from, focus.dest) < ARRIVE_EPS || remaining < ARRIVE_M) {
+    navByDriver.delete(driver.id);
     await setOrderStatus(
       focus.order,
       OrderStatus.DELIVERED,
@@ -240,18 +338,18 @@ async function moveDriver(driver: DriverRow, targets: DemoOrderRow[]): Promise<v
     return;
   }
 
-  const nextLat = focus.last.lat + (focus.dest.lat - focus.last.lat) * STEP_RATIO + jitter();
-  const nextLng = focus.last.lng + (focus.dest.lng - focus.last.lng) * STEP_RATIO + jitter();
+  const stepM = Math.min(MAX_STEP_M, Math.max(MIN_STEP_M, remaining * STEP_RATIO));
+  const next = walkRoute(route, from, stepM);
   const now = new Date();
 
   await pool.query(
     'INSERT INTO order_location_history (order_id, lat, lng, created_at) VALUES (?, ?, ?, ?)',
-    [focus.order.id, nextLat, nextLng, now]
+    [focus.order.id, next.lat, next.lng, now]
   );
   await pool.query('UPDATE orders SET updated_at = ? WHERE id = ?', [now, focus.order.id]);
-  await updateUserLocation(driver.id, nextLat, nextLng, now);
-  await appendRepartidorLocationHistory(driver.id, nextLat, nextLng, now);
-  await emitLiveOrder(focus.order.id, { lat: nextLat, lng: nextLng }, driver.id, driver.name);
+  await updateUserLocation(driver.id, next.lat, next.lng, now);
+  await appendRepartidorLocationHistory(driver.id, next.lat, next.lng, now);
+  await emitLiveOrder(focus.order.id, next, driver.id, driver.name);
   await emitDriver(driver.id);
 }
 
