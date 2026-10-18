@@ -36,6 +36,8 @@ const REPARTIDOR_ROWS: Row[] = [
   ['carlos', 'carlos123', 'Zona sur'],
   ['maria', 'maria123', 'Zona norte'],
   ['juan', 'juan123', 'Zona oeste'],
+  ['lucia', 'lucia123', 'Zona centro'],
+  ['diego', 'diego123', 'Zona GBA'],
 ];
 
 const FEATURED_ORDERS = [
@@ -187,10 +189,10 @@ async function main(): Promise<void> {
   y = sectionTitle(doc, 'Resumen de pedidos demo', y);
   doc.fillColor('#1a1a1a').font('Helvetica').fontSize(10);
   const stats = [
-    'Total: 60 pedidos (DEMO-2001 a DEMO-2060)',
-    'Distribución: ~35 % pendientes · 25 % asignados · 20 % en reparto · 15 % entregados · 5 % cancelados',
-    'Ubicaciones: barrios de CABA con coordenadas reales',
-    'Historial: cada pedido incluye historial de estados; los en reparto/entregados tienen tracking GPS',
+    'Total: 70 pedidos (60 de hoy + 10 de ayer) · 7 vendedores · 5 repartidores',
+    'Distribución hoy: ~30 % pendientes · 25 % asignados · 30 % en reparto · 10 % entregados · 5 % cancelados',
+    'Escaneos del día cargados (etiquetas + bitácora personal) y facturación de entregas',
+    'Flota GPS en vivo automática (DEMO_FLEET, solo agencia demo)',
   ];
   for (const s of stats) {
     y = bullet(doc, s, y);
@@ -216,7 +218,7 @@ async function main(): Promise<void> {
     '4. Entrar como vendedor (ej. tech-ba / vendor123) y mostrar que solo ve sus propios pedidos.',
     '5. Abrir seguimiento público con DEMO-2001 para el cliente final.',
     '6. En la app móvil, entrar como carlos / carlos123 y mostrar pedidos asignados + GPS.',
-    '7. Opcional: ejecutar el simulador GPS (POST /api/simulator/tick) para mover pedidos en reparto.',
+    '7. En Registro / escaneos mostrar las etiquetas del día. Los repartidores se mueven solos en el mapa.',
   ];
   for (const step of steps) {
     y = ensureSpace(doc, 40, y);

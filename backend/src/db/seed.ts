@@ -2,11 +2,23 @@ import bcrypt from 'bcryptjs';
 import { pool } from '../config/database.js';
 import { seedDefaultZonesForAgency, ensureCordonZonesForAgency } from '../services/delivery-zones.service.js';
 import { ensureAgencySubscription } from '../services/subscriptions.service.js';
+import { ensureDriverScanEntriesTable } from '../services/driver-scan.service.js';
+import { chargeOrderOnDelivery } from '../services/billing.service.js';
+import { getOrderById } from '../services/orders.service.js';
 import { OrderStatus, UserRole } from '../types/index.js';
-import { computeDeliveryDeadline } from '../utils/delivery-deadline.js';
+import {
+  deliveryDeadlineForOperationalDate,
+  getActiveOperationalDateKey,
+  getOperationalDateKey,
+  getOperationalDayBounds,
+  previousBusinessOperationalDateKey,
+  shiftOperationalDateKey,
+} from '../utils/delivery-deadline.js';
+import { generatePublicTrackingCode } from '../utils/public-tracking-code.js';
 
 const now = Date.now();
-const agencyId = 'ag_demo';
+export const DEMO_AGENCY_ID = 'ag_demo';
+const agencyId = DEMO_AGENCY_ID;
 const DEMO_ORDER_PREFIX = 'DEMO-';
 const DEPOT = { lat: -34.5885, lng: -58.4306 };
 
@@ -15,9 +27,11 @@ function demoOrderId(orderNum: number): string {
 }
 
 const REPARTIDORES = [
-  { id: 'u2', name: 'Carlos Gómez' },
-  { id: 'u3', name: 'María Rodríguez' },
-  { id: 'u4', name: 'Juan Pérez' },
+  { id: 'u2', username: 'carlos', name: 'Carlos Gómez', password: 'carlos123', lat: -34.5901, lng: -58.4215, zone: 'zona_sur' },
+  { id: 'u3', username: 'maria', name: 'María Rodríguez', password: 'maria123', lat: -34.5712, lng: -58.4412, zone: 'zona_norte' },
+  { id: 'u4', username: 'juan', name: 'Juan Pérez', password: 'juan123', lat: -34.6, lng: -58.41, zone: 'zona_oeste' },
+  { id: 'u12', username: 'lucia', name: 'Lucía Fernández', password: 'lucia123', lat: -34.615, lng: -58.435, zone: 'zona_centro' },
+  { id: 'u13', username: 'diego', name: 'Diego Álvarez', password: 'diego123', lat: -34.555, lng: -58.46, zone: 'zona_gba' },
 ] as const;
 
 const VENDORS = [
@@ -42,7 +56,12 @@ const DEMO_USERNAMES = [
   'carlos',
   'maria',
   'juan',
+  'lucia',
+  'diego',
 ] as const;
+
+const SHIPPING_TYPES = ['flex', 'express', 'standard'] as const;
+const MARKETPLACES = ['shopify', 'tiendanube', 'woocommerce', null, null] as const;
 
 const DEMO_ADDRESSES = [
   { address: 'Av. Callao 1500, Recoleta, CABA', lat: -34.5895, lng: -58.3974 },
@@ -112,7 +131,11 @@ type OrderSeed = {
   repartidorId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  deliveryDeadline: Date;
   notes: string;
+  shippingType: string;
+  externalSource: string | null;
+  externalOrderId: string | null;
   history: { status: OrderStatus; offset: number; by: string }[];
   locations: { lat: number; lng: number; offset: number }[];
 };
@@ -123,6 +146,15 @@ async function hash(password: string): Promise<string> {
 
 function pick<T>(arr: readonly T[], index: number): T {
   return arr[index % arr.length];
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function atTimeOnDay(dateKey: string, hour: number, minute = 0): Date {
+  const { start } = getOperationalDayBounds(dateKey);
+  return new Date(start.getTime() + (hour * 60 + minute) * 60_000);
 }
 
 function buildHistory(
@@ -148,10 +180,9 @@ function buildHistory(
     ];
   }
 
-  const span = ageMs;
   return steps.map((s, i) => {
     const fraction = steps.length === 1 ? 1 : i / (steps.length - 1);
-    const offset = -Math.floor(span * (1 - fraction * 0.85));
+    const offset = -Math.floor(ageMs * (1 - fraction * 0.85));
     const by =
       s === OrderStatus.DELIVERING || s === OrderStatus.DELIVERED
         ? repartidorName ?? admin
@@ -163,31 +194,96 @@ function buildHistory(
 function buildLocations(
   destLat: number,
   destLng: number,
-  ageMs: number
+  ageMs: number,
+  progress: number
 ): { lat: number; lng: number; offset: number }[] {
+  const mid = Math.min(progress, 0.4);
   return [
     { lat: DEPOT.lat, lng: DEPOT.lng, offset: -ageMs },
     {
-      lat: DEPOT.lat + (destLat - DEPOT.lat) * 0.45,
-      lng: DEPOT.lng + (destLng - DEPOT.lng) * 0.45,
+      lat: lerp(DEPOT.lat, destLat, mid),
+      lng: lerp(DEPOT.lng, destLng, mid),
       offset: -Math.floor(ageMs * 0.55),
     },
-    { lat: destLat, lng: destLng, offset: -Math.floor(ageMs * 0.15) },
+    {
+      lat: lerp(DEPOT.lat, destLat, progress),
+      lng: lerp(DEPOT.lng, destLng, progress),
+      offset: -Math.floor(ageMs * 0.15),
+    },
   ];
 }
 
+/** Mix denso para demo: ~30% pendientes, 25% asignados, 30% en viaje, 10% entregados, 5% cancelados. */
 function statusForIndex(i: number): OrderStatus {
   const r = i % 20;
-  if (r < 7) return OrderStatus.PENDING;
-  if (r < 12) return OrderStatus.ASSIGNED;
-  if (r < 16) return OrderStatus.DELIVERING;
+  if (r < 6) return OrderStatus.PENDING;
+  if (r < 11) return OrderStatus.ASSIGNED;
+  if (r < 17) return OrderStatus.DELIVERING;
   if (r < 19) return OrderStatus.DELIVERED;
   return OrderStatus.CANCELLED;
 }
 
+function marketplaceForIndex(i: number): { source: string | null; externalId: string | null } {
+  const source = pick(MARKETPLACES, i);
+  if (!source) return { source: null, externalId: null };
+  const prefix = source === 'shopify' ? 'SH' : source === 'tiendanube' ? 'TN' : 'WC';
+  return { source, externalId: `${prefix}-${88000 + i}` };
+}
+
+function buildOrder(params: {
+  orderNum: number;
+  index: number;
+  dateKey: string;
+  featured?: Partial<OrderSeed>;
+}): OrderSeed {
+  const { orderNum, index: i, dateKey, featured } = params;
+  const id = demoOrderId(orderNum);
+  const addr = pick(DEMO_ADDRESSES, i);
+  const seller = pick(VENDORS, i);
+  const status = featured?.status ?? statusForIndex(i);
+  const createdAt = featured?.createdAt ?? atTimeOnDay(dateKey, 8, (i * 7) % 180);
+  const ageMs = Math.max(60_000, now - createdAt.getTime());
+  const repartidor =
+    status === OrderStatus.PENDING || status === OrderStatus.CANCELLED
+      ? null
+      : pick(REPARTIDORES, i);
+  const repartidorName = repartidor?.name ?? null;
+  const lat = featured?.lat ?? addr.lat;
+  const lng = featured?.lng ?? addr.lng;
+  const market = marketplaceForIndex(i);
+  const progress =
+    status === OrderStatus.DELIVERED ? 1 : 0.28 + ((i % 6) * 0.07);
+
+  return {
+    id,
+    sellerId: featured?.sellerId ?? seller.id,
+    clientName: featured?.clientName ?? pick(CLIENT_NAMES, i),
+    clientPhone: featured?.clientPhone ?? `+54 11 5555-${String(1000 + (i % 9000)).padStart(4, '0')}`,
+    address: featured?.address ?? addr.address,
+    lat,
+    lng,
+    status,
+    repartidorId: featured?.repartidorId !== undefined ? featured.repartidorId : repartidor?.id ?? null,
+    createdAt,
+    updatedAt: new Date(now - Math.floor(ageMs * 0.12)),
+    deliveryDeadline: featured?.deliveryDeadline ?? deliveryDeadlineForOperationalDate(dateKey, 13),
+    notes: featured?.notes ?? pick(DELIVERY_NOTES, i),
+    shippingType: featured?.shippingType ?? pick(SHIPPING_TYPES, i),
+    externalSource: featured?.externalSource ?? market.source,
+    externalOrderId: featured?.externalOrderId ?? market.externalId,
+    history: buildHistory(status, repartidorName, ageMs),
+    locations:
+      status === OrderStatus.DELIVERING || status === OrderStatus.DELIVERED
+        ? buildLocations(lat, lng, ageMs, progress)
+        : [],
+  };
+}
+
 function generateDemoOrders(): OrderSeed[] {
+  const todayKey = getActiveOperationalDateKey();
+  const yesterdayKey = previousBusinessOperationalDateKey(shiftOperationalDateKey(todayKey, -1));
   const orders: OrderSeed[] = [];
-  const total = 60;
+
   const featured: Partial<OrderSeed>[] = [
     {
       id: demoOrderId(2001),
@@ -200,6 +296,7 @@ function generateDemoOrders(): OrderSeed[] {
       status: OrderStatus.DELIVERING,
       repartidorId: 'u2',
       notes: 'Entregar en portería del edificio. Tocar timbre 5B.',
+      shippingType: 'flex',
     },
     {
       id: demoOrderId(2002),
@@ -212,6 +309,7 @@ function generateDemoOrders(): OrderSeed[] {
       status: OrderStatus.ASSIGNED,
       repartidorId: 'u3',
       notes: 'Dejar en recepción de planta baja.',
+      shippingType: 'express',
     },
     {
       id: demoOrderId(2003),
@@ -224,6 +322,7 @@ function generateDemoOrders(): OrderSeed[] {
       status: OrderStatus.PENDING,
       repartidorId: null,
       notes: 'Llamar antes de llegar para bajar.',
+      shippingType: 'standard',
     },
     {
       id: demoOrderId(2004),
@@ -236,48 +335,58 @@ function generateDemoOrders(): OrderSeed[] {
       status: OrderStatus.DELIVERED,
       repartidorId: 'u4',
       notes: 'Entregado en mano en piso 4.',
+      shippingType: 'flex',
     },
   ];
 
-  for (let i = 0; i < total; i++) {
+  for (let i = 0; i < 60; i++) {
     const orderNum = 2001 + i;
     const id = demoOrderId(orderNum);
-    const featuredOrder = featured.find((f) => f.id === id);
-    const addr = pick(DEMO_ADDRESSES, i);
-    const seller = pick(VENDORS, i);
-    const status = featuredOrder?.status ?? statusForIndex(i);
-    const ageMs = 3_600_000 + (i % 48) * 1_800_000;
-    const repartidor =
-      status === OrderStatus.PENDING || status === OrderStatus.CANCELLED
-        ? null
-        : pick(REPARTIDORES, i);
-    const repartidorName = repartidor?.name ?? null;
-    const createdAt = new Date(now - ageMs);
-    const updatedAt = new Date(now - Math.floor(ageMs * 0.25));
+    orders.push(
+      buildOrder({
+        orderNum,
+        index: i,
+        dateKey: todayKey,
+        featured: featured.find((f) => f.id === id),
+      })
+    );
+  }
 
-    const order: OrderSeed = {
-      id,
-      sellerId: featuredOrder?.sellerId ?? seller.id,
-      clientName: featuredOrder?.clientName ?? pick(CLIENT_NAMES, i),
-      clientPhone: featuredOrder?.clientPhone ?? `+54 11 5555-${String(1000 + (i % 9000)).padStart(4, '0')}`,
-      address: featuredOrder?.address ?? addr.address,
-      lat: featuredOrder?.lat ?? addr.lat,
-      lng: featuredOrder?.lng ?? addr.lng,
-      status,
-      repartidorId: featuredOrder?.repartidorId !== undefined ? featuredOrder.repartidorId : repartidor?.id ?? null,
-      createdAt,
-      updatedAt,
-      notes: featuredOrder?.notes ?? pick(DELIVERY_NOTES, i),
-      history: buildHistory(status, repartidorName, ageMs),
-      locations:
-        status === OrderStatus.DELIVERING || status === OrderStatus.DELIVERED
-          ? buildLocations(featuredOrder?.lat ?? addr.lat, featuredOrder?.lng ?? addr.lng, ageMs)
-          : [],
-    };
-    orders.push(order);
+  for (let i = 0; i < 10; i++) {
+    orders.push(
+      buildOrder({
+        orderNum: 1901 + i,
+        index: 80 + i,
+        dateKey: yesterdayKey,
+        featured: {
+          status: OrderStatus.DELIVERED,
+          repartidorId: pick(REPARTIDORES, i).id,
+          createdAt: atTimeOnDay(yesterdayKey, 9, i * 20),
+          deliveryDeadline: deliveryDeadlineForOperationalDate(yesterdayKey, 13),
+        },
+      })
+    );
   }
 
   return orders;
+}
+
+async function tableExists(table: string): Promise<boolean> {
+  const [rows] = await pool.query<Array<{ TABLE_NAME: string } & import('mysql2').RowDataPacket>>(
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+    [table]
+  );
+  return rows.length > 0;
+}
+
+async function columnExists(table: string, column: string): Promise<boolean> {
+  const [rows] = await pool.query<Array<{ COLUMN_NAME: string } & import('mysql2').RowDataPacket>>(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  return rows.length > 0;
 }
 
 async function bindDemoUsersToAgency(): Promise<void> {
@@ -326,7 +435,6 @@ async function upsertLogisticaAdmin(passwordHash: string): Promise<void> {
   );
 }
 
-/** Las cuentas demo no requieren activación por correo. */
 async function markDemoUsersEmailVerified(): Promise<void> {
   const placeholders = DEMO_USERNAMES.map(() => '?').join(', ');
   const [result] = await pool.query(
@@ -341,8 +449,35 @@ async function markDemoUsersEmailVerified(): Promise<void> {
   }
 }
 
+async function activateDemoSubscription(): Promise<void> {
+  await ensureAgencySubscription(agencyId);
+  if (!(await tableExists('agency_subscriptions'))) return;
+  const periodEnd = new Date();
+  periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  await pool.query(
+    `UPDATE agency_subscriptions
+     SET status = 'active', trial_ends_at = NULL,
+         current_period_start = ?, current_period_end = ?, updated_at = ?
+     WHERE agency_id = ?`,
+    [new Date(now), periodEnd, new Date(now), agencyId]
+  );
+}
+
 async function clearDemoAgencyOrders(): Promise<void> {
   const demoIdPattern = `${DEMO_ORDER_PREFIX}%`;
+  if (await tableExists('driver_scan_entries')) {
+    await pool.query(
+      `DELETE FROM driver_scan_entries
+       WHERE agency_id = ? OR id LIKE 'dscan_demo_%' OR order_id LIKE ?`,
+      [agencyId, demoIdPattern]
+    );
+  }
+  if (await tableExists('billing_ledger_entries')) {
+    await pool.query('DELETE FROM billing_ledger_entries WHERE agency_id = ?', [agencyId]);
+  }
+  if (await tableExists('driver_ledger_entries')) {
+    await pool.query('DELETE FROM driver_ledger_entries WHERE agency_id = ?', [agencyId]);
+  }
   await pool.query(
     `DELETE olh FROM order_location_history olh
      INNER JOIN orders o ON o.id = olh.order_id
@@ -356,6 +491,132 @@ async function clearDemoAgencyOrders(): Promise<void> {
     [demoIdPattern, agencyId]
   );
   await pool.query('DELETE FROM orders WHERE id LIKE ? OR agency_id = ?', [demoIdPattern, agencyId]);
+
+  const driverIds = REPARTIDORES.map((r) => r.id);
+  if (await tableExists('repartidor_location_history') && driverIds.length > 0) {
+    const placeholders = driverIds.map(() => '?').join(', ');
+    await pool.query(
+      `DELETE FROM repartidor_location_history WHERE user_id IN (${placeholders})`,
+      driverIds
+    );
+  }
+}
+
+async function seedDriverScans(orders: OrderSeed[]): Promise<number> {
+  await ensureDriverScanEntriesTable();
+  const todayKey = getActiveOperationalDateKey();
+  const scannable = orders.filter(
+    (o) =>
+      o.status === OrderStatus.ASSIGNED ||
+      o.status === OrderStatus.DELIVERING ||
+      o.status === OrderStatus.DELIVERED
+  );
+
+  let count = 0;
+  for (const [i, order] of scannable.entries()) {
+    if (!order.repartidorId) continue;
+    const scanStatus =
+      order.status === OrderStatus.DELIVERED ? 'delivered' : 'pending';
+    const scannedAt = new Date(order.createdAt.getTime() + 25 * 60_000);
+    const deliveredAt = scanStatus === 'delivered' ? order.updatedAt : null;
+    const lastLoc = order.locations[order.locations.length - 1];
+    const scanCode =
+      order.externalOrderId ??
+      `4400${order.id.replace(/\D/g, '').padStart(8, '0')}`;
+    const routeDate = getOperationalDateKey(order.deliveryDeadline);
+
+    await pool.query(
+      `INSERT INTO driver_scan_entries
+        (id, agency_id, repartidor_id, seller_id, scan_code, route_date, status, note,
+         client_name, address, client_phone, order_id, scanned_at, delivered_at, lat, lng)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         status = VALUES(status),
+         client_name = VALUES(client_name),
+         address = VALUES(address),
+         order_id = VALUES(order_id),
+         delivered_at = VALUES(delivered_at)`,
+      [
+        `dscan_demo_${order.id}`,
+        agencyId,
+        order.repartidorId,
+        order.sellerId,
+        scanCode,
+        routeDate,
+        scanStatus,
+        order.notes || null,
+        order.clientName,
+        order.address,
+        order.clientPhone,
+        order.id,
+        scannedAt,
+        deliveredAt,
+        lastLoc?.lat ?? order.lat,
+        lastLoc?.lng ?? order.lng,
+      ]
+    );
+    count += 1;
+
+    if (i % 5 === 0) {
+      const extraAddr = pick(DEMO_ADDRESSES, i + 3);
+      const extraClient = pick(CLIENT_NAMES, i + 11);
+      await pool.query(
+        `INSERT INTO driver_scan_entries
+          (id, agency_id, repartidor_id, seller_id, scan_code, route_date, status, note,
+           client_name, address, client_phone, order_id, scanned_at, delivered_at, lat, lng)
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, NULL, ?, NULL, ?, ?)
+         ON DUPLICATE KEY UPDATE client_name = VALUES(client_name), address = VALUES(address)`,
+        [
+          `dscan_demo_pers_${i}`,
+          agencyId,
+          order.repartidorId,
+          pick(VENDORS, i + 2).id,
+          `PERS-${44100 + i}`,
+          todayKey,
+          'Etiqueta ajena / bitácora personal',
+          extraClient,
+          extraAddr.address,
+          `+54 11 5555-${String(2000 + i).padStart(4, '0')}`,
+          new Date(scannedAt.getTime() + 12 * 60_000),
+          extraAddr.lat,
+          extraAddr.lng,
+        ]
+      );
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+async function seedDriverGpsTrails(orders: OrderSeed[]): Promise<void> {
+  if (!(await tableExists('repartidor_location_history'))) return;
+
+  for (const driver of REPARTIDORES) {
+    const live = orders.find(
+      (o) => o.repartidorId === driver.id && o.status === OrderStatus.DELIVERING
+    );
+    const trail = live?.locations?.length
+      ? live.locations
+      : [
+          { lat: DEPOT.lat, lng: DEPOT.lng, offset: -20 * 60_000 },
+          { lat: driver.lat, lng: driver.lng, offset: 0 },
+        ];
+    for (const point of trail) {
+      await pool.query(
+        'INSERT INTO repartidor_location_history (user_id, lat, lng, created_at) VALUES (?, ?, ?, ?)',
+        [driver.id, point.lat, point.lng, new Date(now + point.offset)]
+      );
+    }
+
+    const last = trail[trail.length - 1];
+    if (last) {
+      await pool.query(
+        'UPDATE users SET current_lat = ?, current_lng = ?, location_updated_at = ? WHERE id = ?',
+        [last.lat, last.lng, new Date(now), driver.id]
+      );
+    }
+  }
 }
 
 export async function seedDatabase(): Promise<void> {
@@ -374,12 +635,6 @@ export async function seedDatabase(): Promise<void> {
     ]
   );
 
-  const adminUsers = [
-    { id: 'u2', username: 'carlos', name: 'Carlos Gómez', role: UserRole.REPARTIDOR, password: 'carlos123', lat: -34.5901, lng: -58.4215, zone: 'zona_sur' },
-    { id: 'u3', username: 'maria', name: 'María Rodríguez', role: UserRole.REPARTIDOR, password: 'maria123', lat: -34.5712, lng: -58.4412, zone: 'zona_norte' },
-    { id: 'u4', username: 'juan', name: 'Juan Pérez', role: UserRole.REPARTIDOR, password: 'juan123', lat: -34.6, lng: -58.41, zone: 'zona_oeste' },
-  ];
-
   const logisticaPasswordHash = await hash('logistica123');
   await upsertLogisticaAdmin(logisticaPasswordHash);
 
@@ -396,27 +651,25 @@ export async function seedDatabase(): Promise<void> {
     );
   }
 
-  for (const u of adminUsers) {
+  for (const u of REPARTIDORES) {
     const passwordHash = await hash(u.password);
-    const locTime = u.lat != null ? new Date(now) : null;
+    const locTime = new Date(now);
     await pool.query(
       `INSERT INTO users (id, username, password_hash, name, role, agency_id, current_lat, current_lng, location_updated_at,
         departure_address, departure_lat, departure_lng, delivery_zone, email_verified_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, NOW(3))
        ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name), role = VALUES(role),
          agency_id = VALUES(agency_id), delivery_zone = VALUES(delivery_zone),
+         current_lat = VALUES(current_lat), current_lng = VALUES(current_lng),
+         location_updated_at = VALUES(location_updated_at),
          email_verified_at = COALESCE(users.email_verified_at, NOW(3))`,
-      [
-        u.id, u.username, passwordHash, u.name, u.role, agencyId,
-        u.lat, u.lng, locTime,
-        u.zone ?? null,
-      ]
+      [u.id, u.username, passwordHash, u.name, UserRole.REPARTIDOR, agencyId, u.lat, u.lng, locTime, u.zone]
     );
   }
 
   await bindDemoUsersToAgency();
   await markDemoUsersEmailVerified();
-  await ensureAgencySubscription(agencyId);
+  await activateDemoSubscription();
 
   const pickupPoints = [
     { id: 'pp1', userId: 'u1', label: 'Depósito principal', address: 'Av. Rivadavia 4500, Caballito, CABA', lat: -34.6186, lng: -58.4352 },
@@ -443,17 +696,35 @@ export async function seedDatabase(): Promise<void> {
 
   await clearDemoAgencyOrders();
   const orders = generateDemoOrders();
+  const hasTrackingCode = await columnExists('orders', 'public_tracking_code');
 
   for (const o of orders) {
-    const deadline = computeDeliveryDeadline(o.createdAt);
-    await pool.query(
-      `INSERT INTO orders (id, agency_id, seller_id, client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at, delivery_deadline)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        o.id, agencyId, o.sellerId, o.clientName, o.clientPhone, o.address, o.lat, o.lng,
-        o.status, o.repartidorId, o.notes, o.createdAt, o.updatedAt, deadline,
-      ]
-    );
+    const trackingCode =
+      hasTrackingCode && o.externalSource !== 'mercadolibre' ? generatePublicTrackingCode() : null;
+
+    if (hasTrackingCode) {
+      await pool.query(
+        `INSERT INTO orders (id, agency_id, seller_id, external_source, external_order_id, public_tracking_code,
+           shipping_type, client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at, delivery_deadline)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          o.id, agencyId, o.sellerId, o.externalSource, o.externalOrderId, trackingCode,
+          o.shippingType, o.clientName, o.clientPhone, o.address, o.lat, o.lng,
+          o.status, o.repartidorId, o.notes, o.createdAt, o.updatedAt, o.deliveryDeadline,
+        ]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO orders (id, agency_id, seller_id, external_source, external_order_id, shipping_type,
+           client_name, client_phone, address, lat, lng, status, repartidor_id, notes, created_at, updated_at, delivery_deadline)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          o.id, agencyId, o.sellerId, o.externalSource, o.externalOrderId, o.shippingType,
+          o.clientName, o.clientPhone, o.address, o.lat, o.lng,
+          o.status, o.repartidorId, o.notes, o.createdAt, o.updatedAt, o.deliveryDeadline,
+        ]
+      );
+    }
 
     for (const h of o.history) {
       await pool.query(
@@ -470,7 +741,18 @@ export async function seedDatabase(): Promise<void> {
     }
   }
 
-  // Solo usuarios demo (nunca user_id = 'all': filtraría a otras agencias).
+  await seedDriverGpsTrails(orders);
+  const scanCount = await seedDriverScans(orders);
+
+  for (const o of orders.filter((order) => order.status === OrderStatus.DELIVERED)) {
+    try {
+      const full = await getOrderById(o.id);
+      if (full) await chargeOrderOnDelivery(full);
+    } catch (err) {
+      console.warn(`[seed] No se pudo facturar ${o.id}:`, err);
+    }
+  }
+
   const notifications = [
     {
       id: 'n1',
@@ -503,7 +785,7 @@ export async function seedDatabase(): Promise<void> {
       id: 'n4',
       userId: 'u5',
       title: 'Demo multi-vendedor activa',
-      body: '60 pedidos de 7 vendedores cargados para la demostración. Usá logistica / logistica123 para ver el panel completo.',
+      body: 'Cuenta demo lista: 7 vendedores, 5 repartidores en vivo, pedidos del día y escaneos cargados. Usuario logistica / logistica123.',
       createdAt: new Date(now - 300000),
       type: 'info' as const,
       orderId: null,
@@ -520,6 +802,6 @@ export async function seedDatabase(): Promise<void> {
   }
 
   console.log(
-    `Seed completado: ${VENDORS.length} vendedores, ${orders.length} pedidos, ${REPARTIDORES.length} repartidores, zonas y notificaciones demo.`
+    `Seed completado: ${VENDORS.length} vendedores, ${orders.length} pedidos, ${REPARTIDORES.length} repartidores, ${scanCount} escaneos, zonas y notificaciones demo.`
   );
 }

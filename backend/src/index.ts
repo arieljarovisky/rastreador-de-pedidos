@@ -9,6 +9,7 @@ import { startMercadoLibreFlexAutoImportScheduler } from './services/ml-flex-aut
 import { startTiendaNubeExpressAutoImportScheduler } from './services/tn-express-auto-import.scheduler.js';
 import { startShopifyAutoImportScheduler } from './services/shopify-auto-import.scheduler.js';
 import { startWooCommerceAutoImportScheduler } from './services/woocommerce-auto-import.scheduler.js';
+import { startDemoFleetScheduler } from './services/demo-fleet.scheduler.js';
 import { replayMercadoLibreMissedFeeds, getMercadoLibreWebhookUrl } from './services/mercadolibre-webhook.service.js';
 import { getTiendaNubeOrderWebhookUrl } from './services/tiendanube.service.js';
 import { getShopifyOrderWebhookUrl } from './services/shopify.service.js';
@@ -40,6 +41,7 @@ async function start(): Promise<void> {
   startTiendaNubeExpressAutoImportScheduler();
   startShopifyAutoImportScheduler();
   startWooCommerceAutoImportScheduler();
+  startDemoFleetScheduler();
 
   server.listen(env.port, '0.0.0.0', () => {
     console.log(`Backend LupoEnvios corriendo en http://localhost:${env.port} (HTTP + WebSocket)`);

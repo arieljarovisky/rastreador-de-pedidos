@@ -146,4 +146,9 @@ export const env = {
   platformOwnerEmails: parseOrigins(process.env.PLATFORM_OWNER_EMAILS).map((email) =>
     email.trim().toLowerCase()
   ),
+  /**
+   * Mueve la flota de la agencia demo (`ag_demo`) en vivo.
+   * No toca otras agencias. Desactivar con DEMO_FLEET=false.
+   */
+  demoFleet: process.env.DEMO_FLEET !== 'false',
 };
