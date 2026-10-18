@@ -29,7 +29,7 @@ import SellerFilterControl from './SellerFilterControl.tsx';
 import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import { CordonFilterControl, RepartidorFilterControl } from './DashboardFilterControls.tsx';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
-import { getOperationalDateKey, formatOperationalDateShort, getActiveOperationalDateKey, getNextOperationalDateKey } from '../utils/deliverySummary.js';
+import { getOperationalDateKey, formatOperationalDateShort, formatOperationalDateLabel, getActiveOperationalDateKey, getNextOperationalDateKey } from '../utils/deliverySummary.js';
 import { resolveRepartidorLocation, useLiveFleetVersion } from '../utils/liveFleet.ts';
 
 const ORDER_ROW_PX = 56;
@@ -2086,7 +2086,7 @@ export default function AdminDashboard({
                   onClick={() => handleDateFilterChange(tomorrowKey)}
                   className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                 >
-                  Mañana
+                  {formatOperationalDateLabel(tomorrowKey)}
                 </button>
               ) : null}
               {nextShipmentDateKey ? (
@@ -2513,7 +2513,7 @@ export default function AdminDashboard({
                             onClick={() => handleDateFilterChange(tomorrowKey)}
                             className="text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline"
                           >
-                            Mañana
+                            {formatOperationalDateLabel(tomorrowKey)}
                           </button>
                         )}
                         {nextShipmentDateKey && (

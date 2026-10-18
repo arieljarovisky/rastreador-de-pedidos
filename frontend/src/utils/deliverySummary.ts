@@ -180,16 +180,18 @@ export function getNextOperationalDateKey(
   return nextBusinessOperationalDateKey(shiftOperationalDateKey(dateKey, 1), opts);
 }
 
+const RELATIVE_DATE_LABELS = new Set(['Hoy', 'Ayer', 'Mañana', 'Pasado mañana']);
+
 /**
  * Etiqueta relativa al calendario Argentina (no al día operativo rolleteado).
- * Así el domingo no muestra otro día como “Hoy”.
+ * Así el domingo no muestra otro día como “Hoy”, ni el martes como “Mañana”.
  */
 export function formatOperationalDateLabel(dateKey: string, now: Date = new Date()): string {
   const calendarToday = getOperationalDateKey(now);
   if (dateKey === calendarToday) return 'Hoy';
   if (dateKey === shiftOperationalDateKey(calendarToday, -1)) return 'Ayer';
   if (dateKey === shiftOperationalDateKey(calendarToday, 1)) return 'Mañana';
-  if (dateKey === getNextOperationalDateKey(getActiveOperationalDateKey(now))) return 'Mañana';
+  if (dateKey === shiftOperationalDateKey(calendarToday, 2)) return 'Pasado mañana';
   const { year, month, day } = parseOperationalDateKey(dateKey);
   const label = new Intl.DateTimeFormat('es-AR', {
     timeZone: DELIVERY_TIMEZONE,
@@ -198,6 +200,16 @@ export function formatOperationalDateLabel(dateKey: string, now: Date = new Date
     month: 'short',
   }).format(arLocalToUtc(year, month, day, 12));
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** Versión en minúsculas para copys (“por entregar mañana”). */
+export function formatOperationalDateScopeLabel(
+  dateKey: string,
+  now: Date = new Date()
+): string {
+  const label = formatOperationalDateLabel(dateKey, now);
+  if (RELATIVE_DATE_LABELS.has(label)) return label.toLowerCase();
+  return formatOperationalDateShort(dateKey);
 }
 
 /** True si el calendario es no laborable y el panel está en el próximo hábil. */

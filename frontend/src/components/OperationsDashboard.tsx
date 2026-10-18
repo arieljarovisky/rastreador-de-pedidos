@@ -27,7 +27,7 @@ import {
   getActiveOperationalDateKey,
   getNextOperationalDateKey,
   shiftOperationalDateKey,
-  formatOperationalDateShort,
+  formatOperationalDateScopeLabel,
   formatOperationalWeekday,
   isRolledForwardWeekendOperationalDay,
   DELIVERY_DEADLINE_HOUR,
@@ -91,7 +91,6 @@ export default function OperationsDashboard({
   const [queue, setQueue] = useState<'open' | 'route' | 'done' | 'late'>('open');
   const [ambaGeoReady, setAmbaGeoReady] = useState(() => isAmbaGeoLoaded());
   const isToday = selectedDateKey === todayKey;
-  const isTomorrow = selectedDateKey === tomorrowKey;
   const isFuture = selectedDateKey > todayKey;
 
   const activeFiltersCount =
@@ -248,9 +247,7 @@ export default function OperationsDashboard({
     ? formatOperationalWeekday(selectedDateKey).toLowerCase()
     : isToday
       ? 'hoy'
-      : isTomorrow
-        ? 'mañana'
-        : formatOperationalDateShort(selectedDateKey);
+      : formatOperationalDateScopeLabel(selectedDateKey);
 
   const routeOrders = useMemo(
     () => undelivered.filter((order) => order.status === OrderStatus.DELIVERING),
