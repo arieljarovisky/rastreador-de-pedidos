@@ -9,6 +9,7 @@ import { Navigation, AlertTriangle, Play, Check, ShieldAlert, Sparkles, FileText
 import { useModal } from '../context/ModalContext.tsx';
 const MapComponent = lazy(() => import('./MapComponent.tsx'));
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
+import { formatOrderId } from '../utils/formatOrderId.js';
 
 function getCollectLabel(
   order: Order,
@@ -443,7 +444,7 @@ export default function RepartidorDashboard({
                   >
                     <div className="flex items-center justify-between text-[10px]">
                       <span className="inline-flex items-center gap-1.5 font-mono font-bold text-[var(--color-text-muted)]">
-                        {order.id}
+                        {formatOrderId(order.id)}
                         <MarketplaceSourceIcon source={order.externalSource} />
                       </span>
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
@@ -470,7 +471,7 @@ export default function RepartidorDashboard({
                   >
                     <div className="flex items-center justify-between text-[10px] font-mono">
                       <span className="inline-flex items-center gap-1.5 font-bold text-[var(--color-text-muted)]">
-                        {order.id}
+                        {formatOrderId(order.id)}
                         <MarketplaceSourceIcon source={order.externalSource} />
                       </span>
                       <span className="text-[var(--color-accent)] truncate max-w-[120px]">

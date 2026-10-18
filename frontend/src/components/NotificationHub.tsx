@@ -10,6 +10,7 @@ import { Bell, Check, Trash2, X, ChevronRight, MapPin, Bike, Clock, AlertTriangl
 import { motion, AnimatePresence } from 'motion/react';
 import { useModal } from '../context/ModalContext.tsx';
 import { getUndeliveredTodayOrders } from '../utils/deliverySummary.js';
+import { formatOrderId } from '../utils/formatOrderId.js';
 
 const UNDELIVERED_PREVIEW = 3;
 
@@ -344,7 +345,7 @@ export default function NotificationHub({
                                 <span className="flex items-center gap-1.5 min-w-0">
                                   <MapPin className="w-3 h-3 shrink-0 text-[var(--color-warn)]" />
                                   <span className="font-mono font-bold text-[10px] text-[var(--color-accent)] group-hover:underline shrink-0">
-                                    {order.id}
+                                    {formatOrderId(order.id)}
                                   </span>
                                   <span className="text-[10px] text-[var(--ink-soft)] truncate min-w-0">
                                     {order.clientName}

@@ -17,6 +17,7 @@ import { Order, OrderStatus, User, UserRole, isAgencyAdmin } from '../types.js';
 import StatusBadge from './ui/StatusBadge.tsx';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
+import { formatOrderId } from '../utils/formatOrderId.js';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import {
   buildPreparedOperationalDay,
@@ -602,7 +603,7 @@ function OrderListSection({
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-1">
                     <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-mono text-[var(--color-text-faint)] min-w-0">
-                      <span className="truncate">{order.id}</span>
+                      <span className="truncate">{formatOrderId(order.id)}</span>
                       <MarketplaceSourceIcon source={order.externalSource} />
                     </span>
                     {(() => {

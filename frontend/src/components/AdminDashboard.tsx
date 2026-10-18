@@ -22,6 +22,7 @@ import { useModal } from '../context/ModalContext.tsx';
 import StatusBadge, { ORDER_STATUS_LABELS } from './ui/StatusBadge.tsx';
 import MarketplaceSourceIcon from './ui/MarketplaceSourceIcon.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
+import { formatOrderId } from '../utils/formatOrderId.js';
 const MapComponent = lazy(() => import('./MapComponent.tsx'));
 import LocationPreviewMap from './LocationPreviewMap.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
@@ -93,7 +94,7 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
             checked={isChecked}
             onChange={() => onToggleCheck(order.id)}
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Seleccionar ${order.id}`}
+            aria-label={`Seleccionar ${formatOrderId(order.id)}`}
             title="Seleccionar para etiquetas o marcar como entregado"
             className="accent-[var(--color-accent)] cursor-pointer"
           />
@@ -105,10 +106,10 @@ const AdminOrderTableRow = memo(function AdminOrderTableRow({
           />
         )}
       </td>
-      <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)] overflow-hidden">
-        <span className="inline-flex items-center gap-1 max-w-full truncate">
-          {order.id}
-          <MarketplaceSourceIcon source={order.externalSource} />
+      <td className="px-2 py-2 font-mono text-[10px] text-[var(--color-text-faint)]">
+        <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+          <span className="truncate">{formatOrderId(order.id)}</span>
+          <MarketplaceSourceIcon source={order.externalSource} size="md" />
         </span>
       </td>
       <td className="px-2 py-2 font-semibold text-[var(--ink-soft)] truncate overflow-hidden">
@@ -826,6 +827,7 @@ export default function AdminDashboard({
       const matchesStatus = statusFilter === 'all' || statusFilter === 'archived' || order.status === statusFilter;
       const matchesSearch =
         order.id.toLowerCase().includes(query) ||
+        formatOrderId(order.id).toLowerCase().includes(query) ||
         order.clientName.toLowerCase().includes(query) ||
         order.address.toLowerCase().includes(query) ||
         (order.repartidorName && order.repartidorName.toLowerCase().includes(query)) ||
@@ -1131,7 +1133,7 @@ export default function AdminDashboard({
       {
         id: 'copy-id',
         label: 'Copiar ID',
-        onClick: () => void navigator.clipboard.writeText(order.id),
+        onClick: () => void navigator.clipboard.writeText(formatOrderId(order.id)),
       },
       {
         id: 'copy-address',
@@ -1180,7 +1182,7 @@ export default function AdminDashboard({
         onClick: () => {
           void confirm({
             title: 'Volver a almacén',
-            message: `¿Sacar ${order.id} del viaje?\n\nDeja de estar en ruta y vuelve a almacén, sin repartidor.`,
+            message: `¿Sacar ${formatOrderId(order.id)} del viaje?\n\nDeja de estar en ruta y vuelve a almacén, sin repartidor.`,
             variant: 'warning',
             confirmText: 'Volver a almacén',
             cancelText: 'Cancelar',
@@ -1204,7 +1206,7 @@ export default function AdminDashboard({
         onClick: () => {
           void confirm({
             title: 'Desasignar repartidor',
-            message: `¿Quitar a ${order.repartidorName ?? 'el repartidor'} del pedido ${order.id}?\n\nEl envío volverá a pendiente y podrás asignarlo a otro repartidor.`,
+            message: `¿Quitar a ${order.repartidorName ?? 'el repartidor'} del pedido ${formatOrderId(order.id)}?\n\nEl envío volverá a pendiente y podrás asignarlo a otro repartidor.`,
             variant: 'warning',
             confirmText: 'Desasignar',
             cancelText: 'Cancelar',
@@ -1239,7 +1241,7 @@ export default function AdminDashboard({
         onClick: () => {
           void confirm({
             title: 'Programar para hoy',
-            message: `¿Mover ${order.id} al día de hoy?\n\nÚtil para Flex que ML pide entregar hoy y quedó en mañana.`,
+            message: `¿Mover ${formatOrderId(order.id)} al día de hoy?\n\nÚtil para Flex que ML pide entregar hoy y quedó en mañana.`,
             variant: 'warning',
             confirmText: 'Mover a hoy',
             cancelText: 'Cancelar',
@@ -1268,7 +1270,7 @@ export default function AdminDashboard({
         onClick: () => {
           void confirm({
             title: 'Marcar como entregado',
-            message: `¿Confirmar que el envío ${order.id} ya fue entregado?`,
+            message: `¿Confirmar que el envío ${formatOrderId(order.id)} ya fue entregado?`,
             variant: 'warning',
             confirmText: 'Sí, entregado',
             cancelText: 'Cancelar',
@@ -1296,7 +1298,7 @@ export default function AdminDashboard({
         onClick: () => {
           void confirm({
             title: 'Volver a activar',
-            message: `¿Reactivar el pedido ${order.id}?\n\nVuelve al estado que tenía antes de cancelarse.`,
+            message: `¿Reactivar el pedido ${formatOrderId(order.id)}?\n\nVuelve al estado que tenía antes de cancelarse.`,
             variant: 'warning',
             confirmText: 'Reactivar',
             cancelText: 'Volver',
@@ -1315,7 +1317,7 @@ export default function AdminDashboard({
         onClick: () => {
           void confirm({
             title: 'Cancelar pedido',
-            message: `¿Cancelar el pedido ${order.id}?\n\nEl envío dejará de estar activo en el panel.`,
+            message: `¿Cancelar el pedido ${formatOrderId(order.id)}?\n\nEl envío dejará de estar activo en el panel.`,
             variant: 'warning',
             confirmText: 'Sí, cancelar',
             cancelText: 'Volver',
@@ -1336,7 +1338,7 @@ export default function AdminDashboard({
         onClick: () => {
           void confirm({
             title: 'Eliminar pedido',
-            message: `¿Eliminar ${order.id} permanentemente?\n\nEsta acción no se puede deshacer.`,
+            message: `¿Eliminar ${formatOrderId(order.id)} permanentemente?\n\nEsta acción no se puede deshacer.`,
             variant: 'danger',
             confirmText: 'Eliminar',
             cancelText: 'Cancelar',
@@ -1361,7 +1363,7 @@ export default function AdminDashboard({
         onClick: () => {
           void confirm({
             title: 'Archivar pedido',
-            message: `¿Archivar ${order.id}?\n\nDejará de aparecer en la lista principal pero podrás verlo en Archivados.`,
+            message: `¿Archivar ${formatOrderId(order.id)}?\n\nDejará de aparecer en la lista principal pero podrás verlo en Archivados.`,
             variant: 'warning',
             confirmText: 'Archivar',
             cancelText: 'Cancelar',
@@ -2264,7 +2266,7 @@ export default function AdminDashboard({
                       />
                     ) : null}
                   </th>
-                  <th className="px-2 py-2 font-bold w-[6.25rem]">ID</th>
+                  <th className="px-2 py-2 font-bold w-[7.25rem]">ID</th>
                   <th className="px-2 py-2 font-bold w-[16%]">Cliente</th>
                   <th className="px-2 py-2 font-bold">Dirección</th>
                   <th className="px-2 py-2 font-bold w-[9.5rem]">Estado</th>
@@ -2310,7 +2312,7 @@ export default function AdminDashboard({
             <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--surface-border)] shrink-0">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-mono font-bold text-[var(--color-accent)] truncate inline-flex items-center gap-1.5">
-                  {selectedOrder.id}
+                  {formatOrderId(selectedOrder.id)}
                   <MarketplaceSourceIcon source={selectedOrder.externalSource} />
                 </p>
                 <p className="text-xs font-bold text-[var(--ink-soft)] truncate">{selectedOrder.clientName}</p>
@@ -2645,7 +2647,7 @@ export default function AdminDashboard({
               <div className="flex items-start justify-between border-b border-[var(--surface-border)] pb-2">
                 <div>
                   <h3 className="font-bold text-xs lg:text-sm text-[var(--color-text)] flex items-center gap-1.5 uppercase font-mono tracking-wider">
-                    📦 Envío {selectedOrder.id}
+                    📦 Envío {formatOrderId(selectedOrder.id)}
                     <MarketplaceSourceIcon source={selectedOrder.externalSource} size="md" />
                   </h3>
                   {selectedOrder.publicTrackingCode && (
@@ -2717,7 +2719,7 @@ export default function AdminDashboard({
                               ? `Mercado Libre · Orden #${selectedOrder.externalOrderId}`
                               : isPhoto
                                 ? 'Etiqueta fotografiada'
-                                : `Etiqueta · ${selectedOrder.id}`)}
+                                : `Etiqueta · ${formatOrderId(selectedOrder.id)}`)}
                           <span className="block text-[var(--color-accent)] mt-0.5 font-semibold">
                             {isPhoto ? 'Ver foto de la etiqueta →' : 'Ver etiqueta de envío →'}
                           </span>
@@ -2796,7 +2798,7 @@ export default function AdminDashboard({
                             onClick={() => {
                               void confirm({
                                 title: 'Desasignar repartidor',
-                                message: `¿Quitar a ${selectedOrder.repartidorName ?? 'el repartidor'} del pedido ${selectedOrder.id}?\n\nEl envío volverá a pendiente.`,
+                                message: `¿Quitar a ${selectedOrder.repartidorName ?? 'el repartidor'} del pedido ${formatOrderId(selectedOrder.id)}?\n\nEl envío volverá a pendiente.`,
                                 variant: 'warning',
                                 confirmText: 'Desasignar',
                                 cancelText: 'Cancelar',
@@ -2894,7 +2896,7 @@ export default function AdminDashboard({
                               )}
                               <div className="flex gap-1.5">
                                 <select
-                                  id={`select-repartidor-${selectedOrder.id}`}
+                                  id={`select-repartidor-${formatOrderId(selectedOrder.id)}`}
                                   defaultValue={suggestedRep?.id ?? ''}
                                   onChange={async (e) => {
                                     if (!e.target.value) return;
@@ -2928,7 +2930,7 @@ export default function AdminDashboard({
                       onClick={() => {
                         void confirm({
                           title: 'Volver a almacén',
-                          message: `¿Sacar ${selectedOrder.id} del viaje?\n\nDeja de estar en ruta y vuelve a almacén, sin repartidor.`,
+                          message: `¿Sacar ${formatOrderId(selectedOrder.id)} del viaje?\n\nDeja de estar en ruta y vuelve a almacén, sin repartidor.`,
                           variant: 'warning',
                           confirmText: 'Volver a almacén',
                           cancelText: 'Cancelar',
@@ -2956,7 +2958,7 @@ export default function AdminDashboard({
                       onClick={() => {
                         void confirm({
                           title: 'Volver a activar',
-                          message: `¿Reactivar el pedido ${selectedOrder.id}?\n\nVuelve al estado que tenía antes de cancelarse.`,
+                          message: `¿Reactivar el pedido ${formatOrderId(selectedOrder.id)}?\n\nVuelve al estado que tenía antes de cancelarse.`,
                           variant: 'warning',
                           confirmText: 'Reactivar',
                           cancelText: 'Volver',
@@ -2992,7 +2994,7 @@ export default function AdminDashboard({
                             onClick={() => {
                               void confirm({
                                 title: 'Marcar como entregado',
-                                message: `¿Confirmar que el envío ${selectedOrder.id} ya fue entregado?`,
+                                message: `¿Confirmar que el envío ${formatOrderId(selectedOrder.id)} ya fue entregado?`,
                                 variant: 'warning',
                                 confirmText: 'Sí, entregado',
                                 cancelText: 'Cancelar',

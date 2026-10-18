@@ -220,7 +220,7 @@ function buildOrderPopupHtml(
   return `
     <div class="posta-map-popup" style="color:var(--text)">
       <div class="posta-map-popup__head">
-        <span class="posta-map-popup__id">${MAP_SVG.package}<span>${order.id}</span></span>
+        <span class="posta-map-popup__id">${MAP_SVG.package}<span>${order.id.replace(/^DEMO-/i, '')}</span></span>
         <span class="posta-map-popup__badge" style="background-color:${badgeColor}">
           ${MAP_STATUS_LABELS[order.status]}
         </span>

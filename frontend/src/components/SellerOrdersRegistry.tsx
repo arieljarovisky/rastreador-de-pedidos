@@ -12,6 +12,7 @@ import MarketplaceSourceFilter from './MarketplaceSourceFilter.tsx';
 import SellerFilterControl from './SellerFilterControl.tsx';
 import OperationalDatePicker from './OperationalDatePicker.tsx';
 import { getOrderExceptionBadge } from '../utils/orderBadge.js';
+import { formatOrderId } from '../utils/formatOrderId.js';
 import {
   getOrderImportedDateKey,
 } from '../utils/orderFilters.js';
@@ -942,7 +943,7 @@ export default function SellerOrdersRegistry({
                             onClick={() => onSelectOrder?.(order.id)}
                             title="Ver en Envíos"
                           >
-                            {order.id}
+                            {formatOrderId(order.id)}
                           </button>
                         </td>
                         <td className="px-3 py-2 font-semibold text-[var(--ink-soft)] max-w-[9rem] truncate">
