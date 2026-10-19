@@ -161,11 +161,13 @@ async function agencyExists(): Promise<boolean> {
   return Boolean(rows[0]);
 }
 
+const DEMO_DRIVER_FILTER = `(id LIKE 'demo_%' OR id IN ('u2', 'u3', 'u4', 'u12', 'u13'))`;
+
 async function loadDrivers(): Promise<DriverRow[]> {
   const [rows] = await pool.query<DriverRow[]>(
     `SELECT id, name, current_lat, current_lng
      FROM users
-     WHERE agency_id = ? AND role = 'repartidor'
+     WHERE agency_id = ? AND role = 'repartidor' AND ${DEMO_DRIVER_FILTER}
      ORDER BY name`,
     [DEMO_AGENCY_ID]
   );
@@ -357,13 +359,14 @@ async function pruneOldHistory(): Promise<void> {
   await pool.query(
     `DELETE olh FROM order_location_history olh
      INNER JOIN orders o ON o.id = olh.order_id
-     WHERE o.agency_id = ? AND olh.created_at < DATE_SUB(NOW(), INTERVAL 3 HOUR)`,
+     WHERE o.agency_id = ? AND o.id LIKE 'DEMO-%' AND olh.created_at < DATE_SUB(NOW(), INTERVAL 3 HOUR)`,
     [DEMO_AGENCY_ID]
   );
   await pool.query(
     `DELETE rlh FROM repartidor_location_history rlh
      INNER JOIN users u ON u.id = rlh.user_id
-     WHERE u.agency_id = ? AND rlh.created_at < DATE_SUB(NOW(), INTERVAL 3 HOUR)`,
+     WHERE u.agency_id = ? AND (u.id LIKE 'demo_%' OR u.id IN ('u2', 'u3', 'u4', 'u12', 'u13'))
+       AND rlh.created_at < DATE_SUB(NOW(), INTERVAL 3 HOUR)`,
     [DEMO_AGENCY_ID]
   );
 }
