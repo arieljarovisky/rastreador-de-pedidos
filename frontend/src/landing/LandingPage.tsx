@@ -333,7 +333,10 @@ function handleNavClick(href: string, event: MouseEvent<HTMLAnchorElement>) {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   if (path !== DEMO_HREF) return;
   event.preventDefault();
-  window.history.pushState(null, '', `/${href}`);
+  const next = `${DEMO_HREF}${href}`;
+  if (`${path}${window.location.hash}` !== next) {
+    window.history.pushState(null, '', next);
+  }
   scrollToHash(href);
 }
 
@@ -401,6 +404,7 @@ export function LandingPage() {
   useEffect(() => {
     const onPop = () => {
       if (isDemoEntry()) scrollToDemo('auto');
+      else if (window.location.hash) scrollToHash(window.location.hash, 'auto');
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -440,7 +444,7 @@ export function LandingPage() {
         return;
       }
       const path = window.location.pathname.replace(/\/$/, '') || '/';
-      if (path === DEMO_HREF) window.history.pushState(null, '', `/${href}`);
+      if (path === DEMO_HREF) window.history.pushState(null, '', `${DEMO_HREF}${href}`);
       scrollToHash(href);
     }, 80);
   }

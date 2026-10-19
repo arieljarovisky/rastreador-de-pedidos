@@ -104,24 +104,59 @@ function ordersSnapshotKey(list: Order[]): string {
 const ACTIVE_TAB_KEY = 'lupo_active_tab';
 const NOTIFS_SIDEBAR_KEY = 'lupo_notifs_sidebar';
 
-function readSavedTab(): AppTab {
-  const saved = localStorage.getItem(ACTIVE_TAB_KEY);
-  if (
-    saved === 'panel' ||
-    saved === 'dashboard' ||
-    saved === 'account' ||
-    saved === 'registro' ||
-    saved === 'repartidores' ||
-    saved === 'prices' ||
-    saved === 'notifications' ||
-    saved === 'settings' ||
-    saved === 'platform'
-  ) {
-    return saved;
+function isAppTab(value: string | null | undefined): value is AppTab {
+  return (
+    value === 'panel' ||
+    value === 'dashboard' ||
+    value === 'account' ||
+    value === 'registro' ||
+    value === 'repartidores' ||
+    value === 'prices' ||
+    value === 'notifications' ||
+    value === 'settings' ||
+    value === 'platform'
+  );
+}
+
+function normalizeAppTab(value: string | null | undefined): AppTab | null {
+  if (isAppTab(value)) return value;
+  // Compat: pestaña "Panel" antigua guardaba "operations"
+  if (value === 'operations') return 'dashboard';
+  return null;
+}
+
+function tabFromLocation(pathname = window.location.pathname, search = window.location.search): AppTab | null {
+  const path = pathname.replace(/\/$/, '') || '/';
+  if (path.startsWith('/app/')) {
+    const segment = path.slice('/app/'.length).split('/')[0] ?? '';
+    const fromPath = normalizeAppTab(segment);
+    if (fromPath) return fromPath;
   }
-  // Compat: pestaña "Panel" antigua guardaba "dashboard"
-  if (saved === 'operations') return 'dashboard';
-  return 'panel';
+  return normalizeAppTab(new URLSearchParams(search).get('tab'));
+}
+
+function appTabUrl(tab: AppTab, search = window.location.search): string {
+  const params = new URLSearchParams(search);
+  params.delete('tab');
+  const query = params.toString();
+  return query ? `/app/${tab}?${query}` : `/app/${tab}`;
+}
+
+function isCurrentUrl(url: string): boolean {
+  const normalize = (value: string) => {
+    const [path, query = ''] = value.split('?');
+    const cleanPath = (path || '/').replace(/\/$/, '') || '/';
+    return query ? `${cleanPath}?${query}` : cleanPath;
+  };
+  return normalize(`${window.location.pathname}${window.location.search}`) === normalize(url);
+}
+
+function readSavedTab(): AppTab {
+  return normalizeAppTab(localStorage.getItem(ACTIVE_TAB_KEY)) ?? 'panel';
+}
+
+function readInitialTab(): AppTab {
+  return tabFromLocation() ?? readSavedTab();
 }
 
 function readNotifsSidebarOpen(): boolean {
@@ -283,7 +318,9 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [registroSellerId, setRegistroSellerId] = useState<string | null>(null);
-  const [mobileTab, setMobileTabState] = useState<AppTab>(readSavedTab);
+  const [mobileTab, setMobileTabState] = useState<AppTab>(readInitialTab);
+  const mobileTabRef = useRef<AppTab>(mobileTab);
+  mobileTabRef.current = mobileTab;
   const [integrationStatus, setIntegrationStatus] = useState<MarketplaceIntegrationStatus | null>(null);
   const [integrationStatusLoading, setIntegrationStatusLoading] = useState(false);
   const [integrationStatusError, setIntegrationStatusError] = useState<string | null>(null);
@@ -293,9 +330,20 @@ export default function App() {
   const [platformSessionChecked, setPlatformSessionChecked] = useState(false);
   const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0);
 
-  const setMobileTab = useCallback((tab: AppTab) => {
-    setMobileTabState(tab);
-    localStorage.setItem(ACTIVE_TAB_KEY, tab);
+  const setMobileTab = useCallback((tab: AppTab, mode: 'push' | 'replace' = 'push') => {
+    const tabChanged = mobileTabRef.current !== tab;
+    if (tabChanged) {
+      mobileTabRef.current = tab;
+      setMobileTabState(tab);
+      localStorage.setItem(ACTIVE_TAB_KEY, tab);
+    }
+    const nextUrl = appTabUrl(tab);
+    if (isCurrentUrl(nextUrl)) return;
+    if (mode === 'push' && tabChanged) {
+      window.history.pushState({ tab }, '', nextUrl);
+    } else {
+      window.history.replaceState({ tab }, '', nextUrl);
+    }
   }, []);
 
   useEffect(() => {
@@ -315,7 +363,6 @@ export default function App() {
     const integration = params.get('integration');
     const status = params.get('status');
     const message = params.get('message');
-    const tab = params.get('tab');
     const incomingReset = params.get('resetToken')?.trim();
     const incomingVerify = params.get('verifyToken')?.trim();
     if (incomingReset) {
@@ -324,13 +371,12 @@ export default function App() {
     if (incomingVerify) {
       setVerifyToken(incomingVerify);
     }
-    if (incomingReset || incomingVerify) {
-      const clean = new URL(window.location.href);
-      clean.searchParams.delete('resetToken');
-      clean.searchParams.delete('verifyToken');
-      window.history.replaceState({}, '', clean.pathname + clean.search);
-    }
-    if (tab === 'settings') setMobileTabState('settings');
+    if (incomingReset) params.delete('resetToken');
+    if (incomingVerify) params.delete('verifyToken');
+
+    const tabFromQuery = normalizeAppTab(params.get('tab'));
+    let nextTab = tabFromQuery ?? tabFromLocation() ?? readSavedTab();
+
     const subscriptionResult = params.get('subscription');
     if (subscriptionResult === 'success') {
       setSubscriptionRefreshKey((k) => k + 1);
@@ -339,7 +385,7 @@ export default function App() {
         message: 'Tu suscripción se activará en unos instantes cuando confirmemos el pago.',
         variant: 'success',
       });
-      window.history.replaceState({}, '', window.location.pathname);
+      params.delete('subscription');
     } else if (subscriptionResult === 'failure') {
       setSubscriptionRefreshKey((k) => k + 1);
       void showAlert({
@@ -347,13 +393,13 @@ export default function App() {
         message: 'El pago de suscripción no se completó. Podés intentarlo de nuevo desde Ajustes.',
         variant: 'error',
       });
-      window.history.replaceState({}, '', window.location.pathname);
+      params.delete('subscription');
     } else if (subscriptionResult === 'pending') {
       setSubscriptionRefreshKey((k) => k + 1);
-      window.history.replaceState({}, '', window.location.pathname);
+      params.delete('subscription');
     }
     if (integration && status) {
-      setMobileTabState('settings');
+      nextTab = 'settings';
       const platformLabel =
         integration === 'mercadolibre'
           ? 'Mercado Libre'
@@ -377,9 +423,29 @@ export default function App() {
           variant: 'error',
         });
       }
-      window.history.replaceState({}, '', window.location.pathname);
+      params.delete('integration');
+      params.delete('status');
+      params.delete('message');
     }
+
+    params.delete('tab');
+    mobileTabRef.current = nextTab;
+    setMobileTabState(nextTab);
+    localStorage.setItem(ACTIVE_TAB_KEY, nextTab);
+    const search = params.toString();
+    window.history.replaceState({ tab: nextTab }, '', appTabUrl(nextTab, search ? `?${search}` : ''));
   }, [showAlert]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const tab = tabFromLocation() ?? readSavedTab();
+      mobileTabRef.current = tab;
+      setMobileTabState(tab);
+      localStorage.setItem(ACTIVE_TAB_KEY, tab);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const [notifsSidebarOpen, setNotifsSidebarOpen] = useState(readNotifsSidebarOpen);
   const theme = usePostaTheme();
@@ -1785,6 +1851,7 @@ export default function App() {
     setOrders([]);
     setNotifications([]);
     setActiveOrderId(null);
+    mobileTabRef.current = 'dashboard';
     setMobileTabState('dashboard');
     setAuthError(null);
     setLoading(false);
@@ -2368,29 +2435,29 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     if (isPlatformOnlyUser) {
-      if (mobileTab !== 'platform') setMobileTab('platform');
+      if (mobileTab !== 'platform') setMobileTab('platform', 'replace');
       return;
     }
     if (mobileTab === 'settings' && !showSettings) {
-      setMobileTab('panel');
+      setMobileTab('panel', 'replace');
     }
     if (mobileTab === 'account' && !showAccount) {
-      setMobileTab('panel');
+      setMobileTab('panel', 'replace');
     }
     if (mobileTab === 'registro' && !showRegistro) {
-      setMobileTab('panel');
+      setMobileTab('panel', 'replace');
     }
     if (mobileTab === 'repartidores' && !showRegistro) {
-      setMobileTab('panel');
+      setMobileTab('panel', 'replace');
     }
     if (mobileTab === 'prices' && !showPrices) {
-      setMobileTab('panel');
+      setMobileTab('panel', 'replace');
     }
     if (mobileTab === 'platform' && !isPlatformOwner) {
-      setMobileTab('panel');
+      setMobileTab('panel', 'replace');
     }
     if (user.role === UserRole.REPARTIDOR && mobileTab === 'panel') {
-      setMobileTab('dashboard');
+      setMobileTab('dashboard', 'replace');
     }
   }, [user, mobileTab, showSettings, showAccount, showRegistro, showPrices, isPlatformOwner, isPlatformOnlyUser, setMobileTab]);
 
