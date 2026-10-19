@@ -203,6 +203,7 @@ async function emitLiveOrder(
     sellerId: order.sellerId,
     repartidorId,
     repartidorName,
+    agencyId: order.agencyId,
     point: stamped,
   });
 }

@@ -85,6 +85,7 @@ export function useOrders(
     const normalized = normalizeOrder(order);
     setOrders((prev) => {
       const i = prev.findIndex((o) => o.id === normalized.id);
+      if (i === -1 && /^DEMO-/i.test(normalized.id)) return prev;
       if (i === -1) return [normalized, ...prev];
       const next = [...prev];
       next[i] = normalized;

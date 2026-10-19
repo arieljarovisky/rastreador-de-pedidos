@@ -14,16 +14,22 @@ export function getIO(): Server | null {
   return io;
 }
 
-function trackingRooms(sellerId: string | null, orderId: string, repartidorId?: string | null): string[] {
-  const rooms = ['tracking', `order:${orderId}`];
+function trackingRooms(
+  sellerId: string | null,
+  orderId: string,
+  repartidorId?: string | null,
+  agencyId?: string | null
+): string[] {
+  const rooms = [`order:${orderId}`];
   if (sellerId) rooms.push(`seller:${sellerId}`);
   if (repartidorId) rooms.push(`repartidor:${repartidorId}`);
+  if (agencyId) rooms.push(`agency:${agencyId}`);
   return rooms;
 }
 
 export function emitOrderUpdated(order: Order, sellerId: string | null): void {
   if (!io) return;
-  const rooms = trackingRooms(sellerId, order.id, order.repartidorId);
+  const rooms = trackingRooms(sellerId, order.id, order.repartidorId, order.agencyId);
   for (const room of rooms) {
     io.to(room).emit('order:updated', order);
   }
@@ -51,10 +57,11 @@ export function emitOrderLocation(
     repartidorId: string;
     repartidorName: string | null;
     point: LocationHistoryPoint;
+    agencyId?: string | null;
   }
 ): void {
   if (!io) return;
-  const rooms = trackingRooms(payload.sellerId, payload.orderId, payload.repartidorId);
+  const rooms = trackingRooms(payload.sellerId, payload.orderId, payload.repartidorId, payload.agencyId);
   for (const room of rooms) {
     io.to(room).emit('order:location', payload);
   }
@@ -90,7 +97,6 @@ export function joinUserRooms(
   const socket = io.sockets.sockets.get(socketId);
   if (!socket) return;
 
-  socket.join('tracking');
   socket.join(`user:${user.id}`);
   if (user.agencyId) {
     socket.join(`agency:${user.agencyId}`);

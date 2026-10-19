@@ -985,6 +985,7 @@ router.post('/:id/location', authenticate, requireRoles(UserRole.REPARTIDOR), as
       sellerId: result.sellerId,
       repartidorId: user.id,
       repartidorName: user.name,
+      agencyId: user.agencyId,
       point: result.point,
     });
 
@@ -1065,6 +1066,7 @@ router.post('/:id/locations/batch', authenticate, requireRoles(UserRole.REPARTID
       sellerId: result.sellerId,
       repartidorId: user.id,
       repartidorName: user.name,
+      agencyId: user.agencyId,
       point: result.point,
     });
 

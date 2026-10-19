@@ -35,6 +35,7 @@ import { apiUrl, oauthReturnOriginQuery, fetchAllOrders } from './api.ts';
 import { mergeRepartidoresFromServer, dedupeRepartidores } from './utils/repartidorLocation.ts';
 import { clearLiveFleet, publishLiveRepartidor } from './utils/liveFleet.ts';
 import { useModal } from './context/ModalContext.tsx';
+import { isDemoDriverId, orderVisibleToUser, userSeesDemoOrders } from './utils/demoOrders.ts';
 
 const CACHED_NOTIFICATIONS_LIMIT = 40;
 
@@ -492,10 +493,11 @@ export default function App() {
   }, []);
 
   const commitOrders = useCallback((data: Order[]) => {
-    const key = ordersSnapshotKey(data);
+    const visible = data.filter((order) => orderVisibleToUser(order, userRef.current));
+    const key = ordersSnapshotKey(visible);
     if (key === ordersKeyRef.current) return;
     ordersKeyRef.current = key;
-    setOrders(data);
+    setOrders(visible);
   }, []);
 
   const fetchData = useCallback(async (opts?: { forceFlexSync?: boolean }) => {
@@ -697,6 +699,7 @@ export default function App() {
   }, [token, commitOrders]);
 
   const mergeOrder = useCallback((order: Order) => {
+    if (!orderVisibleToUser(order, userRef.current)) return;
     let deselectOrderId: string | null = null;
     setOrders((prev) => {
       const index = prev.findIndex((o) => o.id === order.id);
@@ -849,7 +852,10 @@ export default function App() {
       try {
         const cachedOrders = localStorage.getItem('cached_orders');
         const cachedNotifs = localStorage.getItem('cached_notifications');
-        if (cachedOrders) setOrders(JSON.parse(cachedOrders));
+        if (cachedOrders) {
+          const parsed = JSON.parse(cachedOrders) as Order[];
+          setOrders(parsed.filter((order) => orderVisibleToUser(order, userRef.current)));
+        }
         if (cachedNotifs) setNotifications(JSON.parse(cachedNotifs));
       } catch {
         localStorage.removeItem('cached_orders');
@@ -2469,10 +2475,13 @@ export default function App() {
         onOrderUpdated={mergeOrder}
         onOrderDeleted={removeOrder}
         onOrderLocation={(payload) => {
+          const current = userRef.current;
+          if (isDemoDriverId(payload.repartidorId) && !userSeesDemoOrders(current)) return;
           publishLiveRepartidor(payload.repartidorId, payload.point);
         }}
         onRepartidorLocation={(payload) => {
           const current = userRef.current;
+          if (isDemoDriverId(payload.repartidorId) && !userSeesDemoOrders(current)) return;
           if (current?.role === UserRole.STORE_ADMIN) {
             const onSellerOrder = ordersRef.current.some(
               (o) => !o.archived && o.repartidorId === payload.repartidorId
