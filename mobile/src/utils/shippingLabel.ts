@@ -135,7 +135,7 @@ export function buildPdfHtml(base64: string, sources: PdfJsSources): string {
   return [
     '<!DOCTYPE html><html><head><meta charset="utf-8" />',
     '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />',
-    '<style>html,body{margin:0;background:#101218}canvas{width:100%;height:auto;display:block;background:#fff;margin-bottom:8px}',
+    '<style>html,body{margin:0;background:#1c1814}canvas{width:100%;height:auto;display:block;background:#fff;margin-bottom:8px}',
     '#status{color:#f3f0e8;font:15px sans-serif;padding:24px}</style></head><body>',
     '<p id="status">Preparando etiqueta…</p><div id="pages"></div>',
     '<script>try{',

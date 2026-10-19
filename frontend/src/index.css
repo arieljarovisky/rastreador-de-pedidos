@@ -1912,7 +1912,7 @@
 
 .dark,
 [data-theme="dark"] {
-  --background: #101218;
+  --background: #1c1814;
   --foreground: #f3f0e8;
   --card: #171a22;
   --card-foreground: #f3f0e8;

@@ -16,7 +16,7 @@ export const fonts = {
 
 /** Tema oscuro — dashboards operativos */
 export const colors = {
-  bg: '#101218',
+  bg: '#1c1814',
   surface: '#171a22',
   surfaceAlt: '#1e222c',
   border: '#2c3140',
@@ -130,7 +130,7 @@ export const agencyDark: AgencyPalette = {
   ink: '#f3f0e8',
   ink2: '#a39e94',
   ink3: '#6e6a63',
-  paper: '#101218',
+  paper: '#1c1814',
   card: '#171a22',
   line: '#2c3140',
   line2: '#3a4154',
