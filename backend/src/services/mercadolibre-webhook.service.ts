@@ -26,7 +26,11 @@ import {
   type MercadoLibreFlexShipment,
   type MlFlexAssignment,
 } from './mercadolibre.service.js';
-import { geocodeAddress } from './geocode.service.js';
+import {
+  resolveImportCoordinates,
+  withApproxHistoryComment,
+  withApproxLocationNote,
+} from './geocode.service.js';
 import {
   appendOrderMarketplaceComment,
   assignOrderToRepartidorFromMarketplace,
@@ -308,19 +312,15 @@ async function importFlexShipment(
     return synced.id;
   }
 
-  let lat = shipment.lat;
-  let lng = shipment.lng;
-  if (lat === undefined || lng === undefined) {
-    const geocoded = await geocodeAddress(shipment.address);
-    if (!geocoded) {
-      flexScanLog('importación abortada: geocodificación falló', {
-        mlShipmentId: shipment.externalId,
-        address: shipment.address,
-      });
-      return null;
-    }
-    lat = geocoded.lat;
-    lng = geocoded.lng;
+  const coords = await resolveImportCoordinates(shipment.address, {
+    lat: shipment.lat,
+    lng: shipment.lng,
+  });
+  if (coords.approximate) {
+    flexScanLog('coordenadas aproximadas', {
+      mlShipmentId: shipment.externalId,
+      address: shipment.address,
+    });
   }
 
   const orderCreator = agencyMode
@@ -336,17 +336,20 @@ async function importFlexShipment(
     clientName: shipment.clientName,
     clientPhone: shipment.clientPhone,
     address: shipment.address,
-    lat,
-    lng,
-    notes: shipment.notes,
+    lat: coords.lat,
+    lng: coords.lng,
+    notes: withApproxLocationNote(shipment.notes, coords.approximate),
     externalSource: 'mercadolibre',
     externalOrderId: shipment.externalId,
     shippingType: 'flex',
     deliveryDeadline: mlDeadline ?? undefined,
     sellerId: agencyMode ? undefined : seller.id,
-    historyComment: agencyMode
-      ? `Importado automáticamente desde ML (cuenta de la agencia) · envío #${shipment.externalId}`
-      : undefined,
+    historyComment: withApproxHistoryComment(
+      agencyMode
+        ? `Importado automáticamente desde ML (cuenta de la agencia) · envío #${shipment.externalId}`
+        : undefined,
+      coords.approximate
+    ),
   });
 
   order = await syncMercadoLibreOrderAfterImport(integration.userId, order, shipment);

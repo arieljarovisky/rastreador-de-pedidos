@@ -1,5 +1,10 @@
 import { User, Order, UserRole, OrderStatus } from '../types/index.js';
-import { geocodeAddress } from './geocode.service.js';
+import {
+  geocodeAddress,
+  resolveImportCoordinates,
+  withApproxHistoryComment,
+  withApproxLocationNote,
+} from './geocode.service.js';
 import {
   createOrder,
   findOrderByExternal,
@@ -827,18 +832,15 @@ async function importMercadoLibreFlexShipment(
       return { kind: 'synced', order: synced };
     }
 
-    let lat = shipment.lat;
-    let lng = shipment.lng;
-    if (lat === undefined || lng === undefined) {
-      const geocoded = await geocodeAddress(shipment.address);
-      if (!geocoded) {
-        return {
-          kind: 'error',
-          message: `#${shipment.externalId}: no se pudo ubicar la dirección en el mapa.`,
-        };
-      }
-      lat = geocoded.lat;
-      lng = geocoded.lng;
+    const coords = await resolveImportCoordinates(shipment.address, {
+      lat: shipment.lat,
+      lng: shipment.lng,
+    });
+    if (coords.approximate) {
+      console.warn('[ml-import] coordenadas aproximadas', {
+        externalId: shipment.externalId,
+        address: shipment.address,
+      });
     }
 
     const integration = await getValidMercadoLibreIntegration(mlUserId);
@@ -851,17 +853,20 @@ async function importMercadoLibreFlexShipment(
       clientName: shipment.clientName,
       clientPhone: shipment.clientPhone,
       address: shipment.address,
-      lat,
-      lng,
-      notes: shipment.notes,
+      lat: coords.lat,
+      lng: coords.lng,
+      notes: withApproxLocationNote(shipment.notes, coords.approximate),
       externalSource: 'mercadolibre',
       externalOrderId: shipment.externalId,
       shippingType: 'flex',
       deliveryDeadline: mlDeadline ?? undefined,
       soldAt: parseSoldAt(shipment.createdAt),
-      historyComment: agencyMode
-        ? `Importado desde ML (cuenta de la agencia) · envío #${shipment.externalId}`
-        : undefined,
+      historyComment: withApproxHistoryComment(
+        agencyMode
+          ? `Importado desde ML (cuenta de la agencia) · envío #${shipment.externalId}`
+          : undefined,
+        coords.approximate
+      ),
     });
 
     order = await syncMercadoLibreOrderAfterImport(mlUserId, order, shipment);
@@ -982,25 +987,26 @@ export async function importTiendaNubeExpressShipment(
       return { kind: 'skipped', reason: 'already_imported', order: existing };
     }
 
-    const geocoded = await geocodeAddress(shipment.address);
-    if (!geocoded) {
-      return {
-        kind: 'error',
-        message: formatImportError(shipment.externalId, 'GEOCODE_UNAVAILABLE'),
-      };
+    const coords = await resolveImportCoordinates(shipment.address);
+    if (coords.approximate) {
+      console.warn('[tn-import] coordenadas aproximadas', {
+        externalId: shipment.externalId,
+        address: shipment.address,
+      });
     }
 
     const order = await createOrder(user, {
       clientName: shipment.clientName,
       clientPhone: shipment.clientPhone,
       address: shipment.address,
-      lat: geocoded.lat,
-      lng: geocoded.lng,
-      notes: shipment.notes,
+      lat: coords.lat,
+      lng: coords.lng,
+      notes: withApproxLocationNote(shipment.notes, coords.approximate),
       externalSource: 'tiendanube',
       externalOrderId: shipment.externalId,
       shippingType: shipment.shippingType,
       soldAt: parseSoldAt(shipment.createdAt),
+      historyComment: withApproxHistoryComment(undefined, coords.approximate),
     });
 
     const sellerId = await getSellerIdForOrder(order.id);
@@ -1046,25 +1052,27 @@ async function importStandardHomeShipment(
       return { kind: 'skipped', reason: 'already_imported', order: existing };
     }
 
-    const geocoded = await geocodeAddress(shipment.address);
-    if (!geocoded) {
-      return {
-        kind: 'error',
-        message: formatImportError(shipment.externalId, 'GEOCODE_UNAVAILABLE'),
-      };
+    const coords = await resolveImportCoordinates(shipment.address);
+    if (coords.approximate) {
+      console.warn('[marketplace-import] coordenadas aproximadas', {
+        source,
+        externalId: shipment.externalId,
+        address: shipment.address,
+      });
     }
 
     const order = await createOrder(user, {
       clientName: shipment.clientName,
       clientPhone: shipment.clientPhone,
       address: shipment.address,
-      lat: geocoded.lat,
-      lng: geocoded.lng,
-      notes: shipment.notes,
+      lat: coords.lat,
+      lng: coords.lng,
+      notes: withApproxLocationNote(shipment.notes, coords.approximate),
       externalSource: source,
       externalOrderId: shipment.externalId,
       shippingType: shipment.shippingType,
       soldAt: parseSoldAt(shipment.createdAt),
+      historyComment: withApproxHistoryComment(undefined, coords.approximate),
     });
 
     const sellerId = await getSellerIdForOrder(order.id);
@@ -1253,30 +1261,30 @@ export async function importMarketplaceShipments(
         continue;
       }
 
-      let lat = shipment.lat;
-      let lng = shipment.lng;
-      if (lat === undefined || lng === undefined) {
-        const geocoded = await geocodeAddress(shipment.address);
-        if (!geocoded) {
-          skipped++;
-          errors.push(`#${shipment.externalId}: no se pudo ubicar la dirección en el mapa.`);
-          continue;
-        }
-        lat = geocoded.lat;
-        lng = geocoded.lng;
+      const coords = await resolveImportCoordinates(shipment.address, {
+        lat: shipment.lat,
+        lng: shipment.lng,
+      });
+      if (coords.approximate) {
+        console.warn('[marketplace-import] coordenadas aproximadas', {
+          platform: shipment.platform,
+          externalId: shipment.externalId,
+          address: shipment.address,
+        });
       }
 
       const order = await createOrder(user, {
         clientName: shipment.clientName,
         clientPhone: shipment.clientPhone,
         address: shipment.address,
-        lat,
-        lng,
-        notes: shipment.notes,
+        lat: coords.lat,
+        lng: coords.lng,
+        notes: withApproxLocationNote(shipment.notes, coords.approximate),
         externalSource: shipment.platform,
         externalOrderId: shipment.externalId,
         shippingType: shipment.shippingType,
         soldAt: parseSoldAt(shipment.createdAt),
+        historyComment: withApproxHistoryComment(undefined, coords.approximate),
       });
 
       const sellerId = await getSellerIdForOrder(order.id);
@@ -1650,13 +1658,15 @@ export async function importMercadoLibreByScanForAgency(
       );
     }
 
-    let lat = flex.lat;
-    let lng = flex.lng;
-    if (lat === undefined || lng === undefined) {
-      const geocoded = await geocodeAddress(flex.address);
-      if (!geocoded) throw new Error('GEOCODE_UNAVAILABLE');
-      lat = geocoded.lat;
-      lng = geocoded.lng;
+    const coords = await resolveImportCoordinates(flex.address, {
+      lat: flex.lat,
+      lng: flex.lng,
+    });
+    if (coords.approximate) {
+      console.warn('[ml-flex-scan] coordenadas aproximadas', {
+        mlShipmentId: flex.externalId,
+        address: flex.address,
+      });
     }
 
     const seller = isAgencyAccount ? null : await getUserById(validIntegration.userId);
@@ -1668,18 +1678,21 @@ export async function importMercadoLibreByScanForAgency(
       clientName: flex.clientName,
       clientPhone: flex.clientPhone,
       address: flex.address,
-      lat,
-      lng,
-      notes: flex.notes,
+      lat: coords.lat,
+      lng: coords.lng,
+      notes: withApproxLocationNote(flex.notes, coords.approximate),
       sellerId: isAgencyAccount ? undefined : validIntegration.userId,
       externalSource: flex.platform,
       externalOrderId: flex.externalId,
       shippingType: flex.shippingType,
       deliveryDeadline: mlDeadline ?? undefined,
       soldAt: parseSoldAt(flex.createdAt),
-      historyComment: isAgencyAccount
-        ? `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (cuenta de la agencia)`
-        : `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,
+      historyComment: withApproxHistoryComment(
+        isAgencyAccount
+          ? `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (cuenta de la agencia)`
+          : `Etiqueta ML #${flex.mlOrderId} escaneada en colecta (${seller?.name ?? 'vendedor'})`,
+        coords.approximate
+      ),
       historyLat: scanLocation?.lat,
       historyLng: scanLocation?.lng,
     });
