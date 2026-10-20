@@ -2,6 +2,7 @@ import { User, Order, UserRole, OrderStatus } from '../types/index.js';
 import {
   geocodeAddress,
   resolveImportCoordinates,
+  stripApproxLocationNote,
   withApproxHistoryComment,
   withApproxLocationNote,
 } from './geocode.service.js';
@@ -51,10 +52,14 @@ import {
 } from './mercadolibre.service.js';
 import {
   addressMissingStreetNumber,
+  fetchTiendaNubeOrder,
   listTiendaNubeExpressShipments,
+  resolveTnOrderShippingAddress,
   type TiendaNubeDateRange,
   type TiendaNubeExpressShipment,
 } from './tiendanube.service.js';
+import { pool } from '../config/database.js';
+import type { RowDataPacket } from 'mysql2/promise';
 import {
   listShopifyHomeShipments,
   type ShopifyDateRange,
@@ -2128,4 +2133,162 @@ export async function runWooCommerceAutoImport(): Promise<{
   }
 
   return { accounts: integrations.length, imported, skipped, errors, webhooksEnsured };
+}
+
+export interface TnAddressRepairResult {
+  scanned: number;
+  candidates: number;
+  repaired: number;
+  skipped: number;
+  errors: string[];
+  samples: Array<{ orderId: string; previousAddress: string; address: string }>;
+}
+
+/**
+ * Corrige pedidos TN ya importados sin altura (bug formatTnAddress).
+ * Relee shipping_address desde la API de TN, re-geocodifica y actualiza
+ * también pedidos entregados/cancelados.
+ */
+export async function repairTiendaNubeOrdersMissingStreetNumber(): Promise<TnAddressRepairResult> {
+  const [rows] = await pool.query<
+    Array<
+      RowDataPacket & {
+        id: string;
+        seller_id: string | null;
+        external_order_id: string;
+        address: string;
+        notes: string | null;
+      }
+    >
+  >(
+    `SELECT id, seller_id, external_order_id, address, notes
+     FROM orders
+     WHERE external_source = 'tiendanube'
+       AND external_order_id IS NOT NULL
+       AND TRIM(external_order_id) <> ''
+       AND address IS NOT NULL
+       AND TRIM(address) <> ''`
+  );
+
+  const candidates = rows.filter((row) => addressMissingStreetNumber(row.address));
+  const result: TnAddressRepairResult = {
+    scanned: rows.length,
+    candidates: candidates.length,
+    repaired: 0,
+    skipped: 0,
+    errors: [],
+    samples: [],
+  };
+
+  if (candidates.length === 0) {
+    console.log('[tn-address-repair] sin candidatos', { scanned: rows.length });
+    return result;
+  }
+
+  const sellerIntegrations = new Map<string, StoreIntegration | null>();
+  const fallbackIntegrations = await listTiendaNubeSellerIntegrationsForAutoImport();
+
+  async function loadTnOrder(sellerId: string | null, externalOrderId: string) {
+    const candidatesIntegrations: StoreIntegration[] = [];
+    if (sellerId) {
+      if (!sellerIntegrations.has(sellerId)) {
+        sellerIntegrations.set(sellerId, await getIntegration(sellerId, 'tiendanube'));
+      }
+      const own = sellerIntegrations.get(sellerId);
+      if (own) candidatesIntegrations.push(own);
+    }
+    for (const integration of fallbackIntegrations) {
+      if (!candidatesIntegrations.some((item) => item.id === integration.id)) {
+        candidatesIntegrations.push(integration);
+      }
+    }
+
+    let lastError: unknown = null;
+    for (const integration of candidatesIntegrations) {
+      if (!integration.accessToken || !integration.externalStoreId) continue;
+      try {
+        const tnOrder = await fetchTiendaNubeOrder(
+          integration.externalStoreId,
+          integration.accessToken,
+          externalOrderId
+        );
+        return tnOrder;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (lastError) throw lastError;
+    return null;
+  }
+
+  for (const row of candidates) {
+    try {
+      const tnOrder = await loadTnOrder(row.seller_id, row.external_order_id);
+      if (!tnOrder) {
+        result.skipped += 1;
+        result.errors.push(`${row.id}: sin integración TN`);
+        continue;
+      }
+      const nextAddress = resolveTnOrderShippingAddress(tnOrder);
+      if (!nextAddress || addressMissingStreetNumber(nextAddress)) {
+        result.skipped += 1;
+        result.errors.push(`${row.id}: TN sigue sin altura usable`);
+        continue;
+      }
+      if (nextAddress === row.address) {
+        result.skipped += 1;
+        continue;
+      }
+
+      const coords = await resolveImportCoordinates(nextAddress);
+      const nextNotes = coords.approximate
+        ? withApproxLocationNote(row.notes ?? '', true)
+        : stripApproxLocationNote(row.notes);
+
+      const repaired = await repairImportedOrderAddress(row.id, {
+        address: nextAddress,
+        lat: coords.lat,
+        lng: coords.lng,
+        notes: nextNotes,
+        sourceLabel: 'Tienda Nube',
+        historyComment: coords.approximate
+          ? 'Dirección corregida (se agregó la altura; ubicación aún aproximada)'
+          : 'Dirección corregida (se agregó la altura faltante del import)',
+        force: true,
+      });
+
+      if (!repaired) {
+        result.skipped += 1;
+        continue;
+      }
+
+      result.repaired += 1;
+      if (result.samples.length < 20) {
+        result.samples.push({
+          orderId: repaired.id,
+          previousAddress: row.address,
+          address: repaired.address,
+        });
+      }
+
+      const sellerId = repaired.sellerId ?? row.seller_id ?? (await getSellerIdForOrder(repaired.id));
+      emitOrderUpdated(repaired, sellerId);
+      await sleep(200);
+    } catch (err) {
+      result.skipped += 1;
+      result.errors.push(
+        `${row.id}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  console.log('[tn-address-repair] listo', {
+    scanned: result.scanned,
+    candidates: result.candidates,
+    repaired: result.repaired,
+    skipped: result.skipped,
+    errors: result.errors.length,
+  });
+
+  return result;
 }
