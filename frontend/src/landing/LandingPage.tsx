@@ -13,6 +13,7 @@ import SquigglyArrow from '@/components/ui/squiggle-arrow';
 import TextAnimate from '@/components/ui/text-animate';
 import { Typewriter } from '@/components/ui/typewriter';
 import { trackEvent } from '@/lib/analytics';
+import { Agencies } from './Agencies.tsx';
 import { DemoBooking } from './DemoBooking.tsx';
 
 const LIVE_STATES = ['pendiente.', 'asignado.', 'en viaje.', 'en la puerta.'];
@@ -26,6 +27,7 @@ const DEMO_HREF = '/demo';
 const NAV = [
   { href: '#porque', label: 'Por qué' },
   { href: '#nosotros', label: 'Nosotros' },
+  { href: '#agencias', label: 'Agencias' },
   { href: '#roles', label: 'Roles' },
   { href: '#recorrido', label: 'Recorrido' },
   { href: '#descargar', label: 'App' },
@@ -369,7 +371,7 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const ids = ['porque', 'nosotros', 'roles', 'recorrido', 'integraciones', 'descargar', 'demo', 'precios', 'empezar'];
+    const ids = ['porque', 'agencias', 'nosotros', 'roles', 'recorrido', 'integraciones', 'descargar', 'demo', 'precios', 'empezar'];
     const seen = new Set<string>();
     const observer = new IntersectionObserver(
       (entries) => {
@@ -540,7 +542,7 @@ export function LandingPage() {
         <div className="relative z-40 mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
           <div className="flex flex-1 items-center gap-4 rounded-full border border-border/80 bg-background/70 px-4 py-2 backdrop-blur-xl">
             <Logo />
-            <nav className="hidden items-center gap-4 text-xs uppercase tracking-[0.16em] text-muted-foreground md:flex" aria-label="Secciones">
+            <nav className="hidden items-center gap-4 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex" aria-label="Secciones">
               {NAV.map((item) => (
                 <a
                   key={item.href}
@@ -571,7 +573,7 @@ export function LandingPage() {
           </button>
           <button
             type="button"
-            className="grid size-10 place-items-center rounded-full border border-border md:hidden"
+            className="grid size-10 place-items-center rounded-full border border-border lg:hidden"
             aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
@@ -597,7 +599,7 @@ export function LandingPage() {
                 key="menu-backdrop"
                 type="button"
                 aria-label="Cerrar menú"
-                className="fixed inset-0 z-[45] bg-black/55 md:hidden"
+                className="fixed inset-0 z-[45] bg-black/55 lg:hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -606,7 +608,7 @@ export function LandingPage() {
               />
               <motion.div
                 key="menu-panel"
-                className="absolute left-4 right-4 top-full z-[50] mt-1 overflow-hidden rounded-3xl border border-border bg-background shadow-lg md:hidden"
+                className="absolute left-4 right-4 top-full z-[50] mt-1 overflow-hidden rounded-3xl border border-border bg-background shadow-lg lg:hidden"
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
@@ -659,6 +661,9 @@ export function LandingPage() {
             </p>
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground">
               Posta sigue cada moto en tiempo real, arma la ruta por GPS y deja a tu agencia, tus tiendas y tus repartidores en la misma página.
+            </p>
+            <p className="mt-5 max-w-md text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+              Caballito · Munro · Lanús · Haedo · Vicente López
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <HaloButton
@@ -771,6 +776,8 @@ export function LandingPage() {
           ))}
         </div>
       </section>
+
+      <Agencies />
 
       <section id="roles" className="mx-auto max-w-6xl px-5 py-16 lg:px-8">
         <p className="text-[11px] uppercase tracking-[0.22em] text-ember">Para quién es</p>
@@ -931,6 +938,7 @@ export function LandingPage() {
             <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Producto</p>
             <ul className="mt-3 space-y-2 text-sm">
               <li><a href="#porque">Por qué Posta</a></li>
+              <li><a href="#agencias">Agencias</a></li>
               <li><a href="#nosotros">Quiénes somos</a></li>
               <li><a href="#roles">Roles</a></li>
               <li><a href="#recorrido">Recorrido</a></li>

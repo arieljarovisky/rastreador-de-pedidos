@@ -148,6 +148,19 @@ body {
   animation: cabina-ticker 28s linear infinite;
 }
 
+.agency-track {
+  animation: cabina-ticker 42s linear infinite;
+}
+
+.agency-marquee:hover .agency-track,
+.agency-marquee:focus-within .agency-track {
+  animation-play-state: paused;
+}
+
+.dark .agency-logo {
+  filter: brightness(1.28) saturate(0.82);
+}
+
 @keyframes cabina-ticker {
   from {
     transform: translateX(0);
@@ -196,9 +209,54 @@ body {
   color: var(--background) !important;
 }
 
+@media (max-width: 767px) {
+  .agency-marquee {
+    overflow: visible;
+  }
+
+  .agency-track {
+    display: grid;
+    animation: none;
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+    justify-items: center;
+    padding-right: 0;
+    gap: 0.35rem 0.5rem;
+  }
+
+  .agency-logo {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .agency-track > [aria-hidden="true"] {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ticker-track,
+  .agency-track,
   .rider-dot {
     animation: none;
+  }
+
+  .agency-marquee {
+    overflow: visible;
+  }
+
+  .agency-track > [aria-hidden="true"] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (min-width: 768px) {
+  .agency-track {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-items: center;
+    padding-right: 0;
+    gap: 0.5rem 1rem;
   }
 }
