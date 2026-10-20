@@ -26,6 +26,8 @@ interface DriverSettlementPageProps {
   repartidores?: Array<{ id: string; name: string }>;
   /** Si se define, oculta el selector y fija el filtro ('' = todos). */
   lockedRepartidorId?: string;
+  /** Sincroniza el listado lateral (p. ej. al elegir un repartidor del resumen). */
+  onSelectRepartidor?: (id: string | null) => void;
   /** Cabecera más compacta dentro de la pestaña Repartidores. */
   embedded?: boolean;
 }
@@ -74,6 +76,7 @@ export default function DriverSettlementPage({
   user,
   repartidores = [],
   lockedRepartidorId,
+  onSelectRepartidor,
   embedded = false,
 }: DriverSettlementPageProps) {
   const isAgency = isAgencyAdmin(user.role);
@@ -436,7 +439,10 @@ export default function DriverSettlementPage({
                     <button
                       key={row.repartidorId}
                       type="button"
-                      onClick={() => setSelectedRepartidorId(row.repartidorId)}
+                      onClick={() => {
+                        if (onSelectRepartidor) onSelectRepartidor(row.repartidorId);
+                        else setSelectedRepartidorId(row.repartidorId);
+                      }}
                       className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-[var(--surface-panel-2)]/60 transition"
                     >
                       <span className="font-medium text-[var(--ink-soft)]">{row.repartidorName}</span>
@@ -475,7 +481,14 @@ export default function DriverSettlementPage({
                     <li key={entry.id} className="px-3 py-2.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-[var(--ink-soft)]">{entry.description}</p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="text-sm font-medium text-[var(--ink-soft)]">{entry.description}</p>
+                            {entry.pricingZoneName ? (
+                              <span className="rounded-[4px] border border-[var(--surface-border)] bg-[var(--surface-panel-2)] px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                                {entry.pricingZoneName}
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="text-[10px] font-mono text-[var(--color-text-muted)] mt-0.5">
                             {new Date(entry.createdAt).toLocaleString('es-AR')}
                             {entry.orderId ? ` · ${entry.orderId}` : ''}

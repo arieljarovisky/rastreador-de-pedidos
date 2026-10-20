@@ -254,6 +254,8 @@ export interface DriverLedgerEntry {
   repartidorId: string;
   repartidorName: string | null;
   orderId: string | null;
+  pricingZoneId?: string | null;
+  pricingZoneName?: string | null;
   entryType: 'earning' | 'payment' | 'adjustment';
   amount: number;
   description: string;

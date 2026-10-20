@@ -31,8 +31,10 @@ export default function RepartidoresPage({
 
   useEffect(() => {
     if (selectedId && repartidores.some((rep) => rep.id === selectedId)) return;
+    // En liquidación, null es “Toda la flota”. No lo pises con el primer repartidor.
+    if (selectedId === null && mainTab === 'liquidacion') return;
     setSelectedId(repartidores[0]?.id ?? null);
-  }, [repartidores, selectedId]);
+  }, [repartidores, selectedId, mainTab]);
 
   return (
     <div className="flex min-h-[calc(100dvh-8rem)] w-full flex-col overflow-hidden rounded-[6px] border border-[var(--surface-border)] bg-[var(--surface-panel)] xl:min-h-[calc(100dvh-6rem)] xl:flex-row">
@@ -148,6 +150,7 @@ export default function RepartidoresPage({
                 user={user}
                 repartidores={repartidores.map((r) => ({ id: r.id, name: r.name }))}
                 lockedRepartidorId={selectedId ?? ''}
+                onSelectRepartidor={setSelectedId}
                 embedded
               />
             </Suspense>

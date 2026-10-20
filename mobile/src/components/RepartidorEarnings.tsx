@@ -133,7 +133,10 @@ export default function RepartidorEarnings({
                     <Text style={styles.rowTitle} numberOfLines={2}>
                       {entryTitle(entry)}
                     </Text>
-                    <Text style={styles.rowMeta}>{formatArDateTime(entry.createdAt).replace(/:\d{2}$/, '')}</Text>
+                    <Text style={styles.rowMeta}>
+                      {formatArDateTime(entry.createdAt).replace(/:\d{2}$/, '')}
+                      {entry.pricingZoneName ? ` · ${entry.pricingZoneName}` : ''}
+                    </Text>
                   </View>
                   <Text style={[styles.rowAmount, payout ? styles.rowPay : styles.rowEarn]}>
                     {payout ? '−' : '+'}

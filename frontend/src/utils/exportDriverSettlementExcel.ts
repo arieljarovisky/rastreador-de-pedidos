@@ -345,7 +345,7 @@ function addMovimientosSheet(
   ledger: DriverLedgerEntry[],
   includeRepartidor: boolean
 ) {
-  const cols = includeRepartidor ? 6 : 5;
+  const cols = includeRepartidor ? 7 : 6;
   const sheet = workbook.addWorksheet('Movimientos', {
     properties: { tabColor: { argb: `FF${POSTA.warn}` } },
   });
@@ -358,22 +358,22 @@ function addMovimientosSheet(
   );
 
   if (includeRepartidor) {
-    autosize(sheet, [20, 12, 42, 14, 22, 14]);
+    autosize(sheet, [20, 12, 42, 14, 14, 22, 14]);
   } else {
-    autosize(sheet, [20, 12, 48, 14, 14]);
+    autosize(sheet, [20, 12, 48, 14, 14, 14]);
   }
 
   const header = sheet.getRow(5);
   header.values = includeRepartidor
-    ? ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Repartidor', 'Monto']
-    : ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Monto'];
+    ? ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Zona', 'Repartidor', 'Monto']
+    : ['Fecha', 'Tipo', 'Descripción', 'Pedido', 'Zona', 'Monto'];
   styleHeaderRow(header);
 
   if (ledger.length === 0) {
     const empty = sheet.getRow(6);
     empty.values = includeRepartidor
-      ? ['Sin movimientos', '', '', '', '', '']
-      : ['Sin movimientos', '', '', '', ''];
+      ? ['Sin movimientos', '', '', '', '', '', '']
+      : ['Sin movimientos', '', '', '', '', ''];
     paintRow(empty, `FF${POSTA.paper2}`);
     styleDataCell(empty.getCell(1), { color: POSTA.ink3 });
     return;
@@ -381,12 +381,14 @@ function addMovimientosSheet(
 
   ledger.forEach((entry, index) => {
     const amount = entry.entryType === 'payment' ? -moneyNum(entry.amount) : moneyNum(entry.amount);
+    const zoneLabel = entry.entryType === 'earning' ? entry.pricingZoneName ?? '' : '';
     const row = sheet.getRow(6 + index);
     const values: Array<string | number> = [
       new Date(entry.createdAt).toLocaleString('es-AR'),
       entryTypeLabel(entry.entryType),
       entry.description,
       entry.orderId ?? '',
+      zoneLabel,
     ];
     if (includeRepartidor) values.push(entry.repartidorName ?? entry.repartidorId);
     values.push(amount);
@@ -405,11 +407,12 @@ function addMovimientosSheet(
     styleDataCell(row.getCell(2), { color: typeColor, bold: true });
     styleDataCell(row.getCell(3));
     styleDataCell(row.getCell(4), { color: POSTA.ink3 });
+    styleDataCell(row.getCell(5), { color: POSTA.route });
     if (includeRepartidor) {
-      styleDataCell(row.getCell(5), { color: POSTA.route });
-      styleDataCell(row.getCell(6), { money: true, color: typeColor, bold: true });
+      styleDataCell(row.getCell(6), { color: POSTA.route });
+      styleDataCell(row.getCell(7), { money: true, color: typeColor, bold: true });
     } else {
-      styleDataCell(row.getCell(5), { money: true, color: typeColor, bold: true });
+      styleDataCell(row.getCell(6), { money: true, color: typeColor, bold: true });
     }
   });
 }

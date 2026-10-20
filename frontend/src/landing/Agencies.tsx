@@ -188,17 +188,24 @@ export function Agencies() {
         </div>
       </div>
 
-      <div className="mx-auto mt-10 grid max-w-6xl gap-4 px-5 md:grid-cols-3 lg:px-8">
+      <div className="mx-auto mt-10 grid max-w-6xl items-stretch gap-4 px-5 md:grid-cols-3 lg:px-8">
         {QUOTES.map((quote) => (
-          <HaloCard key={quote.agency} aria-label={`Comentario de ${quote.name}`} padding="lg" translucent={false} interactive={false}>
-            <p className="text-sm leading-relaxed text-muted-foreground">“{quote.body}”</p>
-            <div className="mt-5 flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-full bg-foreground text-[11px] font-semibold text-background">
+          <HaloCard
+            key={quote.agency}
+            aria-label={`Comentario de ${quote.name}`}
+            padding="lg"
+            translucent={false}
+            interactive={false}
+            className="h-full [&>div]:h-full [&_[data-slot=halo-card-surface]]:h-full"
+          >
+            <p className="flex-1 text-sm leading-relaxed text-muted-foreground">“{quote.body}”</p>
+            <div className="mt-auto flex items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground text-[11px] font-semibold text-background">
                 {quote.initials}
               </span>
               <div>
                 <p className="text-sm tracking-tight">{quote.name}</p>
-                <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                <p className="min-h-[2.75rem] text-[11px] uppercase leading-snug tracking-[0.14em] text-muted-foreground">
                   {quote.role} · {quote.agency} · {quote.place}
                 </p>
               </div>

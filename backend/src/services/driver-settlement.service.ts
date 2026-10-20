@@ -28,6 +28,8 @@ export interface DriverLedgerEntry {
   repartidorId: string;
   repartidorName: string | null;
   orderId: string | null;
+  pricingZoneId: string | null;
+  pricingZoneName: string | null;
   entryType: 'earning' | 'payment' | 'adjustment';
   amount: number;
   description: string;
@@ -85,6 +87,51 @@ function shippingTypeLabel(shippingType: string | null | undefined): string {
   if (shippingType === 'flex') return 'Flex';
   if (shippingType === 'express') return 'Express';
   return 'Estándar';
+}
+
+const PRICING_ZONE_LABELS: Record<string, string> = {
+  zona_caba: 'CABA',
+  zona_cordon_1: '1° Cordón',
+  zona_cordon_2: '2° Cordón',
+  zona_cordon_3: '3° Cordón',
+};
+
+function canonicalPricingZoneId(zoneId: string): string {
+  const hit = Object.keys(PRICING_ZONE_LABELS).find(
+    (id) => zoneId === id || zoneId.endsWith(`_${id}`)
+  );
+  return hit ?? zoneId;
+}
+
+function labelForPricingZone(zone: { id: string; name: string } | null): {
+  id: string;
+  name: string;
+} {
+  if (!zone) return { id: 'zona_cordon_3', name: '3° Cordón' };
+  const id = canonicalPricingZoneId(zone.id);
+  return { id, name: PRICING_ZONE_LABELS[id] ?? zone.name };
+}
+
+async function resolvePricingZoneLabel(
+  agencyId: string,
+  lat: number | null | undefined,
+  lng: number | null | undefined,
+  cache: Map<string, { id: string; name: string } | null>
+): Promise<{ id: string; name: string } | null> {
+  const latN = Number(lat);
+  const lngN = Number(lng);
+  if (!Number.isFinite(latN) || !Number.isFinite(lngN)) return null;
+  const key = `${latN.toFixed(4)},${lngN.toFixed(4)}`;
+  if (cache.has(key)) return cache.get(key) ?? null;
+  try {
+    const zone = await findPricingZoneForPoint(agencyId, latN, lngN);
+    const labeled = labelForPricingZone(zone);
+    cache.set(key, labeled);
+    return labeled;
+  } catch {
+    cache.set(key, null);
+    return null;
+  }
 }
 
 export async function getAgencyDefaultDriverPayRates(agencyId: string): Promise<AgencyDriverPayRates> {
@@ -199,7 +246,16 @@ export async function accrueDriverPayOnDelivery(order: Order): Promise<boolean> 
   const now = new Date();
   const entryId = randomUUID();
   const label = shippingTypeLabel(order.shippingType);
-  const description = `Entrega ${order.id} · ${label} · ${order.clientName}`;
+  let zoneName: string | null = null;
+  try {
+    const zone = await findPricingZoneForPoint(order.agencyId, order.lat, order.lng);
+    zoneName = labelForPricingZone(zone).name;
+  } catch {
+    zoneName = null;
+  }
+  const description = zoneName
+    ? `Entrega ${order.id} · ${label} · ${zoneName} · ${order.clientName}`
+    : `Entrega ${order.id} · ${label} · ${order.clientName}`;
 
   const conn = await pool.getConnection();
   try {
@@ -436,6 +492,8 @@ export async function listDriverLedger(
       repartidor_id: string;
       repartidor_name: string | null;
       order_id: string | null;
+      order_lat: number | null;
+      order_lng: number | null;
       entry_type: 'earning' | 'payment' | 'adjustment';
       amount: string;
       description: string;
@@ -444,9 +502,11 @@ export async function listDriverLedger(
     } & RowDataPacket>
   >(
     `SELECT d.id, d.agency_id, d.repartidor_id, u.name AS repartidor_name, d.order_id,
+            o.lat AS order_lat, o.lng AS order_lng,
             d.entry_type, d.amount, d.description, d.created_by, d.created_at
      FROM driver_ledger_entries d
      LEFT JOIN users u ON u.id = d.repartidor_id
+     LEFT JOIN orders o ON o.id = d.order_id
      WHERE d.agency_id = ?
        AND d.created_at >= ? AND d.created_at <= ?${driverFilter}
      ORDER BY d.created_at DESC
@@ -454,18 +514,43 @@ export async function listDriverLedger(
     params
   );
 
-  return rows.map((row) => ({
-    id: row.id,
-    agencyId: row.agency_id,
-    repartidorId: row.repartidor_id,
-    repartidorName: row.repartidor_name,
-    orderId: row.order_id,
-    entryType: row.entry_type,
-    amount: toMoney(row.amount),
-    description: row.description,
-    createdBy: row.created_by,
-    createdAt: new Date(row.created_at).toISOString(),
-  }));
+  const zoneCache = new Map<string, { id: string; name: string } | null>();
+  const result: DriverLedgerEntry[] = [];
+  for (const row of rows) {
+    let pricingZoneId: string | null = null;
+    let pricingZoneName: string | null = null;
+    if (
+      row.entry_type === 'earning' &&
+      row.order_id &&
+      row.order_lat != null &&
+      row.order_lng != null
+    ) {
+      const zone = await resolvePricingZoneLabel(
+        row.agency_id,
+        row.order_lat,
+        row.order_lng,
+        zoneCache
+      );
+      pricingZoneId = zone?.id ?? null;
+      pricingZoneName = zone?.name ?? null;
+    }
+
+    result.push({
+      id: row.id,
+      agencyId: row.agency_id,
+      repartidorId: row.repartidor_id,
+      repartidorName: row.repartidor_name,
+      orderId: row.order_id,
+      pricingZoneId,
+      pricingZoneName,
+      entryType: row.entry_type,
+      amount: toMoney(row.amount),
+      description: row.description,
+      createdBy: row.created_by,
+      createdAt: new Date(row.created_at).toISOString(),
+    });
+  }
+  return result;
 }
 
 export async function recordDriverPayment(

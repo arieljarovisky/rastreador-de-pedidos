@@ -289,7 +289,9 @@ export default function AgencyBalancesScreen() {
     return source.map((entry) => ({
       id: entry.id,
       title: entry.description,
-      meta: `${formatArDateTime(entry.createdAt)}${entry.repartidorName ? ` · ${entry.repartidorName}` : ''}`,
+      meta: `${formatArDateTime(entry.createdAt)}${
+        entry.pricingZoneName ? ` · ${entry.pricingZoneName}` : ''
+      }${entry.repartidorName ? ` · ${entry.repartidorName}` : ''}`,
       amount: entry.amount,
       payment: entry.entryType === 'payment',
     }));
