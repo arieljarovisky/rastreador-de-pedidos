@@ -20,6 +20,7 @@ import {
   syncMarketplaceOrderOperationalDay,
   updateOrderMlShipmentMeta,
   updateOrderContactFromMercadoLibre,
+  repairImportedOrderAddress,
   rescheduleOrderToNextOperationalDay,
   listOpenMercadoLibreOrdersForAgency,
 } from './orders.service.js';
@@ -49,6 +50,7 @@ import {
   type MercadoLibreFlexShipment,
 } from './mercadolibre.service.js';
 import {
+  addressMissingStreetNumber,
   listTiendaNubeExpressShipments,
   type TiendaNubeDateRange,
   type TiendaNubeExpressShipment,
@@ -969,9 +971,43 @@ export async function importTiendaNubeExpressShipment(
   try {
     const existing = await findOrderByExternal(user.id, 'tiendanube', shipment.externalId);
     if (existing) {
+      let current = existing;
+      let skipReason = 'already_imported';
+
+      // Pedidos importados antes del fix de calle+altura: reparar si ahora viene completa.
+      if (
+        shipment.address &&
+        addressMissingStreetNumber(current.address) &&
+        !addressMissingStreetNumber(shipment.address) &&
+        current.status !== OrderStatus.DELIVERED &&
+        current.status !== OrderStatus.CANCELLED
+      ) {
+        const coords = await resolveImportCoordinates(shipment.address);
+        const repaired = await repairImportedOrderAddress(current.id, {
+          address: shipment.address,
+          lat: coords.lat,
+          lng: coords.lng,
+          sourceLabel: 'Tienda Nube',
+          historyComment: coords.approximate
+            ? 'Dirección corregida al reimportar (ubicación aproximada)'
+            : 'Dirección corregida al reimportar (se agregó la altura)',
+        });
+        if (repaired) {
+          console.log('[tn-import] dirección reparada', {
+            orderId: repaired.id,
+            externalId: shipment.externalId,
+            previousAddress: current.address,
+            address: repaired.address,
+            approximate: coords.approximate,
+          });
+          current = repaired;
+          skipReason = 'address_repaired';
+        }
+      }
+
       const soldAt = parseSoldAt(shipment.createdAt);
       if (soldAt) {
-        const fixed = await syncMarketplaceOrderOperationalDay(existing.id, soldAt);
+        const fixed = await syncMarketplaceOrderOperationalDay(current.id, soldAt);
         if (fixed) {
           console.log('[tn-import] día operativo corregido', {
             orderId: fixed.id,
@@ -979,12 +1015,16 @@ export async function importTiendaNubeExpressShipment(
             soldAt: soldAt.toISOString(),
             deliveryDeadline: fixed.deliveryDeadline,
           });
-          const sellerId = await getSellerIdForOrder(fixed.id);
-          emitOrderUpdated(fixed, sellerId);
-          return { kind: 'skipped', reason: 'operational_day_fixed', order: fixed };
+          current = fixed;
+          if (skipReason === 'already_imported') skipReason = 'operational_day_fixed';
         }
       }
-      return { kind: 'skipped', reason: 'already_imported', order: existing };
+
+      if (skipReason !== 'already_imported') {
+        const sellerId = await getSellerIdForOrder(current.id);
+        emitOrderUpdated(current, sellerId);
+      }
+      return { kind: 'skipped', reason: skipReason, order: current };
     }
 
     const coords = await resolveImportCoordinates(shipment.address);

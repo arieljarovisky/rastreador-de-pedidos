@@ -32,9 +32,11 @@ interface TnNamedField {
 interface TnDestination {
   name?: string;
   phone?: string;
+  /** Calle (sin altura). En la API de TN no incluye el número. */
   address?: string;
   street?: string;
-  number?: string;
+  /** Altura / número de puerta. Puede venir como string o number según versión de API. */
+  number?: string | number;
   city?: string;
   province?: string | TnNamedField;
   zipcode?: string;
@@ -167,12 +169,65 @@ function normalizeProvince(province: string | TnNamedField | undefined): string 
   return province.name ?? province.code ?? '';
 }
 
-function formatTnAddress(parts: TnDestination): string {
-  const streetLine = [parts.street, parts.number].filter((p) => p && String(p).trim()).join(' ');
-  const address = parts.address?.trim() || streetLine.trim();
+/** Filtra placeholders que TN usa cuando el dato no está informado. */
+function tnAddressPart(value: string | number | undefined | null): string {
+  if (value == null) return '';
+  const text = String(value).trim();
+  if (!text) return '';
+  const normalized = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  if (
+    normalized === 'no informado' ||
+    normalized === 'nao informado' ||
+    normalized === 'not provided' ||
+    normalized === 'n/a' ||
+    normalized === '-'
+  ) {
+    return '';
+  }
+  return text;
+}
+
+function streetLineIncludesNumber(streetLine: string, number: string): boolean {
+  const digits = number.replace(/\D/g, '');
+  if (!digits) {
+    const needle = number.toLowerCase();
+    return streetLine.toLowerCase().includes(needle);
+  }
+  return new RegExp(`(^|\\D)${digits}(\\D|$)`).test(streetLine);
+}
+
+/** Detecta direcciones importadas sin altura (p. ej. "Bauness, 7 / PB, …"). */
+export function addressMissingStreetNumber(address: string): boolean {
+  const first = address.split(',')[0]?.trim() ?? '';
+  return first.length > 0 && !/\d/.test(first);
+}
+
+/**
+ * Arma la dirección de entrega de TN.
+ * En la API, `address`/`street` es solo la calle y `number` es la altura;
+ * hay que concatenarlos o el geocoder pierde la ubicación exacta.
+ */
+export function formatTnAddress(parts: TnDestination): string {
+  const streetName = tnAddressPart(parts.address) || tnAddressPart(parts.street);
+  const number = tnAddressPart(parts.number);
+  const streetLine =
+    streetName && number && !streetLineIncludesNumber(streetName, number)
+      ? `${streetName} ${number}`
+      : streetName || number;
   const province = normalizeProvince(parts.province);
 
-  return [address, parts.floor, parts.locality, parts.city, province, parts.zipcode, 'Argentina']
+  return [
+    streetLine,
+    tnAddressPart(parts.floor),
+    tnAddressPart(parts.locality),
+    tnAddressPart(parts.city),
+    tnAddressPart(province),
+    tnAddressPart(parts.zipcode),
+    'Argentina',
+  ]
     .filter((p) => p && String(p).trim())
     .join(', ');
 }
