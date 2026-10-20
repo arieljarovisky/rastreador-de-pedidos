@@ -21,6 +21,7 @@
     "db:purge-legacy-zones": "tsx src/db/purge-legacy-zones.ts",
     "db:reset-password": "tsx src/db/reset-password.ts",
     "db:migrate-equal-prices": "node ./node_modules/tsx/dist/cli.mjs scripts/migrate-equal-prices-and-delete-payment.ts --flex=3000 --express=3000 --standard=2500",
+    "repair:tn-addresses": "node ./node_modules/tsx/dist/cli.mjs scripts/repair-tn-addresses.ts",
 
     "google:token": "tsx scripts/get-google-calendar-token.ts",
     "lint": "node ./node_modules/typescript/lib/tsc.js --noEmit"

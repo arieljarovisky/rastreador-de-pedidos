@@ -1657,8 +1657,10 @@ export async function updateOrderContactFromMercadoLibre(
 }
 
 /**
- * Corrige dirección/coordenadas de un pedido marketplace abierto cuando el
+ * Corrige dirección/coordenadas de un pedido marketplace cuando el
  * reimport trae una dirección más completa (p. ej. altura que faltaba en TN).
+ * Por defecto solo toca pedidos abiertos; `force: true` también corrige
+ * entregados/cancelados (migración one-shot).
  */
 export async function repairImportedOrderAddress(
   orderId: string,
@@ -1668,20 +1670,27 @@ export async function repairImportedOrderAddress(
     lng: number;
     sourceLabel?: string;
     historyComment?: string;
+    notes?: string | null;
+    force?: boolean;
   }
 ): Promise<Order | null> {
   const order = await getOrderById(orderId);
   if (!order) return null;
-  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+  if (
+    !data.force &&
+    (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED)
+  ) {
     return null;
   }
 
   const nextAddress = data.address.trim();
   if (!nextAddress) return null;
+  const nextNotes = data.notes !== undefined ? data.notes : order.notes ?? null;
   if (
     nextAddress === order.address &&
     data.lat === order.lat &&
-    data.lng === order.lng
+    data.lng === order.lng &&
+    nextNotes === (order.notes ?? null)
   ) {
     return null;
   }
@@ -1689,9 +1698,9 @@ export async function repairImportedOrderAddress(
   const now = new Date();
   await pool.query(
     `UPDATE orders
-     SET address = ?, lat = ?, lng = ?, updated_at = ?
+     SET address = ?, lat = ?, lng = ?, notes = ?, updated_at = ?
      WHERE id = ?`,
-    [nextAddress, data.lat, data.lng, now, orderId]
+    [nextAddress, data.lat, data.lng, nextNotes, now, orderId]
   );
   await pool.query(
     `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,

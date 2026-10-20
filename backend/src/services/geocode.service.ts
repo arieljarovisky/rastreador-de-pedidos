@@ -29,6 +29,18 @@ export function withApproxLocationNote(notes: string, approximate: boolean): str
   return notes ? `${notes} · ${APPROX_LOCATION_NOTE}` : APPROX_LOCATION_NOTE;
 }
 
+/** Quita el aviso de ubicación aproximada cuando el geocoder ya resolvió bien. */
+export function stripApproxLocationNote(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const cleaned = notes
+    .replace(/\s*·\s*Ubicación aproximada:[^.]*\./gi, '')
+    .replace(/Ubicación aproximada:[^.]*\.\s*/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s·\s*$/g, '')
+    .trim();
+  return cleaned || null;
+}
+
 export function withApproxHistoryComment(
   comment: string | undefined,
   approximate: boolean

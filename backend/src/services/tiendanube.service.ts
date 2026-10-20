@@ -397,6 +397,21 @@ export interface TiendaNubeExpressShipment {
   createdAt: string;
 }
 
+/** Dirección de entrega TN (fulfillment destination o shipping_address). */
+export function resolveTnOrderShippingAddress(order: TnOrder): string {
+  const fulfillments = getOrderFulfillments(order);
+  const deliverable = fulfillments.find((f) => !fulfillmentIsPickup(f));
+  const dest = (deliverable ?? fulfillments[0])?.destination;
+  if (dest) {
+    const formatted = formatTnAddress(dest);
+    if (formatted.replace(/,?\s*Argentina$/i, '').trim().length >= 5) return formatted;
+  }
+  if (order.shipping_address) {
+    return formatTnAddress(order.shipping_address);
+  }
+  return '';
+}
+
 /** Mapea un pedido TN a envío Express importable, o null si no aplica. */
 export function mapTiendaNubeOrderToShipment(order: TnOrder): TiendaNubeExpressShipment | null {
   if (order.payment_status && order.payment_status !== 'paid') return null;
@@ -413,17 +428,13 @@ export function mapTiendaNubeOrderToShipment(order: TnOrder): TiendaNubeExpressS
 
   if (!orderIsExpress(order)) return null;
 
+  const address = resolveTnOrderShippingAddress(order);
+
+  if (!address || address.replace(/,?\s*Argentina$/i, '').trim().length < 5) return null;
+
   const fulfillment = deliverableFulfillment ?? fulfillments[0];
   const dest = fulfillment?.destination;
   const shippingAddr = order.shipping_address;
-
-  const address = dest
-    ? formatTnAddress(dest)
-    : shippingAddr
-      ? formatTnAddress(shippingAddr)
-      : '';
-
-  if (!address || address.replace(/,?\s*Argentina$/i, '').trim().length < 5) return null;
 
   const clientName =
     dest?.name?.trim() ||
