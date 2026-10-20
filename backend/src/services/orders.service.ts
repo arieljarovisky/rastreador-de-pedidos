@@ -1657,6 +1657,56 @@ export async function updateOrderContactFromMercadoLibre(
 }
 
 /**
+ * Corrige dirección/coordenadas de un pedido marketplace abierto cuando el
+ * reimport trae una dirección más completa (p. ej. altura que faltaba en TN).
+ */
+export async function repairImportedOrderAddress(
+  orderId: string,
+  data: {
+    address: string;
+    lat: number;
+    lng: number;
+    sourceLabel?: string;
+    historyComment?: string;
+  }
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+  if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
+    return null;
+  }
+
+  const nextAddress = data.address.trim();
+  if (!nextAddress) return null;
+  if (
+    nextAddress === order.address &&
+    data.lat === order.lat &&
+    data.lng === order.lng
+  ) {
+    return null;
+  }
+
+  const now = new Date();
+  await pool.query(
+    `UPDATE orders
+     SET address = ?, lat = ?, lng = ?, updated_at = ?
+     WHERE id = ?`,
+    [nextAddress, data.lat, data.lng, now, orderId]
+  );
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [
+      orderId,
+      order.status,
+      data.sourceLabel ?? 'Marketplace',
+      data.historyComment ?? 'Dirección corregida al reimportar',
+      now,
+    ]
+  );
+  return getOrderById(orderId);
+}
+
+/**
  * Reprograma un pedido ausente / con excepciÃ³n ML para reintento.
  * ML pide entregar â€œhoyâ€: el deadline operativo pasa al corte de hoy
  * (o al dÃ­a futuro que indique ML si es posterior a hoy).
