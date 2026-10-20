@@ -32,9 +32,11 @@ interface TnNamedField {
 interface TnDestination {
   name?: string;
   phone?: string;
+  /** Calle (sin altura). En la API de TN no incluye el número. */
   address?: string;
   street?: string;
-  number?: string;
+  /** Altura / número de puerta. Puede venir como string o number según versión de API. */
+  number?: string | number;
   city?: string;
   province?: string | TnNamedField;
   zipcode?: string;
@@ -167,12 +169,65 @@ function normalizeProvince(province: string | TnNamedField | undefined): string 
   return province.name ?? province.code ?? '';
 }
 
-function formatTnAddress(parts: TnDestination): string {
-  const streetLine = [parts.street, parts.number].filter((p) => p && String(p).trim()).join(' ');
-  const address = parts.address?.trim() || streetLine.trim();
+/** Filtra placeholders que TN usa cuando el dato no está informado. */
+function tnAddressPart(value: string | number | undefined | null): string {
+  if (value == null) return '';
+  const text = String(value).trim();
+  if (!text) return '';
+  const normalized = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  if (
+    normalized === 'no informado' ||
+    normalized === 'nao informado' ||
+    normalized === 'not provided' ||
+    normalized === 'n/a' ||
+    normalized === '-'
+  ) {
+    return '';
+  }
+  return text;
+}
+
+function streetLineIncludesNumber(streetLine: string, number: string): boolean {
+  const digits = number.replace(/\D/g, '');
+  if (!digits) {
+    const needle = number.toLowerCase();
+    return streetLine.toLowerCase().includes(needle);
+  }
+  return new RegExp(`(^|\\D)${digits}(\\D|$)`).test(streetLine);
+}
+
+/** Detecta direcciones importadas sin altura (p. ej. "Bauness, 7 / PB, …"). */
+export function addressMissingStreetNumber(address: string): boolean {
+  const first = address.split(',')[0]?.trim() ?? '';
+  return first.length > 0 && !/\d/.test(first);
+}
+
+/**
+ * Arma la dirección de entrega de TN.
+ * En la API, `address`/`street` es solo la calle y `number` es la altura;
+ * hay que concatenarlos o el geocoder pierde la ubicación exacta.
+ */
+export function formatTnAddress(parts: TnDestination): string {
+  const streetName = tnAddressPart(parts.address) || tnAddressPart(parts.street);
+  const number = tnAddressPart(parts.number);
+  const streetLine =
+    streetName && number && !streetLineIncludesNumber(streetName, number)
+      ? `${streetName} ${number}`
+      : streetName || number;
   const province = normalizeProvince(parts.province);
 
-  return [address, parts.floor, parts.locality, parts.city, province, parts.zipcode, 'Argentina']
+  return [
+    streetLine,
+    tnAddressPart(parts.floor),
+    tnAddressPart(parts.locality),
+    tnAddressPart(parts.city),
+    tnAddressPart(province),
+    tnAddressPart(parts.zipcode),
+    'Argentina',
+  ]
     .filter((p) => p && String(p).trim())
     .join(', ');
 }
@@ -342,6 +397,21 @@ export interface TiendaNubeExpressShipment {
   createdAt: string;
 }
 
+/** Dirección de entrega TN (fulfillment destination o shipping_address). */
+export function resolveTnOrderShippingAddress(order: TnOrder): string {
+  const fulfillments = getOrderFulfillments(order);
+  const deliverable = fulfillments.find((f) => !fulfillmentIsPickup(f));
+  const dest = (deliverable ?? fulfillments[0])?.destination;
+  if (dest) {
+    const formatted = formatTnAddress(dest);
+    if (formatted.replace(/,?\s*Argentina$/i, '').trim().length >= 5) return formatted;
+  }
+  if (order.shipping_address) {
+    return formatTnAddress(order.shipping_address);
+  }
+  return '';
+}
+
 /** Mapea un pedido TN a envío Express importable, o null si no aplica. */
 export function mapTiendaNubeOrderToShipment(order: TnOrder): TiendaNubeExpressShipment | null {
   if (order.payment_status && order.payment_status !== 'paid') return null;
@@ -358,17 +428,13 @@ export function mapTiendaNubeOrderToShipment(order: TnOrder): TiendaNubeExpressS
 
   if (!orderIsExpress(order)) return null;
 
+  const address = resolveTnOrderShippingAddress(order);
+
+  if (!address || address.replace(/,?\s*Argentina$/i, '').trim().length < 5) return null;
+
   const fulfillment = deliverableFulfillment ?? fulfillments[0];
   const dest = fulfillment?.destination;
   const shippingAddr = order.shipping_address;
-
-  const address = dest
-    ? formatTnAddress(dest)
-    : shippingAddr
-      ? formatTnAddress(shippingAddr)
-      : '';
-
-  if (!address || address.replace(/,?\s*Argentina$/i, '').trim().length < 5) return null;
 
   const clientName =
     dest?.name?.trim() ||

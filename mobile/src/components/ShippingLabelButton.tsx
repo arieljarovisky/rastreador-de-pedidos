@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
-  viewer: { flex: 1, backgroundColor: '#101218' },
+  viewer: { flex: 1, backgroundColor: '#1c1814' },
   viewerBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -247,5 +247,5 @@ const styles = StyleSheet.create({
   },
   retryText: { color: colors.ctaInk, fontFamily: fonts.bodySemiBold, fontSize: 14 },
   photo: { flex: 1, width: '100%' },
-  web: { flex: 1, backgroundColor: '#101218' },
+  web: { flex: 1, backgroundColor: '#1c1814' },
 });

@@ -26,38 +26,29 @@ function demoOrderId(orderNum: number): string {
   return `${DEMO_ORDER_PREFIX}${orderNum}`;
 }
 
+const LOGISTICA_ID = 'demo_logistica';
+
+/** Ids cortos del seed anterior. Solo se retiran si siguen siendo la fila demo. */
+const LEGACY_DEMO_USER_IDS = [
+  'u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u13',
+] as const;
+
 const REPARTIDORES = [
-  { id: 'u2', username: 'carlos', name: 'Carlos Gómez', password: 'carlos123', lat: -34.5901, lng: -58.4215, zone: 'zona_sur' },
-  { id: 'u3', username: 'maria', name: 'María Rodríguez', password: 'maria123', lat: -34.5712, lng: -58.4412, zone: 'zona_norte' },
-  { id: 'u4', username: 'juan', name: 'Juan Pérez', password: 'juan123', lat: -34.6, lng: -58.41, zone: 'zona_oeste' },
-  { id: 'u12', username: 'lucia', name: 'Lucía Fernández', password: 'lucia123', lat: -34.615, lng: -58.435, zone: 'zona_centro' },
-  { id: 'u13', username: 'diego', name: 'Diego Álvarez', password: 'diego123', lat: -34.555, lng: -58.46, zone: 'zona_gba' },
+  { id: 'demo_driver_carlos', username: 'carlos', name: 'Carlos Gómez', password: 'carlos123', lat: -34.5901, lng: -58.4215, zone: 'zona_sur' },
+  { id: 'demo_driver_maria', username: 'maria', name: 'María Rodríguez', password: 'maria123', lat: -34.5712, lng: -58.4412, zone: 'zona_norte' },
+  { id: 'demo_driver_juan', username: 'juan', name: 'Juan Pérez', password: 'juan123', lat: -34.6, lng: -58.41, zone: 'zona_oeste' },
+  { id: 'demo_driver_lucia', username: 'lucia', name: 'Lucía Fernández', password: 'lucia123', lat: -34.615, lng: -58.435, zone: 'zona_centro' },
+  { id: 'demo_driver_diego', username: 'diego', name: 'Diego Álvarez', password: 'diego123', lat: -34.555, lng: -58.46, zone: 'zona_gba' },
 ] as const;
 
 const VENDORS = [
-  { id: 'u1', username: 'admin', name: 'Lupo Ventas (Local)', password: 'admin123' },
-  { id: 'u6', username: 'moda-norte', name: 'Moda Norte Boutique', password: 'vendor123' },
-  { id: 'u7', username: 'tech-ba', name: 'TechBA Electro', password: 'vendor123' },
-  { id: 'u8', username: 'hogar-shop', name: 'Hogar & Deco Shop', password: 'vendor123' },
-  { id: 'u9', username: 'fitness-pro', name: 'Fitness Pro Store', password: 'vendor123' },
-  { id: 'u10', username: 'gourmet-ba', name: 'Gourmet BA', password: 'vendor123' },
-  { id: 'u11', username: 'pet-corner', name: 'Pet Corner', password: 'vendor123' },
-] as const;
-
-const DEMO_USERNAMES = [
-  'logistica',
-  'admin',
-  'moda-norte',
-  'tech-ba',
-  'hogar-shop',
-  'fitness-pro',
-  'gourmet-ba',
-  'pet-corner',
-  'carlos',
-  'maria',
-  'juan',
-  'lucia',
-  'diego',
+  { id: 'demo_seller_admin', username: 'admin', name: 'Lupo Ventas (Local)', password: 'admin123' },
+  { id: 'demo_seller_moda', username: 'moda-norte', name: 'Moda Norte Boutique', password: 'vendor123' },
+  { id: 'demo_seller_tech', username: 'tech-ba', name: 'TechBA Electro', password: 'vendor123' },
+  { id: 'demo_seller_hogar', username: 'hogar-shop', name: 'Hogar & Deco Shop', password: 'vendor123' },
+  { id: 'demo_seller_fitness', username: 'fitness-pro', name: 'Fitness Pro Store', password: 'vendor123' },
+  { id: 'demo_seller_gourmet', username: 'gourmet-ba', name: 'Gourmet BA', password: 'vendor123' },
+  { id: 'demo_seller_pet', username: 'pet-corner', name: 'Pet Corner', password: 'vendor123' },
 ] as const;
 
 const SHIPPING_TYPES = ['flex', 'express', 'standard'] as const;
@@ -287,33 +278,33 @@ function generateDemoOrders(): OrderSeed[] {
   const featured: Partial<OrderSeed>[] = [
     {
       id: demoOrderId(2001),
-      sellerId: 'u6',
+      sellerId: 'demo_seller_moda',
       clientName: 'Alejandro Rossi',
       clientPhone: '+54 11 5555-1234',
       address: DEMO_ADDRESSES[0].address,
       lat: DEMO_ADDRESSES[0].lat,
       lng: DEMO_ADDRESSES[0].lng,
       status: OrderStatus.DELIVERING,
-      repartidorId: 'u2',
+      repartidorId: 'demo_driver_carlos',
       notes: 'Entregar en portería del edificio. Tocar timbre 5B.',
       shippingType: 'flex',
     },
     {
       id: demoOrderId(2002),
-      sellerId: 'u7',
+      sellerId: 'demo_seller_tech',
       clientName: 'Sofía Martínez',
       clientPhone: '+54 11 5555-5678',
       address: DEMO_ADDRESSES[1].address,
       lat: DEMO_ADDRESSES[1].lat,
       lng: DEMO_ADDRESSES[1].lng,
       status: OrderStatus.ASSIGNED,
-      repartidorId: 'u3',
+      repartidorId: 'demo_driver_maria',
       notes: 'Dejar en recepción de planta baja.',
       shippingType: 'express',
     },
     {
       id: demoOrderId(2003),
-      sellerId: 'u8',
+      sellerId: 'demo_seller_hogar',
       clientName: 'Matías Fernández',
       clientPhone: '+54 11 5555-9012',
       address: DEMO_ADDRESSES[2].address,
@@ -326,14 +317,14 @@ function generateDemoOrders(): OrderSeed[] {
     },
     {
       id: demoOrderId(2004),
-      sellerId: 'u9',
+      sellerId: 'demo_seller_fitness',
       clientName: 'Lucía Benítez',
       clientPhone: '+54 11 5555-3456',
       address: DEMO_ADDRESSES[3].address,
       lat: DEMO_ADDRESSES[3].lat,
       lng: DEMO_ADDRESSES[3].lng,
       status: OrderStatus.DELIVERED,
-      repartidorId: 'u4',
+      repartidorId: 'demo_driver_juan',
       notes: 'Entregado en mano en piso 4.',
       shippingType: 'flex',
     },
@@ -389,63 +380,169 @@ async function columnExists(table: string, column: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function bindDemoUsersToAgency(): Promise<void> {
-  const placeholders = DEMO_USERNAMES.map(() => '?').join(', ');
-  const [result] = await pool.query(
-    `UPDATE users SET agency_id = ?
-     WHERE LOWER(username) IN (${placeholders})`,
-    [agencyId, ...DEMO_USERNAMES]
+const demoUsernameRemaps: string[] = [];
+
+type UsernameOwner = { id: string; agency_id: string | null } & import('mysql2').RowDataPacket;
+
+async function findUserByUsername(username: string): Promise<UsernameOwner | null> {
+  const [rows] = await pool.query<UsernameOwner[]>(
+    'SELECT id, agency_id FROM users WHERE LOWER(username) = ? LIMIT 1',
+    [username.toLowerCase()]
   );
-  const affected = (result as { affectedRows?: number }).affectedRows ?? 0;
-  if (affected > 0) {
-    console.log(`[seed] ${affected} usuario(s) demo vinculado(s) a ${agencyId}.`);
-  }
+  return rows[0] ?? null;
 }
 
-async function upsertLogisticaAdmin(passwordHash: string): Promise<void> {
-  const departureAddress = 'Av. Santa Fe 3200, Palermo, CABA';
-  const [rows] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
-    'SELECT id FROM users WHERE LOWER(username) = ? LIMIT 1',
-    ['logistica']
+/** Fila del seed viejo (u1…u13) que sigue en la agencia demo y no tiene datos reales. */
+async function isDisposableLegacyDemoUser(id: string): Promise<boolean> {
+  if (!(LEGACY_DEMO_USER_IDS as readonly string[]).includes(id)) return false;
+  const [rows] = await pool.query<Array<{ agency_id: string | null } & import('mysql2').RowDataPacket>>(
+    'SELECT agency_id FROM users WHERE id = ? LIMIT 1',
+    [id]
   );
-  const existingId = rows[0]?.id;
-  if (existingId) {
+  if (!rows[0] || rows[0].agency_id !== agencyId) return false;
+
+  const [orderRows] = await pool.query<Array<{ cnt: number } & import('mysql2').RowDataPacket>>(
+    `SELECT COUNT(*) AS cnt FROM orders
+     WHERE (seller_id = ? OR repartidor_id = ?)
+       AND NOT (id LIKE ? OR agency_id = ?)`,
+    [id, id, `${DEMO_ORDER_PREFIX}%`, agencyId]
+  );
+  if (Number(orderRows[0]?.cnt ?? 0) > 0) return false;
+
+  if (await tableExists('store_integrations')) {
+    const [intRows] = await pool.query<Array<{ cnt: number } & import('mysql2').RowDataPacket>>(
+      'SELECT COUNT(*) AS cnt FROM store_integrations WHERE user_id = ?',
+      [id]
+    );
+    if (Number(intRows[0]?.cnt ?? 0) > 0) return false;
+  }
+  return true;
+}
+
+/**
+ * Elige un usuario para la demo. Si el preferido ya es una cuenta real, no la toca
+ * y usa demo-<usuario>.
+ */
+async function resolveDemoUsername(preferred: string, demoId: string): Promise<string> {
+  const candidates = [preferred, `demo-${preferred}`, `demo-${preferred}-2`, `demo-${preferred}-3`];
+  for (const candidate of candidates) {
+    if (candidate.length > 100) continue;
+    const owner = await findUserByUsername(candidate);
+    if (!owner || owner.id === demoId) {
+      if (candidate !== preferred) demoUsernameRemaps.push(`${preferred} → ${candidate}`);
+      return candidate;
+    }
+    if (await isDisposableLegacyDemoUser(owner.id)) {
+      const retired = `retired-${owner.id}`.slice(0, 100);
+      await pool.query('UPDATE users SET username = ? WHERE id = ? AND agency_id = ?', [
+        retired,
+        owner.id,
+        agencyId,
+      ]);
+      if (candidate !== preferred) demoUsernameRemaps.push(`${preferred} → ${candidate}`);
+      return candidate;
+    }
+    console.warn(
+      `[seed] «${candidate}» pertenece a la cuenta ${owner.id} (agencia ${owner.agency_id ?? 'sin agencia'}). No se modifica.`
+    );
+  }
+  throw new Error(`No hay usuario libre para la demo «${preferred}» sin pisar una cuenta existente.`);
+}
+
+async function upsertDemoUser(input: {
+  id: string;
+  username: string;
+  passwordHash: string;
+  name: string;
+  role: UserRole;
+  lat?: number | null;
+  lng?: number | null;
+  zone?: string | null;
+  departureAddress?: string | null;
+  departureLat?: number | null;
+  departureLng?: number | null;
+}): Promise<void> {
+  const username = await resolveDemoUsername(input.username, input.id);
+  const lat = input.lat ?? null;
+  const lng = input.lng ?? null;
+  const [rows] = await pool.query<Array<{ id: string } & import('mysql2').RowDataPacket>>(
+    'SELECT id FROM users WHERE id = ? LIMIT 1',
+    [input.id]
+  );
+  const params = [
+    username,
+    input.passwordHash,
+    input.name,
+    input.role,
+    agencyId,
+    lat,
+    lng,
+    lat != null ? new Date(now) : null,
+    input.departureAddress ?? null,
+    input.departureLat ?? null,
+    input.departureLng ?? null,
+    input.zone ?? null,
+  ];
+  if (rows[0]) {
     await pool.query(
-      `UPDATE users SET password_hash = ?, name = ?, role = ?, agency_id = ?,
-        departure_address = ?, departure_lat = ?, departure_lng = ?,
+      `UPDATE users SET username = ?, password_hash = ?, name = ?, role = ?, agency_id = ?,
+        current_lat = ?, current_lng = ?, location_updated_at = ?,
+        departure_address = ?, departure_lat = ?, departure_lng = ?, delivery_zone = ?,
         email_verified_at = COALESCE(email_verified_at, NOW(3))
        WHERE id = ?`,
-      [
-        passwordHash,
-        'Lupo Logística (Envíos)',
-        UserRole.SUPER_ADMIN,
-        agencyId,
-        departureAddress,
-        DEPOT.lat,
-        DEPOT.lng,
-        existingId,
-      ]
+      [...params, input.id]
     );
     return;
   }
   await pool.query(
-    `INSERT INTO users (id, username, password_hash, name, role, agency_id, departure_address, departure_lat, departure_lng, email_verified_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`,
-    ['u5', 'logistica', passwordHash, 'Lupo Logística (Envíos)', UserRole.SUPER_ADMIN, agencyId, departureAddress, DEPOT.lat, DEPOT.lng]
+    `INSERT INTO users (id, username, password_hash, name, role, agency_id, current_lat, current_lng, location_updated_at,
+      departure_address, departure_lat, departure_lng, delivery_zone, email_verified_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`,
+    [input.id, ...params]
   );
 }
 
-async function markDemoUsersEmailVerified(): Promise<void> {
-  const placeholders = DEMO_USERNAMES.map(() => '?').join(', ');
-  const [result] = await pool.query(
-    `UPDATE users
-     SET email_verified_at = COALESCE(email_verified_at, NOW(3))
-     WHERE LOWER(username) IN (${placeholders}) OR agency_id = ?`,
-    [...DEMO_USERNAMES, agencyId]
+async function warnForeignUsersInDemoAgency(): Promise<void> {
+  const protectedIds = [
+    LOGISTICA_ID,
+    ...VENDORS.map((v) => v.id),
+    ...REPARTIDORES.map((r) => r.id),
+    ...LEGACY_DEMO_USER_IDS,
+  ];
+  const placeholders = protectedIds.map(() => '?').join(', ');
+  const [rows] = await pool.query<
+    Array<{ id: string; username: string; name: string; role: string } & import('mysql2').RowDataPacket>
+  >(
+    `SELECT id, username, name, role FROM users
+     WHERE agency_id = ? AND id NOT IN (${placeholders})
+     ORDER BY role, username`,
+    [agencyId, ...protectedIds]
   );
-  const affected = (result as { affectedRows?: number }).affectedRows ?? 0;
-  if (affected > 0) {
-    console.log(`[seed] ${affected} usuario(s) demo marcados como email verificado.`);
+  if (rows.length === 0) return;
+  console.warn(
+    `[seed] ${rows.length} cuenta(s) que no son de la demo están en ${agencyId} y no se modifican:`
+  );
+  for (const row of rows) {
+    console.warn(`[seed]   ${row.role} @${row.username} (${row.name}, id ${row.id})`);
+  }
+  console.warn(
+    '[seed] Si un seed anterior las movió, devolvé su agency_id a la agencia real. La demo no vuelve a pisarlas.'
+  );
+}
+
+async function retireLegacyDemoUsers(): Promise<void> {
+  for (const id of LEGACY_DEMO_USER_IDS) {
+    if (!(await isDisposableLegacyDemoUser(id))) continue;
+    try {
+      await pool.query('DELETE FROM notifications WHERE user_id = ?', [id]);
+      const [result] = await pool.query('DELETE FROM users WHERE id = ? AND agency_id = ?', [id, agencyId]);
+      const affected = (result as { affectedRows?: number }).affectedRows ?? 0;
+      if (affected > 0) {
+        console.log(`[seed] Usuario demo anterior ${id} retirado para no mezclarlo con las cuentas reales.`);
+      }
+    } catch (err) {
+      console.warn(`[seed] No se pudo retirar el usuario demo ${id}:`, err instanceof Error ? err.message : err);
+    }
   }
 }
 
@@ -463,34 +560,72 @@ async function activateDemoSubscription(): Promise<void> {
   );
 }
 
+function demoActorIds(): string[] {
+  return [
+    LOGISTICA_ID,
+    ...VENDORS.map((v) => v.id),
+    ...REPARTIDORES.map((r) => r.id),
+    ...LEGACY_DEMO_USER_IDS,
+  ];
+}
+
 async function clearDemoAgencyOrders(): Promise<void> {
   const demoIdPattern = `${DEMO_ORDER_PREFIX}%`;
+  const actorIds = demoActorIds();
+  const actorPlaceholders = actorIds.map(() => '?').join(', ');
   if (await tableExists('driver_scan_entries')) {
-    await pool.query(
-      `DELETE FROM driver_scan_entries
-       WHERE agency_id = ? OR id LIKE 'dscan_demo_%' OR order_id LIKE ?`,
-      [agencyId, demoIdPattern]
-    );
+    const hasOrderId = await columnExists('driver_scan_entries', 'order_id');
+    const hasSellerId = await columnExists('driver_scan_entries', 'seller_id');
+    const clauses = [`id LIKE 'dscan_demo_%'`];
+    const params: Array<string | number> = [];
+    if (hasOrderId) {
+      clauses.push('order_id LIKE ?');
+      params.push(demoIdPattern);
+    }
+    clauses.push(`(agency_id = ? AND repartidor_id IN (${actorPlaceholders}))`);
+    params.push(agencyId, ...actorIds);
+    if (hasSellerId) {
+      clauses.push(`(agency_id = ? AND seller_id IN (${actorPlaceholders}))`);
+      params.push(agencyId, ...actorIds);
+    }
+    await pool.query(`DELETE FROM driver_scan_entries WHERE ${clauses.join(' OR ')}`, params);
   }
   if (await tableExists('billing_ledger_entries')) {
-    await pool.query('DELETE FROM billing_ledger_entries WHERE agency_id = ?', [agencyId]);
+    await pool.query(
+      `DELETE FROM billing_ledger_entries
+       WHERE (agency_id = ? AND seller_id IN (${actorPlaceholders}))
+          OR order_id LIKE ?`,
+      [agencyId, ...actorIds, demoIdPattern]
+    );
   }
   if (await tableExists('driver_ledger_entries')) {
-    await pool.query('DELETE FROM driver_ledger_entries WHERE agency_id = ?', [agencyId]);
+    await pool.query(
+      `DELETE FROM driver_ledger_entries
+       WHERE (agency_id = ? AND repartidor_id IN (${actorPlaceholders}))
+          OR order_id LIKE ?`,
+      [agencyId, ...actorIds, demoIdPattern]
+    );
   }
+  const demoOrderFilter = `o.id LIKE ? OR (o.agency_id = ? AND (o.seller_id IN (${actorPlaceholders}) OR o.repartidor_id IN (${actorPlaceholders})))`;
+  const demoOrderParams = [demoIdPattern, agencyId, ...actorIds, ...actorIds];
   await pool.query(
     `DELETE olh FROM order_location_history olh
      INNER JOIN orders o ON o.id = olh.order_id
-     WHERE o.id LIKE ? OR o.agency_id = ?`,
-    [demoIdPattern, agencyId]
+     WHERE ${demoOrderFilter}`,
+    demoOrderParams
   );
   await pool.query(
     `DELETE oh FROM order_history oh
      INNER JOIN orders o ON o.id = oh.order_id
-     WHERE o.id LIKE ? OR o.agency_id = ?`,
-    [demoIdPattern, agencyId]
+     WHERE ${demoOrderFilter}`,
+    demoOrderParams
   );
-  await pool.query('DELETE FROM orders WHERE id LIKE ? OR agency_id = ?', [demoIdPattern, agencyId]);
+  await pool.query(
+    `DELETE FROM orders
+     WHERE id LIKE ?
+        OR (agency_id = ? AND (seller_id IN (${actorPlaceholders}) OR repartidor_id IN (${actorPlaceholders})))`,
+    demoOrderParams
+  );
 
   const driverIds = REPARTIDORES.map((r) => r.id);
   if (await tableExists('repartidor_location_history') && driverIds.length > 0) {
@@ -635,51 +770,53 @@ export async function seedDatabase(): Promise<void> {
     ]
   );
 
-  const logisticaPasswordHash = await hash('logistica123');
-  await upsertLogisticaAdmin(logisticaPasswordHash);
+  const departureAddress = 'Av. Santa Fe 3200, Palermo, CABA';
+  await upsertDemoUser({
+    id: LOGISTICA_ID,
+    username: 'logistica',
+    passwordHash: await hash('logistica123'),
+    name: 'Lupo Logística (Envíos)',
+    role: UserRole.SUPER_ADMIN,
+    departureAddress,
+    departureLat: DEPOT.lat,
+    departureLng: DEPOT.lng,
+  });
 
   for (const v of VENDORS) {
-    const passwordHash = await hash(v.password);
-    await pool.query(
-      `INSERT INTO users (id, username, password_hash, name, role, agency_id, current_lat, current_lng, location_updated_at,
-        departure_address, departure_lat, departure_lng, delivery_zone, email_verified_at)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NOW(3))
-       ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name),
-         role = VALUES(role), agency_id = VALUES(agency_id),
-         email_verified_at = COALESCE(users.email_verified_at, NOW(3))`,
-      [v.id, v.username, passwordHash, v.name, UserRole.STORE_ADMIN, agencyId]
-    );
+    await upsertDemoUser({
+      id: v.id,
+      username: v.username,
+      passwordHash: await hash(v.password),
+      name: v.name,
+      role: UserRole.STORE_ADMIN,
+    });
   }
 
   for (const u of REPARTIDORES) {
-    const passwordHash = await hash(u.password);
-    const locTime = new Date(now);
-    await pool.query(
-      `INSERT INTO users (id, username, password_hash, name, role, agency_id, current_lat, current_lng, location_updated_at,
-        departure_address, departure_lat, departure_lng, delivery_zone, email_verified_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, NOW(3))
-       ON DUPLICATE KEY UPDATE username = VALUES(username), password_hash = VALUES(password_hash), name = VALUES(name), role = VALUES(role),
-         agency_id = VALUES(agency_id), delivery_zone = VALUES(delivery_zone),
-         current_lat = VALUES(current_lat), current_lng = VALUES(current_lng),
-         location_updated_at = VALUES(location_updated_at),
-         email_verified_at = COALESCE(users.email_verified_at, NOW(3))`,
-      [u.id, u.username, passwordHash, u.name, UserRole.REPARTIDOR, agencyId, u.lat, u.lng, locTime, u.zone]
-    );
+    await upsertDemoUser({
+      id: u.id,
+      username: u.username,
+      passwordHash: await hash(u.password),
+      name: u.name,
+      role: UserRole.REPARTIDOR,
+      lat: u.lat,
+      lng: u.lng,
+      zone: u.zone,
+    });
   }
 
-  await bindDemoUsersToAgency();
-  await markDemoUsersEmailVerified();
+  await warnForeignUsersInDemoAgency();
   await activateDemoSubscription();
 
   const pickupPoints = [
-    { id: 'pp1', userId: 'u1', label: 'Depósito principal', address: 'Av. Rivadavia 4500, Caballito, CABA', lat: -34.6186, lng: -58.4352 },
-    { id: 'pp2', userId: 'u1', label: 'Sucursal norte', address: 'Av. Cabildo 1500, Belgrano, CABA', lat: -34.555, lng: -58.455 },
-    { id: 'pp3', userId: 'u6', label: 'Showroom Palermo', address: 'Honduras 4800, Palermo, CABA', lat: -34.5912, lng: -58.4289 },
-    { id: 'pp4', userId: 'u7', label: 'Depósito tech', address: 'Av. Córdoba 5100, Villa Crespo, CABA', lat: -34.5978, lng: -58.4356 },
-    { id: 'pp5', userId: 'u8', label: 'Centro de distribución', address: 'Av. San Martín 2200, Flores, CABA', lat: -34.6312, lng: -58.4456 },
-    { id: 'pp6', userId: 'u9', label: 'Local Belgrano', address: 'Av. Cabildo 2800, Belgrano, CABA', lat: -34.5589, lng: -58.4612 },
-    { id: 'pp7', userId: 'u10', label: 'Cocina central', address: 'Defensa 1200, San Telmo, CABA', lat: -34.6212, lng: -58.3712 },
-    { id: 'pp8', userId: 'u11', label: 'Tienda mascotas', address: 'Av. Forest 1200, Colegiales, CABA', lat: -34.5789, lng: -58.4512 },
+    { id: 'demo_pp_admin_1', userId: 'demo_seller_admin', label: 'Depósito principal', address: 'Av. Rivadavia 4500, Caballito, CABA', lat: -34.6186, lng: -58.4352 },
+    { id: 'demo_pp_admin_2', userId: 'demo_seller_admin', label: 'Sucursal norte', address: 'Av. Cabildo 1500, Belgrano, CABA', lat: -34.555, lng: -58.455 },
+    { id: 'demo_pp_moda', userId: 'demo_seller_moda', label: 'Showroom Palermo', address: 'Honduras 4800, Palermo, CABA', lat: -34.5912, lng: -58.4289 },
+    { id: 'demo_pp_tech', userId: 'demo_seller_tech', label: 'Depósito tech', address: 'Av. Córdoba 5100, Villa Crespo, CABA', lat: -34.5978, lng: -58.4356 },
+    { id: 'demo_pp_hogar', userId: 'demo_seller_hogar', label: 'Centro de distribución', address: 'Av. San Martín 2200, Flores, CABA', lat: -34.6312, lng: -58.4456 },
+    { id: 'demo_pp_fitness', userId: 'demo_seller_fitness', label: 'Local Belgrano', address: 'Av. Cabildo 2800, Belgrano, CABA', lat: -34.5589, lng: -58.4612 },
+    { id: 'demo_pp_gourmet', userId: 'demo_seller_gourmet', label: 'Cocina central', address: 'Defensa 1200, San Telmo, CABA', lat: -34.6212, lng: -58.3712 },
+    { id: 'demo_pp_pet', userId: 'demo_seller_pet', label: 'Tienda mascotas', address: 'Av. Forest 1200, Colegiales, CABA', lat: -34.5789, lng: -58.4512 },
   ];
 
   for (const p of pickupPoints) {
@@ -695,6 +832,7 @@ export async function seedDatabase(): Promise<void> {
   await ensureCordonZonesForAgency(agencyId);
 
   await clearDemoAgencyOrders();
+  await retireLegacyDemoUsers();
   const orders = generateDemoOrders();
   const hasTrackingCode = await columnExists('orders', 'public_tracking_code');
 
@@ -755,8 +893,8 @@ export async function seedDatabase(): Promise<void> {
 
   const notifications = [
     {
-      id: 'n1',
-      userId: 'u5',
+      id: 'demo_n1',
+      userId: LOGISTICA_ID,
       title: '¡Bienvenido al sistema Lupo!',
       body: 'Nueva PWA de rastreo de pedidos activa. Repartidores, recuerden activar el GPS al iniciar un envío.',
       createdAt: new Date(now - 7200000),
@@ -764,8 +902,8 @@ export async function seedDatabase(): Promise<void> {
       orderId: null,
     },
     {
-      id: 'n2',
-      userId: 'u3',
+      id: 'demo_n2',
+      userId: 'demo_driver_maria',
       title: 'Nuevo pedido asignado',
       body: 'Se te ha asignado el pedido DEMO-2002 para Sofía Martínez (TechBA Electro).',
       createdAt: new Date(now - 1200000),
@@ -773,8 +911,8 @@ export async function seedDatabase(): Promise<void> {
       orderId: demoOrderId(2002),
     },
     {
-      id: 'n3',
-      userId: 'u2',
+      id: 'demo_n3',
+      userId: 'demo_driver_carlos',
       title: 'Pedido en camino',
       body: 'DEMO-2001 de Moda Norte Boutique está en reparto hacia Recoleta.',
       createdAt: new Date(now - 1800000),
@@ -782,8 +920,8 @@ export async function seedDatabase(): Promise<void> {
       orderId: demoOrderId(2001),
     },
     {
-      id: 'n4',
-      userId: 'u5',
+      id: 'demo_n4',
+      userId: LOGISTICA_ID,
       title: 'Demo multi-vendedor activa',
       body: 'Cuenta demo lista: 7 vendedores, 5 repartidores en vivo, pedidos del día y escaneos cargados. Usuario logistica / logistica123.',
       createdAt: new Date(now - 300000),
@@ -796,12 +934,17 @@ export async function seedDatabase(): Promise<void> {
     await pool.query(
       `INSERT INTO notifications (id, user_id, title, body, type, order_id, is_read, created_at)
        VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-       ON DUPLICATE KEY UPDATE title = VALUES(title), body = VALUES(body), user_id = VALUES(user_id)`,
+       ON DUPLICATE KEY UPDATE title = VALUES(title), body = VALUES(body)`,
       [n.id, n.userId, n.title, n.body, n.type, n.orderId, n.createdAt]
     );
   }
 
+  if (demoUsernameRemaps.length > 0) {
+    console.warn(
+      `[seed] Usuarios de la demo renombrados para no pisar cuentas existentes: ${demoUsernameRemaps.join(', ')}`
+    );
+  }
   console.log(
-    `Seed completado: ${VENDORS.length} vendedores, ${orders.length} pedidos, ${REPARTIDORES.length} repartidores, ${scanCount} escaneos, zonas y notificaciones demo.`
+    `Seed completado: ${VENDORS.length} vendedores, ${orders.length} pedidos, ${REPARTIDORES.length} repartidores, ${scanCount} escaneos, zonas y notificaciones demo. Las cuentas ajenas no se modifican.`
   );
 }

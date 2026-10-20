@@ -108,6 +108,7 @@ export interface LocationHistoryPoint {
 
 export interface Order {
   id: string;
+  agencyId?: string | null;
   sellerId: string | null;
   sellerName: string | null;
   clientName: string;

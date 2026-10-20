@@ -544,4 +544,18 @@ router.delete('/agencies/:agencyId/price-lists/:listId', async (req: Request, re
   }
 });
 
+/** One-shot: repara pedidos TN importados sin altura (calle+número). */
+router.post('/repair-tn-addresses', async (_req: Request, res: Response) => {
+  try {
+    const { repairTiendaNubeOrdersMissingStreetNumber } = await import(
+      '../services/marketplace-import.service.js'
+    );
+    const result = await repairTiendaNubeOrdersMissingStreetNumber();
+    res.json(result);
+  } catch (err) {
+    console.error('[platform] repair-tn-addresses', err);
+    res.status(500).json({ error: 'No se pudieron corregir las direcciones de Tienda Nube.' });
+  }
+});
+
 export default router;

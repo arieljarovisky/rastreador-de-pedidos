@@ -25,6 +25,7 @@ router.post('/tick', authenticate, async (_req: Request, res: Response) => {
           sellerId,
           repartidorId: order.repartidorId,
           repartidorName: order.repartidorName,
+          agencyId: order.agencyId,
           point: lastPoint,
         });
       }

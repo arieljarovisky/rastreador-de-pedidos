@@ -18,6 +18,7 @@ import {
   resolveSalesCutoffHour,
   resolveWorksOnHolidays,
 } from './users.service.js';
+import { excludeDemoOrdersSql, userSeesDemoOrders } from '../utils/demo-scope.js';
 import { isAgencyAdmin } from '../utils/roles.js';
 import {
   computeDeliveryDeadline,
@@ -311,10 +312,11 @@ export async function listOrdersForUser(
   const limit = Math.min(Math.max(options?.limit ?? 500, 1), 5000);
   const offset = Math.max(options?.offset ?? 0, 0);
   const archivedClause = options?.includeArchived ? '' : 'AND o.archived = 0';
+  const demoClause = excludeDemoOrdersSql(user);
 
   if (user.role === UserRole.STORE_ADMIN) {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE o.seller_id = ? ${archivedClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      `${ORDER_SELECT} WHERE o.seller_id = ? ${archivedClause}${demoClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
       [user.id, limit, offset]
     );
   } else if (isAgencyAdmin(user.role)) {
@@ -322,12 +324,12 @@ export async function listOrdersForUser(
       return [];
     }
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE o.agency_id = ? ${archivedClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      `${ORDER_SELECT} WHERE o.agency_id = ? ${archivedClause}${demoClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
       [user.agencyId, limit, offset]
     );
   } else {
     [rows] = await pool.query<OrderWithRepartidorRow[]>(
-      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id <=> ?)) ${archivedClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+      `${ORDER_SELECT} WHERE (o.repartidor_id = ? OR (o.status = ? AND o.agency_id <=> ?)) ${archivedClause}${demoClause} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
       [user.id, OrderStatus.PENDING, user.agencyId ?? null, limit, offset]
     );
   }
@@ -379,6 +381,10 @@ function buildRegistryScope(
     }
   } else {
     return null;
+  }
+
+  if (!userSeesDemoOrders(user)) {
+    where.push("o.id NOT LIKE 'DEMO-%'");
   }
 
   if (filters.externalSource === 'manual') {
@@ -1644,6 +1650,65 @@ export async function updateOrderContactFromMercadoLibre(
       order.status,
       'Mercado Libre',
       'Datos del destinatario actualizados (ya no ocultos por ML)',
+      now,
+    ]
+  );
+  return getOrderById(orderId);
+}
+
+/**
+ * Corrige dirección/coordenadas de un pedido marketplace cuando el
+ * reimport trae una dirección más completa (p. ej. altura que faltaba en TN).
+ * Por defecto solo toca pedidos abiertos; `force: true` también corrige
+ * entregados/cancelados (migración one-shot).
+ */
+export async function repairImportedOrderAddress(
+  orderId: string,
+  data: {
+    address: string;
+    lat: number;
+    lng: number;
+    sourceLabel?: string;
+    historyComment?: string;
+    notes?: string | null;
+    force?: boolean;
+  }
+): Promise<Order | null> {
+  const order = await getOrderById(orderId);
+  if (!order) return null;
+  if (
+    !data.force &&
+    (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED)
+  ) {
+    return null;
+  }
+
+  const nextAddress = data.address.trim();
+  if (!nextAddress) return null;
+  const nextNotes = data.notes !== undefined ? data.notes : order.notes ?? null;
+  if (
+    nextAddress === order.address &&
+    data.lat === order.lat &&
+    data.lng === order.lng &&
+    nextNotes === (order.notes ?? null)
+  ) {
+    return null;
+  }
+
+  const now = new Date();
+  await pool.query(
+    `UPDATE orders
+     SET address = ?, lat = ?, lng = ?, notes = ?, updated_at = ?
+     WHERE id = ?`,
+    [nextAddress, data.lat, data.lng, nextNotes, now, orderId]
+  );
+  await pool.query(
+    `INSERT INTO order_history (order_id, status, updated_by, comment, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [
+      orderId,
+      order.status,
+      data.sourceLabel ?? 'Marketplace',
+      data.historyComment ?? 'Dirección corregida al reimportar',
       now,
     ]
   );

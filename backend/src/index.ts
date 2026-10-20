@@ -81,6 +81,20 @@ async function start(): Promise<void> {
         '[startup] missed_feeds omitido (opcional): configurá ML_APP_OWNER_ACCESS_TOKEN si querés reprocesar notificaciones perdidas de ML'
       );
     }
+
+    // Corrige pedidos TN ya importados sin altura (idempotente; solo toca candidatos).
+    void import('./services/marketplace-import.service.js')
+      .then(({ repairTiendaNubeOrdersMissingStreetNumber }) =>
+        repairTiendaNubeOrdersMissingStreetNumber()
+      )
+      .then((result) => {
+        if (result.candidates > 0 || result.repaired > 0) {
+          console.log('[startup] repair TN addresses', result);
+        }
+      })
+      .catch((err) => {
+        console.warn('[startup] repair TN addresses falló:', err);
+      });
   });
 }
 
