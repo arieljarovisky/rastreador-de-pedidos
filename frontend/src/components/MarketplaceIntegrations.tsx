@@ -96,32 +96,22 @@ function formatShipmentDate(iso: string): string {
 function TnShippingMethodEditor({
   token,
   enabled,
-  methodName,
   onSaved,
 }: {
   token: string;
   enabled: boolean;
-  methodName: string;
   onSaved: () => Promise<void>;
 }) {
   const [on, setOn] = useState(enabled);
-  const [name, setName] = useState(methodName);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageOk, setMessageOk] = useState(true);
 
   useEffect(() => {
     setOn(enabled);
-    setName(methodName);
-  }, [enabled, methodName]);
+  }, [enabled]);
 
   const save = async () => {
-    const methodNameTrimmed = name.trim().replace(/\s+/g, ' ');
-    if (methodNameTrimmed.length < 2) {
-      setMessageOk(false);
-      setMessage('El nombre del método tiene que tener entre 2 y 40 caracteres.');
-      return;
-    }
     setSaving(true);
     setMessage(null);
     try {
@@ -131,17 +121,15 @@ function TnShippingMethodEditor({
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ enabled: on, methodName: methodNameTrimmed }),
+        body: JSON.stringify({ enabled: on }),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string; methodName?: string };
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error || 'No se pudo guardar el método de envío.');
-      const savedName = body.methodName ?? methodNameTrimmed;
-      setName(savedName);
       setMessageOk(true);
       setMessage(
         on
-          ? `Listo. En el checkout se ve como «${savedName}».`
-          : 'Listo. Tus clientes no ven el envío Posta en el checkout.'
+          ? 'Listo. En el checkout se ve como «Envíos en el día». El precio cambia según el cordón.'
+          : 'Listo. Tus clientes no ven Envíos en el día en el checkout.'
       );
       await onSaved();
     } catch (err: unknown) {
@@ -167,35 +155,16 @@ function TnShippingMethodEditor({
         />
         <span>
           <span className="block text-[11px] font-semibold text-[var(--color-text)]">
-            Mostrar envío Posta en el checkout
+            Mostrar Envíos en el día en el checkout
           </span>
           <span className="block text-[10px] text-[var(--color-text-muted)] leading-relaxed">
-            Viene apagado. Si lo activás, tus clientes lo ven en AMBA con el nombre que elijas.
+            Viene apagado. Si lo activás, tus clientes lo ven en AMBA como «Envíos en el día». El
+            precio sale del cordón de la dirección: CABA, 1°, 2° o 3°.
           </span>
         </span>
       </label>
-      <label className="flex flex-col gap-0.5">
-        <span className="mono-label">Nombre del método de envío</span>
-        <input
-          type="text"
-          maxLength={40}
-          value={name}
-          disabled={saving}
-          placeholder="Posta Express"
-          className={dateInputClass}
-          onChange={(e) => {
-            setName(e.target.value);
-            setMessage(null);
-          }}
-        />
-      </label>
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className={btnPrimary}
-          disabled={saving || name.trim().length < 2}
-          onClick={() => void save()}
-        >
+        <button type="button" className={btnPrimary} disabled={saving} onClick={() => void save()}>
           <span className="inline-flex items-center gap-1">
             {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
             {saving ? 'Guardando…' : 'Guardar método'}
@@ -1133,7 +1102,7 @@ export default function MarketplaceIntegrations({
         />
         <PlatformCard
           title="Tienda Nube"
-          subtitle="Envío en el checkout, apagado hasta que lo actives · sync + import"
+          subtitle="Envíos en el día · el precio cambia según el cordón · sync + import"
           icon={
             <MarketplaceSourceIcon
               source="tiendanube"
@@ -1169,7 +1138,6 @@ export default function MarketplaceIntegrations({
             <TnShippingMethodEditor
               token={token}
               enabled={status.tiendanube.shippingEnabled === true}
-              methodName={status.tiendanube.shippingMethodName ?? 'Posta Express'}
               onSaved={onRefreshStatus}
             />
           ) : null}

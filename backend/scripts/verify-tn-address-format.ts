@@ -65,7 +65,7 @@ const order = {
   payment_status: 'paid',
   status: 'open',
   customer: { name: 'Sofia Nacarato', phone: '+541130546362' },
-  shipping_option: 'Posta Express',
+  shipping_option: 'Envíos en el día',
   shipping_address: {
     name: 'Sofia Nacarato',
     phone: '+541130546362',

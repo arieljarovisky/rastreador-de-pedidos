@@ -297,6 +297,8 @@ function isExpressShipping(text: string | undefined): boolean {
     normalized.includes('urgente') ||
     normalized.includes('same day') ||
     normalized.includes('sameday') ||
+    normalized.includes('en el dia') ||
+    normalized.includes('mismo dia') ||
     normalized.includes('flash')
   ) {
     return true;
@@ -452,7 +454,10 @@ export function mapTiendaNubeOrderToShipment(order: TnOrder): TiendaNubeExpressS
     'Envío';
 
   const isPosta = orderIsPostaExpress(order);
-  const prefix = isPosta ? 'Posta Express' : 'Tienda Nube Express';
+  const prefix =
+    isPosta || normalizeShippingText(shippingLabel).includes('en el dia')
+      ? 'Envíos en el día'
+      : 'Tienda Nube Express';
 
   return {
     externalId: String(order.id),
@@ -683,35 +688,21 @@ export async function ensureTiendaNubeOrderWebhooks(
 
 const POSTA_CARRIER_NAME = 'Posta';
 const POSTA_EXPRESS_OPTION_CODE = 'express';
-export const DEFAULT_TN_SHIPPING_METHOD_NAME = 'Posta Express';
-const TN_SHIPPING_METHOD_NAME_MAX = 40;
+export const DEFAULT_TN_SHIPPING_METHOD_NAME = 'Envíos en el día';
 
 export interface TiendaNubeShippingMethodSettings {
   enabled: boolean;
   methodName: string;
 }
 
-/** Sin elección explícita del vendedor, el método no se ofrece en el checkout. */
+/** Sin elección explícita del vendedor, el método no se ofrece en el checkout. El nombre es fijo. */
 export function readTiendaNubeShippingMethodSettings(
   metadata: Record<string, unknown> | null | undefined
 ): TiendaNubeShippingMethodSettings {
-  const raw = typeof metadata?.shippingMethodName === 'string' ? metadata.shippingMethodName.trim() : '';
   return {
     enabled: metadata?.shippingEnabled === true,
-    methodName:
-      raw.length >= 2 && raw.length <= TN_SHIPPING_METHOD_NAME_MAX
-        ? raw
-        : DEFAULT_TN_SHIPPING_METHOD_NAME,
+    methodName: DEFAULT_TN_SHIPPING_METHOD_NAME,
   };
-}
-
-export function normalizeTiendaNubeShippingMethodName(value: unknown): string {
-  if (typeof value !== 'string') throw new Error('TN_SHIPPING_NAME_INVALID');
-  const name = value.trim().replace(/\s+/g, ' ');
-  if (name.length < 2 || name.length > TN_SHIPPING_METHOD_NAME_MAX) {
-    throw new Error('TN_SHIPPING_NAME_INVALID');
-  }
-  return name;
 }
 
 export function getTiendaNubeShippingRatesUrl(): string {
@@ -856,7 +847,7 @@ async function updateTiendaNubeShippingCarrierOption(
 
 /**
  * Registra el carrier Posta en la tienda y aplica si está activo y con qué nombre.
- * Sin `settings`, usa lo guardado: apagado y «Posta Express» si el vendedor no eligió.
+ * Sin `settings`, usa lo guardado: apagado y «Envíos en el día» si el vendedor no lo activó.
  */
 export async function ensureTiendaNubeShippingCarrier(
   integration: StoreIntegration,
@@ -942,14 +933,14 @@ export async function ensureTiendaNubeShippingCarrier(
 
 export async function saveTiendaNubeShippingMethod(
   userId: string,
-  input: { enabled: unknown; methodName: unknown }
+  input: { enabled: unknown }
 ): Promise<TiendaNubeShippingMethodSettings> {
   const integration = await getIntegration(userId, 'tiendanube');
   if (!integration) throw new Error('TN_NOT_CONNECTED');
   if (typeof input.enabled !== 'boolean') throw new Error('TN_SHIPPING_ENABLED_INVALID');
   const settings: TiendaNubeShippingMethodSettings = {
     enabled: input.enabled,
-    methodName: normalizeTiendaNubeShippingMethodName(input.methodName),
+    methodName: DEFAULT_TN_SHIPPING_METHOD_NAME,
   };
   await ensureTiendaNubeShippingCarrier(integration, settings);
   return settings;

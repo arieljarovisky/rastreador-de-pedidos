@@ -71,7 +71,7 @@ export default function SellerCustomerRates({ token }: { token: string }) {
       });
       const data = await api.saveSellerCustomerRates(token, payload);
       apply(data.zones);
-      Alert.alert('Listo', 'Tus clientes van a ver estos precios en Tienda Nube.');
+      Alert.alert('Listo', 'En el checkout, Envíos en el día cobra según el cordón.');
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'No se pudieron guardar los precios.');
     } finally {
@@ -83,8 +83,8 @@ export default function SellerCustomerRates({ token }: { token: string }) {
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Precios para tus clientes</Text>
       <Text style={styles.hint}>
-        Es lo que paga tu cliente por el envío Posta en Tienda Nube, si lo tenés activado. Si dejás una
-        zona vacía, ve el mismo importe que te cobra Posta. En Mercado Libre, Shopify y WooCommerce el
+        Es lo que paga tu cliente por Envíos en el día en Tienda Nube, según el cordón. Si dejás uno
+        vacío, ve el mismo importe que te cobra Posta. En Mercado Libre, Shopify y WooCommerce el
         precio se define en cada tienda.
       </Text>
       {loading ? (

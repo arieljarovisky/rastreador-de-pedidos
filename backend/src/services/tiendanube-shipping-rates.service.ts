@@ -51,17 +51,28 @@ function argentinaIsoOffset(date: Date): string {
   return `${y}-${m}-${d}T${hh}:${mm}:${ss}-0300`;
 }
 
+/** Ventana del mismo día en Argentina: desde ahora hasta las 23:59. */
 function deliveryWindow(): { min: string; max: string } {
   const now = new Date();
-  const min = new Date(now.getTime() + 4 * 60 * 60 * 1000);
-  const max = new Date(now.getTime() + 28 * 60 * 60 * 1000);
-  return { min: argentinaIsoOffset(min), max: argentinaIsoOffset(max) };
+  const art = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+  const endOfDayArtAsUtc = Date.UTC(
+    art.getUTCFullYear(),
+    art.getUTCMonth(),
+    art.getUTCDate(),
+    23,
+    59,
+    59
+  );
+  const end = new Date(endOfDayArtAsUtc + 3 * 60 * 60 * 1000);
+  const min = now.getTime() < end.getTime() ? now : new Date(end.getTime() - 60 * 1000);
+  return { min: argentinaIsoOffset(min), max: argentinaIsoOffset(end) };
 }
 
 /**
- * Cotiza Posta Express para el callback de Shipping Carrier de TN.
- * `price` es el importe que el vendedor eligió para sus clientes; si no eligió, la tarifa Express de Posta.
- * `price_merchant` es lo que Posta le cobra al vendedor.
+ * Cotiza «Envíos en el día» para el callback de Shipping Carrier de TN.
+ * El precio sale del cordón de la dirección (CABA, 1°, 2° o 3°).
+ * `price` es el importe que el vendedor eligió para sus clientes; si no eligió, la tarifa de Posta de ese cordón.
+ * `price_merchant` es lo que Posta le cobra al vendedor en ese cordón.
  * Fuera de cobertura AMBA → 422 (Posta no aparece en checkout).
  */
 export async function quoteTiendaNubePostaExpressRates(
@@ -139,7 +150,7 @@ export async function quoteTiendaNubePostaExpressRates(
         phone_required: true,
         min_delivery_date: min,
         max_delivery_date: max,
-        reference: 'posta_express',
+        reference: 'posta_envios_en_el_dia',
       },
     ],
   };

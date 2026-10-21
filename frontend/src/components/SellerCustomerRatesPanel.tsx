@@ -108,7 +108,7 @@ export default function SellerCustomerRatesPanel({ token }: { token: string }) {
       if (!res.ok) throw new Error(body.error || 'No se pudieron guardar los precios.');
       applyZones(body.zones ?? []);
       setMessageOk(true);
-      setMessage('Precios guardados. Tus clientes los van a ver en Tienda Nube.');
+      setMessage('Precios guardados. En el checkout, Envíos en el día cobra según el cordón.');
     } catch (err: unknown) {
       setMessageOk(false);
       setMessage(err instanceof Error ? err.message : 'No se pudieron guardar los precios.');
@@ -128,14 +128,14 @@ export default function SellerCustomerRatesPanel({ token }: { token: string }) {
             Precios para tus clientes
           </p>
           <p className="mono-label mt-0.5 truncate normal-case tracking-normal">
-            Checkout de Tienda Nube · envío Posta
+            Checkout de Tienda Nube · Envíos en el día
           </p>
         </div>
       </div>
 
       <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
-        Elegí cuánto paga tu cliente por el envío Posta en cada zona. Si dejás una zona vacía, ve el
-        mismo importe que te cobra Posta. Lo que Posta te factura al entregar no cambia.
+        Elegí cuánto paga tu cliente por Envíos en el día en cada cordón. Si dejás uno vacío, ve el
+        mismo importe que te cobra Posta en ese cordón. Lo que Posta te factura al entregar no cambia.
       </p>
       <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed mt-1">
         En Mercado Libre, Shopify y WooCommerce el precio al cliente se define en cada tienda.
