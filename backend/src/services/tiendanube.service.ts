@@ -968,6 +968,46 @@ export async function ensureTiendaNubeShippingCarrier(
   return { carrierId: carrier.id, optionId: option.id };
 }
 
+const expressAdditionalDaysCleared = new Set<string>();
+
+/**
+ * Días extra que Tienda Nube le suma a la fecha que devolvemos.
+ * Si la opción los tiene, los deja en 0 para las próximas cotizaciones
+ * y devuelve el valor que esta cotización todavía va a sumar.
+ */
+export async function readTiendaNubeExpressAdditionalDays(
+  integration: StoreIntegration
+): Promise<number> {
+  const storeId = integration.externalStoreId;
+  if (!storeId || expressAdditionalDaysCleared.has(storeId)) return 0;
+
+  const carrierId =
+    typeof integration.metadata?.shippingCarrierId === 'number'
+      ? integration.metadata.shippingCarrierId
+      : null;
+  if (carrierId == null) return 0;
+
+  const options = await listTiendaNubeShippingCarrierOptions(
+    storeId,
+    integration.accessToken,
+    carrierId
+  );
+  const option = options.find((o) => o.code === POSTA_EXPRESS_OPTION_CODE);
+  const days = Math.max(0, Math.trunc(Number(option?.additional_days) || 0));
+  if (option && days > 0) {
+    await updateTiendaNubeShippingCarrierOption(
+      storeId,
+      integration.accessToken,
+      carrierId,
+      option.id,
+      readTiendaNubeShippingMethodSettings(integration.metadata)
+    );
+    console.log('[TN] additional_days de Envío Express pasado a 0', { storeId, days });
+  }
+  expressAdditionalDaysCleared.add(storeId);
+  return days;
+}
+
 export async function saveTiendaNubeShippingMethod(
   userId: string,
   input: { enabled: unknown; methodName?: unknown }

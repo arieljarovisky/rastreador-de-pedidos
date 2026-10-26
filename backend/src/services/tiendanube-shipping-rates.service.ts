@@ -1,6 +1,6 @@
 import { findTiendaNubeIntegrationByStoreId } from './integrations.service.js';
 import {
-  ensureTiendaNubeShippingCarrier,
+  readTiendaNubeExpressAdditionalDays,
   readTiendaNubeShippingMethodSettings,
 } from './tiendanube.service.js';
 import { getUserById, resolveSalesCutoffHour, resolveWorksOnHolidays } from './users.service.js';
@@ -29,7 +29,7 @@ export interface TnShippingRatesRequest {
     country?: string;
   };
   carrier?: {
-    options?: Array<{ code?: string; name?: string; additional_days?: number }>;
+    options?: Array<{ code?: string; name?: string; additional_days?: unknown }>;
   };
 }
 
@@ -51,7 +51,17 @@ export type TnShippingRatesResult =
   | { ok: false; status: 422; reason: string };
 
 function tnDeliveryIso(dateKey: string, hour: number, minute = 0): string {
-  return `${dateKey}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-0300`;
+  return `${dateKey}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-03:00`;
+}
+
+function asAdditionalDays(value: unknown): number {
+  const raw =
+    value && typeof value === 'object' && 'days' in value
+      ? (value as { days?: unknown }).days
+      : value;
+  const n = typeof raw === 'number' || typeof raw === 'string' ? Number(raw) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(14, Math.trunc(n));
 }
 
 /** TN suma additional_days de la opción encima de min/max. */
@@ -59,9 +69,7 @@ export function readExpressAdditionalDays(payload: TnShippingRatesRequest): numb
   const options = payload.carrier?.options ?? [];
   const match =
     options.find((o) => (o.code ?? '').toLowerCase() === 'express') ?? options[0];
-  const n = Number(match?.additional_days);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.min(14, Math.trunc(n));
+  return asAdditionalDays(match?.additional_days);
 }
 
 /**
@@ -170,11 +178,12 @@ export async function quoteTiendaNubePostaExpressRates(
 
   const currency = (payload.currency ?? 'ARS').toUpperCase();
   const calendar = await resolveSellerDeliveryCalendar(seller.id, seller.agencyId);
-  const additionalDays = readExpressAdditionalDays(payload);
-  if (additionalDays > 0) {
-    void ensureTiendaNubeShippingCarrier(integration).catch((err) => {
-      console.warn('[tn-rates] no se pudo poner additional_days en 0:', err);
-    });
+  let additionalDays = readExpressAdditionalDays(payload);
+  try {
+    const storedDays = await readTiendaNubeExpressAdditionalDays(integration);
+    additionalDays = Math.max(additionalDays, storedDays);
+  } catch (err) {
+    console.warn('[tn-rates] no se pudieron leer los días extra de la opción:', err);
   }
   const { min, max } = buildTiendaNubeDeliveryWindow(
     new Date(),
@@ -182,6 +191,15 @@ export async function quoteTiendaNubePostaExpressRates(
     calendar.opts,
     additionalDays
   );
+  console.log('[tn-rates] cotización', {
+    store_id: storeId,
+    postal,
+    cutoffHour: calendar.deadlineHour,
+    additionalDays,
+    carrierOptions: payload.carrier?.options ?? null,
+    min_delivery_date: min,
+    max_delivery_date: max,
+  });
 
   return {
     ok: true,
