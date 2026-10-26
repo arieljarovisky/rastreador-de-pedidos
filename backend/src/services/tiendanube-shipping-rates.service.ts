@@ -75,23 +75,25 @@ export function readExpressAdditionalDays(payload: TnShippingRatesRequest): numb
 
 /**
  * Día de entrega del checkout: mismo día si compra antes del corte;
- * si ya pasó, el próximo hábil. TN le suma additional_days a lo que devolvemos,
- * así que se los restamos acá. Min y max van a las 12:00 ART (mismo instante)
- * para que no arme un rango ni se corra al día siguiente en UTC.
+ * si ya pasó, el próximo hábil.
+ * Tienda Nube muestra un día más que la fecha que mandamos, aunque additional_days sea 0.
+ * Por eso enviamos el día anterior, a las 12:00 ART, para que en el checkout quede el día real.
  */
 export function buildTiendaNubeDeliveryWindow(
   now: Date = new Date(),
   deadlineHour: number = DELIVERY_DEADLINE_HOUR,
   opts?: BusinessDayOptions,
   additionalDays = 0
-): { min: string; max: string } {
+): { min: string; max: string; operationalDate: string } {
   const deadline = computeDeliveryDeadline(now, deadlineHour, opts);
   let dateKey = getOperationalDateKey(deadline);
   if (additionalDays > 0) {
     dateKey = shiftOperationalDateKey(dateKey, -additionalDays);
   }
-  const iso = tnDeliveryIso(dateKey, 12);
-  return { min: iso, max: iso };
+  const operationalDate = dateKey;
+  const sent = shiftOperationalDateKey(dateKey, -1);
+  const iso = tnDeliveryIso(sent, 12);
+  return { min: iso, max: iso, operationalDate };
 }
 
 async function resolveSellerDeliveryCalendar(
@@ -186,7 +188,7 @@ export async function quoteTiendaNubePostaExpressRates(
   } catch (err) {
     console.warn('[tn-rates] no se pudieron leer los días extra de la opción:', err);
   }
-  const { min, max } = buildTiendaNubeDeliveryWindow(
+  const { min, max, operationalDate } = buildTiendaNubeDeliveryWindow(
     new Date(),
     calendar.deadlineHour,
     calendar.opts,
@@ -197,6 +199,7 @@ export async function quoteTiendaNubePostaExpressRates(
     postal,
     cutoffHour: calendar.deadlineHour,
     additionalDays,
+    operationalDate,
     carrierOptions: payload.carrier?.options ?? null,
     min_delivery_date: min,
     max_delivery_date: max,
