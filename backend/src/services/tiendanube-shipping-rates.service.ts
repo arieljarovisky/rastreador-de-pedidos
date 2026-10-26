@@ -76,8 +76,8 @@ export function readExpressAdditionalDays(payload: TnShippingRatesRequest): numb
 /**
  * Día de entrega del checkout: mismo día si compra antes del corte;
  * si ya pasó, el próximo hábil.
- * La doc de tarifas usa `YYYY-MM-DDTHH:mm:ss-0300`. Min y max van al mismo
- * instante para que no arme un rango. Tienda Nube suma `additional_days` encima.
+ * Con `2026-10-26T14:48:45-0300` y additional_days 0, el checkout mostró el martes 27.
+ * Tienda Nube suma un día a la fecha del ejemplo, así que enviamos el día anterior.
  */
 export function buildTiendaNubeDeliveryWindow(
   now: Date = new Date(),
@@ -90,8 +90,10 @@ export function buildTiendaNubeDeliveryWindow(
   if (additionalDays > 0) {
     dateKey = shiftOperationalDateKey(dateKey, -additionalDays);
   }
-  const iso = tnDeliveryIso(dateKey);
-  return { min: iso, max: iso, operationalDate: dateKey };
+  const operationalDate = dateKey;
+  const sent = shiftOperationalDateKey(dateKey, -1);
+  const iso = tnDeliveryIso(sent);
+  return { min: iso, max: iso, operationalDate };
 }
 
 async function resolveSellerDeliveryCalendar(
