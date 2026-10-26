@@ -51,7 +51,8 @@ export type TnShippingRatesResult =
   | { ok: false; status: 422; reason: string };
 
 function tnDeliveryIso(dateKey: string, hour: number, minute = 0): string {
-  return `${dateKey}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-03:00`;
+  // TN no interpreta el offset con dos puntos (-03:00) y termina mostrando el día siguiente.
+  return `${dateKey}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-0300`;
 }
 
 function asAdditionalDays(value: unknown): number {
