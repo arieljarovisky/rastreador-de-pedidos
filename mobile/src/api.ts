@@ -573,7 +573,7 @@ export const api = {
 
   saveTiendaNubeShippingMethod(
     token: string,
-    body: { enabled: boolean }
+    body: { enabled: boolean; methodName: string }
   ): Promise<{ connected: boolean; enabled: boolean; methodName: string }> {
     return request('/api/integrations/tiendanube/shipping-method', {
       method: 'PUT',

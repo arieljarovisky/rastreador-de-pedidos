@@ -198,6 +198,7 @@ export default function SellerSettingsScreen({ navigation }: Props) {
               <TiendaNubeShippingMethodForm
                 token={token}
                 enabled={status.tiendanube.shippingEnabled === true}
+                methodName={status.tiendanube.shippingMethodName}
                 onSaved={load}
               />
             ) : null

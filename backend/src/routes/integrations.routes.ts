@@ -423,6 +423,7 @@ router.put(
     try {
       const settings = await saveTiendaNubeShippingMethod(req.user!.id, {
         enabled: req.body?.enabled,
+        methodName: req.body?.methodName,
       });
       res.json({ connected: true, ...settings });
     } catch (err) {
@@ -433,6 +434,12 @@ router.put(
       }
       if (code === 'TN_SHIPPING_ENABLED_INVALID') {
         res.status(400).json({ error: 'Indicá si el envío Posta está activado.' });
+        return;
+      }
+      if (code === 'TN_SHIPPING_NAME_INVALID') {
+        res.status(400).json({
+          error: 'El nombre del método tiene que tener entre 2 y 40 caracteres.',
+        });
         return;
       }
       console.error('[TN] shipping-method:', err);

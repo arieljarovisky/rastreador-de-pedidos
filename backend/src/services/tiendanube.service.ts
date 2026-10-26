@@ -689,19 +689,42 @@ export async function ensureTiendaNubeOrderWebhooks(
 const POSTA_CARRIER_NAME = 'Posta';
 const POSTA_EXPRESS_OPTION_CODE = 'express';
 export const DEFAULT_TN_SHIPPING_METHOD_NAME = 'Envíos en el día';
+export const TN_SHIPPING_METHOD_NAME_MIN = 2;
+export const TN_SHIPPING_METHOD_NAME_MAX = 40;
 
 export interface TiendaNubeShippingMethodSettings {
   enabled: boolean;
   methodName: string;
 }
 
-/** Sin elección explícita del vendedor, el método no se ofrece en el checkout. El nombre es fijo. */
+export function parseTiendaNubeShippingMethodName(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('TN_SHIPPING_NAME_INVALID');
+  const name = value.trim().replace(/\s+/g, ' ');
+  if (
+    name.length < TN_SHIPPING_METHOD_NAME_MIN ||
+    name.length > TN_SHIPPING_METHOD_NAME_MAX
+  ) {
+    throw new Error('TN_SHIPPING_NAME_INVALID');
+  }
+  return name;
+}
+
+/** Sin elección explícita del vendedor, el método no se ofrece en el checkout. */
 export function readTiendaNubeShippingMethodSettings(
   metadata: Record<string, unknown> | null | undefined
 ): TiendaNubeShippingMethodSettings {
+  let methodName = DEFAULT_TN_SHIPPING_METHOD_NAME;
+  const stored = metadata?.shippingMethodName;
+  if (typeof stored === 'string') {
+    try {
+      methodName = parseTiendaNubeShippingMethodName(stored);
+    } catch {
+      methodName = DEFAULT_TN_SHIPPING_METHOD_NAME;
+    }
+  }
   return {
     enabled: metadata?.shippingEnabled === true,
-    methodName: DEFAULT_TN_SHIPPING_METHOD_NAME,
+    methodName,
   };
 }
 
@@ -933,14 +956,18 @@ export async function ensureTiendaNubeShippingCarrier(
 
 export async function saveTiendaNubeShippingMethod(
   userId: string,
-  input: { enabled: unknown }
+  input: { enabled: unknown; methodName?: unknown }
 ): Promise<TiendaNubeShippingMethodSettings> {
   const integration = await getIntegration(userId, 'tiendanube');
   if (!integration) throw new Error('TN_NOT_CONNECTED');
   if (typeof input.enabled !== 'boolean') throw new Error('TN_SHIPPING_ENABLED_INVALID');
+  const current = readTiendaNubeShippingMethodSettings(integration.metadata);
   const settings: TiendaNubeShippingMethodSettings = {
     enabled: input.enabled,
-    methodName: DEFAULT_TN_SHIPPING_METHOD_NAME,
+    methodName:
+      input.methodName === undefined
+        ? current.methodName
+        : parseTiendaNubeShippingMethodName(input.methodName),
   };
   await ensureTiendaNubeShippingCarrier(integration, settings);
   return settings;

@@ -1,10 +1,18 @@
 import { findTiendaNubeIntegrationByStoreId } from './integrations.service.js';
 import { readTiendaNubeShippingMethodSettings } from './tiendanube.service.js';
-import { getUserById } from './users.service.js';
+import { getUserById, resolveSalesCutoffHour, resolveWorksOnHolidays } from './users.service.js';
+import { resolveClosedDateKeys } from './closed-days.service.js';
 import { resolvePostalCodeForAgency } from './postal-code-geo.service.js';
 import { resolveShippingAmountForOrder } from './price-lists.service.js';
 import { resolveSellerCustomerPrice } from './seller-customer-rates.service.js';
 import { UserRole } from '../types/index.js';
+import {
+  computeDeliveryDeadline,
+  DELIVERY_DEADLINE_HOUR,
+  DELIVERY_SLA_HOUR,
+  getOperationalDateKey,
+  type BusinessDayOptions,
+} from '../utils/delivery-deadline.js';
 
 export interface TnShippingRatesRequest {
   store_id?: number | string;
@@ -39,33 +47,42 @@ export type TnShippingRatesResult =
   | { ok: true; rates: TnShippingRate[] }
   | { ok: false; status: 422; reason: string };
 
-function argentinaIsoOffset(date: Date): string {
-  // Argentina fijo UTC-3
-  const shifted = new Date(date.getTime() - 3 * 60 * 60 * 1000);
-  const y = shifted.getUTCFullYear();
-  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(shifted.getUTCDate()).padStart(2, '0');
-  const hh = String(shifted.getUTCHours()).padStart(2, '0');
-  const mm = String(shifted.getUTCMinutes()).padStart(2, '0');
-  const ss = String(shifted.getUTCSeconds()).padStart(2, '0');
-  return `${y}-${m}-${d}T${hh}:${mm}:${ss}-0300`;
+function tnDeliveryIso(dateKey: string, hour: number, minute = 0): string {
+  return `${dateKey}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-0300`;
 }
 
-/** Ventana del mismo día en Argentina: desde ahora hasta las 23:59. */
-function deliveryWindow(): { min: string; max: string } {
-  const now = new Date();
-  const art = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-  const endOfDayArtAsUtc = Date.UTC(
-    art.getUTCFullYear(),
-    art.getUTCMonth(),
-    art.getUTCDate(),
-    23,
-    59,
-    59
-  );
-  const end = new Date(endOfDayArtAsUtc + 3 * 60 * 60 * 1000);
-  const min = now.getTime() < end.getTime() ? now : new Date(end.getTime() - 60 * 1000);
-  return { min: argentinaIsoOffset(min), max: argentinaIsoOffset(end) };
+/**
+ * Día de entrega que ve el checkout: mismo corte, domingo y feriados que los pedidos Posta.
+ * Vie post-corte → sábado; sáb post-corte / domingo → lunes.
+ */
+export function buildTiendaNubeDeliveryWindow(
+  now: Date = new Date(),
+  deadlineHour: number = DELIVERY_DEADLINE_HOUR,
+  opts?: BusinessDayOptions
+): { min: string; max: string } {
+  const deadline = computeDeliveryDeadline(now, deadlineHour, opts);
+  const dateKey = getOperationalDateKey(deadline);
+  return {
+    min: tnDeliveryIso(dateKey, 9),
+    max: tnDeliveryIso(dateKey, DELIVERY_SLA_HOUR),
+  };
+}
+
+async function resolveSellerDeliveryCalendar(
+  sellerId: string,
+  agencyId: string
+): Promise<{ deadlineHour: number; opts: BusinessDayOptions }> {
+  try {
+    const [deadlineHour, worksOnHolidays, closedDateKeys] = await Promise.all([
+      resolveSalesCutoffHour({ sellerId, agencyId }),
+      resolveWorksOnHolidays({ sellerId, agencyId }),
+      resolveClosedDateKeys({ sellerId, agencyId }),
+    ]);
+    return { deadlineHour, opts: { worksOnHolidays, closedDateKeys } };
+  } catch (err) {
+    console.warn('[tn-rates] calendario de entrega no disponible, se usa el default:', err);
+    return { deadlineHour: DELIVERY_DEADLINE_HOUR, opts: { worksOnHolidays: false } };
+  }
 }
 
 /**
@@ -135,7 +152,12 @@ export async function quoteTiendaNubePostaExpressRates(
   }
 
   const currency = (payload.currency ?? 'ARS').toUpperCase();
-  const { min, max } = deliveryWindow();
+  const calendar = await resolveSellerDeliveryCalendar(seller.id, seller.agencyId);
+  const { min, max } = buildTiendaNubeDeliveryWindow(
+    new Date(),
+    calendar.deadlineHour,
+    calendar.opts
+  );
 
   return {
     ok: true,
