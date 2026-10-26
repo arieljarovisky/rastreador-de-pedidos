@@ -50,13 +50,9 @@ export type TnShippingRatesResult =
   | { ok: true; rates: TnShippingRate[] }
   | { ok: false; status: 422; reason: string };
 
-/**
- * La cotización de envío no usa el UTC con Z: con ese formato el checkout
- * vuelve a un rango de dos días. El formato que muestra un solo día es
- * `YYYY-MM-DDTHH:mm:ss-0300`, y Tienda Nube le suma un día.
- */
+/** Ejemplo de la doc de tarifas: `2016-07-12T14:48:45-0300`. */
 function tnDeliveryIso(dateKey: string): string {
-  return `${dateKey}T12:00:00-0300`;
+  return `${dateKey}T14:48:45-0300`;
 }
 
 function asAdditionalDays(value: unknown): number {
@@ -80,8 +76,8 @@ export function readExpressAdditionalDays(payload: TnShippingRatesRequest): numb
 /**
  * Día de entrega del checkout: mismo día si compra antes del corte;
  * si ya pasó, el próximo hábil.
- * Tienda Nube muestra el día siguiente al que va en `-0300`.
- * Mandamos el día anterior, a las 12:00, para que en el checkout quede el día real.
+ * La doc de tarifas usa `YYYY-MM-DDTHH:mm:ss-0300`. Min y max van al mismo
+ * instante para que no arme un rango. Tienda Nube suma `additional_days` encima.
  */
 export function buildTiendaNubeDeliveryWindow(
   now: Date = new Date(),
@@ -94,10 +90,8 @@ export function buildTiendaNubeDeliveryWindow(
   if (additionalDays > 0) {
     dateKey = shiftOperationalDateKey(dateKey, -additionalDays);
   }
-  const operationalDate = dateKey;
-  const sent = shiftOperationalDateKey(dateKey, -1);
-  const iso = tnDeliveryIso(sent);
-  return { min: iso, max: iso, operationalDate };
+  const iso = tnDeliveryIso(dateKey);
+  return { min: iso, max: iso, operationalDate: dateKey };
 }
 
 async function resolveSellerDeliveryCalendar(
