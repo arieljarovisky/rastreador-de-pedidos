@@ -1,5 +1,8 @@
 import { findTiendaNubeIntegrationByStoreId } from './integrations.service.js';
-import { readTiendaNubeShippingMethodSettings } from './tiendanube.service.js';
+import {
+  ensureTiendaNubeShippingCarrier,
+  readTiendaNubeShippingMethodSettings,
+} from './tiendanube.service.js';
 import { getUserById, resolveSalesCutoffHour, resolveWorksOnHolidays } from './users.service.js';
 import { resolveClosedDateKeys } from './closed-days.service.js';
 import { resolvePostalCodeForAgency } from './postal-code-geo.service.js';
@@ -9,8 +12,8 @@ import { UserRole } from '../types/index.js';
 import {
   computeDeliveryDeadline,
   DELIVERY_DEADLINE_HOUR,
-  DELIVERY_SLA_HOUR,
   getOperationalDateKey,
+  shiftOperationalDateKey,
   type BusinessDayOptions,
 } from '../utils/delivery-deadline.js';
 
@@ -26,7 +29,7 @@ export interface TnShippingRatesRequest {
     country?: string;
   };
   carrier?: {
-    options?: Array<{ code?: string; name?: string }>;
+    options?: Array<{ code?: string; name?: string; additional_days?: number }>;
   };
 }
 
@@ -51,21 +54,35 @@ function tnDeliveryIso(dateKey: string, hour: number, minute = 0): string {
   return `${dateKey}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-0300`;
 }
 
+/** TN suma additional_days de la opción encima de min/max. */
+export function readExpressAdditionalDays(payload: TnShippingRatesRequest): number {
+  const options = payload.carrier?.options ?? [];
+  const match =
+    options.find((o) => (o.code ?? '').toLowerCase() === 'express') ?? options[0];
+  const n = Number(match?.additional_days);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(14, Math.trunc(n));
+}
+
 /**
- * Día de entrega que ve el checkout: mismo corte, domingo y feriados que los pedidos Posta.
- * Vie post-corte → sábado; sáb post-corte / domingo → lunes.
+ * Día de entrega del checkout: mismo día si compra antes del corte;
+ * si ya pasó, el próximo hábil. TN le suma additional_days a lo que devolvemos,
+ * así que se los restamos acá. Min y max van a las 12:00 ART (mismo instante)
+ * para que no arme un rango ni se corra al día siguiente en UTC.
  */
 export function buildTiendaNubeDeliveryWindow(
   now: Date = new Date(),
   deadlineHour: number = DELIVERY_DEADLINE_HOUR,
-  opts?: BusinessDayOptions
+  opts?: BusinessDayOptions,
+  additionalDays = 0
 ): { min: string; max: string } {
   const deadline = computeDeliveryDeadline(now, deadlineHour, opts);
-  const dateKey = getOperationalDateKey(deadline);
-  return {
-    min: tnDeliveryIso(dateKey, 9),
-    max: tnDeliveryIso(dateKey, DELIVERY_SLA_HOUR),
-  };
+  let dateKey = getOperationalDateKey(deadline);
+  if (additionalDays > 0) {
+    dateKey = shiftOperationalDateKey(dateKey, -additionalDays);
+  }
+  const iso = tnDeliveryIso(dateKey, 12);
+  return { min: iso, max: iso };
 }
 
 async function resolveSellerDeliveryCalendar(
@@ -153,10 +170,17 @@ export async function quoteTiendaNubePostaExpressRates(
 
   const currency = (payload.currency ?? 'ARS').toUpperCase();
   const calendar = await resolveSellerDeliveryCalendar(seller.id, seller.agencyId);
+  const additionalDays = readExpressAdditionalDays(payload);
+  if (additionalDays > 0) {
+    void ensureTiendaNubeShippingCarrier(integration).catch((err) => {
+      console.warn('[tn-rates] no se pudo poner additional_days en 0:', err);
+    });
+  }
   const { min, max } = buildTiendaNubeDeliveryWindow(
     new Date(),
     calendar.deadlineHour,
-    calendar.opts
+    calendar.opts,
+    additionalDays
   );
 
   return {

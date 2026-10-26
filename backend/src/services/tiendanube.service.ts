@@ -745,6 +745,7 @@ interface TnShippingCarrierOption {
   code: string;
   name: string;
   active?: boolean;
+  additional_days?: number;
 }
 
 async function listTiendaNubeShippingCarriers(
@@ -836,6 +837,8 @@ async function createTiendaNubeShippingCarrierOption(
       name: settings.methodName,
       allow_free_shipping: false,
       active: settings.enabled,
+      additional_days: 0,
+      additional_cost: 0,
     }),
   });
   if (!res.ok) {
@@ -860,6 +863,8 @@ async function updateTiendaNubeShippingCarrierOption(
       name: settings.methodName,
       allow_free_shipping: false,
       active: settings.enabled,
+      additional_days: 0,
+      additional_cost: 0,
     }),
   });
   if (!res.ok) {
@@ -927,7 +932,11 @@ export async function ensureTiendaNubeShippingCarrier(
       carrier.id,
       settings
     );
-  } else if (option.name !== settings.methodName || option.active !== settings.enabled) {
+  } else if (
+    option.name !== settings.methodName ||
+    option.active !== settings.enabled ||
+    (option.additional_days ?? 0) !== 0
+  ) {
     await updateTiendaNubeShippingCarrierOption(
       storeId,
       integration.accessToken,
@@ -935,7 +944,12 @@ export async function ensureTiendaNubeShippingCarrier(
       option.id,
       settings
     );
-    option = { ...option, name: settings.methodName, active: settings.enabled };
+    option = {
+      ...option,
+      name: settings.methodName,
+      active: settings.enabled,
+      additional_days: 0,
+    };
   }
 
   await upsertIntegration({
