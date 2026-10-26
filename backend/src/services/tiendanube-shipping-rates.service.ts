@@ -50,9 +50,10 @@ export type TnShippingRatesResult =
   | { ok: true; rates: TnShippingRate[] }
   | { ok: false; status: 422; reason: string };
 
-function tnDeliveryIso(dateKey: string, hour: number, minute = 0): string {
-  // TN no interpreta el offset con dos puntos (-03:00) y termina mostrando el día siguiente.
-  return `${dateKey}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-0300`;
+/** Mediodía en Argentina (UTC-3) del día operativo, en UTC con milisegundos. */
+function tnDeliveryIso(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 15, 0, 0, 0)).toISOString();
 }
 
 function asAdditionalDays(value: unknown): number {
@@ -76,8 +77,8 @@ export function readExpressAdditionalDays(payload: TnShippingRatesRequest): numb
 /**
  * Día de entrega del checkout: mismo día si compra antes del corte;
  * si ya pasó, el próximo hábil.
- * Tienda Nube muestra un día más que la fecha que mandamos, aunque additional_days sea 0.
- * Por eso enviamos el día anterior, a las 12:00 ART, para que en el checkout quede el día real.
+ * Tienda Nube guarda la fecha en UTC (`YYYY-MM-DDTHH:mm:ss.sssZ`).
+ * 15:00 UTC es el mediodía en Argentina, así el día calendario no se corre.
  */
 export function buildTiendaNubeDeliveryWindow(
   now: Date = new Date(),
@@ -90,10 +91,8 @@ export function buildTiendaNubeDeliveryWindow(
   if (additionalDays > 0) {
     dateKey = shiftOperationalDateKey(dateKey, -additionalDays);
   }
-  const operationalDate = dateKey;
-  const sent = shiftOperationalDateKey(dateKey, -1);
-  const iso = tnDeliveryIso(sent, 12);
-  return { min: iso, max: iso, operationalDate };
+  const iso = tnDeliveryIso(dateKey);
+  return { min: iso, max: iso, operationalDate: dateKey };
 }
 
 async function resolveSellerDeliveryCalendar(
