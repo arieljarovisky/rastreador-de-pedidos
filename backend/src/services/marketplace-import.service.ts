@@ -1,5 +1,6 @@
 import { User, Order, UserRole, OrderStatus } from '../types/index.js';
 import {
+  addressHasNonAmbaPostalCode,
   geocodeAddress,
   resolveImportCoordinates,
   stripApproxLocationNote,
@@ -1030,6 +1031,15 @@ export async function importTiendaNubeExpressShipment(
         emitOrderUpdated(current, sellerId);
       }
       return { kind: 'skipped', reason: skipReason, order: current };
+    }
+
+    // Express es cobertura AMBA: no importar Mendoza/interior aunque TN diga "Express".
+    if (addressHasNonAmbaPostalCode(shipment.address)) {
+      console.warn('[tn-import] fuera de cobertura AMBA, se omite Express', {
+        externalId: shipment.externalId,
+        address: shipment.address,
+      });
+      return { kind: 'skipped', reason: 'out_of_coverage' };
     }
 
     const coords = await resolveImportCoordinates(shipment.address);
