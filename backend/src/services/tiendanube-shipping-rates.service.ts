@@ -152,6 +152,7 @@ export async function quoteTiendaNubePostaExpressRates(
     city: payload.destination?.city ?? null,
     locality: payload.destination?.locality ?? null,
     province: payload.destination?.province ?? null,
+    country: payload.destination?.country ?? null,
   });
   if (!resolved) {
     return { ok: false, status: 422, reason: 'postal_code_unresolved' };

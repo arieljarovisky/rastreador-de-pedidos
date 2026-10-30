@@ -22,6 +22,7 @@ export interface PostalCodeGeoHints {
   city?: string | null;
   locality?: string | null;
   province?: string | null;
+  country?: string | null;
 }
 
 interface CacheRow extends RowDataPacket {
@@ -35,14 +36,24 @@ interface CacheRow extends RowDataPacket {
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
 const GEOCODE_BUDGET_MS = 2200;
 
-/** Normaliza CP argentino a dígitos (ej. C1425ABA → 1425, 1425 → 1425). */
+/**
+ * Normaliza CP argentino a 4 dígitos (ej. C1425ABA → 1425, 1425 → 1425).
+ * Solo acepta CP de 4 dígitos o CPA (letra + 4 dígitos + 3 letras): un zip de 5+
+ * dígitos (Uruguay 11000, México 11000) truncado caería en CABA.
+ */
 export function normalizeArgentinePostalCode(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const digits = String(raw).replace(/\D/g, '');
-  if (digits.length < 4) return null;
-  // CPA nuevo: 1 letra + 4 dígitos + 3 letras → tomar los 4 del medio ya extraídos
-  if (digits.length >= 4) return digits.slice(0, 4);
-  return null;
+  const compact = String(raw).replace(/[\s.-]/g, '').toUpperCase();
+  const match = /^([A-Z])?(\d{4})([A-Z]{3})?$/.exec(compact);
+  return match ? match[2] : null;
+}
+
+/** Letra de provincia del CPA (B = Buenos Aires, C = CABA), si viene. */
+function cpaProvinceLetter(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const compact = String(raw).replace(/[\s.-]/g, '').toUpperCase();
+  const match = /^([A-Z])\d{4}/.exec(compact);
+  return match ? match[1] : null;
 }
 
 function foldProvince(value: string): string {
@@ -51,6 +62,24 @@ function foldProvince(value: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+}
+
+const AMBA_PROVINCE_KEYS = new Set([
+  'caba',
+  'capital federal',
+  'ciudad de buenos aires',
+  'ciudad autonoma de buenos aires',
+  'buenos aires',
+  'bs as',
+  'bs.as',
+  'bs. as.',
+  'provincia de buenos aires',
+]);
+
+/** true si la provincia es Buenos Aires o CABA (puede ser AMBA; decide el CP). */
+export function provinceIsAmba(province: string | null | undefined): boolean {
+  if (!province) return false;
+  return AMBA_PROVINCE_KEYS.has(foldProvince(province));
 }
 
 /**
@@ -62,20 +91,15 @@ export function provinceIsOutsideAmba(province: string | null | undefined): bool
   if (!province) return false;
   const key = foldProvince(province);
   if (!key) return false;
-  if (
-    key === 'caba' ||
-    key === 'capital federal' ||
-    key === 'ciudad de buenos aires' ||
-    key === 'ciudad autonoma de buenos aires' ||
-    key === 'buenos aires' ||
-    key === 'bs as' ||
-    key === 'bs.as' ||
-    key === 'bs. as.' ||
-    key === 'provincia de buenos aires'
-  ) {
-    return false;
-  }
-  return true;
+  return !AMBA_PROVINCE_KEYS.has(key);
+}
+
+/** true si el país viene y no es Argentina. Sin país → false. */
+export function countryIsOutsideArgentina(country: string | null | undefined): boolean {
+  if (!country) return false;
+  const key = foldProvince(country);
+  if (!key) return false;
+  return key !== 'ar' && key !== 'arg' && key !== 'argentina';
 }
 
 /**
@@ -150,11 +174,25 @@ export async function resolvePostalCodeForAgency(
   hints?: PostalCodeGeoHints
 ): Promise<PostalCodeGeoResolved | null> {
   const postalCode = normalizeArgentinePostalCode(rawPostalCode);
-  const outsideByProvince = provinceIsOutsideAmba(hints?.province);
   const ambaByCp = postalCode ? ambaPointForPostalCode(postalCode) : null;
+  const rawPostalPresent = Boolean(rawPostalCode && String(rawPostalCode).trim());
+  const cpaLetter = cpaProvinceLetter(rawPostalCode);
 
   // Fuera de cobertura sin geocode: Express no debe cotizar en Mendoza/etc.
-  if (outsideByProvince || (postalCode && !ambaByCp)) {
+  // Ante la duda se corta: mostrar Express donde no llegamos es peor que no mostrarlo.
+  const outside =
+    countryIsOutsideArgentina(hints?.country) ||
+    provinceIsOutsideAmba(hints?.province) ||
+    // CP que vino pero no es un CP argentino válido (zip extranjero, basura).
+    (rawPostalPresent && !postalCode) ||
+    // CPA con letra de otra provincia (B = Buenos Aires, C = CABA).
+    (cpaLetter != null && cpaLetter !== 'B' && cpaLetter !== 'C') ||
+    (postalCode != null && !ambaByCp) ||
+    // Sin CP solo matcheamos por nombre si la provincia confirma BA/CABA:
+    // "Merlo", "Pilar", "Luján", "San Martín" existen también en el interior.
+    (!postalCode && !provinceIsAmba(hints?.province));
+
+  if (outside) {
     return {
       postalCode: postalCode ?? 'outside',
       lat: 0,
