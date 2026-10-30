@@ -151,6 +151,7 @@ export async function quoteTiendaNubePostaExpressRates(
   const resolved = await resolvePostalCodeForAgency(seller.agencyId, postal, {
     city: payload.destination?.city ?? null,
     locality: payload.destination?.locality ?? null,
+    province: payload.destination?.province ?? null,
   });
   if (!resolved) {
     return { ok: false, status: 422, reason: 'postal_code_unresolved' };
