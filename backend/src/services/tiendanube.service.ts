@@ -1065,7 +1065,7 @@ export async function pushTiendaNubePublicTracking(
       tracking_info: {
         code: tracking.code,
         url: tracking.url,
-        notify_customer: true,
+        notify_customer: false,
       },
     };
 
